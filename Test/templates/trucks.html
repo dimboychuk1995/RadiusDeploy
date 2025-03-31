@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Список грузовиков{% endblock %}
+{% block content %}
+    <h1>Список грузовиков:</h1>
+    <table class="table table-striped" id="trucks-table">
+        <thead>
+            <tr>
+                <th>Год</th>
+                <th>Производитель</th>
+                <th>Модель</th>
+                <th>Пробег</th>
+                <th>VIN</th>
+                <th>Файл</th>
+                <th>Тип</th>
+                <th>Unit Number</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for truck in trucks %}
+                <tr data-truck-id="{{ truck._id }}">
+                    <td>{{ truck.year }}</td>
+                    <td>{{ truck.make }}</td>
+                    <td>{{ truck.model }}</td>
+                    <td>{{ truck.mileage }}</td>
+                    <td>{{ truck.vin }}</td>
+                    <td>
+                        {% if truck.file_data %}
+                            <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.file_name or 'Файл' }}</a>
+                        {% else %}
+                            Нет файла
+                        {% endif %}
+                    </td>
+                    <td>{{ truck.type }}</td>
+                    <td>{{ truck.unit_number }}</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm edit-btn" data-truck-id="{{ truck._id }}">Редактировать</button>
+                        <button class="btn btn-danger btn-sm delete-btn" data-truck-id="{{ truck._id }}">Удалить</button>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button id="addTruckBtn" class="btn btn-primary">Добавить грузовик</button>
+
+    <div id="addTruckModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modal-title">Добавить новый грузовик</h2>
+            <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="year">Год:</label>
+                    <input type="text" class="form-control" id="year" name="year" required>
+                </div>
+                <div class="form-group">
+                    <label for="make">Производитель:</label>
+                    <input type="text" class="form-control" id="make" name="make" required>
+                </div>
+                <div class="form-group">
+                    <label for="model">Модель:</label>
+                    <input type="text" class="form-control" id="model" name="model" required>
+                </div>
+                <div class="form-group">
+                    <label for="mileage">Пробег:</label>
+                    <input type="text" class="form-control" id="mileage" name="mileage" required>
+                </div>
+                <div class="form-group">
+                    <label for="vin">VIN:</label>
+                    <input type="text" class="form-control" id="vin" name="vin" required>
+                </div>
+                <div class="form-group">
+                    <label for="file">Файл:</label>
+                    <input type="file" class="form-control-file" id="file" name="file">
+                </div>
+                <div class="form-group">
+                    <label for="type">Тип:</label>
+                    <select class="form-control" id="type" name="type" required>
+                        {% for truck_type in truck_types %}
+                            <option value="{{ truck_type }}">{{ truck_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="unit_number">Unit Number:</label>
+                    <input type="text" class="form-control" id="unit_number" name="unit_number" required>
+                </div>
+                <input type="hidden" id="truck_id" name="truck_id">
+                <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
+            </form>
+        </div>
+    </div>
+{% endblock %}
