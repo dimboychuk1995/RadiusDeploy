@@ -3,6 +3,7 @@ import logging
 from auth import auth_bp, login_manager
 from trucks import trucks_bp, trucks_list
 from drivers import drivers_bp
+from dispatch import dispatch_bp
 from flask_login import current_user
 import os
 
@@ -15,6 +16,7 @@ if not os.path.exists('uploads'):
 app.register_blueprint(auth_bp)
 app.register_blueprint(trucks_bp)
 app.register_blueprint(drivers_bp)
+app.register_blueprint(dispatch_bp)
 login_manager.init_app(app)
 
 

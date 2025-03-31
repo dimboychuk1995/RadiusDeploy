@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dispatch</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    {% include 'navbar.html' %}
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-6">
+                <h2>Водители</h2>
+                <ul class="list-group">
+                    {% for driver in drivers %}
+                        <li class="list-group-item">
+                            <strong>Имя:</strong> {{ driver.name }},
+                            <strong>Контакт:</strong> {{ driver.contact_number }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h2>Грузовики</h2>
+                <ul class="list-group">
+                    {% for truck in trucks %}
+                        <li class="list-group-item">
+                            <strong>Unit Number:</strong> {{ truck.unit_number }},
+                            <strong>Year:</strong> {{ truck.year }},
+                            <strong>Make:</strong> {{ truck.make }},
+                            <strong>Model:</strong> {{ truck.model }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
