@@ -17,6 +17,7 @@ try:
     client = MongoClient('mongodb://localhost:27017/')
     db = client['trucks_db']
     drivers_collection = db['drivers']
+    trucks_collection = db['trucks']  # Добавляем коллекцию траков
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB")
 except Exception as e:
@@ -28,16 +29,23 @@ except Exception as e:
 @login_required
 def drivers_list():
     try:
-        # Изменено: фильтрация по компании
+        # Получаем водителей и траков
         drivers = list(drivers_collection.find({'company': current_user.company}))
+        trucks = list(trucks_collection.find({'company': current_user.company}))
+
         for driver in drivers:
             driver['_id'] = str(driver['_id'])
             if "company" not in driver:
                 driver["company"] = None
-        return render_template('drivers.html', drivers=drivers)
+            driver['truck'] = str(driver.get('truck', ''))
+
+        for truck in trucks:
+            truck['_id'] = str(truck['_id'])
+
+        return render_template('drivers.html', drivers=drivers, trucks=trucks)
     except Exception as e:
-        logging.error(f"Error fetching drivers: {e}")
-        return render_template('error.html', message="Failed to retrieve drivers list")
+        logging.error(f"Error fetching drivers or trucks: {e}")
+        return render_template('error.html', message="Failed to retrieve drivers or trucks list")
 
 
 @drivers_bp.route('/add_driver', methods=['POST'])
@@ -49,7 +57,8 @@ def add_driver():
                 'name': request.form.get('name'),
                 'license_number': request.form.get('license_number'),
                 'contact_number': request.form.get('contact_number'),
-                'company': current_user.company
+                'company': current_user.company,
+                'truck': request.form.get('truck')  # Добавляем трак
             }
             drivers_collection.insert_one(driver_data)
             return redirect(url_for('drivers.drivers_list'))
@@ -67,7 +76,8 @@ def edit_driver(driver_id):
                 'name': request.form.get('name'),
                 'license_number': request.form.get('license_number'),
                 'contact_number': request.form.get('contact_number'),
-                'company': current_user.company
+                'company': current_user.company,
+                'truck': request.form.get('truck')  # Добавляем трак
             }
             drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
             return redirect(url_for('drivers.drivers_list'))

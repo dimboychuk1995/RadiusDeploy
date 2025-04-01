@@ -30,10 +30,8 @@ except Exception as e:
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 TRUCK_TYPES = ['Пикап', 'Семи']
 
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 @trucks_bp.route('/list', methods=['GET'])
 @login_required
@@ -55,7 +53,6 @@ def trucks_list():
     except Exception as e:
         logging.error(f"Error fetching trucks: {e}")
         return render_template('error.html', message=f"Failed to retrieve truck list. Error: {e}")
-
 
 @trucks_bp.route('/add_truck', methods=['POST'])
 @requires_role('admin')
@@ -92,7 +89,6 @@ def add_truck():
             logging.error(traceback.format_exc())
             return render_template('error.html', message="Failed to add truck")
 
-
 @trucks_bp.route('/edit_truck/<truck_id>', methods=['POST'])
 @requires_role('admin')
 def edit_truck(truck_id):
@@ -128,7 +124,6 @@ def edit_truck(truck_id):
             logging.error(traceback.format_exc())
             return render_template('error.html', message="Failed to edit truck")
 
-
 @trucks_bp.route('/delete_truck/<truck_id>', methods=['POST'])
 @requires_role('admin')
 def delete_truck(truck_id):
@@ -138,7 +133,6 @@ def delete_truck(truck_id):
     except Exception as e:
         logging.error(f"Error deleting truck: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete truck'})
-
 
 @trucks_bp.route('/get_file/<truck_id>')
 @login_required

@@ -8,6 +8,7 @@
                 <th>Имя</th>
                 <th>Номер лицензии</th>
                 <th>Номер контакта</th>
+                <th>Трак</th>
                 <th>Действия</th>
             </tr>
         </thead>
@@ -17,6 +18,7 @@
                     <td>{{ driver.name }}</td>
                     <td>{{ driver.license_number }}</td>
                     <td>{{ driver.contact_number }}</td>
+                    <td>{{ driver.truck }}</td>
                     <td>
                         <button class="btn btn-primary btn-sm edit-btn" data-driver-id="{{ driver._id }}">Редактировать</button>
                         <button class="btn btn-danger btn-sm delete-btn" data-driver-id="{{ driver._id }}">Удалить</button>
@@ -44,6 +46,15 @@
                 <div class="form-group">
                     <label for="contact_number">Номер контакта:</label>
                     <input type="text" class="form-control" id="contact_number" name="contact_number" required>
+                </div>
+                <div class="form-group">
+                    <label for="truck">Трак:</label>
+                    <select class="form-control" id="truck" name="truck">
+                        <option value="">Выберите трак</option>
+                        {% for truck in trucks %}
+                            <option value="{{ truck._id }}">{{ truck.make }} {{ truck.model }} ({{ truck.year }})</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 <input type="hidden" id="driver_id" name="driver_id">
                 <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
