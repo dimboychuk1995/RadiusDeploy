@@ -20,6 +20,7 @@
                             <th>Пикап дата</th>
                             <th>Деливери дата</th>
                             <th>Статус</th>
+                            <th>Rate Con</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -31,6 +32,13 @@
                                 <td>{{ load.pickup_date }}</td>
                                 <td>{{ load.delivery_date }}</td>
                                 <td>{{ load.status }}</td>
+                                <td>
+                                    {% if load.rate_con %}
+                                        <a href="{{ url_for('loads.get_rate_con', file_id=load.rate_con) }}" target="_blank">Скачать</a>
+                                    {% else %}
+                                        Нет файла
+                                    {% endif %}
+                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -40,7 +48,7 @@
         <div class="row">
             <div class="col-md-12">
                 <h2>Добавить новый груз</h2>
-                <form action="{{ url_for('loads.add_load') }}" method="POST">
+                <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="driver">Водитель</label>
                         <select id="driver" name="driver" class="form-control">
@@ -72,6 +80,10 @@
                             <option value="Пикапнут">Пикапнут</option>
                             <option value="Доставлен">Доставлен</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rate_con">Rate Con</label>
+                        <input type="file" id="rate_con" name="rate_con" class="form-control">
                     </div>
                     <button type="submit" class="btn btn-primary">Добавить</button>
                 </form>
