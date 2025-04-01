@@ -18,7 +18,7 @@ try:
     db = client['trucks_db']
     drivers_collection = db['drivers']
     trucks_collection = db['trucks']
-    users_collection = db['users']  # Коллекция пользователей
+    users_collection = db['users']  # Коллекция для пользователей
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB")
 except Exception as e:
@@ -106,3 +106,28 @@ def delete_driver(driver_id):
     except Exception as e:
         logging.error(f"Error deleting driver: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete driver'})
+
+
+@drivers_bp.route('/dispatch', methods=['GET'])
+@login_required
+def dispatch_list():
+    try:
+        # Получаем водителей, траков и диспетчеров
+        drivers = list(drivers_collection.find({'company': current_user.company}))
+        trucks = list(trucks_collection.find({'company': current_user.company}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
+
+        # Создаем словарь для поиска юнит номеров траков по их ID
+        truck_units = {str(truck['_id']): truck for truck in trucks}
+        dispatchers_dict = {str(dispatcher['_id']): dispatcher for dispatcher in dispatchers}
+
+        # Добавляем информацию о траке и диспетчере к водителям
+        for driver in drivers:
+            driver['_id'] = str(driver['_id'])
+            driver['truck'] = truck_units.get(driver.get('truck'), None)
+            driver['dispatcher'] = dispatchers_dict.get(driver.get('dispatcher'), None)
+
+        return render_template('dispatch.html', drivers=drivers)
+    except Exception as e:
+        logging.error(f"Error fetching drivers, trucks or dispatchers: {e}")
+        return render_template('error.html', message="Failed to retrieve drivers, trucks or dispatchers list")
