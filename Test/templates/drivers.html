@@ -8,7 +8,7 @@
                 <th>Имя</th>
                 <th>Номер лицензии</th>
                 <th>Номер контакта</th>
-                <th>Трак</th>
+                <th>Юнит номер трака</th>
                 <th>Действия</th>
             </tr>
         </thead>
@@ -18,7 +18,7 @@
                     <td>{{ driver.name }}</td>
                     <td>{{ driver.license_number }}</td>
                     <td>{{ driver.contact_number }}</td>
-                    <td>{{ driver.truck }}</td>
+                    <td>{{ driver.truck_unit }}</td>
                     <td>
                         <button class="btn btn-primary btn-sm edit-btn" data-driver-id="{{ driver._id }}">Редактировать</button>
                         <button class="btn btn-danger btn-sm delete-btn" data-driver-id="{{ driver._id }}">Удалить</button>

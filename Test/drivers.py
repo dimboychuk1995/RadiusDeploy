@@ -33,14 +33,14 @@ def drivers_list():
         drivers = list(drivers_collection.find({'company': current_user.company}))
         trucks = list(trucks_collection.find({'company': current_user.company}))
 
+        # Создаем словарь для поиска юнит номеров траков по их ID
+        truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
+
         for driver in drivers:
             driver['_id'] = str(driver['_id'])
             if "company" not in driver:
                 driver["company"] = None
-            driver['truck'] = str(driver.get('truck', ''))
-
-        for truck in trucks:
-            truck['_id'] = str(truck['_id'])
+            driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
 
         return render_template('drivers.html', drivers=drivers, trucks=trucks)
     except Exception as e:
