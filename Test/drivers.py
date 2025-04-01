@@ -127,7 +127,7 @@ def dispatch_list():
             driver['truck'] = truck_units.get(driver.get('truck'), None)
             driver['dispatcher'] = dispatchers_dict.get(driver.get('dispatcher'), None)
 
-        return render_template('dispatch.html', drivers=drivers)
+        return render_template('dispatch.html', drivers=drivers, dispatchers=dispatchers)
     except Exception as e:
         logging.error(f"Error fetching drivers, trucks or dispatchers: {e}")
         return render_template('error.html', message="Failed to retrieve drivers, trucks or dispatchers list")
