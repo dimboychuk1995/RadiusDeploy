@@ -5,6 +5,7 @@ from trucks import trucks_bp, trucks_list
 from drivers import drivers_bp
 from dispatch import dispatch_bp
 from flask_login import current_user
+from Test.loads import loads_bp  # Импортируем новый Blueprint
 import os
 
 app = Flask(__name__)
@@ -17,6 +18,7 @@ app.register_blueprint(auth_bp)
 app.register_blueprint(trucks_bp)
 app.register_blueprint(drivers_bp)
 app.register_blueprint(dispatch_bp)
+app.register_blueprint(loads_bp)  # Регистрируем новый Blueprint
 login_manager.init_app(app)
 
 
