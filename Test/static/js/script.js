@@ -181,3 +181,17 @@ if (driverSpan) {
         driverModal.style.display = "none";
     };
 }
+
+// Динамический поиск по юнит номеру
+document.getElementById('search-unit-number').addEventListener('input', function() {
+    let input = this.value.toLowerCase();
+    let rows = document.querySelectorAll('#trucks-table tbody tr');
+    rows.forEach(function(row) {
+        let unitNumber = row.querySelector('td:nth-child(8)').textContent.toLowerCase();
+        if (unitNumber.includes(input)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+});

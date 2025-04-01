@@ -2,6 +2,13 @@
 {% block title %}Список грузовиков{% endblock %}
 {% block content %}
     <h1>Список грузовиков:</h1>
+
+    <!-- Поле ввода для поиска по юнит номеру -->
+    <div class="form-group">
+        <label for="search-unit-number">Поиск по юнит номеру:</label>
+        <input type="text" class="form-control" id="search-unit-number" placeholder="Введите юнит номер">
+    </div>
+
     <table class="table table-striped" id="trucks-table">
         <thead>
             <tr>
@@ -90,4 +97,7 @@
             </form>
         </div>
     </div>
+
+    <!-- Подключаем скрипт -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}

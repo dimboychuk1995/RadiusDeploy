@@ -9,6 +9,7 @@
                 <th>Номер лицензии</th>
                 <th>Номер контакта</th>
                 <th>Юнит номер трака</th>
+                <th>Диспетчер</th>
                 <th>Действия</th>
             </tr>
         </thead>
@@ -19,6 +20,13 @@
                     <td>{{ driver.license_number }}</td>
                     <td>{{ driver.contact_number }}</td>
                     <td>{{ driver.truck_unit }}</td>
+                    <td>
+                        {% for dispatcher in dispatchers %}
+                            {% if driver.dispatcher == dispatcher._id %}
+                                {{ dispatcher.username }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
                     <td>
                         <button class="btn btn-primary btn-sm edit-btn" data-driver-id="{{ driver._id }}">Редактировать</button>
                         <button class="btn btn-danger btn-sm delete-btn" data-driver-id="{{ driver._id }}">Удалить</button>
@@ -56,9 +64,21 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="dispatcher">Диспетчер:</label>
+                    <select class="form-control" id="dispatcher" name="dispatcher">
+                        <option value="">Выберите диспетчера</option>
+                        {% for dispatcher in dispatchers %}
+                            <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <input type="hidden" id="driver_id" name="driver_id">
                 <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
             </form>
         </div>
     </div>
+
+    <!-- Подключаем скрипт -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 {% endblock %}
