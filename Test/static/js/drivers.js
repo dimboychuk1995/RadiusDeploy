@@ -1,80 +1,138 @@
+// drivers.js
+
+document.addEventListener("DOMContentLoaded", () => {
+  initClickableRows();
+  initDriverFilter();
+  initEditMode();
+  initTabs();
+  initDriverModalActions();
+});
+
 function initClickableRows() {
-    document.querySelectorAll("tr.clickable-row").forEach(row => {
-        row.addEventListener("click", () => {
-            const href = row.dataset.href;
-            if (href) {
-                window.location.href = href;
-            }
-        });
-    });
+  document.querySelectorAll(".clickable-row").forEach(row => {
+    const href = row.getAttribute("data-href");
+    if (href) {
+      row.addEventListener("click", () => window.location.href = href);
+    }
+  });
 }
 
 function initDriverFilter() {
-    const nameInput = document.getElementById("searchName");
-    const unitInput = document.getElementById("searchUnit");
-    const rows = document.querySelectorAll("#driversTable tbody tr");
+  const nameInput = document.getElementById("searchNameInput");
+  const unitInput = document.getElementById("searchUnitNumberInput");
+  const dispatcherSelect = document.getElementById("searchDispatcherSelect");
+  const table = document.getElementById("driversTable");
 
-    if (!nameInput || !unitInput || rows.length === 0) return;
+  if (!nameInput || !unitInput || !dispatcherSelect || !table) return;
 
-    const filterTable = () => {
-        const nameVal = nameInput.value.toLowerCase();
-        const unitVal = unitInput.value.toLowerCase();
+  const filterDrivers = () => {
+    const name = nameInput.value.toLowerCase();
+    const unit = unitInput.value.toLowerCase();
+    const dispatcher = dispatcherSelect.value.toLowerCase();
 
-        rows.forEach(row => {
-            const name = row.querySelector(".col-name")?.textContent.toLowerCase() || "";
-            const unit = row.querySelector(".col-unit")?.textContent.toLowerCase() || "";
-            const visible = name.includes(nameVal) && unit.includes(unitVal);
-            row.style.display = visible ? "" : "none";
-        });
-    };
+    table.querySelectorAll("tbody tr").forEach(row => {
+      const rowName = row.querySelector(".driver-name")?.textContent.toLowerCase() || "";
+      const rowUnit = row.querySelector(".truck-unit")?.textContent.toLowerCase() || "";
+      const rowDispatcher = row.querySelector(".dispatcher-name")?.textContent.toLowerCase() || "";
 
-    nameInput.addEventListener("input", filterTable);
-    unitInput.addEventListener("input", filterTable);
+      const matches = rowName.includes(name) && rowUnit.includes(unit) && rowDispatcher.includes(dispatcher);
+      row.style.display = matches ? "" : "none";
+    });
+  };
+
+  nameInput.addEventListener("input", filterDrivers);
+  unitInput.addEventListener("input", filterDrivers);
+  dispatcherSelect.addEventListener("change", filterDrivers);
 }
 
 function initEditMode() {
-    const editBtn = document.getElementById("editBtn");
-    const saveBtn = document.getElementById("saveBtn");
-    const form = document.querySelector("form");
+  const editBtn = document.getElementById("editBtn");
+  const saveBtn = document.getElementById("saveBtn");
+  const form = document.getElementById("editForm");
 
-    if (!editBtn || !saveBtn || !form) return;
+  if (!editBtn || !saveBtn || !form) return;
 
-    editBtn.addEventListener("click", () => {
-        form.querySelectorAll("input, select").forEach(el => {
-            el.removeAttribute("readonly");
-            el.removeAttribute("disabled");
-        });
-        editBtn.classList.add("d-none");
-        saveBtn.classList.remove("d-none");
-    });
+  editBtn.addEventListener("click", () => {
+    form.querySelectorAll("input, select").forEach(el => el.removeAttribute("disabled"));
+    editBtn.style.display = "none";
+    saveBtn.style.display = "inline-block";
+  });
 }
 
 function initTabs() {
-    const btnInfo = document.getElementById("btn-info");
-    const btnLoads = document.getElementById("btn-loads");
-    const infoSection = document.getElementById("info-section");
-    const loadsSection = document.getElementById("loads-section");
+  const btnInfo = document.getElementById("btn-info");
+  const btnLoads = document.getElementById("btn-loads");
+  const info = document.getElementById("info-section");
+  const loads = document.getElementById("loads-section");
 
-    if (!btnInfo || !btnLoads || !infoSection || !loadsSection) return;
-
+  if (btnInfo && btnLoads && info && loads) {
     btnInfo.addEventListener("click", () => {
-        infoSection.style.display = "block";
-        loadsSection.style.display = "none";
-        btnInfo.classList.add("active");
-        btnLoads.classList.remove("active");
+      info.style.display = "block";
+      loads.style.display = "none";
     });
-
     btnLoads.addEventListener("click", () => {
-        infoSection.style.display = "none";
-        loadsSection.style.display = "block";
-        btnLoads.classList.add("active");
-        btnInfo.classList.remove("active");
+      info.style.display = "none";
+      loads.style.display = "block";
     });
+  }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    initClickableRows();
-    initDriverFilter();
-    initEditMode();
-    initTabs();
-});
+function initDriverModalActions() {
+  const modal = document.getElementById("driverModal");
+  const openBtn = document.getElementById("addDriverBtn");
+  const closeBtn = document.getElementById("driverCloseBtn");
+  const form = document.getElementById("driverForm");
+  const title = document.getElementById("driverModalTitle");
+
+  window.openEditDriverModal = function (driverId) {
+    const row = document.getElementById(`driver-${driverId}`);
+    if (!row) return;
+
+    form.name.value = row.querySelector(".driver-name")?.textContent.trim();
+    form.license_number.value = row.querySelector(".driver-license")?.textContent.trim();
+    form.contact_number.value = row.querySelector(".driver-phone")?.textContent.trim();
+
+    // Заполняем select'ы по data-атрибутам
+    const truckId = row.getAttribute("data-truck-id");
+    const dispatcherId = row.getAttribute("data-dispatcher-id");
+    if (truckId) form.truck.value = truckId;
+    if (dispatcherId) form.dispatcher.value = dispatcherId;
+
+    form.action = `/edit_driver/${driverId}`;
+    title.textContent = "Редактировать водителя";
+    modal.style.display = "block";
+  };
+
+  window.deleteDriver = function (driverId) {
+    if (confirm("Удалить водителя?")) {
+      fetch(`/delete_driver/${driverId}`, { method: "POST" }).then(res => {
+        if (res.ok) {
+          document.getElementById(`driver-${driverId}`)?.remove();
+        } else {
+          alert("Ошибка при удалении");
+        }
+      });
+    }
+  };
+
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      form.reset();
+      form.action = "/drivers";
+      title.textContent = "Добавить водителя";
+      modal.style.display = "block";
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+  }
+
+  window.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      modal.style.display = "none";
+    }
+  });
+}

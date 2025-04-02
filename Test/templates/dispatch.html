@@ -7,8 +7,10 @@
 </head>
 <body>
     {% include 'navbar.html' %}
+
     <div class="container mt-4">
-        <div class="row mb-3">
+        <!-- Фильтры -->
+        <div class="row mb-3 gx-2">
             <div class="col-md-4">
                 <input type="text" id="searchName" class="form-control" placeholder="Поиск по имени">
             </div>
@@ -24,6 +26,8 @@
                 </select>
             </div>
         </div>
+
+        <!-- Таблица -->
         <div class="row">
             <div class="col-md-12">
                 <h2>Водители</h2>
@@ -37,7 +41,7 @@
                     </thead>
                     <tbody>
                         {% for driver in drivers %}
-                            <tr>
+                            <tr class="driver-row">
                                 <td class="driver-name">{{ driver.name }}</td>
                                 <td class="truck-unit">
                                     {% if driver.truck %}
@@ -60,9 +64,11 @@
             </div>
         </div>
     </div>
+
+    <!-- Скрипты -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script src="{{ url_for('static', filename='js/search.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
 </body>
 </html>

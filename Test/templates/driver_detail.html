@@ -4,8 +4,9 @@
     <title>{{ driver.name }} - Driver Details</title>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        .form-control[readonly] {
+        .form-control[readonly], .form-control[disabled] {
             background-color: #f8f9fa;
         }
         .list-group-item.active {
@@ -31,18 +32,18 @@
                 <!-- Информация о водителе -->
                 <div id="info-section">
                     <h4>Информация о водителе</h4>
-                    <form method="POST">
+                    <form method="POST" id="editForm">
                         <div class="form-group">
                             <label>Имя</label>
-                            <input type="text" class="form-control" name="name" value="{{ driver.name }}" readonly>
+                            <input type="text" class="form-control" name="name" value="{{ driver.name }}" disabled>
                         </div>
                         <div class="form-group">
                             <label>Номер лицензии</label>
-                            <input type="text" class="form-control" name="license_number" value="{{ driver.license_number }}" readonly>
+                            <input type="text" class="form-control" name="license_number" value="{{ driver.license_number }}" disabled>
                         </div>
                         <div class="form-group">
                             <label>Телефон</label>
-                            <input type="text" class="form-control" name="contact_number" value="{{ driver.contact_number }}" readonly>
+                            <input type="text" class="form-control" name="contact_number" value="{{ driver.contact_number }}" disabled>
                         </div>
                         <div class="form-group">
                             <label>Трак</label>
@@ -105,7 +106,7 @@
         </div>
     </div>
 
-    <!-- Подключаем JS -->
-    <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
+    <!-- Скрипты -->
+    <script src="{{ url_for('static', filename='js/driver_detail.js') }}"></script>
 </body>
 </html>

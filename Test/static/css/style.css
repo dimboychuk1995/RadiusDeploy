@@ -69,3 +69,7 @@
 .driver-details h4 {
     margin-top: 20px;
 }
+
+.search-bar-wrapper {
+  max-width: 100%;
+}

@@ -7,22 +7,45 @@
         <!-- Левое меню -->
         <div class="col-md-3">
             <div class="list-group">
-                <button class="list-group-item list-group-item-action active" data-section="drivers">Водители</button>
-                <button class="list-group-item list-group-item-action" data-section="trucks">Грузовики</button>
-                <button class="list-group-item list-group-item-action" data-section="dispatch">Диспетчер</button>
-                <button class="list-group-item list-group-item-action" data-section="loads">Грузы</button>
+                <button class="list-group-item list-group-item-action active" id="btn-trucks">Грузовики</button>
+                <button class="list-group-item list-group-item-action" id="btn-drivers">Водители</button>
+                <button class="list-group-item list-group-item-action" id="btn-dispatch">Диспетчер</button>
+                <button class="list-group-item list-group-item-action" id="btn-loads">Грузы</button>
             </div>
         </div>
 
-        <!-- Контент будет подгружаться сюда -->
+        <!-- Контент -->
         <div class="col-md-9">
-            <div id="content-area">
-                <p>Загрузка...</p>
+            <div id="section-trucks">
+                <h3>Грузовики</h3>
+                <p>Управление списком грузовиков вашей компании.</p>
+                <a href="{{ url_for('trucks.trucks_page') }}" class="btn btn-primary">Перейти к грузовикам</a>
+            </div>
+
+            <div id="section-drivers" style="display: none;">
+                <h3>Водители</h3>
+                <p>Управление списком водителей.</p>
+                <a href="{{ url_for('drivers.drivers_list') }}" class="btn btn-primary">Перейти к водителям</a>
+            </div>
+
+            <div id="section-dispatch" style="display: none;">
+                <h3>Диспетчер</h3>
+                <p>Контроль за грузами и взаимодействие с водителями.</p>
+                <a href="{{ url_for('drivers.dispatch_list') }}" class="btn btn-primary">Перейти к диспетчеру</a>
+            </div>
+
+            <div id="section-loads" style="display: none;">
+                <h3>Грузы</h3>
+                <p>Просмотр и управление списком грузов.</p>
+                <a href="{{ url_for('loads.loads_list') }}" class="btn btn-primary">Перейти к грузам</a>
             </div>
         </div>
     </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
-<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/loads.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/trucks.js') }}"></script>
 {% endblock %}
