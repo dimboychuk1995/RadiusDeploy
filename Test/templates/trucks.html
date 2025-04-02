@@ -25,12 +25,12 @@
         </thead>
         <tbody>
             {% for truck in trucks %}
-                <tr data-truck-id="{{ truck._id }}">
-                    <td>{{ truck.year }}</td>
-                    <td>{{ truck.make }}</td>
-                    <td>{{ truck.model }}</td>
-                    <td>{{ truck.mileage }}</td>
-                    <td>{{ truck.vin }}</td>
+                <tr id="truck-{{ truck._id }}">
+                    <td class="truck-year">{{ truck.year }}</td>
+                    <td class="truck-make">{{ truck.make }}</td>
+                    <td class="truck-model">{{ truck.model }}</td>
+                    <td class="truck-mileage">{{ truck.mileage }}</td>
+                    <td class="truck-vin">{{ truck.vin }}</td>
                     <td>
                         {% if truck.file_data %}
                             <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.file_name or 'Файл' }}</a>
@@ -38,11 +38,11 @@
                             Нет файла
                         {% endif %}
                     </td>
-                    <td>{{ truck.type }}</td>
-                    <td>{{ truck.unit_number }}</td>
+                    <td class="truck-type">{{ truck.type }}</td>
+                    <td class="truck-unit">{{ truck.unit_number }}</td>
                     <td>
-                        <button class="btn btn-primary btn-sm edit-btn" data-truck-id="{{ truck._id }}">Редактировать</button>
-                        <button class="btn btn-danger btn-sm delete-btn" data-truck-id="{{ truck._id }}">Удалить</button>
+                        <button class="btn btn-primary btn-sm edit-btn" onclick="openEditTruckModal('{{ truck._id }}')">Редактировать</button>
+                        <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck._id }}')">Удалить</button>
                     </td>
                 </tr>
             {% endfor %}
@@ -51,10 +51,10 @@
 
     <button id="addTruckBtn" class="btn btn-primary">Добавить грузовик</button>
 
-    <div id="addTruckModal" class="modal">
+    <div id="truckModal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modal-title">Добавить новый грузовик</h2>
+            <span id="truckCloseBtn" class="close">&times;</span>
+            <h2 id="truckModalTitle">Добавить новый грузовик</h2>
             <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="year">Год:</label>

@@ -1,4 +1,6 @@
-document.addEventListener("DOMContentLoaded", function () {
+// drivers.js
+
+document.addEventListener("DOMContentLoaded", () => {
   initClickableRows();
   initDriverFilter();
   initEditMode();
@@ -6,143 +8,131 @@ document.addEventListener("DOMContentLoaded", function () {
   initDriverModalActions();
 });
 
-// Кликабельные строки
 function initClickableRows() {
-  const rows = document.querySelectorAll(".clickable-row");
-  rows.forEach(row => {
-    row.addEventListener("click", () => {
-      const href = row.getAttribute("data-href");
-      if (href) window.location.href = href;
-    });
+  document.querySelectorAll(".clickable-row").forEach(row => {
+    const href = row.getAttribute("data-href");
+    if (href) {
+      row.addEventListener("click", () => window.location.href = href);
+    }
   });
 }
 
-// Фильтрация водителей
 function initDriverFilter() {
-  const searchNameInput = document.getElementById("searchNameInput");
-  const searchUnitInput = document.getElementById("searchUnitNumberInput");
-  const searchDispatcherSelect = document.getElementById("searchDispatcherSelect");
-  const driversTable = document.getElementById("driversTable");
+  const nameInput = document.getElementById("searchNameInput");
+  const unitInput = document.getElementById("searchUnitNumberInput");
+  const dispatcherSelect = document.getElementById("searchDispatcherSelect");
+  const table = document.getElementById("driversTable");
 
-  function filterDrivers() {
-    const nameFilter = searchNameInput.value.toLowerCase();
-    const unitFilter = searchUnitInput.value.toLowerCase();
-    const dispatcherFilter = searchDispatcherSelect.value.toLowerCase();
-    const rows = driversTable.querySelectorAll("tbody tr");
+  if (!nameInput || !unitInput || !dispatcherSelect || !table) return;
 
-    rows.forEach(row => {
-      const name = row.querySelector(".driver-name")?.textContent.toLowerCase() || "";
-      const unit = row.querySelector(".truck-unit")?.textContent.toLowerCase() || "";
-      const dispatcher = row.querySelector(".dispatcher-name")?.textContent.toLowerCase() || "";
+  const filterDrivers = () => {
+    const name = nameInput.value.toLowerCase();
+    const unit = unitInput.value.toLowerCase();
+    const dispatcher = dispatcherSelect.value.toLowerCase();
 
-      const matchName = name.includes(nameFilter);
-      const matchUnit = unit.includes(unitFilter);
-      const matchDispatcher = dispatcher.includes(dispatcherFilter);
+    table.querySelectorAll("tbody tr").forEach(row => {
+      const rowName = row.querySelector(".driver-name")?.textContent.toLowerCase() || "";
+      const rowUnit = row.querySelector(".truck-unit")?.textContent.toLowerCase() || "";
+      const rowDispatcher = row.querySelector(".dispatcher-name")?.textContent.toLowerCase() || "";
 
-      row.style.display = (matchName && matchUnit && matchDispatcher) ? "" : "none";
+      const matches = rowName.includes(name) && rowUnit.includes(unit) && rowDispatcher.includes(dispatcher);
+      row.style.display = matches ? "" : "none";
     });
-  }
+  };
 
-  searchNameInput?.addEventListener("input", filterDrivers);
-  searchUnitInput?.addEventListener("input", filterDrivers);
-  searchDispatcherSelect?.addEventListener("change", filterDrivers);
+  nameInput.addEventListener("input", filterDrivers);
+  unitInput.addEventListener("input", filterDrivers);
+  dispatcherSelect.addEventListener("change", filterDrivers);
 }
 
-// Режим редактирования на странице деталей водителя
 function initEditMode() {
   const editBtn = document.getElementById("editBtn");
   const saveBtn = document.getElementById("saveBtn");
   const form = document.getElementById("editForm");
 
-  if (editBtn && saveBtn && form) {
-    editBtn.addEventListener("click", () => {
-      form.querySelectorAll("input, select").forEach(field => {
-        field.removeAttribute("disabled");
-      });
-      editBtn.style.display = "none";
-      saveBtn.style.display = "inline-block";
-    });
-  }
+  if (!editBtn || !saveBtn || !form) return;
+
+  editBtn.addEventListener("click", () => {
+    form.querySelectorAll("input, select").forEach(el => el.removeAttribute("disabled"));
+    editBtn.style.display = "none";
+    saveBtn.style.display = "inline-block";
+  });
 }
 
-// Вкладки "Инфо / Грузы"
 function initTabs() {
   const btnInfo = document.getElementById("btn-info");
   const btnLoads = document.getElementById("btn-loads");
-  const infoSection = document.getElementById("info-section");
-  const loadsSection = document.getElementById("loads-section");
+  const info = document.getElementById("info-section");
+  const loads = document.getElementById("loads-section");
 
-  if (btnInfo && btnLoads && infoSection && loadsSection) {
+  if (btnInfo && btnLoads && info && loads) {
     btnInfo.addEventListener("click", () => {
-      infoSection.style.display = "block";
-      loadsSection.style.display = "none";
+      info.style.display = "block";
+      loads.style.display = "none";
     });
-
     btnLoads.addEventListener("click", () => {
-      infoSection.style.display = "none";
-      loadsSection.style.display = "block";
+      info.style.display = "none";
+      loads.style.display = "block";
     });
   }
 }
 
-// Модальное окно добавления/редактирования водителей
 function initDriverModalActions() {
-  const driverModal = document.getElementById("driverModal");
-  const addDriverBtn = document.getElementById("addDriverBtn");
-  const driverSpan = document.getElementById("driverCloseBtn");
-  const driverForm = document.getElementById("driverForm");
-  const driverModalTitle = document.getElementById("driverModalTitle");
-  const driverSaveButton = document.getElementById("driverSaveButton");
+  const modal = document.getElementById("driverModal");
+  const openBtn = document.getElementById("addDriverBtn");
+  const closeBtn = document.getElementById("driverCloseBtn");
+  const form = document.getElementById("driverForm");
+  const title = document.getElementById("driverModalTitle");
 
   window.openEditDriverModal = function (driverId) {
     const row = document.getElementById(`driver-${driverId}`);
     if (!row) return;
 
-    const name = row.querySelector(".driver-name")?.textContent.trim();
-    const license = row.querySelector(".driver-license")?.textContent.trim();
-    const phone = row.querySelector(".driver-phone")?.textContent.trim();
+    form.name.value = row.querySelector(".driver-name")?.textContent.trim();
+    form.license_number.value = row.querySelector(".driver-license")?.textContent.trim();
+    form.contact_number.value = row.querySelector(".driver-phone")?.textContent.trim();
 
-    driverForm.name.value = name;
-    driverForm.license_number.value = license;
-    driverForm.contact_number.value = phone;
+    // Заполняем select'ы по data-атрибутам
+    const truckId = row.getAttribute("data-truck-id");
+    const dispatcherId = row.getAttribute("data-dispatcher-id");
+    if (truckId) form.truck.value = truckId;
+    if (dispatcherId) form.dispatcher.value = dispatcherId;
 
-    driverForm.action = `/edit_driver/${driverId}`;
-    driverModalTitle.textContent = "Редактировать водителя";
-    driverModal.style.display = "block";
+    form.action = `/edit_driver/${driverId}`;
+    title.textContent = "Редактировать водителя";
+    modal.style.display = "block";
   };
 
   window.deleteDriver = function (driverId) {
-    if (confirm("Вы уверены, что хотите удалить этого водителя?")) {
-      fetch(`/delete_driver/${driverId}`, {
-        method: "POST",
-      }).then(response => {
-        if (response.ok) {
-          document.getElementById(`driver-${driverId}`).remove();
+    if (confirm("Удалить водителя?")) {
+      fetch(`/delete_driver/${driverId}`, { method: "POST" }).then(res => {
+        if (res.ok) {
+          document.getElementById(`driver-${driverId}`)?.remove();
         } else {
-          alert("Ошибка при удалении водителя.");
+          alert("Ошибка при удалении");
         }
       });
     }
   };
 
-  if (addDriverBtn && driverModal) {
-    addDriverBtn.addEventListener("click", () => {
-      driverForm.reset();
-      driverForm.action = "/drivers";
-      driverModalTitle.textContent = "Добавить водителя";
-      driverModal.style.display = "block";
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      form.reset();
+      form.action = "/drivers";
+      title.textContent = "Добавить водителя";
+      modal.style.display = "block";
     });
   }
 
-  if (driverSpan) {
-    driverSpan.addEventListener("click", () => {
-      driverModal.style.display = "none";
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
     });
   }
 
   window.addEventListener("click", (event) => {
-    if (event.target === driverModal) {
-      driverModal.style.display = "none";
+    if (event.target === modal) {
+      modal.style.display = "none";
     }
   });
 }

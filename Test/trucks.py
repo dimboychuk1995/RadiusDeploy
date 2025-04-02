@@ -28,7 +28,6 @@ except Exception as e:
     exit(1)
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
-TRUCK_TYPES = ['Пикап', 'Семи']
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -36,7 +35,8 @@ def allowed_file(filename):
 @trucks_bp.route('/trucks')
 def trucks_page():
     trucks = trucks_collection.find({'company': current_user.company})
-    return render_template('trucks.html', trucks=trucks)
+    truck_types = ["Pick Up", "SEMI"]  # или получи из базы, если надо
+    return render_template('trucks.html', trucks=trucks, truck_types=truck_types)
 
 @trucks_bp.route('/add_truck', methods=['POST'])
 @requires_role('admin')
@@ -67,7 +67,7 @@ def add_truck():
                 'company': current_user.company
             }
             trucks_collection.insert_one(truck_data)
-            return redirect(url_for('trucks.trucks_list'))
+            return redirect(url_for('trucks.trucks_page'))
         except Exception as e:
             logging.error(f"Error adding truck: {e}")
             logging.error(traceback.format_exc())
@@ -102,7 +102,7 @@ def edit_truck(truck_id):
                 'company': current_user.company
             }
             trucks_collection.update_one({'_id': ObjectId(truck_id)}, {'$set': updated_data})
-            return redirect(url_for('trucks.trucks_list'))
+            return redirect(url_for('trucks.trucks_page'))
         except Exception as e:
             logging.error(f"Error updating truck: {e}")
             logging.error(traceback.format_exc())

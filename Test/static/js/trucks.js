@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
 // === ПОИСК ПО ЮНИТУ ===
 function initTruckSearch() {
   const searchInput = document.getElementById("search-unit-number");
-  const truckTable = document.getElementById("truckTable");
+  const truckTable = document.getElementById("trucks-table");
 
   if (searchInput && truckTable) {
     searchInput.addEventListener("input", function () {

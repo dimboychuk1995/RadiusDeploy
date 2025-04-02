@@ -32,24 +32,29 @@ def drivers_list():
     try:
         drivers = list(drivers_collection.find({'company': current_user.company}))
         trucks = list(trucks_collection.find({'company': current_user.company}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
 
         truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
+        dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
 
         for driver in drivers:
             driver['_id'] = str(driver['_id'])
             driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
+            driver['dispatcher_name'] = dispatcher_map.get(driver.get('dispatcher'), 'Нет диспетчера')
 
         if request.method == 'POST':
             driver_data = {
                 'name': request.form.get('name'),
                 'license_number': request.form.get('license_number'),
                 'contact_number': request.form.get('contact_number'),
+                'truck': request.form.get('truck'),
+                'dispatcher': request.form.get('dispatcher'),
                 'company': current_user.company
             }
             drivers_collection.insert_one(driver_data)
             return redirect(url_for('drivers.drivers_list'))
 
-        return render_template('drivers.html', drivers=drivers, trucks=trucks)
+        return render_template('drivers.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers)
     except Exception as e:
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
@@ -120,8 +125,7 @@ def edit_driver(driver_id):
                 'license_number': request.form.get('license_number'),
                 'contact_number': request.form.get('contact_number'),
                 'truck': request.form.get('truck'),
-                'dispatcher': request.form.get('dispatcher'),
-                'company': current_user.company
+                'dispatcher': request.form.get('dispatcher')
             }
             drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
             return redirect(url_for('drivers.drivers_list'))
