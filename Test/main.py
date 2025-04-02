@@ -1,7 +1,7 @@
 from flask import Flask, render_template, session, redirect, url_for
 import logging
 from auth import auth_bp, login_manager
-from trucks import trucks_bp, trucks_list
+from trucks import trucks_bp
 from drivers import drivers_bp
 from dispatch import dispatch_bp
 from flask_login import current_user
@@ -34,11 +34,6 @@ def index():
         return render_template('index.html')
     else:
         return redirect(url_for('auth.login'))
-
-
-@app.route('/trucks')
-def trucks():
-    return trucks_list()
 
 
 if __name__ == '__main__':

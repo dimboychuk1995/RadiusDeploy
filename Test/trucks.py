@@ -33,26 +33,10 @@ TRUCK_TYPES = ['Пикап', 'Семи']
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@trucks_bp.route('/list', methods=['GET'])
-@login_required
-def trucks_list():
-    try:
-        # Изменено: фильтрация по компании
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        for truck in trucks:
-            truck['_id'] = str(truck['_id'])
-            if "file_data" not in truck:
-                truck["file_data"] = None
-                truck["file_name"] = None
-                truck["file_mimetype"] = None
-            if "unit_number" not in truck:
-                truck["unit_number"] = None
-            if "company" not in truck:
-                truck["company"] = None
-        return render_template('trucks.html', trucks=trucks, username=current_user.username, truck_types=TRUCK_TYPES)
-    except Exception as e:
-        logging.error(f"Error fetching trucks: {e}")
-        return render_template('error.html', message=f"Failed to retrieve truck list. Error: {e}")
+@trucks_bp.route('/trucks')
+def trucks_page():
+    trucks = trucks_collection.find({'company': current_user.company})
+    return render_template('trucks.html', trucks=trucks)
 
 @trucks_bp.route('/add_truck', methods=['POST'])
 @requires_role('admin')
