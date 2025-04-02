@@ -55,3 +55,17 @@
 .table-hover tbody tr:hover {
   background-color: rgba(0, 0, 0, 0.075);
 }
+
+/* Добавлены стили для страницы с подробной информацией о водителе */
+.driver-details ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.driver-details li {
+    margin-bottom: 10px;
+}
+
+.driver-details h4 {
+    margin-top: 20px;
+}

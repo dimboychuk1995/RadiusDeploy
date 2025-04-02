@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ driver.name }} - Driver Details</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+        .form-control[readonly] {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    {% include 'navbar.html' %}
+    <div class="container mt-4">
+        <h2>Детали водителя</h2>
+        <form method="POST">
+            <div class="form-group">
+                <label>Имя</label>
+                <input type="text" class="form-control" name="name" value="{{ driver.name }}" readonly>
+            </div>
+            <div class="form-group">
+                <label>Номер лицензии</label>
+                <input type="text" class="form-control" name="license_number" value="{{ driver.license_number }}" readonly>
+            </div>
+            <div class="form-group">
+                <label>Телефон</label>
+                <input type="text" class="form-control" name="contact_number" value="{{ driver.contact_number }}" readonly>
+            </div>
+            <div class="form-group">
+                <label>Трак</label>
+                <select class="form-control" name="truck" disabled>
+                    <option value="">-- Выбери трак --</option>
+                    {% for t in trucks %}
+                        <option value="{{ t._id }}" {% if truck and t._id == truck._id %}selected{% endif %}>
+                            {{ t.unit_number }} - {{ t.make }} {{ t.model }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Диспетчер</label>
+                <select class="form-control" name="dispatcher" disabled>
+                    <option value="">-- Выбери диспетчера --</option>
+                    {% for d in dispatchers %}
+                        <option value="{{ d._id }}" {% if dispatcher and d._id == dispatcher._id %}selected{% endif %}>
+                            {{ d.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="button" id="editBtn" class="btn btn-warning">Редактировать</button>
+            <button type="submit" id="saveBtn" class="btn btn-success d-none">Сохранить</button>
+        </form>
+
+        <a href="{{ url_for('drivers.drivers_list') }}" class="btn btn-link mt-3">← Назад к списку</a>
+    </div>
+
+    <script>
+        const editBtn = document.getElementById("editBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const form = document.querySelector("form");
+
+        editBtn.addEventListener("click", () => {
+            form.querySelectorAll("input, select").forEach(el => {
+                el.removeAttribute("readonly");
+                el.removeAttribute("disabled");
+            });
+            editBtn.classList.add("d-none");
+            saveBtn.classList.remove("d-none");
+        });
+    </script>
+</body>
+</html>

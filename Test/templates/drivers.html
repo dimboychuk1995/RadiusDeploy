@@ -1,84 +1,90 @@
-{% extends "base.html" %}
-{% block title %}Список водителей{% endblock %}
-{% block content %}
-    <h1>Список водителей:</h1>
-    <table class="table table-striped" id="drivers-table">
-        <thead>
-            <tr>
-                <th>Имя</th>
-                <th>Номер лицензии</th>
-                <th>Номер контакта</th>
-                <th>Юнит номер трака</th>
-                <th>Диспетчер</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for driver in drivers %}
-                <tr data-driver-id="{{ driver._id }}">
-                    <td>{{ driver.name }}</td>
-                    <td>{{ driver.license_number }}</td>
-                    <td>{{ driver.contact_number }}</td>
-                    <td>{{ driver.truck_unit }}</td>
-                    <td>
-                        {% for dispatcher in dispatchers %}
-                            {% if driver.dispatcher == dispatcher._id %}
-                                {{ dispatcher.username }}
-                            {% endif %}
-                        {% endfor %}
-                    </td>
-                    <td>
-                        <button class="btn btn-primary btn-sm edit-btn" data-driver-id="{{ driver._id }}">Редактировать</button>
-                        <button class="btn btn-danger btn-sm delete-btn" data-driver-id="{{ driver._id }}">Удалить</button>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drivers</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        tr.clickable-row { cursor: pointer; }
+    </style>
+</head>
+<body>
+    {% include 'navbar.html' %}
+    <div class="container mt-4">
+        <h2>Водители</h2>
 
-    <button id="addDriverBtn" class="btn btn-primary">Добавить водителя</button>
+        <!-- Кнопка показать/скрыть форму -->
+        <button class="btn btn-success mb-3" type="button" data-toggle="collapse" data-target="#addDriverForm" aria-expanded="false" aria-controls="addDriverForm">
+            ➕ Добавить водителя
+        </button>
 
-    <div id="addDriverModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2 id="modal-title">Добавить нового водителя</h2>
-            <form id="driverForm" action="/add_driver" method="post">
-                <div class="form-group">
-                    <label for="name">Имя:</label>
-                    <input type="text" class="form-control" id="name" name="name" required>
-                </div>
-                <div class="form-group">
-                    <label for="license_number">Номер лицензии:</label>
-                    <input type="text" class="form-control" id="license_number" name="license_number" required>
-                </div>
-                <div class="form-group">
-                    <label for="contact_number">Номер контакта:</label>
-                    <input type="text" class="form-control" id="contact_number" name="contact_number" required>
-                </div>
-                <div class="form-group">
-                    <label for="truck">Трак:</label>
-                    <select class="form-control" id="truck" name="truck">
-                        <option value="">Выберите трак</option>
-                        {% for truck in trucks %}
-                            <option value="{{ truck._id }}">{{ truck.make }} {{ truck.model }} ({{ truck.year }})</option>
+        <!-- 🔍 Поля для поиска -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <input type="text" id="searchName" class="form-control" placeholder="Поиск по имени">
+            </div>
+            <div class="col-md-6">
+                <input type="text" id="searchUnit" class="form-control" placeholder="Поиск по юнит номеру">
+            </div>
+        </div>
+
+        <!-- Скрытая по умолчанию форма -->
+        <div class="collapse mb-4" id="addDriverForm">
+            <div class="card card-body">
+                <form action="{{ url_for('drivers.drivers_list') }}" method="POST">
+                    <div class="form-group">
+                        <label for="name">Имя:</label>
+                        <input type="text" id="name" name="name" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="license_number">Номер лицензии:</label>
+                        <input type="text" id="license_number" name="license_number" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="contact_number">Номер телефона:</label>
+                        <input type="text" id="contact_number" name="contact_number" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Таблица водителей -->
+        <div class="row">
+            <div class="col-md-12">
+                <table class="table table-striped" id="driversTable">
+                    <thead>
+                        <tr>
+                            <th>Имя</th>
+                            <th>Номер лицензии</th>
+                            <th>Номер телефона</th>
+                            <th>Трак</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for driver in drivers %}
+                            <tr class="clickable-row" data-href="{{ url_for('drivers.driver_detail', driver_id=driver['_id']) }}">
+                                <td class="col-name">{{ driver.name }}</td>
+                                <td>{{ driver.license_number }}</td>
+                                <td>{{ driver.contact_number }}</td>
+                                <td class="col-unit">
+                                    {% if driver.truck_unit %}
+                                        {{ driver.truck_unit }}
+                                    {% else %}
+                                        Нет трака
+                                    {% endif %}
+                                </td>
+                            </tr>
                         {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="dispatcher">Диспетчер:</label>
-                    <select class="form-control" id="dispatcher" name="dispatcher">
-                        <option value="">Выберите диспетчера</option>
-                        {% for dispatcher in dispatchers %}
-                            <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <input type="hidden" id="driver_id" name="driver_id">
-                <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
-            </form>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- Подключаем скрипт -->
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-{% endblock %}
+    <!-- Скрипты -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
+</body>
+</html>

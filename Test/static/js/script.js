@@ -195,3 +195,13 @@ document.getElementById('search-unit-number').addEventListener('input', function
         }
     });
 });
+
+// Внесены изменения в обработчик кликов на имя водителя
+document.querySelectorAll('.driver-name a').forEach(function(driverLink) {
+    driverLink.addEventListener('click', function(event) {
+        event.preventDefault();
+        const driverId = this.href.split('/').pop();
+        window.location.href = '/driver/' + driverId;
+    });
+});
+
