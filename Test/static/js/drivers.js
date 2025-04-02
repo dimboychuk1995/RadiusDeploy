@@ -1,21 +1,14 @@
-document.addEventListener("DOMContentLoaded", () => {
-    initClickableRows();
-    initDriverFilter();
-    initEditMode();
-    initTabs();
-});
-
-// 👉 Кликабельные строки таблицы водителей
 function initClickableRows() {
     document.querySelectorAll("tr.clickable-row").forEach(row => {
         row.addEventListener("click", () => {
             const href = row.dataset.href;
-            if (href) window.location.href = href;
+            if (href) {
+                window.location.href = href;
+            }
         });
     });
 }
 
-// 🔍 Фильтрация по имени и юнит номеру
 function initDriverFilter() {
     const nameInput = document.getElementById("searchName");
     const unitInput = document.getElementById("searchUnit");
@@ -39,7 +32,6 @@ function initDriverFilter() {
     unitInput.addEventListener("input", filterTable);
 }
 
-// ✏️ Режим редактирования формы водителя
 function initEditMode() {
     const editBtn = document.getElementById("editBtn");
     const saveBtn = document.getElementById("saveBtn");
@@ -57,7 +49,6 @@ function initEditMode() {
     });
 }
 
-// 🗂 Переключение между вкладками Driver Info и Driver Loads
 function initTabs() {
     const btnInfo = document.getElementById("btn-info");
     const btnLoads = document.getElementById("btn-loads");
@@ -80,3 +71,10 @@ function initTabs() {
         btnInfo.classList.remove("active");
     });
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    initClickableRows();
+    initDriverFilter();
+    initEditMode();
+    initTabs();
+});

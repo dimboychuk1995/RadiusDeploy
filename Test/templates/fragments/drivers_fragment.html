@@ -1,0 +1,60 @@
+<!-- templates/fragments/drivers_fragment.html -->
+<h2>Водители</h2>
+
+<button class="btn btn-success mb-3" type="button" data-toggle="collapse" data-target="#addDriverForm" aria-expanded="false" aria-controls="addDriverForm">
+    ➕ Добавить водителя
+</button>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <input type="text" id="searchName" class="form-control" placeholder="Поиск по имени">
+    </div>
+    <div class="col-md-6">
+        <input type="text" id="searchUnit" class="form-control" placeholder="Поиск по юнит номеру">
+    </div>
+</div>
+
+<div class="collapse mb-4" id="addDriverForm">
+    <div class="card card-body">
+        <form action="{{ url_for('drivers.drivers_list') }}" method="POST">
+            <div class="form-group">
+                <label for="name">Имя:</label>
+                <input type="text" id="name" name="name" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="license_number">Номер лицензии:</label>
+                <input type="text" id="license_number" name="license_number" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="contact_number">Номер телефона:</label>
+                <input type="text" id="contact_number" name="contact_number" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <table class="table table-striped" id="driversTable">
+            <thead>
+                <tr>
+                    <th>Имя</th>
+                    <th>Номер лицензии</th>
+                    <th>Номер телефона</th>
+                    <th>Трак</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for driver in drivers %}
+                    <tr class="clickable-row" data-href="{{ url_for('drivers.driver_detail', driver_id=driver['_id']) }}">
+                        <td class="col-name">{{ driver.name }}</td>
+                        <td>{{ driver.license_number }}</td>
+                        <td>{{ driver.contact_number }}</td>
+                        <td class="col-unit">{{ driver.truck_unit or 'Нет трака' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

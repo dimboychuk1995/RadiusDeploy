@@ -1,21 +1,36 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const buttons = {
-        'btn-trucks': 'section-trucks',
-        'btn-drivers': 'section-drivers',
-        'btn-dispatch': 'section-dispatch',
-        'btn-loads': 'section-loads'
-    };
+    const buttons = document.querySelectorAll(".list-group-item");
+    const contentArea = document.getElementById("content-area");
 
-    Object.entries(buttons).forEach(([btnId, sectionId]) => {
-        const btn = document.getElementById(btnId);
-        btn.addEventListener("click", () => {
-            // Скрываем все секции и снимаем active
-            Object.values(buttons).forEach(id => document.getElementById(id).style.display = "none");
-            Object.keys(buttons).forEach(id => document.getElementById(id).classList.remove("active"));
+    function loadSection(section) {
+        contentArea.innerHTML = '<p>Загрузка...</p>';
 
-            // Показываем выбранную секцию и делаем кнопку активной
-            document.getElementById(sectionId).style.display = "block";
-            btn.classList.add("active");
+        fetch(`/fragment/${section}`)
+            .then(response => response.text())
+            .then(html => {
+                contentArea.innerHTML = html;
+
+                // Инициализация для секции "drivers"
+                if (section === "drivers") {
+                    if (typeof initClickableRows === "function") initClickableRows();
+                    if (typeof initDriverFilter === "function") initDriverFilter();
+                    if (typeof initEditMode === "function") initEditMode();
+                    if (typeof initTabs === "function") initTabs();
+                }
+            })
+            .catch(err => {
+                contentArea.innerHTML = `<div class="alert alert-danger">Ошибка загрузки: ${err}</div>`;
+            });
+    }
+
+    buttons.forEach(button => {
+        button.addEventListener("click", () => {
+            buttons.forEach(btn => btn.classList.remove("active"));
+            button.classList.add("active");
+            const section = button.dataset.section;
+            loadSection(section);
         });
     });
+
+    loadSection("drivers"); // по умолчанию
 });
