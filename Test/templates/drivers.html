@@ -18,7 +18,7 @@
             ➕ Добавить водителя
         </button>
 
-        <!-- 🔍 Поля для поиска -->
+        <!-- Фильтры -->
         <div class="row mb-4">
             <div class="col-md-6">
                 <input type="text" id="searchName" class="form-control" placeholder="Поиск по имени">
@@ -28,7 +28,7 @@
             </div>
         </div>
 
-        <!-- Скрытая по умолчанию форма -->
+        <!-- Форма добавления -->
         <div class="collapse mb-4" id="addDriverForm">
             <div class="card card-body">
                 <form action="{{ url_for('drivers.drivers_list') }}" method="POST">
@@ -82,9 +82,9 @@
         </div>
     </div>
 
-    <!-- Скрипты -->
+    <!-- JS -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/js/bootstrap.min.js"></script>
     <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
 </body>
 </html>
