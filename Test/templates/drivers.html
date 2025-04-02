@@ -1,11 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Водители{% endblock %}
+{% block title %}Список водителей{% endblock %}
+
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<h1 class="mb-4">Список водителей</h1>
 
-<h1>Водители</h1>
-
-<!-- Панель фильтрации -->
+<!-- Фильтр -->
 <div class="search-bar-wrapper mb-3">
   <div class="row gx-2">
     <div class="col-md-4">
@@ -15,7 +14,7 @@
       <input type="text" id="searchUnitNumberInput" class="form-control" placeholder="По юнит номеру">
     </div>
     <div class="col-md-4">
-      <select id="searchDispatcherSelect" class="form-select">
+      <select id="searchDispatcherSelect" class="form-control">
         <option value="">Все диспетчеры</option>
         {% for dispatcher in dispatchers %}
           <option value="{{ dispatcher.username }}">{{ dispatcher.username }}</option>
@@ -25,8 +24,8 @@
   </div>
 </div>
 
-<!-- Таблица -->
-<table id="driversTable" class="table table-striped">
+<!-- Таблица водителей -->
+<table class="table table-striped" id="driversTable">
   <thead>
     <tr>
       <th>Имя</th>
@@ -39,52 +38,77 @@
   </thead>
   <tbody>
     {% for driver in drivers %}
-      <tr id="driver-{{ driver._id }}" data-truck-id="{{ driver.truck }}" data-dispatcher-id="{{ driver.dispatcher }}">
-        <td class="driver-name">{{ driver.name }}</td>
-        <td class="driver-license">{{ driver.license_number }}</td>
-        <td class="driver-phone">{{ driver.contact_number }}</td>
-        <td class="truck-unit">{{ driver.truck_unit or '' }}</td>
-        <td class="dispatcher-name">{{ driver.dispatcher_name or '' }}</td>
-        <td>
-          <button onclick="openEditDriverModal('{{ driver._id }}')" class="btn btn-sm btn-primary">Редактировать</button>
-          <button onclick="deleteDriver('{{ driver._id }}')" class="btn btn-sm btn-danger">Удалить</button>
-        </td>
-      </tr>
+    <tr id="driver-{{ driver._id }}"
+        data-truck-id="{{ driver.truck if driver.truck else '' }}"
+        data-dispatcher-id="{{ driver.dispatcher if driver.dispatcher else '' }}">
+      <td class="driver-name">{{ driver.name }}</td>
+      <td class="driver-license">{{ driver.license_number }}</td>
+      <td class="driver-phone">{{ driver.contact_number }}</td>
+      <td class="truck-unit">{{ driver.truck_unit or '' }}</td>
+      <td class="dispatcher-name">{{ driver.dispatcher_name or '' }}</td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="openEditDriverModal('{{ driver._id }}')">Редактировать</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteDriver('{{ driver._id }}')">Удалить</button>
+      </td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<!-- Кнопка и модальное окно -->
-<button id="addDriverBtn" class="btn btn-success">Добавить водителя</button>
+<!-- Кнопка -->
+<button id="addDriverBtn" class="btn btn-success mb-3">Добавить водителя</button>
 
+<!-- Модальное окно -->
 <div id="driverModal" class="modal">
-  <div class="modal-content">
+  <div class="modal-content p-4">
     <span id="driverCloseBtn" class="close">&times;</span>
-    <h2 id="driverModalTitle">Добавить водителя</h2>
+    <h4 id="driverModalTitle" class="mb-3">Добавить водителя</h4>
+
     <form id="driverForm" method="post" action="/drivers">
-      <input type="text" name="name" placeholder="Имя" required class="form-control mb-2">
-      <input type="text" name="license_number" placeholder="Лицензия" required class="form-control mb-2">
-      <input type="text" name="contact_number" placeholder="Телефон" required class="form-control mb-2">
+      <h5 class="mb-3">Личные данные</h5>
 
-      <select name="truck" id="truckSelect" class="form-control mb-2">
-        <option value="">Выберите трак</option>
-        {% for truck in trucks %}
+      <div class="mb-2">
+        <label for="name">Имя:</label>
+        <input type="text" name="name" id="name" class="form-control" placeholder="Введите имя водителя" required>
+      </div>
+
+      <div class="mb-2">
+        <label for="license_number">Номер лицензии:</label>
+        <input type="text" name="license_number" id="license_number" class="form-control" placeholder="Номер CDL / DL" required>
+      </div>
+
+      <div class="mb-3">
+        <label for="contact_number">Контактный телефон:</label>
+        <input type="text" name="contact_number" id="contact_number" class="form-control" placeholder="+1 (___) ___-____" required>
+      </div>
+
+      <h5 class="mb-3">Назначение</h5>
+
+      <div class="mb-2">
+        <label for="truckSelect">Привязанный трак:</label>
+        <select name="truck" id="truckSelect" class="form-control">
+          <option value="">Выберите трак</option>
+          {% for truck in trucks %}
           <option value="{{ truck._id }}">{{ truck.unit_number }}</option>
-        {% endfor %}
-      </select>
+          {% endfor %}
+        </select>
+      </div>
 
-      <select name="dispatcher" id="dispatcherSelect" class="form-control mb-2">
-        <option value="">Выберите диспетчера</option>
-        {% for dispatcher in dispatchers %}
+      <div class="mb-3">
+        <label for="dispatcherSelect">Закреплённый диспетчер:</label>
+        <select name="dispatcher" id="dispatcherSelect" class="form-control">
+          <option value="">Выберите диспетчера</option>
+          {% for dispatcher in dispatchers %}
           <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
-        {% endfor %}
-      </select>
+          {% endfor %}
+        </select>
+      </div>
 
-      <button type="submit" id="driverSaveButton" class="btn btn-primary">Сохранить</button>
+      <button type="submit" id="driverSaveButton" class="btn btn-primary w-100">Сохранить</button>
     </form>
   </div>
 </div>
 
-<!-- Скрипт -->
+<!-- Подключение JS -->
 <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
 {% endblock %}
