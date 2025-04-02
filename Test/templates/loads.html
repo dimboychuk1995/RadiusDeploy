@@ -26,7 +26,7 @@
                     <tbody>
                         {% for load in loads %}
                             <tr>
-                                <td>{{ load.driver }}</td>
+                                <td>{{ load.driver_name }}</td>
                                 <td>{{ load.pickup_location }}</td>
                                 <td>{{ load.delivery_location }}</td>
                                 <td>{{ load.pickup_date }}</td>
@@ -51,9 +51,9 @@
                 <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
                     <div class="form-group">
                         <label for="driver">Водитель</label>
-                        <select id="driver" name="driver" class="form-control">
+                        <select id="driver" name="driver" class="form-control" required>
                             {% for driver in drivers %}
-                                <option value="{{ driver.name }}">{{ driver.name }}</option>
+                                <option value="{{ driver._id }}">{{ driver.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -91,7 +91,6 @@
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>

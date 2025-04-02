@@ -8,19 +8,16 @@ import gridfs
 
 from Test.auth import requires_role
 
-# Настраиваем логирование
 logging.basicConfig(level=logging.ERROR)
 
-# Создаем Blueprint для функциональности грузов
 loads_bp = Blueprint('loads', __name__)
 
-# Настройки подключения к MongoDB
 try:
     client = MongoClient('mongodb://localhost:27017/')
     db = client['trucks_db']
     loads_collection = db['loads']
     drivers_collection = db['drivers']
-    fs = gridfs.GridFS(db)  # Создаем GridFS для хранения файлов
+    fs = gridfs.GridFS(db)
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB")
 except Exception as e:
@@ -34,6 +31,14 @@ def loads_list():
     try:
         loads = list(loads_collection.find({'company': current_user.company}))
         drivers = list(drivers_collection.find({'company': current_user.company}))
+
+        # Преобразуем список водителей в словарь {id: name}
+        driver_map = {str(driver['_id']): driver['name'] for driver in drivers}
+
+        # Добавим readable_name для вывода в таблице
+        for load in loads:
+            load['driver_name'] = driver_map.get(str(load.get('driver')), 'Неизвестно')
+
         return render_template('loads.html', loads=loads, drivers=drivers)
     except Exception as e:
         logging.error(f"Error fetching loads: {e}")
@@ -45,16 +50,19 @@ def loads_list():
 def add_load():
     if request.method == 'POST':
         try:
-            # Обработка загруженного файла
-            rate_con_file = request.files['rate_con']
-            if rate_con_file:
+            rate_con_file = request.files.get('rate_con')
+            if rate_con_file and rate_con_file.filename:
                 filename = secure_filename(rate_con_file.filename)
                 file_id = fs.put(rate_con_file, filename=filename)
             else:
                 file_id = None
 
+            driver_id = request.form.get('driver')
+            if not driver_id:
+                raise ValueError("Driver is required")
+
             load_data = {
-                'driver': request.form.get('driver'),
+                'driver': ObjectId(driver_id),
                 'pickup_location': request.form.get('pickup_location'),
                 'delivery_location': request.form.get('delivery_location'),
                 'pickup_date': request.form.get('pickup_date'),
@@ -66,7 +74,7 @@ def add_load():
             loads_collection.insert_one(load_data)
             return redirect(url_for('loads.loads_list'))
         except Exception as e:
-            logging.error(f"Error adding load: {e}")
+            logging.exception("Error adding load:")
             return render_template('error.html', message="Failed to add load")
 
 
