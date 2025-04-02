@@ -28,10 +28,10 @@ login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message = "Пожалуйста, войдите для доступа к этой странице."
 
-# Определяем допустимые роли
+# Роли
 USER_ROLES = ['admin', 'user', 'dispatch']
 
-# Класс User для Flask-Login
+# Класс User
 class User(UserMixin):
     def __init__(self, user_data):
         self.id = str(user_data['_id'])
@@ -47,24 +47,24 @@ class User(UserMixin):
             return None
         return User(user)
 
-# Функция загрузки пользователя для Flask-Login
+# Flask-Login: загрузка пользователя
 @login_manager.user_loader
 def load_user(user_id):
     return User.get(user_id)
 
-# Функция для добавления пользователя
+# Создание пользователей по умолчанию
 def add_user(username, password, role="user", company=None):
     hashed_password = generate_password_hash(password)
     user = {'username': username, 'password': hashed_password, 'role': role, 'company': company}
     users_collection.insert_one(user)
 
-# Создаем пользователей при первом запуске (если их еще нет)
+# Первичный запуск
 if users_collection.find_one({'username': 'admin'}) is None:
     add_user('admin', 'password', 'admin', 'UWC')
 if users_collection.find_one({'username': 'user'}) is None:
     add_user('user', 'password', 'user', 'UWC')
 
-# Функция для проверки роли пользователя
+# Декоратор для ограничения по роли
 def requires_role(role):
     def decorator(f):
         @wraps(f)
@@ -72,14 +72,16 @@ def requires_role(role):
         def decorated_function(*args, **kwargs):
             if current_user.role != role:
                 flash(f'Требуется роль {role}', 'danger')
-                return redirect(url_for('trucks.trucks_list'))
+                return redirect(url_for('index'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
 
 @auth_bp.before_app_request
-def load_user():
+def load_user_context():
     g.user = current_user if current_user.is_authenticated else None
+
+# === ROUTES ===
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -92,10 +94,9 @@ def login():
             user = User(user_data)
             login_user(user)
             flash('Успешный вход!', 'success')
-            return redirect(request.args.get('next') or url_for('index'))  # Изменено на 'index'
+            return redirect(request.args.get('next') or url_for('index'))
         else:
             flash('Неверное имя пользователя или пароль', 'danger')
-            return render_template('login.html')
     return render_template('login.html')
 
 @auth_bp.route('/logout')
@@ -123,12 +124,15 @@ def add_user_route():
         password = request.form['password']
         role = request.form['role']
         company = request.form.get('company')
+
         if role not in USER_ROLES:
             flash('Недопустимая роль пользователя.', 'danger')
             return redirect(url_for('auth.users_list'))
+
         add_user(username, password, role, company)
         flash('Пользователь успешно добавлен.', 'success')
         return redirect(url_for('auth.users_list'))
+
     return render_template('add_user.html', user_roles=USER_ROLES)
 
 @auth_bp.route('/users/delete/<user_id>', methods=['POST'])
