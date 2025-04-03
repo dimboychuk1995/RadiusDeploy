@@ -40,19 +40,3 @@ def dispatch_fragment():
     except Exception as e:
         logging.error(f"Error fetching dispatch data: {e}")
         return render_template('error.html', message="Failed to retrieve dispatch data")
-
-
-@dispatch_bp.route('/dispatch', methods=['GET'])
-@login_required
-def dispatch_page():
-    try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        for truck in trucks:
-            truck['_id'] = str(truck['_id'])
-        for driver in drivers:
-            driver['_id'] = str(driver['_id'])
-        return render_template('dispatch.html', drivers=drivers, trucks=trucks)
-    except Exception as e:
-        logging.error(f"Error fetching data for dispatch: {e}")
-        return render_template('error.html', message="Failed to retrieve data for dispatch")
