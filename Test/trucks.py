@@ -33,18 +33,6 @@ ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Главная страница со списком грузовиков
-@trucks_bp.route('/trucks')
-@login_required
-def trucks_page():
-    try:
-        trucks = trucks_collection.find({'company': current_user.company})
-        truck_types = ["Pick Up", "SEMI"]
-        return render_template('trucks.html', trucks=trucks, truck_types=truck_types)
-    except Exception as e:
-        logging.error(f"Error loading trucks page: {e}")
-        return render_template('error.html', message="Failed to load trucks")
-
 # 🚨 ФРАГМЕНТ ДЛЯ ГЛАВНОЙ СТРАНИЦЫ
 @trucks_bp.route('/fragment/trucks')
 @login_required
@@ -88,7 +76,7 @@ def add_truck():
         }
 
         trucks_collection.insert_one(truck_data)
-        return redirect(url_for('trucks.trucks_page'))
+        return redirect(url_for('index') + '#section-trucks')
     except Exception as e:
         logging.error(f"Error adding truck: {e}")
         logging.error(traceback.format_exc())
@@ -125,7 +113,7 @@ def edit_truck(truck_id):
         }
 
         trucks_collection.update_one({'_id': ObjectId(truck_id)}, {'$set': updated_data})
-        return redirect(url_for('trucks.trucks_page'))
+        return redirect(url_for('index') + '#section-trucks')
     except Exception as e:
         logging.error(f"Error updating truck: {e}")
         logging.error(traceback.format_exc())
