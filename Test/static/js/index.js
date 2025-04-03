@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
         'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
-        'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' } // Добавляем новый фрагмент
+        'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' }
     };
 
     function loadFragment(sectionId, url) {
