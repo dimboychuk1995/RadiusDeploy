@@ -4,7 +4,8 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
         'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
-        'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' }
+        'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
+        'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' } // Новый блок
     };
 
     function loadFragment(sectionId, url) {
@@ -28,7 +29,9 @@ document.addEventListener("DOMContentLoaded", function () {
                         initDispatchFilter?.();
                         highlightDriversWithoutDispatcher?.();
                     } else if (url.includes('loads')) {
-                        initLoadFunctions?.();
+
+                    } else if (url.includes('accounting')) {
+                        initAccountingButtons?.();
                     }
                 });
         }

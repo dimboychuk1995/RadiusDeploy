@@ -1,0 +1,28 @@
+<div class="container">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="list-group">
+                <button class="list-group-item list-group-item-action active" id="btn-drivers-list">Список водителей</button>
+                <button class="list-group-item list-group-item-action" id="btn-trucks-list">Список траков</button>
+            </div>
+        </div>
+        <div class="col-md-9">
+            <div id="drivers-list" class="content-section">
+                <h2>Список водителей</h2>
+                <ul>
+                    {% for driver in drivers %}
+                    <li>{{ driver.name }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div id="trucks-list" class="content-section" style="display: none;">
+                <h2>Список траков</h2>
+                <ul>
+                    {% for truck in trucks %}
+                    <li>{{ truck.make }} {{ truck.model }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
