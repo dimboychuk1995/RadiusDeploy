@@ -71,7 +71,6 @@
                 <td class="truck-unit">{{ driver.truck_unit or 'Нет трака' }}</td>
                 <td class="dispatcher-name">{{ driver.dispatcher_name or 'Нет диспетчера' }}</td>
                 <td>
-                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); openEditDriverModal('{{ driver._id }}')">Редактировать</button>
                     <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteDriver('{{ driver._id }}')">Удалить</button>
                 </td>
             </tr>
