@@ -1,9 +1,7 @@
-// static/js/index.js
 document.addEventListener("DOMContentLoaded", function () {
   const sections = {
     'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
     'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
-    'btn-dispatch': { id: 'section-dispatch', url: '/fragment/dispatch' },
     'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
     'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' } // Добавляем новый фрагмент
   };
@@ -25,13 +23,11 @@ document.addEventListener("DOMContentLoaded", function () {
             initDriverFilter?.();
             initClickableRows?.();
             initDriverModalActions?.();
-          } else if (url.includes('dispatch')) {
-            initDispatchFunctions?.();
-          } else if (url.includes('loads')) {
-            initLoadFunctions?.();
           } else if (url.includes('dispatch_fragment')) {
             initDispatchFilter?.();
             highlightDriversWithoutDispatcher?.();
+          } else if (url.includes('loads')) {
+            initLoadFunctions?.();
           }
         });
     }
@@ -41,25 +37,27 @@ document.addEventListener("DOMContentLoaded", function () {
     const button = document.getElementById(buttonId);
     const { id: sectionId, url } = sections[buttonId];
 
-    button.addEventListener("click", () => {
-      // Скрыть все
-      Object.values(sections).forEach(({ id }) => {
-        const section = document.getElementById(id);
-        if (section) section.style.display = "none";
-      });
+    if (button) {
+      button.addEventListener("click", () => {
+        // Скрыть все
+        Object.values(sections).forEach(({ id }) => {
+          const section = document.getElementById(id);
+          if (section) section.style.display = "none";
+        });
 
-      // Убрать активность
-      Object.keys(sections).forEach(id => {
-        const btn = document.getElementById(id);
-        btn.classList.remove("active");
-      });
+        // Убрать активность
+        Object.keys(sections).forEach(id => {
+          const btn = document.getElementById(id);
+          if (btn) btn.classList.remove("active");
+        });
 
-      // Показать нужную
-      button.classList.add("active");
-      const targetSection = document.getElementById(sectionId);
-      targetSection.style.display = "block";
-      loadFragment(sectionId, url);
-    });
+        // Показать нужную
+        button.classList.add("active");
+        const targetSection = document.getElementById(sectionId);
+        targetSection.style.display = "block";
+        loadFragment(sectionId, url);
+      });
+    }
   });
 
   // Автооткрытие первой вкладки

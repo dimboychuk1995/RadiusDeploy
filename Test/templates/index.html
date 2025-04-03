@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 {% extends "base.html" %}
 {% block title %}Главная{% endblock %}
 
@@ -10,9 +9,9 @@
             <div class="list-group">
                 <button class="list-group-item list-group-item-action active" id="btn-trucks">Грузовики</button>
                 <button class="list-group-item list-group-item-action" id="btn-drivers">Водители</button>
-                <button class="list-group-item list-group-item-action" id="btn-dispatch">Диспетчер</button>
+                <button class="list-group-item list-group-item-action" id="btn-dispatch-fragment">Диспетчер</button> <!-- Оставляем только новую кнопку -->
                 <button class="list-group-item list-group-item-action" id="btn-loads">Грузы</button>
-                <button class="list-group-item list-group-item-action" id="btn-dispatch-fragment">Диспетчер (Фрагмент)</button> <!-- Новая кнопка -->
+
             </div>
         </div>
 
@@ -24,12 +23,6 @@
                 <h3>Водители</h3>
                 <p>Управление списком водителей.</p>
                 <a href="{{ url_for('drivers.drivers_list') }}" class="btn btn-primary">Перейти к водителям</a>
-            </div>
-
-            <div id="section-dispatch" style="display: none;">
-                <h3>Диспетчер</h3>
-                <p>Контроль за грузами и взаимодействие с водителями.</p>
-                <a href="{{ url_for('drivers.dispatch_list') }}" class="btn btn-primary">Перейти к диспетчеру</a>
             </div>
 
             <div id="section-loads" style="display: none;">
