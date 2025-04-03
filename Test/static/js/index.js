@@ -1,9 +1,11 @@
+// static/js/index.js
 document.addEventListener("DOMContentLoaded", function () {
   const sections = {
     'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
     'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
     'btn-dispatch': { id: 'section-dispatch', url: '/fragment/dispatch' },
-    'btn-loads': { id: 'section-loads', url: '/fragment/loads' }
+    'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
+    'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' } // Добавляем новый фрагмент
   };
 
   function loadFragment(sectionId, url) {
@@ -27,6 +29,9 @@ document.addEventListener("DOMContentLoaded", function () {
             initDispatchFunctions?.();
           } else if (url.includes('loads')) {
             initLoadFunctions?.();
+          } else if (url.includes('dispatch_fragment')) {
+            initDispatchFilter?.();
+            highlightDriversWithoutDispatcher?.();
           }
         });
     }

@@ -1,8 +1,5 @@
 <!-- templates/fragments/drivers_fragment.html -->
 <h2>Водители</h2>
-<script>
-  console.log("drivers_fragment.html загружен");
-</script>
 
 <button class="btn btn-success mb-3" type="button" data-toggle="collapse" data-target="#addDriverForm" aria-expanded="false" aria-controls="addDriverForm">
     ➕ Добавить водителя
@@ -12,15 +9,9 @@
 <div class="row mb-4">
     <div class="col-md-4">
         <input type="text" id="searchNameInput" class="form-control" placeholder="Поиск по имени">
-        <script>
-          console.log("searchNameInput загружен");
-        </script>
     </div>
     <div class="col-md-4">
         <input type="text" id="searchUnitNumberInput" class="form-control" placeholder="По юнит номеру">
-        <script>
-          console.log("searchUnitNumberInput загружен");
-        </script>
     </div>
     <div class="col-md-4">
         <select id="searchDispatcherSelect" class="form-control">
@@ -29,9 +20,6 @@
                 <option value="{{ dispatcher.username }}">{{ dispatcher.username }}</option>
             {% endfor %}
         </select>
-        <script>
-          console.log("searchDispatcherSelect загружен");
-        </script>
     </div>
 </div>
 
@@ -90,9 +78,6 @@
         {% endfor %}
     </tbody>
 </table>
-<script>
-  console.log("driversTable загружен");
-</script>
 
 <!-- Подключаем JavaScript -->
 <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
