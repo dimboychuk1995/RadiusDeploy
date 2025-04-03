@@ -133,6 +133,27 @@ def edit_driver(driver_id):
             logging.error(f"Error updating driver: {e}")
             return render_template('error.html', message="Failed to edit driver")
 
+@drivers_bp.route('/fragment/drivers')
+@login_required
+def drivers_fragment():
+    try:
+        drivers = list(drivers_collection.find({'company': current_user.company}))
+        trucks = list(trucks_collection.find({'company': current_user.company}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
+
+        truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
+        dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
+
+        for driver in drivers:
+            driver['_id'] = str(driver['_id'])
+            driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
+            driver['dispatcher_name'] = dispatcher_map.get(driver.get('dispatcher'), 'Нет диспетчера')
+
+        return render_template('fragments/drivers_fragment.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers)
+    except Exception as e:
+        logging.error(f"Error fetching drivers or trucks: {e}")
+        return render_template('error.html', message="Failed to retrieve drivers or trucks list")
+
 # Страница диспетчерской
 @drivers_bp.route('/dispatch', methods=['GET'])
 @login_required

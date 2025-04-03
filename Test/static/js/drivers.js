@@ -1,21 +1,8 @@
-// drivers.js
-
 document.addEventListener("DOMContentLoaded", () => {
-  initClickableRows();
-  initDriverFilter();
-  initEditMode();
-  initTabs();
-  initDriverModalActions();
+  initDriverFilter();  // Инициализация фильтра водителей
+  initClickableRows();  // Инициализация кликабельных строк
+  initDriverModalActions(); // Модальные действия водителей
 });
-
-function initClickableRows() {
-  document.querySelectorAll(".clickable-row").forEach(row => {
-    const href = row.getAttribute("data-href");
-    if (href) {
-      row.addEventListener("click", () => window.location.href = href);
-    }
-  });
-}
 
 function initDriverFilter() {
   const nameInput = document.getElementById("searchNameInput");
@@ -25,6 +12,7 @@ function initDriverFilter() {
 
   if (!nameInput || !unitInput || !dispatcherSelect || !table) return;
 
+  // Функция фильтрации водителей
   const filterDrivers = () => {
     const name = nameInput.value.toLowerCase();
     const unit = unitInput.value.toLowerCase();
@@ -35,49 +23,28 @@ function initDriverFilter() {
       const rowUnit = row.querySelector(".truck-unit")?.textContent.toLowerCase() || "";
       const rowDispatcher = row.querySelector(".dispatcher-name")?.textContent.toLowerCase() || "";
 
+      // Если строка удовлетворяет фильтрам, она остаётся видимой, иначе скрывается
       const matches = rowName.includes(name) && rowUnit.includes(unit) && rowDispatcher.includes(dispatcher);
       row.style.display = matches ? "" : "none";
     });
   };
 
-  nameInput.addEventListener("input", filterDrivers);
-  unitInput.addEventListener("input", filterDrivers);
-  dispatcherSelect.addEventListener("change", filterDrivers);
+  nameInput.addEventListener("input", filterDrivers); // Поиск по имени
+  unitInput.addEventListener("input", filterDrivers); // Поиск по юнит номеру
+  dispatcherSelect.addEventListener("change", filterDrivers); // Поиск по диспетчеру
 }
 
-function initEditMode() {
-  const editBtn = document.getElementById("editBtn");
-  const saveBtn = document.getElementById("saveBtn");
-  const form = document.getElementById("editForm");
-
-  if (!editBtn || !saveBtn || !form) return;
-
-  editBtn.addEventListener("click", () => {
-    form.querySelectorAll("input, select").forEach(el => el.removeAttribute("disabled"));
-    editBtn.style.display = "none";
-    saveBtn.style.display = "inline-block";
+function initClickableRows() {
+  document.querySelectorAll(".clickable-row").forEach(row => {
+    const href = row.getAttribute("data-href");
+    if (href) {
+      row.addEventListener("click", () => window.location.href = href);
+    }
   });
 }
 
-function initTabs() {
-  const btnInfo = document.getElementById("btn-info");
-  const btnLoads = document.getElementById("btn-loads");
-  const info = document.getElementById("info-section");
-  const loads = document.getElementById("loads-section");
-
-  if (btnInfo && btnLoads && info && loads) {
-    btnInfo.addEventListener("click", () => {
-      info.style.display = "block";
-      loads.style.display = "none";
-    });
-    btnLoads.addEventListener("click", () => {
-      info.style.display = "none";
-      loads.style.display = "block";
-    });
-  }
-}
-
 function initDriverModalActions() {
+  // Инициализация модальных окон и действий с водителями
   const modal = document.getElementById("driverModal");
   const openBtn = document.getElementById("addDriverBtn");
   const closeBtn = document.getElementById("driverCloseBtn");
@@ -92,7 +59,6 @@ function initDriverModalActions() {
     form.license_number.value = row.querySelector(".driver-license")?.textContent.trim();
     form.contact_number.value = row.querySelector(".driver-phone")?.textContent.trim();
 
-    // Заполняем select'ы по data-атрибутам
     const truckId = row.getAttribute("data-truck-id");
     const dispatcherId = row.getAttribute("data-dispatcher-id");
     if (truckId) form.truck.value = truckId;
