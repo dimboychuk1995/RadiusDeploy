@@ -90,3 +90,11 @@ def get_rate_con(file_id):
     except Exception as e:
         logging.error(f"Error fetching rate con file: {e}")
         return render_template('error.html', message="Failed to retrieve the file")
+
+@loads_bp.route('/fragment/loads_fragment', methods=['GET'])
+@login_required
+def loads_fragment():
+    drivers = list(drivers_collection.find({'company': current_user.company}))
+    loads = list(loads_collection.find({'company': current_user.company}))
+
+    return render_template('fragments/loads_fragment.html', drivers=drivers, loads=loads)

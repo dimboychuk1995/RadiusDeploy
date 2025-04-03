@@ -1,0 +1,85 @@
+<!-- templates/fragments/loads_fragment.html -->
+<!-- Фильтры -->
+<div class="container mt-4">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <h2>Грузы</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Водитель</th>
+                        <th>Откуда</th>
+                        <th>Куда</th>
+                        <th>Пикап дата</th>
+                        <th>Деливери дата</th>
+                        <th>Статус</th>
+                        <th>Rate Con</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for load in loads %}
+                        <tr>
+                            <td>{{ load.driver_name }}</td>
+                            <td>{{ load.pickup_location }}</td>
+                            <td>{{ load.delivery_location }}</td>
+                            <td>{{ load.pickup_date }}</td>
+                            <td>{{ load.delivery_date }}</td>
+                            <td>{{ load.status }}</td>
+                            <td>
+                                {% if load.rate_con %}
+                                    <a href="{{ url_for('loads.get_rate_con', file_id=load.rate_con) }}" target="_blank">Скачать</a>
+                                {% else %}
+                                    Нет файла
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Добавить новый груз</h2>
+            <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="driver">Водитель</label>
+                    <select id="driver" name="driver" class="form-control" required>
+                        {% for driver in drivers %}
+                            <option value="{{ driver._id }}">{{ driver.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pickup_location">Откуда</label>
+                    <input type="text" id="pickup_location" name="pickup_location" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="delivery_location">Куда</label>
+                    <input type="text" id="delivery_location" name="delivery_location" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="pickup_date">Пикап дата</label>
+                    <input type="date" id="pickup_date" name="pickup_date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="delivery_date">Деливери дата</label>
+                    <input type="date" id="delivery_date" name="delivery_date" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="status">Статус</label>
+                    <select id="status" name="status" class="form-control">
+                        <option value="Взят">Взят</option>
+                        <option value="Пикапнут">Пикапнут</option>
+                        <option value="Доставлен">Доставлен</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="rate_con">Rate Con</label>
+                    <input type="file" id="rate_con" name="rate_con" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">Добавить</button>
+            </form>
+        </div>
+    </div>
+</div>

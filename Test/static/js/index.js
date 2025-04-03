@@ -3,7 +3,8 @@ document.addEventListener("DOMContentLoaded", function () {
     'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
     'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
     'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
-    'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' } // Добавляем новый фрагмент
+    'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
+    'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' } // Добавляем новый фрагмент
   };
 
   function loadFragment(sectionId, url) {
