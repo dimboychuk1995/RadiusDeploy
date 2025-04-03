@@ -25,26 +25,6 @@ except Exception as e:
     exit(1)
 
 
-@loads_bp.route('/loads', methods=['GET'])
-@login_required
-def loads_list():
-    try:
-        loads = list(loads_collection.find({'company': current_user.company}))
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-
-        # Преобразуем список водителей в словарь {id: name}
-        driver_map = {str(driver['_id']): driver['name'] for driver in drivers}
-
-        # Добавим readable_name для вывода в таблице
-        for load in loads:
-            load['driver_name'] = driver_map.get(str(load.get('driver')), 'Неизвестно')
-
-        return render_template('loads.html', loads=loads, drivers=drivers)
-    except Exception as e:
-        logging.error(f"Error fetching loads: {e}")
-        return render_template('error.html', message="Failed to retrieve loads list")
-
-
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role('admin')
 def add_load():
@@ -69,15 +49,14 @@ def add_load():
                 'delivery_date': request.form.get('delivery_date'),
                 'status': request.form.get('status'),
                 'rate_con': file_id,
-                'price': float(request.form.get('price', 0)),  # Новое поле price
-                'company': current_user.company
+                'company': current_user.company,
+                'price': request.form.get('price'),
             }
             loads_collection.insert_one(load_data)
-            return redirect(url_for('loads.loads_list'))
+            return redirect(url_for('index') + '#section-loads-fragment')
         except Exception as e:
             logging.exception("Error adding load:")
             return render_template('error.html', message="Failed to add load")
-
 
 @loads_bp.route('/rate_con/<file_id>', methods=['GET'])
 @login_required
