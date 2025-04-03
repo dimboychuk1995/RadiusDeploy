@@ -7,6 +7,7 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
+                        <th>Цена</th>
                         <th>Водитель</th>
                         <th>Откуда</th>
                         <th>Куда</th>
@@ -19,6 +20,7 @@
                 <tbody>
                     {% for load in loads %}
                         <tr>
+                            <td>{{ load.price }}</td>
                             <td>{{ load.driver_name }}</td>
                             <td>{{ load.pickup_location }}</td>
                             <td>{{ load.delivery_location }}</td>
@@ -42,6 +44,10 @@
         <div class="col-md-12">
             <h2>Добавить новый груз</h2>
             <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="price">Цена</label>
+                    <input type="text" id="price" name="price" class="form-control" required>
+                </div>
                 <div class="form-group">
                     <label for="driver">Водитель</label>
                     <select id="driver" name="driver" class="form-control" required>

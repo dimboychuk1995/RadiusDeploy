@@ -69,6 +69,7 @@ def add_load():
                 'delivery_date': request.form.get('delivery_date'),
                 'status': request.form.get('status'),
                 'rate_con': file_id,
+                'price': float(request.form.get('price', 0)),  # Новое поле price
                 'company': current_user.company
             }
             loads_collection.insert_one(load_data)
