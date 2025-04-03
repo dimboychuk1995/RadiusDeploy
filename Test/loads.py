@@ -97,4 +97,11 @@ def loads_fragment():
     drivers = list(drivers_collection.find({'company': current_user.company}))
     loads = list(loads_collection.find({'company': current_user.company}))
 
+    # Преобразование списка водителей в словарь {id: name}
+    driver_map = {str(driver['_id']): driver['name'] for driver in drivers}
+
+    # Добавление readable_name для вывода в таблице
+    for load in loads:
+        load['driver_name'] = driver_map.get(str(load.get('driver')), 'Неизвестно')
+
     return render_template('fragments/loads_fragment.html', drivers=drivers, loads=loads)
