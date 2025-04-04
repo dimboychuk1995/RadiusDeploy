@@ -1,0 +1,30 @@
+--- templates/fragments/partials/driver_loads_table.html ---
+
+{% if loads %}
+  <table class="table table-sm table-striped">
+    <thead>
+      <tr>
+        <th>Откуда</th>
+        <th>Куда</th>
+        <th>Пикап</th>
+        <th>Деливери</th>
+        <th>Цена</th>
+        <th>Статус</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for load in loads %}
+        <tr>
+          <td>{{ load.pickup_location }}</td>
+          <td>{{ load.delivery_location }}</td>
+          <td>{{ load.pickup_date }}</td>
+          <td>{{ load.delivery_date }}</td>
+          <td>{{ load.price }}</td>
+          <td>{{ load.status }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="text-muted">Грузы не найдены для выбранного водителя.</p>
+{% endif %}
