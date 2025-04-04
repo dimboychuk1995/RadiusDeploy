@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('accounting')) {
                         initAccountingButtons?.();
                     } else if (url.includes('statement')) {
-                        initStatementEvents?.(); // если будет нужно — можно сюда повесить init
+                        initStatementEvents?.();
                     }
                 });
         }
