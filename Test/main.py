@@ -6,6 +6,7 @@ from drivers import drivers_bp
 from dispatch import dispatch_bp
 from loads import loads_bp
 from accounting import accounting_bp  # Импортируем новый Blueprint
+from statement import statement_bp
 from flask_login import current_user
 import os
 
@@ -21,6 +22,9 @@ app.register_blueprint(drivers_bp)
 app.register_blueprint(dispatch_bp)
 app.register_blueprint(loads_bp)
 app.register_blueprint(accounting_bp)  # Регистрируем новый Blueprint
+app.register_blueprint(statement_bp)
+
+
 
 login_manager.init_app(app)
 

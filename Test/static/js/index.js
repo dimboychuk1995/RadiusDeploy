@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
-        'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' } // Новый блок
+        'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
+        'btn-statements': { id: 'section-statements', url: '/statement/fragment' } // 🔹 Новый блок
     };
 
     function loadFragment(sectionId, url) {
@@ -28,10 +29,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('dispatch_fragment')) {
                         initDispatchFilter?.();
                         highlightDriversWithoutDispatcher?.();
-                    } else if (url.includes('loads')) {
-
                     } else if (url.includes('accounting')) {
                         initAccountingButtons?.();
+                    } else if (url.includes('statement')) {
+                        initStatementEvents?.(); // если будет нужно — можно сюда повесить init
                     }
                 });
         }
@@ -72,10 +73,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 localStorage.setItem('activeSection', buttonId);
             });
         }
-
     });
 
     // Восстановление активной вкладки из localStorage
     const activeSection = localStorage.getItem('activeSection') || 'btn-trucks';
-    document.getElementById(activeSection).click();
+    document.getElementById(activeSection)?.click();
 });
