@@ -1,5 +1,3 @@
-<!-- fragments/statement_fragment.html -->
-
 <script>
     window.statementDrivers = JSON.parse('{{ drivers|tojson|safe }}');
 </script>
@@ -23,14 +21,35 @@
       </div>
 
       <div class="modal-body">
+        <!-- ВЫБОР ВОДИТЕЛЯ -->
         <div class="form-group">
           <label for="driverSelect">Выберите водителя</label>
           <select id="driverSelect" class="form-control" style="width: 100%">
-            <option value="">Начните вводить имя...</option>
-            {% for driver in drivers %}
-              <option value="{{ driver._id }}">{{ driver.name }}</option>
-            {% endfor %}
+              <option value="">Начните вводить имя...</option>
+              {% for driver in drivers %}
+                <option value="{{ driver._id }}">
+                     {{ driver.name }}{% if driver.truck and driver.truck.unit_number %} ({{ driver.truck.unit_number }}){% endif %}
+                </option>
+              {% endfor %}
           </select>
+        </div>
+
+        <!-- РАСКРЫВАЮЩАЯСЯ ЧАСТЬ -->
+        <div id="statementDetails" style="display: none; margin-top: 20px;">
+          <div class="form-group">
+            <label for="startDate">Начало периода</label>
+            <input type="date" id="startDate" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label for="endDate">Конец периода</label>
+            <input type="date" id="endDate" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label for="note">Примечание</label>
+            <textarea id="note" class="form-control" rows="2"></textarea>
+          </div>
         </div>
       </div>
 

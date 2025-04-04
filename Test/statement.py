@@ -27,9 +27,13 @@ def statement_fragment():
         trucks = list(trucks_collection.find({'company': current_user.company}))
         loads = list(loads_collection.find({'company': current_user.company}))
 
+        truck_map = {str(truck['_id']): truck for truck in trucks}
+
         # Преобразуем _id в строки (на всякий случай для шаблонов)
-        for d in drivers:
-            d['_id'] = str(d['_id'])
+        for driver in drivers:
+            driver['_id'] = str(driver['_id'])
+            truck_id = str(driver.get('truck'))
+            driver['truck'] = truck_map.get(truck_id)  # теперь это объект, а не просто _id
         for t in trucks:
             t['_id'] = str(t['_id'])
         for l in loads:

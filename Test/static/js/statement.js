@@ -3,10 +3,10 @@ function initStatementEvents() {
 
     const select = $('#driverSelect');
     const createBtn = document.getElementById("createStatementBtn");
+    const detailsBlock = document.getElementById("statementDetails");
 
-    if (!select.length || !createBtn) return;
+    if (!select.length || !createBtn || !detailsBlock) return;
 
-    // Инициализация Select2
     select.select2({
         dropdownParent: $('#createStatementModal'),
         placeholder: 'Выберите водителя',
@@ -19,9 +19,11 @@ function initStatementEvents() {
         if (driverId) {
             createBtn.disabled = false;
             createBtn.dataset.driverId = driverId;
+            detailsBlock.style.display = 'block';
         } else {
             createBtn.disabled = true;
             delete createBtn.dataset.driverId;
+            detailsBlock.style.display = 'none';
         }
     });
 }
