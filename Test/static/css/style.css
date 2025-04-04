@@ -1,11 +1,11 @@
-/* Обнуляем базовый отступ и шрифт */
+/* === Базовые стили === */
 body {
     margin: 0;
     font-family: "Segoe UI", sans-serif;
     background-color: #f9f9f9;
 }
 
-/* Фиксированная боковая панель */
+/* === Сайдбар === */
 .sidebar {
     position: fixed;
     top: 56px; /* высота navbar */
@@ -18,7 +18,6 @@ body {
     z-index: 1000;
 }
 
-/* Стили кнопок в сайдбаре */
 .sidebar .list-group-item {
     background: transparent;
     color: #ecf0f1;
@@ -35,15 +34,16 @@ body {
     border: none;
 }
 
-/* Контентная часть (которая лежит в col-md-9) */
-.col-md-9 {
-    margin-left: 200px !important; /* чтобы "обойти" fixed-sidebar */
+/* === Основной контент (правый блок) === */
+.col-md-9,
+.content {
+    margin-left: 200px !important;
     padding: 30px 40px;
     background-color: #ffffff;
     min-height: 100vh;
 }
 
-/* Убираем лишнее, если есть */
+/* === Утилиты Bootstrap, если мешают стилю === */
 .ml-sm-auto {
     margin-left: 0 !important;
 }
@@ -56,10 +56,27 @@ body {
 .pt-3 {
     padding-top: 0 !important;
 }
-/* Контентный блок (внутри .col-md-9) */
-.content {
-    margin-left: 200px !important; /* отступ вправо от боковой панели */
-    padding: 30px 40px;
-    background-color: #ffffff;
-    min-height: 100vh;
+
+/* === Компоненты === */
+.list-group-item {
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.list-group-item.active {
+    font-weight: 500;
+}
+
+.content-section {
+    margin-bottom: 2rem;
+}
+
+.content-section h4 {
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.card-header {
+    font-size: 1.1rem;
 }
