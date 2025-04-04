@@ -25,7 +25,7 @@
 
 <div class="collapse mb-4" id="addDriverForm">
     <div class="card card-body">
-        <form action="{{ url_for('drivers.drivers_list') }}" method="POST">
+        <form action="{{ url_for('drivers.add_driver') }}" method="POST">
             <div class="form-group">
                 <label for="name">Имя:</label>
                 <input type="text" id="name" name="name" class="form-control" required>
@@ -62,7 +62,7 @@
         {% for driver in drivers %}
             <tr id="driver-{{ driver._id }}"
                 class="clickable-row"
-                data-href="{{ url_for('drivers.driver_detail', driver_id=driver._id) }}"
+                data-href="{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}"
                 data-truck-id="{{ driver.truck if driver.truck else '' }}"
                 data-dispatcher-id="{{ driver.dispatcher if driver.dispatcher else '' }}">
                 <td class="driver-name">{{ driver.name }}</td>

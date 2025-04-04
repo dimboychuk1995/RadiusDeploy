@@ -43,11 +43,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (button) {
             button.addEventListener("click", () => {
-                // Скрыть все
+                // Скрыть все секции
                 Object.values(sections).forEach(({ id }) => {
                     const section = document.getElementById(id);
                     if (section) section.style.display = "none";
                 });
+
+                // Скрыть driver-details
+                const driverDetailsSection = document.getElementById("driver-details");
+                if (driverDetailsSection) {
+                    driverDetailsSection.style.display = "none";
+                    driverDetailsSection.innerHTML = "";
+                }
 
                 // Убрать активность
                 Object.keys(sections).forEach(id => {
@@ -61,10 +68,11 @@ document.addEventListener("DOMContentLoaded", function () {
                 targetSection.style.display = "block";
                 loadFragment(sectionId, url);
 
-                // Сохранить активное состояние в localStorage
+                // Сохранить активное состояние
                 localStorage.setItem('activeSection', buttonId);
             });
         }
+
     });
 
     // Восстановление активной вкладки из localStorage

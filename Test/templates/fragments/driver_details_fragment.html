@@ -1,0 +1,77 @@
+<h1>Driver Details</h1>
+
+<!-- Кнопка "Назад" -->
+<button type="button" class="btn btn-secondary mb-3" id="backToDriversBtn">
+    ← Назад к списку водителей
+</button>
+
+<!-- Форма редактирования -->
+<form action="{{ url_for('drivers.edit_driver', driver_id=driver._id) }}"
+      method="POST"
+      id="editForm"
+      data-driver-id="{{ driver._id }}">
+    <div class="form-group">
+        <label>Имя</label>
+        <input type="text" class="form-control" name="name" value="{{ driver.name }}">
+    </div>
+    <div class="form-group">
+        <label>Номер лицензии</label>
+        <input type="text" class="form-control" name="license_number" value="{{ driver.license_number }}">
+    </div>
+    <div class="form-group">
+        <label>Телефон</label>
+        <input type="text" class="form-control" name="contact_number" value="{{ driver.contact_number }}">
+    </div>
+    <div class="form-group">
+        <label>Трак</label>
+        <select class="form-control" name="truck">
+            {% for t in trucks %}
+                <option value="{{ t._id }}" {% if truck and t._id == truck._id %}selected{% endif %}>
+                    {{ t.unit_number }} - {{ t.make }} {{ t.model }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Диспетчер</label>
+        <select class="form-control" name="dispatcher">
+            {% for d in dispatchers %}
+                <option value="{{ d._id }}" {% if dispatcher and d._id == dispatcher._id %}selected{% endif %}>
+                    {{ d.username }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-success" id="saveBtn">Сохранить</button>
+</form>
+
+<!-- Грузы -->
+<div id="loads-section" class="mt-4">
+    <h4>Грузы водителя</h4>
+    {% if loads %}
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Pickup</th>
+                    <th>Delivery</th>
+                    <th>Pickup Date</th>
+                    <th>Delivery Date</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for load in loads %}
+                    <tr>
+                        <td>{{ load.pickup_location }}</td>
+                        <td>{{ load.delivery_location }}</td>
+                        <td>{{ load.pickup_date }}</td>
+                        <td>{{ load.delivery_date }}</td>
+                        <td>{{ load.status }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Нет грузов, назначенных на этого водителя.</p>
+    {% endif %}
+</div>

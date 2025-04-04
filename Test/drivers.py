@@ -25,115 +25,14 @@ except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
 
+# Функция для преобразования ObjectId в строку
+def convert_to_str_id(data):
+    if data:
+        data['_id'] = str(data['_id'])
+    return data
+
 # Список всех водителей
-@drivers_bp.route('/drivers', methods=['GET', 'POST'])
-@login_required
-def drivers_list():
-    try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
-
-        truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
-        dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
-
-        for driver in drivers:
-            driver['_id'] = str(driver['_id'])
-            driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
-            driver['dispatcher_name'] = dispatcher_map.get(driver.get('dispatcher'), 'Нет диспетчера')
-
-        if request.method == 'POST':
-            driver_data = {
-                'name': request.form.get('name'),
-                'license_number': request.form.get('license_number'),
-                'contact_number': request.form.get('contact_number'),
-                'truck': request.form.get('truck'),
-                'dispatcher': request.form.get('dispatcher'),
-                'company': current_user.company
-            }
-            drivers_collection.insert_one(driver_data)
-            return redirect(url_for('drivers.drivers_list'))
-
-        return render_template('drivers.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers)
-    except Exception as e:
-        logging.error(f"Error fetching drivers or trucks: {e}")
-        return render_template('error.html', message="Failed to retrieve drivers or trucks list")
-
-# Страница водителя + редактирование + вкладка грузов
-@drivers_bp.route('/driver/<driver_id>', methods=['GET', 'POST'])
-@login_required
-def driver_detail(driver_id):
-    try:
-        driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
-        if not driver:
-            return render_template('error.html', message="Driver not found")
-
-        if request.method == 'POST':
-            updated_data = {
-                'name': request.form.get('name'),
-                'license_number': request.form.get('license_number'),
-                'contact_number': request.form.get('contact_number'),
-                'truck': request.form.get('truck'),
-                'dispatcher': request.form.get('dispatcher'),
-                'company': current_user.company
-            }
-            drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
-            return redirect(url_for('drivers.driver_detail', driver_id=driver_id))
-
-        driver['_id'] = str(driver['_id'])
-
-        truck = trucks_collection.find_one({'_id': ObjectId(driver.get('truck'))}) if driver.get('truck') else None
-        dispatcher = users_collection.find_one({'_id': ObjectId(driver.get('dispatcher'))}) if driver.get('dispatcher') else None
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
-
-        # Загрузка грузов, где водитель назначен
-        loads = list(loads_collection.find({'driver': ObjectId(driver['_id'])}))
-
-        return render_template(
-            'driver_detail.html',
-            driver=driver,
-            truck=truck,
-            dispatcher=dispatcher,
-            trucks=trucks,
-            dispatchers=dispatchers,
-            loads=loads
-        )
-    except Exception as e:
-        logging.error(f"Error fetching or updating driver: {e}")
-        return render_template('error.html', message="Failed to load or update driver")
-
-# Удаление водителя
-@drivers_bp.route('/delete_driver/<driver_id>', methods=['POST'])
-@requires_role('admin')
-def delete_driver(driver_id):
-    try:
-        drivers_collection.delete_one({'_id': ObjectId(driver_id)})
-        return jsonify({'success': True})
-    except Exception as e:
-        logging.error(f"Error deleting driver: {e}")
-        return jsonify({'success': False, 'error': 'Failed to delete driver'})
-
-# Отдельный маршрут редактирования (если используется отдельно)
-@drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
-@requires_role('admin')
-def edit_driver(driver_id):
-    if request.method == 'POST':
-        try:
-            updated_data = {
-                'name': request.form.get('name'),
-                'license_number': request.form.get('license_number'),
-                'contact_number': request.form.get('contact_number'),
-                'truck': request.form.get('truck'),
-                'dispatcher': request.form.get('dispatcher')
-            }
-            drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
-            return redirect(url_for('drivers.drivers_list'))
-        except Exception as e:
-            logging.error(f"Error updating driver: {e}")
-            return render_template('error.html', message="Failed to edit driver")
-
-@drivers_bp.route('/fragment/drivers')
+@drivers_bp.route('/fragment/drivers', methods=['GET'])
 @login_required
 def drivers_fragment():
     try:
@@ -145,7 +44,7 @@ def drivers_fragment():
         dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
 
         for driver in drivers:
-            driver['_id'] = str(driver['_id'])
+            driver = convert_to_str_id(driver)
             driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
             driver['dispatcher_name'] = dispatcher_map.get(driver.get('dispatcher'), 'Нет диспетчера')
 
@@ -154,4 +53,78 @@ def drivers_fragment():
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
 
+# Информация о водителе
+@drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])
+@login_required
+def driver_details_fragment(driver_id):
+    try:
+        driver = convert_to_str_id(drivers_collection.find_one({'_id': ObjectId(driver_id)}))
+        if not driver:
+            return render_template('error.html', message="Driver not found")
 
+        truck = trucks_collection.find_one({'_id': ObjectId(driver.get('truck'))}) if driver.get('truck') else None
+        dispatcher = users_collection.find_one({'_id': ObjectId(driver.get('dispatcher'))}) if driver.get('dispatcher') else None
+        trucks = list(trucks_collection.find({'company': current_user.company}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
+        loads = list(loads_collection.find({'driver': ObjectId(driver['_id'])}))
+
+        return render_template(
+            'fragments/driver_details_fragment.html',
+            driver=driver,
+            truck=convert_to_str_id(truck),
+            dispatcher=convert_to_str_id(dispatcher),
+            trucks=trucks,
+            dispatchers=dispatchers,
+            loads=loads
+        )
+    except Exception as e:
+        logging.error(f"Error fetching driver details: {e}")
+        return render_template('error.html', message="Failed to retrieve driver details")
+
+# Добавление водителя
+@drivers_bp.route('/add_driver', methods=['POST'])
+@login_required
+def add_driver():
+    try:
+        driver_data = {
+            'name': request.form.get('name'),
+            'license_number': request.form.get('license_number'),
+            'contact_number': request.form.get('contact_number'),
+            'truck': request.form.get('truck'),
+            'dispatcher': request.form.get('dispatcher'),
+            'company': current_user.company
+        }
+        drivers_collection.insert_one(driver_data)
+        return redirect(url_for('index'))
+    except Exception as e:
+        logging.error(f"Error adding driver: {e}")
+        return render_template('error.html', message="Failed to add driver")
+
+# Редактирование водителя
+@drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
+@login_required
+def edit_driver(driver_id):
+    try:
+        updated_data = {
+            'name': request.form.get('name'),
+            'license_number': request.form.get('license_number'),
+            'contact_number': request.form.get('contact_number'),
+            'truck': request.form.get('truck'),
+            'dispatcher': request.form.get('dispatcher')
+        }
+        drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
+        return '', 200  # ✅ просто завершаем без редиректа
+    except Exception as e:
+        logging.error(f"Error updating driver: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Удаление водителя
+@drivers_bp.route('/delete_driver/<driver_id>', methods=['POST'])
+@requires_role('admin')
+def delete_driver(driver_id):
+    try:
+        drivers_collection.delete_one({'_id': ObjectId(driver_id)})
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting driver: {e}")
+        return jsonify({'success': False, 'error': 'Failed to delete driver'})

@@ -36,7 +36,9 @@ function initClickableRows() {
     document.querySelectorAll(".clickable-row").forEach(row => {
         const href = row.getAttribute("data-href");
         if (href) {
-            row.addEventListener("click", () => window.location.href = href);
+            row.addEventListener("click", () => {
+                loadDriverDetailsFragment(href);
+            });
         }
     });
 }
@@ -98,4 +100,28 @@ function initDriverModalActions() {
             modal.style.display = "none";
         }
     });
+}
+
+function loadDriverDetailsFragment(href) {
+    fetch(href)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById("section-drivers").style.display = "none";
+            const details = document.getElementById("driver-details");
+            details.innerHTML = html;
+            details.style.display = "block";
+
+            const script = document.createElement("script");
+            script.src = "/static/js/driver_detail.js";
+            script.onload = () => {
+                console.log("✅ driver_detail.js загружен");
+                if (typeof initDriverDetailActions === "function") {
+                    initDriverDetailActions();
+                }
+            };
+            document.body.appendChild(script);
+        })
+        .catch(error => {
+            console.error("Ошибка загрузки данных водителя:", error);
+        });
 }
