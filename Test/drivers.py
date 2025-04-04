@@ -128,3 +128,82 @@ def delete_driver(driver_id):
     except Exception as e:
         logging.error(f"Error deleting driver: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete driver'})
+
+
+@drivers_bp.route('/set_salary_scheme/<driver_id>', methods=['POST'])
+@login_required
+def set_salary_scheme(driver_id):
+    try:
+        scheme_type = request.form.get('scheme_type')
+
+        if scheme_type == 'percent':
+            # Схема 1: от суммы грузов (gross)
+            gross_table = []
+            gross_from = request.form.getlist('gross_from_sum[]')
+            gross_percent = request.form.getlist('gross_percent[]')
+
+            for from_val, percent_val in zip(gross_from, gross_percent):
+                if from_val and percent_val:
+                    gross_table.append({
+                        'from_sum': float(from_val),
+                        'percent': float(percent_val)
+                    })
+
+            update_data = {
+                'scheme_type': 'percent',
+                'commission_table': gross_table,
+                'net_commission_table': None  # очистим, если раньше была net схема
+            }
+
+        elif scheme_type == 'net_percent':
+            # Схема 2: от чистой прибыли (net)
+            net_table = []
+            net_from = request.form.getlist('net_from_sum[]')
+            net_percent = request.form.getlist('net_percent[]')
+
+            for from_val, percent_val in zip(net_from, net_percent):
+                if from_val and percent_val:
+                    net_table.append({
+                        'from_sum': float(from_val),
+                        'percent': float(percent_val)
+                    })
+
+            update_data = {
+                'scheme_type': 'net_percent',
+                'net_commission_table': net_table,
+                'commission_table': None  # очистим, если раньше была gross схема
+            }
+
+        else:
+            return jsonify({'success': False, 'error': 'Неверный тип схемы'}), 400
+
+        drivers_collection.update_one(
+            {'_id': ObjectId(driver_id)},
+            {'$set': update_data}
+        )
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
+@login_required
+def get_salary_scheme(driver_id):
+    try:
+        driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
+        if not driver:
+            return jsonify({'success': False, 'error': 'Водитель не найден'}), 404
+
+        result = {
+            'scheme_type': driver.get('scheme_type'),
+            'commission_table': driver.get('commission_table', []),
+            'net_commission_table': driver.get('net_commission_table', [])
+        }
+
+        return jsonify({'success': True, 'data': result})
+
+    except Exception as e:
+        logging.error(f"Ошибка при получении схемы зарплаты: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
