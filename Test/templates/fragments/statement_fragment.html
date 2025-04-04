@@ -1,7 +1,3 @@
-<script>
-    window.statementDrivers = JSON.parse('{{ drivers|tojson|safe }}');
-</script>
-
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4>Стейтменты водителей</h4>
     <button class="btn btn-primary" data-toggle="modal" data-target="#createStatementModal">
@@ -51,6 +47,15 @@
             <textarea id="note" class="form-control" rows="2"></textarea>
           </div>
         </div>
+
+        <!-- ГРУЗЫ ВОДИТЕЛЯ -->
+        <div id="driverLoadsBlock" style="display:none; margin-top: 20px;">
+          <h5>Грузы водителя</h5>
+          <div id="driverLoadsContent">
+            <p class="text-muted">Грузы будут показаны после выбора водителя.</p>
+          </div>
+        </div>
+
       </div>
 
       <div class="modal-footer">
