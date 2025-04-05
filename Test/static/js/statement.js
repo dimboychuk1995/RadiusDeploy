@@ -103,7 +103,7 @@ function calculateAndDisplaySalary() {
     const gross = selectedLoads.reduce((sum, load) => sum + (load.price || 0), 0);
     const net = gross - fuel - tolls;
     const base = scheme === 'gross' ? gross : (net > 0 ? net : 0);
-    const salary = applyProgressiveCommission(commissionTable, base);
+    const salary = applyTieredFlatCommission(commissionTable, base);
 
     // 🔍 ЛОГИ
     console.log("Driver:", selectedDriverData);
@@ -119,16 +119,19 @@ function calculateAndDisplaySalary() {
     document.getElementById("salaryAmount").textContent = `$${salary.toFixed(2)}`;
 }
 
+function applyTieredFlatCommission(table, amount) {
+    if (!Array.isArray(table) || table.length === 0) return 0;
 
-function applyProgressiveCommission(table, amount) {
-    let total = 0;
-    for (let i = 0; i < table.length; i++) {
-        const { from, to, percent } = table[i];
-        const upper = to !== null && to !== undefined ? Math.min(to, amount) : amount;
-        if (amount > from) {
-            const segment = upper - from;
-            total += segment * (percent / 100);
+    const sorted = table.slice().sort((a, b) => a.from - b.from);
+    let applicablePercent = sorted[0].percent;
+
+    for (let i = 1; i < sorted.length; i++) {
+        if (amount >= sorted[i].from) {
+            applicablePercent = sorted[i].percent;
+        } else {
+            break;
         }
     }
-    return total;
+
+    return amount * (applicablePercent / 100);
 }
