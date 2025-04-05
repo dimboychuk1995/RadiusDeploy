@@ -1,11 +1,11 @@
 <h1>Driver Details</h1>
 
-<!-- Кнопка "Назад" -->
+<!-- 🔙 Кнопка Назад -->
 <button type="button" class="btn btn-secondary mb-3" id="backToDriversBtn">
     ← Назад к списку водителей
 </button>
 
-<!-- ✅ Форма редактирования -->
+<!-- 📝 Форма редактирования -->
 <form action="{{ url_for('drivers.edit_driver', driver_id=driver._id) }}" method="POST" id="editForm" data-driver-id="{{ driver._id }}">
     <div class="form-group">
         <label>Имя</label>
@@ -43,12 +43,12 @@
     <button type="button" class="btn btn-secondary" id="editBtn">Редактировать</button>
 </form>
 
-<!-- ✅ Кнопка "Схема зарплаты" -->
+<!-- 💰 Кнопка модалки -->
 <button type="button" class="btn btn-info mt-3" data-toggle="modal" data-target="#salarySchemeModal">
     💰 Схема зарплаты
 </button>
 
-<!-- ✅ Модальное окно -->
+<!-- 💼 Модальное окно -->
 <div class="modal fade" id="salarySchemeModal" tabindex="-1" role="dialog" aria-labelledby="salarySchemeModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <form id="salarySchemeForm" data-driver-id="{{ driver._id }}">
@@ -60,7 +60,8 @@
           </button>
         </div>
         <div class="modal-body">
-            <!-- Селектор схемы -->
+
+            <!-- Выбор типа схемы -->
             <div class="form-group">
                 <label>Схема расчёта</label>
                 <select class="form-control" name="scheme_type" id="schemeTypeSelect">
@@ -69,11 +70,17 @@
                 </select>
             </div>
 
-            <!-- Схема 1: процент от суммы грузов -->
+            <!-- 💵 Процент от суммы -->
             <div id="percentSchemeBlock" {% if scheme_data.scheme_type != 'percent' %}style="display: none;"{% endif %}>
-                <label>Процент от суммы грузов (гросс):</label>
+                <div class="form-group">
+                    <label>Базовый процент от $0:</label>
+                    <input type="number" step="0.01" name="base_percent" class="form-control"
+                           value="{{ scheme_data.commission_table[0].percent if scheme_data.commission_table and scheme_data.commission_table[0].from_sum == 0 else 30 }}">
+                </div>
+
+                <label>Дополнительные уровни:</label>
                 <div id="commissionTable">
-                    {% for entry in scheme_data.commission_table | default([]) %}
+                    {% for entry in scheme_data.commission_table[1:] %}
                     <div class="form-row mb-2">
                         <div class="col">
                             <input type="number" step="0.01" class="form-control" name="gross_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)">
@@ -87,11 +94,17 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" id="addCommissionRow">+ Добавить строку</button>
             </div>
 
-            <!-- Схема 2: процент от чистой прибыли -->
+            <!-- 📉 Процент от чистой прибыли -->
             <div id="netPercentBlock" {% if scheme_data.scheme_type == 'percent' %}style="display: none;"{% endif %}>
-                <label>Процент от чистой прибыли:</label>
+                <div class="form-group">
+                    <label>Базовый процент от $0:</label>
+                    <input type="number" step="0.01" name="base_percent" class="form-control"
+                           value="{{ scheme_data.net_commission_table[0].percent if scheme_data.net_commission_table and scheme_data.net_commission_table[0].from_sum == 0 else 30 }}">
+                </div>
+
+                <label>Дополнительные уровни:</label>
                 <div id="netCommissionTable">
-                    {% for entry in scheme_data.net_commission_table | default([]) %}
+                    {% for entry in scheme_data.net_commission_table[1:] %}
                     <div class="form-row mb-2">
                         <div class="col">
                             <input type="number" step="0.01" class="form-control" name="net_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)">
@@ -113,3 +126,6 @@
     </form>
   </div>
 </div>
+
+<!-- 🔍 Отладочная вставка -->
+<div class="alert alert-info mt-3">Driver ID: {{ driver._id }}</div>

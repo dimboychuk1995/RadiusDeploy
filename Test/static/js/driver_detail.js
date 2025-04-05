@@ -30,6 +30,12 @@ function initDriverDetailActions() {
             const formData = new FormData(form);
             const driverId = form.dataset.driverId;
 
+            if (!driverId) {
+                console.error("❌ driverId отсутствует в editForm");
+                alert("Ошибка: не удалось определить ID водителя");
+                return;
+            }
+
             fetch(`/edit_driver/${driverId}`, {
                 method: "POST",
                 body: formData
@@ -75,7 +81,7 @@ function initDriverDetailActions() {
             row.classList.add("form-row", "mb-2");
             row.innerHTML = `
                 <div class="col">
-                    <input type="number" step="0.01" class="form-control" name="gross_from_sum[]" placeholder="От суммы ($)">
+                    <input type="number" step="0.01" min="0.01" class="form-control" name="gross_from_sum[]" placeholder="от суммы ($) — не 0">
                 </div>
                 <div class="col">
                     <input type="number" step="0.01" class="form-control" name="gross_percent[]" placeholder="Процент (%)">
@@ -91,7 +97,7 @@ function initDriverDetailActions() {
             row.classList.add("form-row", "mb-2");
             row.innerHTML = `
                 <div class="col">
-                    <input type="number" step="0.01" class="form-control" name="net_from_sum[]" placeholder="От суммы ($)">
+                    <input type="number" step="0.01" min="0.01" class="form-control" name="net_from_sum[]" placeholder="от суммы ($) — не 0">
                 </div>
                 <div class="col">
                     <input type="number" step="0.01" class="form-control" name="net_percent[]" placeholder="Процент (%)">
@@ -101,13 +107,20 @@ function initDriverDetailActions() {
         });
     }
 
-    // Сохранение схемы
     const salaryForm = document.getElementById("salarySchemeForm");
 
     if (salaryForm) {
         salaryForm.addEventListener("submit", function (e) {
             e.preventDefault();
             const driverId = salaryForm.dataset.driverId;
+            console.log("📦 driverId:", driverId);
+            console.log("📦 salaryForm:", salaryForm);
+
+            if (!driverId) {
+                alert("❌ Ошибка: не удалось получить ID водителя.");
+                return;
+            }
+
             const formData = new FormData(salaryForm);
 
             fetch(`/set_salary_scheme/${driverId}`, {

@@ -16,7 +16,6 @@ try:
     users_collection = db['users']
     loads_collection = db['loads']
     client.admin.command('ping')
-    logging.info("Successfully connected to MongoDB")
 except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
@@ -25,6 +24,7 @@ def convert_to_str_id(data):
     if isinstance(data, dict) and '_id' in data:
         data['_id'] = str(data['_id'])
     return data
+
 
 @drivers_bp.route('/fragment/drivers', methods=['GET'])
 @login_required
@@ -78,7 +78,6 @@ def driver_details_fragment(driver_id):
             loads=loads,
             scheme_data=scheme_data
         )
-
     except Exception as e:
         logging.error(f"Error fetching driver details: {e}")
         return render_template('error.html', message="Failed to retrieve driver details")
@@ -100,6 +99,7 @@ def add_driver():
     except Exception as e:
         logging.error(f"Error adding driver: {e}")
         return render_template('error.html', message="Failed to add driver")
+
 
 @drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
 @login_required
@@ -136,29 +136,64 @@ def set_salary_scheme(driver_id):
 
         if scheme_type == 'percent':
             gross_table = []
+
+            base_percent = float(request.form.get('base_percent', 30))
+            gross_table.append({
+                'from_sum': 0,
+                'percent': base_percent,
+                'to_sum': None
+            })
+
             gross_from = request.form.getlist('gross_from_sum[]')
             gross_percent = request.form.getlist('gross_percent[]')
-            base_percent = float(request.form.get('base_percent', 30))
-            gross_table.append({'from_sum': 0, 'percent': base_percent, 'to_sum': None})
 
             for from_val, percent_val in zip(gross_from, gross_percent):
                 if from_val and percent_val:
-                    gross_table.append({'from_sum': float(from_val), 'percent': float(percent_val), 'to_sum': None})
+                    from_float = float(from_val)
+                    if from_float == 0:
+                        continue
+                    gross_table.append({
+                        'from_sum': from_float,
+                        'percent': float(percent_val),
+                        'to_sum': None
+                    })
 
-            update_data = {'scheme_type': 'percent', 'commission_table': gross_table, 'net_commission_table': None}
+            update_data = {
+                'scheme_type': 'percent',
+                'commission_table': gross_table,
+                'net_commission_table': None
+            }
 
         elif scheme_type == 'net_percent':
             net_table = []
+
+            base_percent = float(request.form.get('base_percent', 30))
+            net_table.append({
+                'from_sum': 0,
+                'percent': base_percent,
+                'to_sum': None
+            })
+
             net_from = request.form.getlist('net_from_sum[]')
             net_percent = request.form.getlist('net_percent[]')
-            base_percent = float(request.form.get('base_percent', 30))
-            net_table.append({'from_sum': 0, 'percent': base_percent, 'to_sum': None})
 
             for from_val, percent_val in zip(net_from, net_percent):
                 if from_val and percent_val:
-                    net_table.append({'from_sum': float(from_val), 'percent': float(percent_val), 'to_sum': None})
+                    from_float = float(from_val)
+                    if from_float == 0:
+                        continue
+                    net_table.append({
+                        'from_sum': from_float,
+                        'percent': float(percent_val),
+                        'to_sum': None
+                    })
 
-            update_data = {'scheme_type': 'net_percent', 'net_commission_table': net_table, 'commission_table': None}
+            update_data = {
+                'scheme_type': 'net_percent',
+                'net_commission_table': net_table,
+                'commission_table': None
+            }
+
         else:
             return jsonify({'success': False, 'error': 'Неверный тип схемы'}), 400
 
@@ -168,6 +203,8 @@ def set_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 @drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
 @login_required
