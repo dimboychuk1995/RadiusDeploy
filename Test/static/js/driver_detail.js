@@ -11,7 +11,7 @@ function initDriverDetailActions() {
         editBtn.addEventListener('click', function () {
             formElements.forEach(element => element.disabled = false);
             editBtn.classList.add('d-none');
-            saveBtn.classList.remove('d-none');
+            saveBtn.classList.remove('d-none'); // ✅ Показываем "Сохранить"
         });
     }
 
