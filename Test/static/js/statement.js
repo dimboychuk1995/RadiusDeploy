@@ -51,9 +51,10 @@ function initStatementEvents() {
                 loadsContent.innerHTML = '<p class="text-danger">Ошибка загрузки грузов</p>';
             });
 
-        // Перерасчёт при ручном вводе
-        document.getElementById("fuelInput").addEventListener('input', calculateAndDisplaySalary);
-        document.getElementById("tollsInput").addEventListener('input', calculateAndDisplaySalary);
+        document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
+        document.getElementById("tollsInput")?.addEventListener('input', calculateAndDisplaySalary);
+        document.getElementById("startDate")?.addEventListener('change', calculateAndDisplaySalary);
+        document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
 }
 
@@ -66,8 +67,9 @@ function parseLoadsFromHTML(html) {
     rows.forEach(row => {
         const cells = row.querySelectorAll("td");
         if (cells.length >= 5) {
+            const priceText = cells[4].textContent.replace(/[$,\s]/g, '');
             loads.push({
-                price: parseFloat(cells[4].textContent.replace('$', '')) || 0
+                price: parseFloat(priceText) || 0
             });
         }
     });
@@ -93,26 +95,45 @@ function calculateAndDisplaySalary() {
     }
 
     const scheme = selectedDriverData.scheme_type || 'gross';
-    const commissionTable = scheme === 'gross'
-        ? selectedDriverData.commission_table || []
-        : selectedDriverData.net_commission_table || [];
+    let commissionTable = [];
 
-    const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0);
-    const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0);
+    if (scheme === 'gross') {
+        commissionTable = selectedDriverData.commission_table || [];
+    } else if (scheme === 'net' || scheme === 'net_percent') {
+        commissionTable = selectedDriverData.net_commission_table || [];
+    } else if (scheme === 'net_gross') {
+        commissionTable = selectedDriverData.commission_table || [];
+        console.warn('Схема net_gross: используем commission_table как fallback');
+    } else {
+        console.warn('Неизвестная схема оплаты:', scheme);
+    }
+
+    if (!commissionTable.length) {
+        console.warn('Комиссионная таблица пуста');
+        document.getElementById("salaryAmount").textContent = "$0.00";
+        return;
+    }
+
+    const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0) || 0;
+    const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
 
     const gross = selectedLoads.reduce((sum, load) => sum + (load.price || 0), 0);
     const net = gross - fuel - tolls;
-    const base = scheme === 'gross' ? gross : (net > 0 ? net : 0);
-    const salary = applyTieredFlatCommission(commissionTable, base);
+    let salary = 0;
 
-    // 🔍 ЛОГИ
+    if (scheme === 'gross') {
+        salary = applyTieredFlatCommission(commissionTable, gross);
+    } else if (scheme === 'net' || scheme === 'net_percent') {
+        const percent = getApplicablePercent(commissionTable, gross); // процент по gross
+        salary = Math.max(net, 0) * (percent / 100);
+    } else if (scheme === 'net_gross') {
+        salary = applyTieredFlatCommission(commissionTable, gross); // либо другая логика
+    }
+
     console.log("Driver:", selectedDriverData);
-    console.log("Loads:", selectedLoads);
-    console.log("Gross:", gross);
-    console.log("Fuel:", fuel, "Tolls:", tolls);
-    console.log("Net:", net);
+    console.log("Scheme:", scheme);
+    console.log("Gross:", gross, "Net:", net);
     console.log("Commission table:", commissionTable);
-    console.log("Base for calc:", base);
     console.log("Salary result:", salary);
 
     document.getElementById("salaryResult").style.display = "block";
@@ -134,4 +155,21 @@ function applyTieredFlatCommission(table, amount) {
     }
 
     return amount * (applicablePercent / 100);
+}
+
+function getApplicablePercent(table, amount) {
+    if (!Array.isArray(table) || table.length === 0) return 0;
+
+    const sorted = table.slice().sort((a, b) => a.from - b.from);
+    let applicablePercent = sorted[0].percent;
+
+    for (let i = 1; i < sorted.length; i++) {
+        if (amount >= sorted[i].from) {
+            applicablePercent = sorted[i].percent;
+        } else {
+            break;
+        }
+    }
+
+    return applicablePercent;
 }

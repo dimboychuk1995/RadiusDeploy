@@ -73,17 +73,19 @@ def statement_fragment():
         truck_map = {str(truck['_id']): cleanup_doc(truck) for truck in trucks}
 
         cleaned_drivers = []
+        valid_schemes = ['gross', 'net', 'net_percent', 'net_gross']
+
         for driver in drivers:
             d = cleanup_doc(driver)
             d['_id'] = str(d['_id'])
 
-            # ВАЖНО: используем оригинальные поля из driver, не d
             raw_commission = driver.get('commission_table', [])
             raw_net_commission = driver.get('net_commission_table', [])
 
-            d['commission_table'] = normalize_commission_table(d.get('commission_table', []))
-            d['net_commission_table'] = normalize_commission_table(d.get('net_commission_table', []))
-            if d.get('scheme_type') not in ['gross', 'net']:
+            d['commission_table'] = normalize_commission_table(raw_commission)
+            d['net_commission_table'] = normalize_commission_table(raw_net_commission)
+
+            if d.get('scheme_type') not in valid_schemes:
                 d['scheme_type'] = 'gross'
 
             truck_id = str(d.get('truck'))
@@ -97,7 +99,6 @@ def statement_fragment():
         for d in cleaned_drivers:
             print(json.dumps(d, indent=2))
 
-        # преобразование ID у траков и грузов
         for t in trucks:
             t['_id'] = str(t['_id'])
         for l in loads:
@@ -114,7 +115,6 @@ def statement_fragment():
         logging.error("Ошибка в statement_fragment:")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to retrieve statement data")
-
 
 # --- Создание стейтмента ---
 @statement_bp.route('/statement/create', methods=['POST'])
