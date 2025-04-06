@@ -75,6 +75,12 @@
 <!-- Затемнение фона -->
 <div class="custom-offcanvas-backdrop" onclick="closeStatementModal()"></div>
 
+<!-- Поиск по имени водителя -->
+<div class="mb-3">
+  <label for="filterDriver" class="form-label mb-1">Поиск по водителю</label>
+  <input type="text" id="filterDriver" class="form-control" placeholder="Введите имя водителя...">
+</div>
+
 <!-- Список сохранённых стейтментов -->
 <div class="card mt-4">
   <div class="card-header">
@@ -99,8 +105,8 @@
           {% for s in statements %}
             <tr>
               <td>
-                {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id) | first %}
-                {{ driver.name if driver else 'Неизвестно' }}
+                  {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id|string) | first %}
+                  {{ driver.name if driver else 'Неизвестно' }}
               </td>
               <td>{{ s.week }}</td>
               <td>${{ "%.2f"|format(s.salary or 0) }}</td>

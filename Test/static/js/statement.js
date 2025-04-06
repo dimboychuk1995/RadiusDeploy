@@ -1,6 +1,10 @@
 let selectedDriverData = null;
 let selectedLoads = [];
 
+/**
+ * Инициализация событий внутри модального окна стейтмента:
+ * выбор водителя, неделя, загрузка грузов, создание стейтмента
+ */
 function initStatementEvents() {
     const select = $('#driverSelect');
     const createBtn = document.getElementById("createStatementBtn");
@@ -121,10 +125,6 @@ function initStatementEvents() {
         const gross = parseFloat(grossText);
         const salary = parseFloat(salaryText);
 
-        console.log("🔵 Driver ID:", driverId);
-        console.log("🔵 Selected Load IDs:", selectedLoadIds);
-        console.log("🔵 Gross:", gross, "Salary:", salary);
-
         if (!driverId || selectedLoadIds.length === 0) {
             alert("Выберите водителя и хотя бы один груз.");
             return;
@@ -161,6 +161,9 @@ function initStatementEvents() {
     });
 }
 
+/**
+ * Парсит HTML таблицу с грузами и возвращает массив цен
+ */
 function parseLoadsFromHTML(html) {
     const temp = document.createElement("div");
     temp.innerHTML = html;
@@ -170,7 +173,7 @@ function parseLoadsFromHTML(html) {
     rows.forEach(row => {
         const cells = row.querySelectorAll("td");
         if (cells.length >= 5) {
-            const priceText = cells[5].textContent.replace(/[$,\\s]/g, '');
+            const priceText = cells[5].textContent.replace(/[$,\s]/g, '');
             loads.push({
                 price: parseFloat(priceText) || 0
             });
@@ -180,6 +183,9 @@ function parseLoadsFromHTML(html) {
     return loads;
 }
 
+/**
+ * Возвращает объект водителя по ID из select опции
+ */
 function getDriverDataById(driverId) {
     const option = document.querySelector(`#driverSelect option[value="${driverId}"]`);
     if (!option || !option.dataset.driver) return null;
@@ -191,6 +197,9 @@ function getDriverDataById(driverId) {
     }
 }
 
+/**
+ * Расчёт зарплаты водителя и отображение итогов
+ */
 function calculateAndDisplaySalary() {
     if (!selectedDriverData) return;
 
@@ -245,6 +254,9 @@ function calculateAndDisplaySalary() {
     salaryElement.dataset.gross = gross.toFixed(2);
 }
 
+/**
+ * Применяет плоскую процентную комиссию (грубо)
+ */
 function applyTieredFlatCommission(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
     const sorted = table.slice().sort((a, b) => a.from - b.from);
@@ -260,6 +272,9 @@ function applyTieredFlatCommission(table, amount) {
     return amount * (applicablePercent / 100);
 }
 
+/**
+ * Получает применимый процент по таблице комиссий
+ */
 function getApplicablePercent(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
     const sorted = table.slice().sort((a, b) => a.from - b.from);
@@ -275,12 +290,42 @@ function getApplicablePercent(table, amount) {
     return applicablePercent;
 }
 
-document.addEventListener('DOMContentLoaded', initStatementEvents);
-
+/**
+ * Открывает модальное окно стейтмента
+ */
 function openStatementModal() {
     document.getElementById('createStatementModal')?.classList.add('open');
 }
 
+/**
+ * Закрывает модальное окно стейтмента
+ */
 function closeStatementModal() {
     document.getElementById('createStatementModal')?.classList.remove('open');
+}
+
+/**
+ * Фильтрация таблицы стейтментов по имени водителя
+ */
+function applyDriverFilter() {
+    const input = document.getElementById("filterDriver");
+    if (!input) return;
+
+    const filter = input.value.toLowerCase().trim();
+    const rows = document.querySelectorAll(".card-body table tbody tr");
+
+    rows.forEach(row => {
+        const driverName = row.children[0]?.textContent?.toLowerCase() || '';
+        row.style.display = driverName.includes(filter) ? "" : "none";
+    });
+}
+
+/**
+ * Инициализация фильтра по имени — вызывается вручную после вставки фрагмента
+ */
+function initStatementFilter() {
+    const filterInput = document.getElementById("filterDriver");
+    if (filterInput) {
+        filterInput.addEventListener("input", applyDriverFilter);
+    }
 }

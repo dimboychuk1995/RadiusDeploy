@@ -65,6 +65,7 @@ except Exception as e:
     exit(1)
 
 # --- Загрузка основного фрагмента ---
+# --- Загрузка основного фрагмента ---
 @statement_bp.route('/statement/fragment', methods=['GET'])
 @login_required
 def statement_fragment():
@@ -81,7 +82,7 @@ def statement_fragment():
 
         for driver in drivers:
             d = cleanup_doc(driver)
-            d['_id'] = str(d['_id'])
+            d['_id'] = str(d['_id'])  # 🔥 обязательно строка
 
             raw_commission = driver.get('commission_table', [])
             raw_net_commission = driver.get('net_commission_table', [])
@@ -106,7 +107,7 @@ def statement_fragment():
 
         for s in statements:
             s['_id'] = str(s['_id'])
-            s['driver_id'] = str(s.get('driver_id'))
+            s['driver_id'] = str(s.get('driver_id'))  # 🔥 тоже строка!
             s['load_ids'] = [str(lid) for lid in s.get('load_ids', [])]
             s['created_at'] = s.get('created_at').strftime('%Y-%m-%d %H:%M') if s.get('created_at') else ''
 
@@ -120,6 +121,7 @@ def statement_fragment():
         logging.error("Ошибка в statement_fragment:")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to retrieve statement data")
+
 
 # --- Таблица грузов (AJAX) ---
 @statement_bp.route('/statement/driver_loads/<driver_id>', methods=['GET'])

@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initAccountingButtons?.();
                     } else if (url.includes('statement')) {
                         initStatementEvents?.();
+                        initStatementFilter?.(); // 👈 добавили
                     }
                 });
         }
