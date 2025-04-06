@@ -2,8 +2,6 @@ let selectedDriverData = null;
 let selectedLoads = [];
 
 function initStatementEvents() {
-    console.log('initStatementEvents (Select2 version)');
-
     const select = $('#driverSelect');
     const createBtn = document.getElementById("createStatementBtn");
     const detailsBlock = document.getElementById("statementDetails");
@@ -36,6 +34,10 @@ function initStatementEvents() {
         createBtn.dataset.driverId = driverId;
         detailsBlock.style.display = 'block';
 
+        // 🆕 Генерация недель
+        populateWeekSelect('#weekSelect');
+
+        // Загрузка грузов
         fetch(`/statement/driver_loads/${driverId}`)
             .then(res => res.text())
             .then(html => {
@@ -124,17 +126,11 @@ function calculateAndDisplaySalary() {
     if (scheme === 'gross') {
         salary = applyTieredFlatCommission(commissionTable, gross);
     } else if (scheme === 'net' || scheme === 'net_percent') {
-        const percent = getApplicablePercent(commissionTable, gross); // процент по gross
+        const percent = getApplicablePercent(commissionTable, gross);
         salary = Math.max(net, 0) * (percent / 100);
     } else if (scheme === 'net_gross') {
-        salary = applyTieredFlatCommission(commissionTable, gross); // либо другая логика
+        salary = applyTieredFlatCommission(commissionTable, gross);
     }
-
-    console.log("Driver:", selectedDriverData);
-    console.log("Scheme:", scheme);
-    console.log("Gross:", gross, "Net:", net);
-    console.log("Commission table:", commissionTable);
-    console.log("Salary result:", salary);
 
     document.getElementById("salaryResult").style.display = "block";
     document.getElementById("salaryAmount").textContent = `$${salary.toFixed(2)}`;
@@ -173,3 +169,6 @@ function getApplicablePercent(table, amount) {
 
     return applicablePercent;
 }
+
+// 🟢 Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', initStatementEvents);

@@ -32,16 +32,14 @@
 
         <!-- РАСКРЫВАЮЩАЯСЯ ЧАСТЬ -->
         <div id="statementDetails" style="display: none; margin-top: 20px;">
-          <div class="form-group">
-            <label for="startDate">Начало периода</label>
-            <input type="date" id="startDate" class="form-control">
-          </div>
 
+            <!-- 🆕 ВЫБОР НЕДЕЛИ -->
           <div class="form-group">
-            <label for="endDate">Конец периода</label>
-            <input type="date" id="endDate" class="form-control">
+            <label for="weekSelect">Выберите неделю</label>
+            <select id="weekSelect" class="form-control">
+              <option value="">Выберите неделю...</option>
+            </select>
           </div>
-
           <div class="form-group">
             <label for="note">Примечание</label>
             <textarea id="note" class="form-control" rows="2"></textarea>

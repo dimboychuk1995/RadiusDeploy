@@ -1,5 +1,3 @@
-console.log('accounting.js вызван');
-
 function initAccountingButtons() {
     console.log('инициализация кнопок');
 
