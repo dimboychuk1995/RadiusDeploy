@@ -57,6 +57,7 @@ try:
     drivers_collection = db['drivers']
     trucks_collection = db['trucks']
     loads_collection = db['loads']
+    statement_collection = db['statement']
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB (statement.py)")
 except Exception as e:
@@ -71,6 +72,7 @@ def statement_fragment():
         drivers = list(drivers_collection.find({'company': current_user.company}))
         trucks = list(trucks_collection.find({'company': current_user.company}))
         loads = list(loads_collection.find({'company': current_user.company}))
+        statements = list(statement_collection.find({'company': current_user.company}))
 
         truck_map = {str(truck['_id']): cleanup_doc(truck) for truck in trucks}
 
@@ -102,10 +104,17 @@ def statement_fragment():
             l['driver_id'] = str(l.get('driver_id'))
             l['truck_id'] = str(l.get('truck_id'))
 
+        for s in statements:
+            s['_id'] = str(s['_id'])
+            s['driver_id'] = str(s.get('driver_id'))
+            s['load_ids'] = [str(lid) for lid in s.get('load_ids', [])]
+            s['created_at'] = s.get('created_at').strftime('%Y-%m-%d %H:%M') if s.get('created_at') else ''
+
         return render_template('fragments/statement_fragment.html',
                                drivers=cleaned_drivers,
                                trucks=trucks,
-                               loads=loads)
+                               loads=loads,
+                               statements=statements)
 
     except Exception as e:
         logging.error("Ошибка в statement_fragment:")
@@ -174,7 +183,7 @@ def create_statement():
             'created_at': datetime.utcnow()
         }
 
-        db.statement.insert_one(statement_doc)
+        statement_collection.insert_one(statement_doc)
 
         loads_collection.update_many(
             {'_id': {'$in': [ObjectId(lid) for lid in load_ids]}},
