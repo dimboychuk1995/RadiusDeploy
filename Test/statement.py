@@ -163,7 +163,13 @@ def create_statement():
 @login_required
 def get_driver_loads(driver_id):
     try:
-        loads = loads_collection.find({'driver': ObjectId(driver_id), 'company': current_user.company})
+        # ⚠️ Фильтруем только те, что еще не добавлены в стейтмент
+        loads = loads_collection.find({
+            'driver': ObjectId(driver_id),
+            'company': current_user.company,
+            'was_added_to_statement': {'$ne': True}
+        })
+
         parsed = []
         for l in loads:
             parsed.append({

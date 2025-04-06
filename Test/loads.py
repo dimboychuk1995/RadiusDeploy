@@ -51,12 +51,15 @@ def add_load():
                 'rate_con': file_id,
                 'company': current_user.company,
                 'price': request.form.get('price'),
+                'was_added_to_statement': False  # ✅ добавили это поле
             }
+
             loads_collection.insert_one(load_data)
             return redirect(url_for('index') + '#section-loads-fragment')
         except Exception as e:
             logging.exception("Error adding load:")
             return render_template('error.html', message="Failed to add load")
+
 
 @loads_bp.route('/rate_con/<file_id>', methods=['GET'])
 @login_required
@@ -71,16 +74,15 @@ def get_rate_con(file_id):
         logging.error(f"Error fetching rate con file: {e}")
         return render_template('error.html', message="Failed to retrieve the file")
 
+
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
 def loads_fragment():
     drivers = list(drivers_collection.find({'company': current_user.company}))
     loads = list(loads_collection.find({'company': current_user.company}))
 
-    # Преобразование списка водителей в словарь {id: name}
     driver_map = {str(driver['_id']): driver['name'] for driver in drivers}
 
-    # Добавление readable_name для вывода в таблице
     for load in loads:
         load['driver_name'] = driver_map.get(str(load.get('driver')), 'Неизвестно')
 
