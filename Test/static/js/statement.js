@@ -51,20 +51,22 @@ function initStatementEvents() {
                     filterLoadsByDateRange(startStr, endStr);
                     highlightWeekLoads(startStr, endStr);
 
+                    // Устанавливаем checked для нужных чекбоксов
                     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
                     rows.forEach(row => {
                         const checkbox = row.querySelector('.load-checkbox');
                         const deliveryCell = row.querySelector('[data-delivery-date]');
                         if (!checkbox || !deliveryCell) return;
 
-                        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
-                        checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+                        const deliveryDate = new Date(deliveryCell.dataset.deliveryDate.trim());
+                        const startDate = new Date(startStr);
+                        const endDate = new Date(endStr);
+                        endDate.setHours(23, 59, 59, 999);
 
-                        // слушатель на каждый чекбокс
+                        checkbox.checked = deliveryDate >= startDate && deliveryDate <= endDate;
                         checkbox.addEventListener('change', calculateAndDisplaySalary);
                     });
 
-                    // 💡 вызываем пересчёт ПОСЛЕ установки чекбоксов
                     calculateAndDisplaySalary();
                 }
             })
@@ -75,8 +77,6 @@ function initStatementEvents() {
 
         document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
         document.getElementById("tollsInput")?.addEventListener('input', calculateAndDisplaySalary);
-        document.getElementById("startDate")?.addEventListener('change', calculateAndDisplaySalary);
-        document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
 
     document.getElementById("weekSelect")?.addEventListener("change", function () {
@@ -92,15 +92,68 @@ function initStatementEvents() {
                 const deliveryCell = row.querySelector('[data-delivery-date]');
                 if (!checkbox || !deliveryCell) return;
 
-                const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
-                checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+                const deliveryDate = new Date(deliveryCell.dataset.deliveryDate.trim());
+                const startDate = new Date(startStr);
+                const endDate = new Date(endStr);
+                endDate.setHours(23, 59, 59, 999);
 
+                checkbox.checked = deliveryDate >= startDate && deliveryDate <= endDate;
                 checkbox.addEventListener('change', calculateAndDisplaySalary);
             });
 
             calculateAndDisplaySalary();
         }
     });
+
+    createBtn.addEventListener('click', function () {
+    const driverId = this.dataset.driverId;
+    const weekValue = document.getElementById("weekSelect")?.value || "";
+    const note = document.getElementById("note")?.value || "";
+    const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0) || 0;
+    const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
+
+    const selectedLoadIds = [];
+    document.querySelectorAll('.load-checkbox:checked').forEach(cb => {
+        selectedLoadIds.push(cb.dataset.loadId);
+    });
+
+    console.log("🔵 Driver ID:", driverId);
+    console.log("🔵 Selected Load IDs:", selectedLoadIds);
+
+    if (!driverId || selectedLoadIds.length === 0) {
+        alert("Выберите водителя и хотя бы один груз.");
+        return;
+    }
+
+    fetch("/statement/create", {
+        method: "POST",
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            driver_id: driverId,
+            week: weekValue,
+            note: note,
+            fuel: fuel,
+            tolls: tolls,
+            load_ids: selectedLoadIds
+        })
+    })
+    .then(res => {
+        if (res.ok) {
+            alert("Стейтмент успешно создан!");
+            window.location.reload();
+        } else {
+            return res.text().then(text => { throw new Error(text) });
+        }
+    })
+    .catch(err => {
+        console.error("Ошибка при создании стейтмента:", err);
+        alert("Ошибка при создании стейтмента");
+    });
+});
+
+
 }
 
 function parseLoadsFromHTML(html) {
@@ -112,7 +165,7 @@ function parseLoadsFromHTML(html) {
     rows.forEach(row => {
         const cells = row.querySelectorAll("td");
         if (cells.length >= 5) {
-            const priceText = cells[4].textContent.replace(/[$,\s]/g, '');
+            const priceText = cells[5].textContent.replace(/[$,\\s]/g, '');
             loads.push({
                 price: parseFloat(priceText) || 0
             });
@@ -145,11 +198,9 @@ function calculateAndDisplaySalary() {
         commissionTable = selectedDriverData.net_commission_table || [];
     } else if (scheme === 'net_gross') {
         commissionTable = selectedDriverData.commission_table || [];
-        console.warn('Схема net_gross: используем commission_table как fallback');
     }
 
     if (!commissionTable.length) {
-        console.warn('Комиссионная таблица пуста');
         document.getElementById("salaryAmount").textContent = "$0.00";
         return;
     }
@@ -161,7 +212,7 @@ function calculateAndDisplaySalary() {
 
     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
     rows.forEach(row => {
-        const checkbox = row.querySelector('input[type="checkbox"]');
+        const checkbox = row.querySelector('.load-checkbox');
         if (!checkbox || !checkbox.checked || row.style.display === 'none') return;
 
         const priceCell = row.querySelector('td:nth-child(6)');
@@ -189,7 +240,6 @@ function calculateAndDisplaySalary() {
 
 function applyTieredFlatCommission(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
-
     const sorted = table.slice().sort((a, b) => a.from - b.from);
     let applicablePercent = sorted[0].percent;
 
@@ -200,13 +250,11 @@ function applyTieredFlatCommission(table, amount) {
             break;
         }
     }
-
     return amount * (applicablePercent / 100);
 }
 
 function getApplicablePercent(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
-
     const sorted = table.slice().sort((a, b) => a.from - b.from);
     let applicablePercent = sorted[0].percent;
 
@@ -217,7 +265,6 @@ function getApplicablePercent(table, amount) {
             break;
         }
     }
-
     return applicablePercent;
 }
 

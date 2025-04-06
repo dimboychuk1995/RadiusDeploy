@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request
+from datetime import datetime
+
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from pymongo import MongoClient
 import logging
@@ -93,12 +95,6 @@ def statement_fragment():
 
             cleaned_drivers.append(d)
 
-        # DEBUG: покажем что попадёт в шаблон
-        import json
-        print("=== DRIVERS TO TEMPLATE ===")
-        for d in cleaned_drivers:
-            print(json.dumps(d, indent=2))
-
         for t in trucks:
             t['_id'] = str(t['_id'])
         for l in loads:
@@ -116,54 +112,11 @@ def statement_fragment():
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to retrieve statement data")
 
-# --- Создание стейтмента ---
-@statement_bp.route('/statement/create', methods=['POST'])
-@login_required
-def create_statement():
-    try:
-        driver_id = request.form.get('driver_id')
-        if not driver_id:
-            return render_template('error.html', message="Driver ID не передан")
-
-        driver = drivers_collection.find_one({'_id': ObjectId(driver_id), 'company': current_user.company})
-        if not driver:
-            return render_template('error.html', message="Водитель не найден")
-
-        truck = None
-        if driver.get('truck'):
-            truck = trucks_collection.find_one({'_id': ObjectId(driver['truck'])})
-
-        raw_loads = loads_collection.find({'driver': ObjectId(driver_id), 'company': current_user.company})
-        loads = []
-        for l in raw_loads:
-            loads.append({
-                '_id': str(l.get('_id')),
-                'pickup_location': l.get('pickup_location'),
-                'delivery_location': l.get('delivery_location'),
-                'pickup_date': l.get('pickup_date'),
-                'delivery_date': l.get('delivery_date'),
-                'price': l.get('price'),
-                'fuel': l.get('fuel', 0),
-                'tolls': l.get('tolls', 0),
-                'status': l.get('status'),
-                'rate_con': str(l.get('rate_con')) if l.get('rate_con') else None
-            })
-
-        return render_template('fragments/statement_detail.html',
-                               driver=driver,
-                               truck=truck,
-                               loads=loads)
-
-    except Exception as e:
-        logging.error(f"Ошибка при создании стейтмента: {e}")
-        return render_template('error.html', message="Не удалось создать стейтмент")
-
 # --- Таблица грузов (AJAX) ---
 @statement_bp.route('/statement/driver_loads/<driver_id>', methods=['GET'])
 @login_required
 def get_driver_loads(driver_id):
     try:
-        # ⚠️ Фильтруем только те, что еще не добавлены в стейтмент
         loads = loads_collection.find({
             'driver': ObjectId(driver_id),
             'company': current_user.company,
@@ -173,15 +126,15 @@ def get_driver_loads(driver_id):
         parsed = []
         for l in loads:
             parsed.append({
-                'pickup_location': l.get('pickup_location'),
-                'delivery_location': l.get('delivery_location'),
-                'pickup_date': l.get('pickup_date'),
-                'delivery_date': l.get('delivery_date'),
-                'price': l.get('price'),
-                'fuel': l.get('fuel', 0),
-                'tolls': l.get('tolls', 0),
-                'status': l.get('status'),
-                'rate_con': str(l.get('rate_con')) if l.get('rate_con') else None
+                '_id': str(l.get('_id')),
+                'pickup_location': l.get('pickup_location', ''),
+                'delivery_location': l.get('delivery_location', ''),
+                'pickup_date': l.get('pickup_date', ''),
+                'delivery_date': l.get('delivery_date', ''),
+                'price': l.get('price', '0'),
+                'status': l.get('status', ''),
+                'rate_con': str(l.get('rate_con')) if l.get('rate_con') else None,
+                'was_added_to_statement': l.get('was_added_to_statement', False)
             })
 
         return render_template('fragments/partials/driver_loads_table.html', loads=parsed)
@@ -189,3 +142,43 @@ def get_driver_loads(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при получении грузов водителя: {e}")
         return "<p class='text-danger'>Ошибка загрузки данных</p>"
+
+# --- Создание стейтмента ---
+@statement_bp.route('/statement/create', methods=['POST'])
+@login_required
+def create_statement():
+    try:
+        data = request.get_json()
+        driver_id = data.get('driver_id')
+        week = data.get('week')
+        note = data.get('note', '')
+        fuel = float(data.get('fuel', 0))
+        tolls = float(data.get('tolls', 0))
+        load_ids = data.get('load_ids', [])
+
+        if not driver_id or not load_ids:
+            return jsonify({'error': 'Missing driver or loads'}), 400
+
+        statement_doc = {
+            'driver_id': ObjectId(driver_id),
+            'week': week,
+            'note': note,
+            'fuel': fuel,
+            'tolls': tolls,
+            'load_ids': [ObjectId(lid) for lid in load_ids],
+            'company': current_user.company,
+            'created_at': datetime.utcnow()
+        }
+
+        db.statement.insert_one(statement_doc)
+
+        loads_collection.update_many(
+            {'_id': {'$in': [ObjectId(lid) for lid in load_ids]}},
+            {'$set': {'was_added_to_statement': True}}
+        )
+
+        return jsonify({'status': 'ok'}), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
