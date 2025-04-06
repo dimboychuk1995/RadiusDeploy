@@ -75,10 +75,17 @@
 <!-- Затемнение фона -->
 <div class="custom-offcanvas-backdrop" onclick="closeStatementModal()"></div>
 
-<!-- Поиск по имени водителя -->
-<div class="mb-3">
-  <label for="filterDriver" class="form-label mb-1">Поиск по водителю</label>
-  <input type="text" id="filterDriver" class="form-control" placeholder="Введите имя водителя...">
+<!-- Динамический поиск -->
+<div class="d-flex justify-content-between align-items-end mb-3 gap-3 flex-wrap">
+  <div class="flex-fill me-2">
+    <label for="filterDriver" class="form-label mb-1">Поиск по водителю</label>
+    <input type="text" id="filterDriver" class="form-control" placeholder="Введите имя водителя...">
+  </div>
+
+  <div class="flex-fill ms-2">
+    <label for="filterWeek" class="form-label mb-1">Фильтр по неделе</label>
+    <select id="filterWeek" class="form-control"></select>
+  </div>
 </div>
 
 <!-- Список сохранённых стейтментов -->

@@ -64,7 +64,7 @@ except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
 
-# --- Загрузка основного фрагмента ---
+
 # --- Загрузка основного фрагмента ---
 @statement_bp.route('/statement/fragment', methods=['GET'])
 @login_required

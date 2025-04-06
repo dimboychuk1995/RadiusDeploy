@@ -305,27 +305,41 @@ function closeStatementModal() {
 }
 
 /**
- * Фильтрация таблицы стейтментов по имени водителя
+ * Комбинированный фильтр по имени водителя и неделе
  */
-function applyDriverFilter() {
-    const input = document.getElementById("filterDriver");
-    if (!input) return;
+function applyCombinedFilter() {
+    const nameInput = document.getElementById("filterDriver");
+    const weekInput = document.getElementById("filterWeek");
 
-    const filter = input.value.toLowerCase().trim();
+    const nameFilter = nameInput?.value.toLowerCase().trim() || '';
+    const selectedWeek = weekInput?.value || '';
+
     const rows = document.querySelectorAll(".card-body table tbody tr");
 
     rows.forEach(row => {
         const driverName = row.children[0]?.textContent?.toLowerCase() || '';
-        row.style.display = driverName.includes(filter) ? "" : "none";
+        const weekText = row.children[1]?.textContent?.trim() || '';
+
+        const matchName = driverName.includes(nameFilter);
+        const matchWeek = selectedWeek === "" || weekText === selectedWeek;
+
+        row.style.display = (matchName && matchWeek) ? "" : "none";
     });
 }
 
 /**
- * Инициализация фильтра по имени — вызывается вручную после вставки фрагмента
+ * Инициализация фильтра по имени и неделе — вызывается вручную после вставки фрагмента
  */
 function initStatementFilter() {
     const filterInput = document.getElementById("filterDriver");
+    const weekSelect = document.getElementById("filterWeek");
+
     if (filterInput) {
-        filterInput.addEventListener("input", applyDriverFilter);
+        filterInput.addEventListener("input", applyCombinedFilter);
+    }
+
+    if (weekSelect) {
+        populateWeekSelect("#filterWeek");
+        weekSelect.addEventListener("change", applyCombinedFilter);
     }
 }
