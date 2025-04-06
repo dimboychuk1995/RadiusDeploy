@@ -30,7 +30,7 @@ function formatDate(date) {
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
-    return `${day}.${month}.${year}`;
+    return `${month}/${day}/${year}`;
 }
 
 function populateWeekSelect(selector) {
@@ -38,7 +38,20 @@ function populateWeekSelect(selector) {
     const $weekSelect = $(selector);
     $weekSelect.empty().append('<option value="">Выберите неделю...</option>');
 
+    // 👉 Вычисляем ПОНЕДЕЛЬНИК предыдущей завершённой недели
+    const today = new Date();
+    const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
+    const lastSunday = new Date(today);
+    lastSunday.setDate(today.getDate() - (day === 0 ? 7 : day)); // прошлое воскресенье
+    const lastMonday = new Date(lastSunday);
+    lastMonday.setDate(lastSunday.getDate() - 6); // его понедельник
+
+    const defaultValue = `${lastMonday.toISOString().split('T')[0]}_${lastSunday.toISOString().split('T')[0]}`;
+
     weekOptions.forEach(week => {
-        $weekSelect.append(`<option value="${week.value}">${week.label}</option>`);
+        const selected = week.value === defaultValue ? 'selected' : '';
+        $weekSelect.append(`<option value="${week.value}" ${selected}>${week.label}</option>`);
     });
 }
+
