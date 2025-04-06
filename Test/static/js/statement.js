@@ -44,7 +44,6 @@ function initStatementEvents() {
 
                 selectedDriverData = getDriverDataById(driverId);
                 selectedLoads = parseLoadsFromHTML(html);
-                calculateAndDisplaySalary();
 
                 const weekValue = document.getElementById("weekSelect")?.value;
                 if (weekValue) {
@@ -52,7 +51,6 @@ function initStatementEvents() {
                     filterLoadsByDateRange(startStr, endStr);
                     highlightWeekLoads(startStr, endStr);
 
-                    // ✅ Устанавливаем состояние чекбоксов по строкам
                     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
                     rows.forEach(row => {
                         const checkbox = row.querySelector('.load-checkbox');
@@ -61,7 +59,13 @@ function initStatementEvents() {
 
                         const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
                         checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+
+                        // слушатель на каждый чекбокс
+                        checkbox.addEventListener('change', calculateAndDisplaySalary);
                     });
+
+                    // 💡 вызываем пересчёт ПОСЛЕ установки чекбоксов
+                    calculateAndDisplaySalary();
                 }
             })
             .catch(err => {
@@ -75,7 +79,6 @@ function initStatementEvents() {
         document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
 
-    // 🔄 Обновляем подсветку и чекбоксы при смене недели
     document.getElementById("weekSelect")?.addEventListener("change", function () {
         const weekValue = this.value;
         if (weekValue) {
@@ -83,7 +86,6 @@ function initStatementEvents() {
             filterLoadsByDateRange(startStr, endStr);
             highlightWeekLoads(startStr, endStr);
 
-            // ✅ Переключаем чекбоксы по строковым датам
             const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
             rows.forEach(row => {
                 const checkbox = row.querySelector('.load-checkbox');
@@ -92,7 +94,11 @@ function initStatementEvents() {
 
                 const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
                 checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+
+                checkbox.addEventListener('change', calculateAndDisplaySalary);
             });
+
+            calculateAndDisplaySalary();
         }
     });
 }
@@ -128,10 +134,7 @@ function getDriverDataById(driverId) {
 }
 
 function calculateAndDisplaySalary() {
-    if (!selectedDriverData || !selectedLoads.length) {
-        console.warn('Нет данных для расчёта — либо водитель не выбран, либо нет грузов');
-        return;
-    }
+    if (!selectedDriverData) return;
 
     const scheme = selectedDriverData.scheme_type || 'gross';
     let commissionTable = [];
@@ -143,8 +146,6 @@ function calculateAndDisplaySalary() {
     } else if (scheme === 'net_gross') {
         commissionTable = selectedDriverData.commission_table || [];
         console.warn('Схема net_gross: используем commission_table как fallback');
-    } else {
-        console.warn('Неизвестная схема оплаты:', scheme);
     }
 
     if (!commissionTable.length) {
@@ -156,7 +157,20 @@ function calculateAndDisplaySalary() {
     const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0) || 0;
     const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
 
-    const gross = selectedLoads.reduce((sum, load) => sum + (load.price || 0), 0);
+    let gross = 0;
+
+    const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
+    rows.forEach(row => {
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        if (!checkbox || !checkbox.checked || row.style.display === 'none') return;
+
+        const priceCell = row.querySelector('td:nth-child(6)');
+        if (!priceCell) return;
+
+        const price = parseFloat(priceCell.textContent.replace(/[$,\s]/g, '')) || 0;
+        gross += price;
+    });
+
     const net = gross - fuel - tolls;
     let salary = 0;
 
@@ -207,7 +221,6 @@ function getApplicablePercent(table, amount) {
     return applicablePercent;
 }
 
-// Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', initStatementEvents);
 
 function openStatementModal() {
