@@ -1,13 +1,11 @@
-console.log('driver_load_table_statement.js loaded')
+console.log('load_highlight.js loaded (строковое сравнение дат)');
 
-// ⬅️ Скрывает строки вне диапазона ПН–ВС + 2 дня
+// Показывает только грузы в диапазоне: неделя + 2 дня (до вторника включительно)
 function filterLoadsByDateRange(startDateStr, endDateStr) {
-    const start = new Date(startDateStr);
-    start.setHours(0, 0, 0, 0);
-
-    const extendedEnd = new Date(endDateStr);
-    extendedEnd.setDate(extendedEnd.getDate() + 2);
-    extendedEnd.setHours(23, 59, 59, 999);
+    // Преобразуем endStr в строку +2 дня (в формате YYYY-MM-DD)
+    const endDate = new Date(endDateStr);
+    endDate.setDate(endDate.getDate() + 2);
+    const extendedEndStr = endDate.toISOString().split('T')[0];
 
     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
 
@@ -15,39 +13,23 @@ function filterLoadsByDateRange(startDateStr, endDateStr) {
         const deliveryCell = row.querySelector('[data-delivery-date]');
         if (!deliveryCell) return;
 
-        const parts = deliveryCell.dataset.deliveryDate.split("-");
-        const deliveryDate = new Date(
-            parseInt(parts[0]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[2])
-        );
+        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
 
-        row.style.display = (deliveryDate >= start && deliveryDate <= extendedEnd) ? '' : 'none';
+        row.style.display = (deliveryStr >= startDateStr && deliveryStr <= extendedEndStr) ? '' : 'none';
     });
 }
 
-// ⬅️ Подсвечивает грузы в основной неделе ПН–ВС
+// Подсвечивает грузы в пределах основной недели (ПН–ВС)
 function highlightWeekLoads(startDateStr, endDateStr) {
-    const start = new Date(startDateStr);
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(endDateStr);
-    end.setHours(23, 59, 59, 999);
-
     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
 
     rows.forEach(row => {
         const deliveryCell = row.querySelector('[data-delivery-date]');
         if (!deliveryCell) return;
 
-        const parts = deliveryCell.dataset.deliveryDate.split("-");
-        const deliveryDate = new Date(
-            parseInt(parts[0]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[2])
-        );
+        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
 
-        if (deliveryDate >= start && deliveryDate <= end) {
+        if (deliveryStr >= startDateStr && deliveryStr <= endDateStr) {
             row.classList.add('table-success');
         } else {
             row.classList.remove('table-success');
@@ -55,6 +37,5 @@ function highlightWeekLoads(startDateStr, endDateStr) {
     });
 }
 
-// Экспорт
 window.filterLoadsByDateRange = filterLoadsByDateRange;
 window.highlightWeekLoads = highlightWeekLoads;

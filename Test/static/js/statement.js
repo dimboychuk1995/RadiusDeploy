@@ -46,13 +46,23 @@ function initStatementEvents() {
                 selectedLoads = parseLoadsFromHTML(html);
                 calculateAndDisplaySalary();
 
-                // 🔥 Подсветка грузов по выбранной неделе
                 const weekValue = document.getElementById("weekSelect")?.value;
-                    if (weekValue) {
-                        const [startStr, endStr] = weekValue.split('_');
-                        filterLoadsByDateRange(startStr, endStr);    // скрываем лишнее
-                        highlightWeekLoads(startStr, endStr);        // подсвечиваем нужное
-                    }
+                if (weekValue) {
+                    const [startStr, endStr] = weekValue.split('_');
+                    filterLoadsByDateRange(startStr, endStr);
+                    highlightWeekLoads(startStr, endStr);
+
+                    // ✅ Устанавливаем состояние чекбоксов по строкам
+                    const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
+                    rows.forEach(row => {
+                        const checkbox = row.querySelector('.load-checkbox');
+                        const deliveryCell = row.querySelector('[data-delivery-date]');
+                        if (!checkbox || !deliveryCell) return;
+
+                        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
+                        checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+                    });
+                }
             })
             .catch(err => {
                 console.error("Ошибка загрузки:", err);
@@ -65,17 +75,27 @@ function initStatementEvents() {
         document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
 
-    // 🆕 обновляем фильтрацию и подсветку при смене выбранной недели вручную
-        document.getElementById("weekSelect")?.addEventListener("change", function () {
-            const weekValue = this.value;
-            if (weekValue) {
-                const [startStr, endStr] = weekValue.split('_');
-                filterLoadsByDateRange(startStr, endStr);
-                highlightWeekLoads(startStr, endStr);
-            }
-        });
-}
+    // 🔄 Обновляем подсветку и чекбоксы при смене недели
+    document.getElementById("weekSelect")?.addEventListener("change", function () {
+        const weekValue = this.value;
+        if (weekValue) {
+            const [startStr, endStr] = weekValue.split('_');
+            filterLoadsByDateRange(startStr, endStr);
+            highlightWeekLoads(startStr, endStr);
 
+            // ✅ Переключаем чекбоксы по строковым датам
+            const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
+            rows.forEach(row => {
+                const checkbox = row.querySelector('.load-checkbox');
+                const deliveryCell = row.querySelector('[data-delivery-date]');
+                if (!checkbox || !deliveryCell) return;
+
+                const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
+                checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
+            });
+        }
+    });
+}
 
 function parseLoadsFromHTML(html) {
     const temp = document.createElement("div");
@@ -187,7 +207,7 @@ function getApplicablePercent(table, amount) {
     return applicablePercent;
 }
 
-// 🟢 Инициализация при загрузке
+// Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', initStatementEvents);
 
 function openStatementModal() {

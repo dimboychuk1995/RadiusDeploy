@@ -2,6 +2,7 @@
   <table class="table table-sm table-striped">
     <thead>
       <tr>
+        <th></th> <!-- колонка под чекбоксы -->
         <th>Откуда</th>
         <th>Куда</th>
         <th>Пикап</th>
@@ -13,6 +14,12 @@
     <tbody>
       {% for load in loads %}
         <tr>
+          <td>
+            <input type="checkbox"
+                   class="load-checkbox"
+                   data-delivery-date="{{ load.delivery_date }}"
+                   data-load-id="{{ load._id }}">
+          </td>
           <td>{{ load.pickup_location }}</td>
           <td>{{ load.delivery_location }}</td>
           <td>{{ load.pickup_date }}</td>
