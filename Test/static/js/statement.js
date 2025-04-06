@@ -189,3 +189,11 @@ function getApplicablePercent(table, amount) {
 
 // 🟢 Инициализация при загрузке
 document.addEventListener('DOMContentLoaded', initStatementEvents);
+
+function openStatementModal() {
+    document.getElementById('createStatementModal')?.classList.add('open');
+}
+
+function closeStatementModal() {
+    document.getElementById('createStatementModal')?.classList.remove('open');
+}

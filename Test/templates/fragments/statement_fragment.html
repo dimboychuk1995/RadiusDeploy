@@ -1,81 +1,80 @@
+<!-- Кнопка -->
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4>Стейтменты водителей</h4>
-    <button class="btn btn-primary" data-toggle="modal" data-target="#createStatementModal">
+    <button class="btn btn-primary" onclick="openStatementModal()">
         Создать стейтмент
     </button>
 </div>
 
-<!-- Модальное окно -->
-<div class="modal fade" id="createStatementModal" tabindex="-1" role="dialog" aria-labelledby="createStatementLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Создание стейтмента</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть">
-          <span aria-hidden="true">&times;</span>
-        </button>
+<!-- Выезжающее модальное окно справа -->
+<div class="custom-offcanvas custom-offcanvas-right" id="createStatementModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Создание стейтмента</h5>
+      <button type="button" class="close" onclick="closeStatementModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <!-- ВЫБОР ВОДИТЕЛЯ -->
+      <div class="form-group">
+        <label for="driverSelect">Выберите водителя</label>
+        <select id="driverSelect" class="form-control" style="width: 100%">
+            <option value="">Начните вводить имя...</option>
+            {% for driver in drivers %}
+              <option value="{{ driver._id }}" data-driver='{{ driver | tojson | safe }}'>
+                {{ driver.name }}{% if driver.truck and driver.truck.unit_number %} ({{ driver.truck.unit_number }}){% endif %}
+              </option>
+            {% endfor %}
+        </select>
       </div>
 
-      <div class="modal-body">
-        <!-- ВЫБОР ВОДИТЕЛЯ -->
+      <!-- РАСКРЫВАЮЩАЯСЯ ЧАСТЬ -->
+      <div id="statementDetails" style="display: none; margin-top: 20px;">
+          <div class="form-group mt-3">
+              <label for="weekSelect">Выберите неделю</label>
+              <select id="weekSelect" class="form-control">
+                <!-- Динамически генерируется через populateWeekSelect('#weekSelect') -->
+              </select>
+            </div>
         <div class="form-group">
-          <label for="driverSelect">Выберите водителя</label>
-          <select id="driverSelect" class="form-control" style="width: 100%">
-              <option value="">Начните вводить имя...</option>
-              {% for driver in drivers %}
-                <option value="{{ driver._id }}" data-driver='{{ driver | tojson | safe }}'>
-                  {{ driver.name }}{% if driver.truck and driver.truck.unit_number %} ({{ driver.truck.unit_number }}){% endif %}
-                </option>
-              {% endfor %}
-          </select>
+          <label for="note">Примечание</label>
+          <textarea id="note" class="form-control" rows="2"></textarea>
         </div>
 
-        <!-- РАСКРЫВАЮЩАЯСЯ ЧАСТЬ -->
-        <div id="statementDetails" style="display: none; margin-top: 20px;">
-
-            <!-- 🆕 ВЫБОР НЕДЕЛИ -->
-          <div class="form-group">
-            <label for="weekSelect">Выберите неделю</label>
-            <select id="weekSelect" class="form-control">
-              <option value="">Выберите неделю...</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="note">Примечание</label>
-            <textarea id="note" class="form-control" rows="2"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="fuelInput">Топливо (Fuel)</label>
-            <input type="number" step="0.01" id="fuelInput" class="form-control" value="0">
-          </div>
-
-          <div class="form-group">
-            <label for="tollsInput">Толлы (Tolls)</label>
-            <input type="number" step="0.01" id="tollsInput" class="form-control" value="0">
-          </div>
+        <div class="form-group">
+          <label for="fuelInput">Топливо (Fuel)</label>
+          <input type="number" step="0.01" id="fuelInput" class="form-control" value="0">
         </div>
 
-        <!-- ГРУЗЫ ВОДИТЕЛЯ -->
-        <div id="driverLoadsBlock" style="display:none; margin-top: 20px;">
-          <h5>Грузы водителя</h5>
-          <div id="driverLoadsContent">
-            <p class="text-muted">Грузы будут показаны после выбора водителя.</p>
-          </div>
+        <div class="form-group">
+          <label for="tollsInput">Толлы (Tolls)</label>
+          <input type="number" step="0.01" id="tollsInput" class="form-control" value="0">
         </div>
-
-        <!-- ЗАРПЛАТА ВОДИТЕЛЯ -->
-        <div id="salaryResult" style="display: none; margin-top: 20px;">
-          <h5>Расчёт зарплаты</h5>
-          <p id="salaryAmount" class="font-weight-bold text-success" style="font-size: 1.2rem;">$0.00</p>
-        </div>
-
       </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
+      <!-- ГРУЗЫ ВОДИТЕЛЯ -->
+      <div id="driverLoadsBlock" style="display:none; margin-top: 20px;">
+        <h5>Грузы водителя</h5>
+        <div id="driverLoadsContent">
+          <p class="text-muted">Грузы будут показаны после выбора водителя.</p>
+        </div>
+      </div>
+
+      <!-- ЗАРПЛАТА ВОДИТЕЛЯ -->
+      <div id="salaryResult" style="display: none; margin-top: 20px;">
+        <h5>Расчёт зарплаты</h5>
+        <p id="salaryAmount" class="font-weight-bold text-success" style="font-size: 1.2rem;">$0.00</p>
+      </div>
+
+      <div class="mt-4 d-flex justify-content-end">
+        <button type="button" class="btn btn-secondary mr-2" onclick="closeStatementModal()">Отмена</button>
         <button type="button" class="btn btn-success" id="createStatementBtn" disabled>Создать</button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Затемнение фона -->
+<div class="custom-offcanvas-backdrop" onclick="closeStatementModal()"></div>
