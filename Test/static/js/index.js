@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('statement')) {
                         initStatementEvents?.();
                         initStatementFilter?.(); // 👈 добавили
+                        initStatementRowClicks();
                     }
                 });
         }

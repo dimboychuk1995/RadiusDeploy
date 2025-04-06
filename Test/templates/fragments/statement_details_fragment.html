@@ -1,0 +1,36 @@
+<h4>Детали стейтмента</h4>
+
+<p><strong>Водитель:</strong> {{ driver.name if driver else "Неизвестно" }}</p>
+<p><strong>Неделя:</strong> {{ statement.week }}</p>
+<p><strong>Зарплата:</strong> ${{ "%.2f"|format(statement.salary or 0) }}</p>
+<p><strong>Gross:</strong> ${{ "%.2f"|format(statement.gross or 0) }}</p>
+<p><strong>Топливо:</strong> ${{ "%.2f"|format(statement.fuel or 0) }}</p>
+<p><strong>Толлы:</strong> ${{ "%.2f"|format(statement.tolls or 0) }}</p>
+<p><strong>Примечание:</strong> {{ statement.note }}</p>
+<p><strong>Дата создания:</strong> {{ statement.created_at }}</p>
+
+<h5 class="mt-4">Грузы:</h5>
+<table class="table table-sm table-bordered">
+  <thead>
+    <tr>
+      <th>Погрузка</th>
+      <th>Выгрузка</th>
+      <th>Pickup</th>
+      <th>Delivery</th>
+      <th>Цена</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for l in loads %}
+    <tr>
+      <td>{{ l.pickup_location }}</td>
+      <td>{{ l.delivery_location }}</td>
+      <td>{{ l.pickup_date }}</td>
+      <td>{{ l.delivery_date }}</td>
+      <td>${{ "%.2f"|format(l.price|float) }}</td>
+      <td>{{ l.status }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

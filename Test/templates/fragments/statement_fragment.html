@@ -110,7 +110,7 @@
         </thead>
         <tbody>
           {% for s in statements %}
-            <tr>
+            <tr data-statement-id="{{ s._id }}" style="cursor: pointer;">
               <td>
                   {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id|string) | first %}
                   {{ driver.name if driver else 'Неизвестно' }}

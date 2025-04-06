@@ -197,3 +197,26 @@ def create_statement():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@statement_bp.route('/statement/details/<statement_id>', methods=['GET'])
+@login_required
+def statement_details(statement_id):
+    try:
+        statement = statement_collection.find_one({
+            '_id': ObjectId(statement_id),
+            'company': current_user.company
+        })
+        if not statement:
+            return "<p class='text-danger'>Стейтмент не найден</p>"
+
+        driver = drivers_collection.find_one({'_id': statement['driver_id']})
+        loads = loads_collection.find({'_id': {'$in': statement.get('load_ids', [])}})
+
+        return render_template('fragments/statement_details_fragment.html',
+                               statement=cleanup_doc(statement),
+                               driver=cleanup_doc(driver) if driver else None,
+                               loads=[cleanup_doc(l) for l in loads])
+    except Exception as e:
+        logging.error("Ошибка в statement_details:")
+        logging.error(traceback.format_exc())
+        return "<p class='text-danger'>Ошибка при загрузке деталей</p>"

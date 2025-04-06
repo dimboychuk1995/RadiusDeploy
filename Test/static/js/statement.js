@@ -343,3 +343,20 @@ function initStatementFilter() {
         weekSelect.addEventListener("change", applyCombinedFilter);
     }
 }
+
+//клик по строке
+function initStatementRowClicks() {
+  document.querySelectorAll("table tbody tr").forEach(row => {
+    row.addEventListener("click", () => {
+      const statementId = row.dataset.statementId;
+      if (statementId) {
+        fetch(`/statement/details/${statementId}`)
+          .then(res => res.text())
+          .then(html => {
+            const section = document.getElementById("section-statements");
+            section.innerHTML = html;
+          });
+      }
+    });
+  });
+}
