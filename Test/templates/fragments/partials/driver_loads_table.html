@@ -1,5 +1,3 @@
---- templates/fragments/partials/driver_loads_table.html ---
-
 {% if loads %}
   <table class="table table-sm table-striped">
     <thead>
@@ -18,7 +16,7 @@
           <td>{{ load.pickup_location }}</td>
           <td>{{ load.delivery_location }}</td>
           <td>{{ load.pickup_date }}</td>
-          <td>{{ load.delivery_date }}</td>
+          <td data-delivery-date="{{ load.delivery_date }}">{{ load.delivery_date }}</td>
           <td>{{ load.price }}</td>
           <td>{{ load.status }}</td>
         </tr>

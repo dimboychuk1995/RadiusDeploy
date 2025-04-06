@@ -34,10 +34,8 @@ function initStatementEvents() {
         createBtn.dataset.driverId = driverId;
         detailsBlock.style.display = 'block';
 
-        // 🆕 Генерация недель
         populateWeekSelect('#weekSelect');
 
-        // Загрузка грузов
         fetch(`/statement/driver_loads/${driverId}`)
             .then(res => res.text())
             .then(html => {
@@ -47,6 +45,13 @@ function initStatementEvents() {
                 selectedDriverData = getDriverDataById(driverId);
                 selectedLoads = parseLoadsFromHTML(html);
                 calculateAndDisplaySalary();
+
+                // 🔥 Подсветка грузов по выбранной неделе
+                const weekValue = document.getElementById("weekSelect")?.value;
+                if (weekValue && typeof highlightLoadsByWeek === 'function') {
+                    const [startStr, endStr] = weekValue.split('_');
+                    highlightLoadsByWeek(startStr, endStr);
+                }
             })
             .catch(err => {
                 console.error("Ошибка загрузки:", err);
@@ -58,7 +63,17 @@ function initStatementEvents() {
         document.getElementById("startDate")?.addEventListener('change', calculateAndDisplaySalary);
         document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
+
+    // 🆕 обновляем подсветку при смене выбранной недели вручную
+    document.getElementById("weekSelect")?.addEventListener("change", function () {
+        const weekValue = this.value;
+        if (weekValue && typeof highlightLoadsByWeek === 'function') {
+            const [startStr, endStr] = weekValue.split('_');
+            highlightLoadsByWeek(startStr, endStr);
+        }
+    });
 }
+
 
 function parseLoadsFromHTML(html) {
     const temp = document.createElement("div");

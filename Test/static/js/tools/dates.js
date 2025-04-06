@@ -1,5 +1,5 @@
 // static/js/dates.js
-console.log('dates.js called')
+
 function generateWeekRanges(weeksCount = 12) {
     const now = new Date();
     const currentDay = now.getDay();
