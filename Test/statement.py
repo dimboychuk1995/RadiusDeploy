@@ -220,3 +220,33 @@ def statement_details(statement_id):
         logging.error("Ошибка в statement_details:")
         logging.error(traceback.format_exc())
         return "<p class='text-danger'>Ошибка при загрузке деталей</p>"
+
+@statement_bp.route('/statement/delete/<statement_id>', methods=['DELETE'])
+@login_required
+def delete_statement(statement_id):
+    try:
+        statement = statement_collection.find_one({
+            '_id': ObjectId(statement_id),
+            'company': current_user.company
+        })
+
+        if not statement:
+            return jsonify({'error': 'Statement not found'}), 404
+
+        # Получаем список грузов из стейтмента
+        load_ids = statement.get('load_ids', [])
+
+        # Удаляем сам стейтмент
+        statement_collection.delete_one({'_id': ObjectId(statement_id)})
+
+        # Снимаем флаг was_added_to_statement у грузов
+        loads_collection.update_many(
+            {'_id': {'$in': load_ids}},
+            {'$set': {'was_added_to_statement': False}}
+        )
+
+        return jsonify({'status': 'deleted'}), 200
+
+    except Exception as e:
+        logging.error(f"Ошибка при удалении стейтмента: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500

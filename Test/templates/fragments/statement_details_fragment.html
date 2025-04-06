@@ -1,3 +1,10 @@
+<button class="btn btn-outline-secondary mb-3" onclick="loadStatementFragment()">
+  ← Назад к списку стейтментов
+</button>
+<button class="btn btn-danger mb-3" onclick="deleteStatement('{{ statement._id }}')">
+  🗑 Удалить стейтмент
+</button>
+
 <h4>Детали стейтмента</h4>
 
 <p><strong>Водитель:</strong> {{ driver.name if driver else "Неизвестно" }}</p>
