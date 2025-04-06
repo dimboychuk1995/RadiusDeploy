@@ -154,6 +154,8 @@ def create_statement():
         note = data.get('note', '')
         fuel = float(data.get('fuel', 0))
         tolls = float(data.get('tolls', 0))
+        gross = float(data.get('gross', 0))
+        salary = float(data.get('salary', 0))
         load_ids = data.get('load_ids', [])
 
         if not driver_id or not load_ids:
@@ -165,6 +167,8 @@ def create_statement():
             'note': note,
             'fuel': fuel,
             'tolls': tolls,
+            'gross': gross,
+            'salary': salary,
             'load_ids': [ObjectId(lid) for lid in load_ids],
             'company': current_user.company,
             'created_at': datetime.utcnow()

@@ -51,7 +51,6 @@ function initStatementEvents() {
                     filterLoadsByDateRange(startStr, endStr);
                     highlightWeekLoads(startStr, endStr);
 
-                    // Устанавливаем checked для нужных чекбоксов
                     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
                     rows.forEach(row => {
                         const checkbox = row.querySelector('.load-checkbox');
@@ -106,54 +105,60 @@ function initStatementEvents() {
     });
 
     createBtn.addEventListener('click', function () {
-    const driverId = this.dataset.driverId;
-    const weekValue = document.getElementById("weekSelect")?.value || "";
-    const note = document.getElementById("note")?.value || "";
-    const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0) || 0;
-    const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
+        const driverId = this.dataset.driverId;
+        const weekValue = document.getElementById("weekSelect")?.value || "";
+        const note = document.getElementById("note")?.value || "";
+        const fuel = parseFloat(document.getElementById("fuelInput")?.value || 0) || 0;
+        const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
 
-    const selectedLoadIds = [];
-    document.querySelectorAll('.load-checkbox:checked').forEach(cb => {
-        selectedLoadIds.push(cb.dataset.loadId);
-    });
+        const selectedLoadIds = [];
+        document.querySelectorAll('.load-checkbox:checked').forEach(cb => {
+            selectedLoadIds.push(cb.dataset.loadId);
+        });
 
-    console.log("🔵 Driver ID:", driverId);
-    console.log("🔵 Selected Load IDs:", selectedLoadIds);
+        const grossText = document.getElementById("salaryAmount")?.dataset.gross || "0";
+        const salaryText = document.getElementById("salaryAmount")?.textContent?.replace(/[$,\s]/g, '') || "0";
+        const gross = parseFloat(grossText);
+        const salary = parseFloat(salaryText);
 
-    if (!driverId || selectedLoadIds.length === 0) {
-        alert("Выберите водителя и хотя бы один груз.");
-        return;
-    }
+        console.log("🔵 Driver ID:", driverId);
+        console.log("🔵 Selected Load IDs:", selectedLoadIds);
+        console.log("🔵 Gross:", gross, "Salary:", salary);
 
-    fetch("/statement/create", {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            driver_id: driverId,
-            week: weekValue,
-            note: note,
-            fuel: fuel,
-            tolls: tolls,
-            load_ids: selectedLoadIds
-        })
-    })
-    .then(res => {
-        if (res.ok) {
-            alert("Стейтмент успешно создан!");
-            window.location.reload();
-        } else {
-            return res.text().then(text => { throw new Error(text) });
+        if (!driverId || selectedLoadIds.length === 0) {
+            alert("Выберите водителя и хотя бы один груз.");
+            return;
         }
-    })
-    .catch(err => {
-        console.error("Ошибка при создании стейтмента:", err);
-        alert("Ошибка при создании стейтмента");
+
+        fetch("/statement/create", {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                driver_id: driverId,
+                week: weekValue,
+                note: note,
+                fuel: fuel,
+                tolls: tolls,
+                load_ids: selectedLoadIds,
+                gross: gross,
+                salary: salary
+            })
+        })
+        .then(res => {
+            if (res.ok) {
+                alert("Стейтмент успешно создан!");
+                window.location.reload();
+            } else {
+                return res.text().then(text => { throw new Error(text) });
+            }
+        })
+        .catch(err => {
+            console.error("Ошибка при создании стейтмента:", err);
+            alert("Ошибка при создании стейтмента");
+        });
     });
-});
-
-
 }
 
 function parseLoadsFromHTML(html) {
@@ -234,8 +239,10 @@ function calculateAndDisplaySalary() {
         salary = applyTieredFlatCommission(commissionTable, gross);
     }
 
-    document.getElementById("salaryResult").style.display = "block";
-    document.getElementById("salaryAmount").textContent = `$${salary.toFixed(2)}`;
+    const salaryElement = document.getElementById("salaryAmount");
+    salaryElement.style.display = "block";
+    salaryElement.textContent = `$${salary.toFixed(2)}`;
+    salaryElement.dataset.gross = gross.toFixed(2);
 }
 
 function applyTieredFlatCommission(table, amount) {
