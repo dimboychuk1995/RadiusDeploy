@@ -48,10 +48,11 @@ function initStatementEvents() {
 
                 // 🔥 Подсветка грузов по выбранной неделе
                 const weekValue = document.getElementById("weekSelect")?.value;
-                if (weekValue && typeof highlightLoadsByWeek === 'function') {
-                    const [startStr, endStr] = weekValue.split('_');
-                    highlightLoadsByWeek(startStr, endStr);
-                }
+                    if (weekValue) {
+                        const [startStr, endStr] = weekValue.split('_');
+                        filterLoadsByDateRange(startStr, endStr);    // скрываем лишнее
+                        highlightWeekLoads(startStr, endStr);        // подсвечиваем нужное
+                    }
             })
             .catch(err => {
                 console.error("Ошибка загрузки:", err);
@@ -64,14 +65,15 @@ function initStatementEvents() {
         document.getElementById("endDate")?.addEventListener('change', calculateAndDisplaySalary);
     });
 
-    // 🆕 обновляем подсветку при смене выбранной недели вручную
-    document.getElementById("weekSelect")?.addEventListener("change", function () {
-        const weekValue = this.value;
-        if (weekValue && typeof highlightLoadsByWeek === 'function') {
-            const [startStr, endStr] = weekValue.split('_');
-            highlightLoadsByWeek(startStr, endStr);
-        }
-    });
+    // 🆕 обновляем фильтрацию и подсветку при смене выбранной недели вручную
+        document.getElementById("weekSelect")?.addEventListener("change", function () {
+            const weekValue = this.value;
+            if (weekValue) {
+                const [startStr, endStr] = weekValue.split('_');
+                filterLoadsByDateRange(startStr, endStr);
+                highlightWeekLoads(startStr, endStr);
+            }
+        });
 }
 
 
