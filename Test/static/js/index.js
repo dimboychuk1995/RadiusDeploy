@@ -60,6 +60,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     driverDetailsSection.innerHTML = "";
                 }
 
+                // Скрыть unit details
+                const unitDetailsSection = document.getElementById("unit_details_fragment");
+                if (unitDetailsSection) {
+                    unitDetailsSection.style.display = "none";
+                    unitDetailsSection.innerHTML = "";
+                }
+
                 // Убрать активность
                 Object.keys(sections).forEach(id => {
                     const btn = document.getElementById(id);

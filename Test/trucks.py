@@ -30,6 +30,10 @@ except Exception as e:
 # Допустимые расширения файлов
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
+# Типы и подтипы юнитов
+TRUCK_TYPES = ["Truck", "Trailer"]
+TRUCK_SUBTYPES = ["Flatbed", "Dry Van", "Reefer", "Step Deck", "Lowboy", "Tanker"]
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -39,8 +43,12 @@ def allowed_file(filename):
 def trucks_fragment():
     try:
         trucks = list(trucks_collection.find({'company': current_user.company}))
-        truck_types = ["Pick Up", "SEMI"]
-        return render_template('fragments/trucks_fragment.html', trucks=trucks, truck_types=truck_types)
+        return render_template(
+            'fragments/trucks_fragment.html',
+            trucks=trucks,
+            truck_types=TRUCK_TYPES,
+            truck_subtypes=TRUCK_SUBTYPES
+        )
     except Exception as e:
         logging.error(f"Error loading trucks fragment: {e}")
         return render_template('error.html', message="Failed to load trucks fragment")
@@ -50,74 +58,56 @@ def trucks_fragment():
 @requires_role('admin')
 def add_truck():
     try:
-        file_data = None
-        file_name = None
-        file_mimetype = None
-
-        if 'file' in request.files:
-            file = request.files['file']
+        def get_file(field_name):
+            file = request.files.get(field_name)
             if file and allowed_file(file.filename):
-                file_name = secure_filename(file.filename)
-                file_mimetype = file.mimetype
-                file_data = file.read()
+                return {
+                    'file_data': file.read(),
+                    'file_name': secure_filename(file.filename),
+                    'file_mimetype': file.mimetype
+                }
+            return {}
 
         truck_data = {
-            'year': request.form.get('year'),
-            'make': request.form.get('make'),
-            'model': request.form.get('model'),
-            'mileage': request.form.get('mileage'),
-            'vin': request.form.get('vin'),
-            'file_data': file_data,
-            'file_name': file_name,
-            'file_mimetype': file_mimetype,
-            'type': request.form.get('type'),
-            'unit_number': request.form.get('unit_number'),
-            'company': current_user.company
+            "unit_number": request.form.get("unit_number"),
+            "make": request.form.get("make"),
+            "model": request.form.get("model"),
+            "year": request.form.get("year"),
+            "mileage": request.form.get("mileage"),
+            "vin": request.form.get("vin"),
+            "unit_type": request.form.get("unit_type"),
+            "subtype": request.form.get("subtype"),
+            "company": current_user.company,
+            "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get("assigned_driver_id") else None,
+
+            "registration": {
+                "license_plate": request.form.get("registration_plate"),
+                "expiration_date": request.form.get("registration_exp"),
+                **get_file("registration_file")
+            },
+
+            "annual_inspection": {
+                "expiration_date": request.form.get("inspection_exp"),
+                **get_file("inspection_file")
+            },
+
+            "power_of_attorney": get_file("power_of_attorney_file"),
+
+            "liability_insurance": {
+                "provider": request.form.get("insurance_provider"),
+                "policy_number": request.form.get("insurance_policy"),
+                "expiration_date": request.form.get("insurance_exp"),
+                **get_file("insurance_file")
+            }
         }
 
         trucks_collection.insert_one(truck_data)
         return redirect(url_for('index') + '#section-trucks')
+
     except Exception as e:
         logging.error(f"Error adding truck: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to add truck")
-
-# Редактирование грузовика
-@trucks_bp.route('/edit_truck/<truck_id>', methods=['POST'])
-@requires_role('admin')
-def edit_truck(truck_id):
-    try:
-        file_data = None
-        file_name = None
-        file_mimetype = None
-
-        if 'file' in request.files:
-            file = request.files['file']
-            if file and allowed_file(file.filename):
-                file_name = secure_filename(file.filename)
-                file_mimetype = file.mimetype
-                file_data = file.read()
-
-        updated_data = {
-            'year': request.form.get('year'),
-            'make': request.form.get('make'),
-            'model': request.form.get('model'),
-            'mileage': request.form.get('mileage'),
-            'vin': request.form.get('vin'),
-            'file_data': file_data,
-            'file_name': file_name,
-            'file_mimetype': file_mimetype,
-            'type': request.form.get('type'),
-            'unit_number': request.form.get('unit_number'),
-            'company': current_user.company
-        }
-
-        trucks_collection.update_one({'_id': ObjectId(truck_id)}, {'$set': updated_data})
-        return redirect(url_for('index') + '#section-trucks')
-    except Exception as e:
-        logging.error(f"Error updating truck: {e}")
-        logging.error(traceback.format_exc())
-        return render_template('error.html', message="Failed to edit truck")
 
 # Удаление грузовика
 @trucks_bp.route('/delete_truck/<truck_id>', methods=['POST'])

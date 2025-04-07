@@ -94,3 +94,18 @@ function initTruckModalActions() {
         }
     });
 }
+
+// Функция для открытия модалки
+function openTruckModal() {
+  const modal = document.getElementById("truckModal");
+  modal.classList.add("show");  // Показываем модалку с анимацией
+}
+
+// Функция для закрытия модалки
+document.getElementById("truckCloseBtn").addEventListener("click", function() {
+  const modal = document.getElementById("truckModal");
+  modal.classList.remove("show");  // Закрываем модалку с анимацией
+});
+
+// Открытие модалки при клике на кнопку "Добавить грузовик"
+document.getElementById("addTruckBtn").addEventListener("click", openTruckModal);
