@@ -23,7 +23,7 @@
   </thead>
   <tbody>
     {% for truck in trucks %}
-    <tr id="truck-{{ truck._id }}">
+    <tr class="clickable-row" data-id="{{ truck._id }}" id="truck-{{ truck._id }}" style="cursor: pointer;">
       <td class="truck-year">{{ truck.year }}</td>
       <td class="truck-make">{{ truck.make }}</td>
       <td class="truck-model">{{ truck.model }}</td>
@@ -31,7 +31,9 @@
       <td class="truck-vin">{{ truck.vin }}</td>
       <td>
         {% if truck.file_data %}
-          <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.file_name or 'Файл' }}</a>
+          <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank" onclick="event.stopPropagation();">
+            {{ truck.file_name or 'Файл' }}
+          </a>
         {% else %}
           Нет файла
         {% endif %}
@@ -39,8 +41,8 @@
       <td class="truck-type">{{ truck.type }}</td>
       <td class="truck-unit">{{ truck.unit_number }}</td>
       <td>
-        <button class="btn btn-primary btn-sm edit-btn" onclick="openEditTruckModal('{{ truck._id }}')">Редактировать</button>
-        <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck._id }}')">Удалить</button>
+        <button class="btn btn-primary btn-sm edit-btn" onclick="openEditTruckModal('{{ truck._id }}'); event.stopPropagation();">Редактировать</button>
+        <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck._id }}'); event.stopPropagation();">Удалить</button>
       </td>
     </tr>
     {% endfor %}
@@ -97,6 +99,3 @@
     </form>
   </div>
 </div>
-
-<!-- Подключение JS -->
-<script src="{{ url_for('static', filename='js/trucks.js') }}"></script>

@@ -145,3 +145,17 @@ def get_file(truck_id):
     except Exception as e:
         logging.error(f"Error getting file: {e}")
         return "Ошибка при получении файла", 500
+
+# Детали юнита (фрагмент)
+@trucks_bp.route('/fragment/unit_details/<truck_id>')
+@login_required
+def unit_details_fragment(truck_id):
+    try:
+        truck = trucks_collection.find_one({'_id': ObjectId(truck_id)})
+        if not truck:
+            return render_template('error.html', message="Юнит не найден")
+        return render_template('fragments/unit_details_fragment.html', truck=truck)
+    except Exception as e:
+        logging.error(f"Error loading unit details: {e}")
+        logging.error(traceback.format_exc())
+        return render_template('error.html', message="Ошибка при загрузке данных юнита")

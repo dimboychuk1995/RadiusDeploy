@@ -22,6 +22,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (url.includes('trucks')) {
                         initTruckModalActions?.();
                         initTruckSearch?.();
+                        initTruckDetailsClick();
                     } else if (url.includes('drivers')) {
                         initDriverFilter?.();
                         initClickableRows?.();

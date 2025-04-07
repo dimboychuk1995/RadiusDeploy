@@ -1,0 +1,22 @@
+<h3>Детали юнита</h3>
+
+<table class="table table-bordered">
+  <tr><th>Год</th><td>{{ truck.year }}</td></tr>
+  <tr><th>Производитель</th><td>{{ truck.make }}</td></tr>
+  <tr><th>Модель</th><td>{{ truck.model }}</td></tr>
+  <tr><th>Пробег</th><td>{{ truck.mileage }}</td></tr>
+  <tr><th>VIN</th><td>{{ truck.vin }}</td></tr>
+  <tr><th>Тип</th><td>{{ truck.type }}</td></tr>
+  <tr><th>Unit Number</th><td>{{ truck.unit_number }}</td></tr>
+  <tr><th>Файл</th>
+    <td>
+      {% if truck.file_data %}
+        <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.file_name or 'Файл' }}</a>
+      {% else %}
+        Нет файла
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<button class="btn btn-secondary" onclick="loadTrucksFragment()">Назад</button>
