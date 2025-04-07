@@ -4,7 +4,22 @@
         <button class="btn btn-primary" id="btn-open-fuel-card-modal">Создать</button>
     </div>
 
-    <!-- Здесь позже будет таблица карт -->
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover mt-3" id="fuel-cards-table">
+            <thead class="thead-light">
+                <tr>
+                    <th>Provider</th>
+                    <th>Card#</th>
+                    <th>Driver ID</th>
+                    <th>Vehicle ID</th>
+                    <th>Assigned Driver</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Сюда будут добавлены строки через JS -->
+            </tbody>
+        </table>
+    </div>
 
     <!-- Модальное окно создания карты -->
     <div class="modal fade" id="fuelCardModal" tabindex="-1" role="dialog" aria-labelledby="fuelCardModalLabel" aria-hidden="true">
