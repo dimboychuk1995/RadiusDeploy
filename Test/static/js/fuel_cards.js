@@ -3,6 +3,7 @@ function initFuelCards() {
     setupOpenModalButton();        // Настраивает кнопку "Создать"
     setupFuelCardFormSubmit();     // Настраивает отправку формы
     loadFuelCards(); // 🔹 Загружаем список при инициализации
+    setupTransactionUpload();
 }
 
 // 🔹 Настраивает поведение кнопки "Создать"
@@ -112,5 +113,30 @@ function populateFuelCardTable(cards) {
             <td>${card.assigned_driver_name || '-'}</td>
         `;
         tbody.appendChild(row);
+    });
+}
+
+function setupTransactionUpload() {
+    document.getElementById('upload-transactions-form')?.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(this);
+
+        fetch('/fuel_cards/upload_transactions', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success) {
+                alert('Транзакции успешно загружены');
+                // TODO: обновить таблицу
+            } else {
+                alert('Ошибка: ' + result.error);
+            }
+        })
+        .catch(err => {
+            console.error('Ошибка загрузки файла:', err);
+        });
     });
 }

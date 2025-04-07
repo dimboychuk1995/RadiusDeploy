@@ -3,6 +3,9 @@ from flask_login import login_required, current_user
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import logging
+from PyPDF2 import PdfReader
+import re
+from io import BytesIO
 
 logging.basicConfig(level=logging.ERROR)
 fuel_cards_bp = Blueprint('fuel_cards', __name__)
@@ -12,10 +15,67 @@ try:
     db = client['trucks_db']
     drivers_collection = db['drivers']
     fuel_cards_collection = db['fuel_cards']  # 🔹 создаём новую коллекцию
+    fuel_cards_transactions_collection = db['fuel_cards_transactions']
     client.admin.command('ping')
 except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
+
+def extract_text_from_pdf_file(file_storage):
+    reader = PdfReader(file_storage)
+    text = ''
+    for page in reader.pages:
+        text += page.extract_text() or ''
+    return text
+
+def extract_billing_date(text):
+    match = re.search(r'Billing Date:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
+    return match.group(1) if match else None
+
+def parse_pdf_transactions(file_storage):
+    text = extract_text_from_pdf_file(file_storage)
+    billing_date = extract_billing_date(text)
+
+    # Card → Driver mapping
+    driver_map = {
+        match.group(1): match.group(2)
+        for match in re.finditer(r"Subtotal for Card (\d+) - (.+)", text)
+    }
+
+    pattern = re.compile(
+        r"(?P<card>\d{3})\s+"
+        r"(?P<date>\d{1,2}/\d{1,2}/\d{4})\s+"
+        r"(?P<transaction>\d+)\s+"
+        r"(?P<location>.+?)\s+(?P<state>[A-Z]{2})\s+"
+        r"(?P<product>[A-Za-z\s]+?)\s+"
+        r"(?P<driver_id>\d{6})\s+"
+        r"(?P<vehicle_id>\d+)\s+"
+        r"(?P<qty>\d+\.\d+)?\s*"
+        r"\$(?P<fuel>\d+\.\d{2})\s+"
+        r"(?:\$\d+\.\d{2}\s+)?"  # merch
+        r"\$(?P<retail>\d+\.\d{2})\s+"
+        r"\$(?P<invoice>\d+\.\d{2})"
+    )
+
+    transactions = []
+    for m in pattern.finditer(text):
+        transactions.append({
+            "billing_date": billing_date,
+            "card_number": m.group("card"),
+            "date": m.group("date"),
+            "transaction_number": m.group("transaction"),
+            "driver_id": m.group("driver_id"),
+            "vehicle_id": m.group("vehicle_id"),
+            "qty": float(m.group("qty") or 0),
+            "fuel_total": float(m.group("fuel")),
+            "retail_price": float(m.group("retail")),
+            "invoice_total": float(m.group("invoice")),
+            "state": m.group("state"),
+            "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}"),
+        })
+
+    return transactions
+
 
 @fuel_cards_bp.route('/fragment/fuel_cards')
 @login_required
@@ -78,3 +138,25 @@ def get_fuel_cards():
     except Exception as e:
         logging.error(f"Ошибка при получении списка карт: {e}")
         return jsonify([]), 500
+
+@fuel_cards_bp.route('/fuel_cards/upload_transactions', methods=['POST'])
+@login_required
+def upload_transactions():
+    try:
+        file = request.files['file']
+        if not file or not file.filename.lower().endswith('.pdf'):
+            return jsonify({'success': False, 'error': 'Нужен PDF-файл'})
+
+        transactions = parse_pdf_transactions(file)
+
+        # Добавляем компанию к каждой записи
+        for tx in transactions:
+            tx['company'] = current_user.company
+
+        if transactions:
+            fuel_cards_transactions_collection.insert_many(transactions)
+
+        return jsonify({'success': True, 'count': len(transactions)})
+    except Exception as e:
+        logging.error(f"Ошибка при загрузке транзакций: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

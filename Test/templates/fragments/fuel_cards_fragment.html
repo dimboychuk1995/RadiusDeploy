@@ -1,8 +1,17 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4>Топливные карты</h4>
-        <button class="btn btn-primary" id="btn-open-fuel-card-modal">Создать</button>
+
+        <div class="d-flex gap-2">
+            <form id="upload-transactions-form" enctype="multipart/form-data" class="form-inline">
+                <input type="file" class="form-control-file mr-2" id="transaction-file" name="file" accept=".pdf" required>
+                <button type="submit" class="btn btn-success">Загрузить транзакции</button>
+            </form>
+
+            <button class="btn btn-primary ml-2" id="btn-open-fuel-card-modal">Создать</button>
+        </div>
     </div>
+
 
     <div class="table-responsive">
         <table class="table table-bordered table-hover mt-3" id="fuel-cards-table">
