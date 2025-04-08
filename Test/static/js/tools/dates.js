@@ -17,9 +17,7 @@ function generateWeekRanges(weeksCount = 12) {
         sunday.setDate(monday.getDate() + 6);
 
         const rangeStr = `${formatDate(monday)} - ${formatDate(sunday)}`;
-        const valueStr = `${monday.toISOString().split('T')[0]}_${sunday.toISOString().split('T')[0]}`;
-
-        ranges.push({ label: rangeStr, value: valueStr });
+        ranges.push({ label: rangeStr, value: rangeStr });
     }
 
     return ranges;
@@ -33,12 +31,16 @@ function formatDate(date) {
     return `${month}/${day}/${year}`;
 }
 
+function formatDateMMDDYYYY(date) {
+    return `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}/${date.getFullYear()}`;
+}
+
 function populateWeekSelect(selector) {
     const weekOptions = generateWeekRanges();
     const $weekSelect = $(selector);
     $weekSelect.empty().append('<option value="">Выберите неделю...</option>');
 
-    // 👉 Вычисляем ПОНЕДЕЛЬНИК предыдущей завершённой недели
+    // Вычисляем ПОНЕДЕЛЬНИК и ВОСКРЕСЕНЬЕ предыдущей завершённой недели
     const today = new Date();
     const day = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
 
@@ -47,11 +49,12 @@ function populateWeekSelect(selector) {
     const lastMonday = new Date(lastSunday);
     lastMonday.setDate(lastSunday.getDate() - 6); // его понедельник
 
-    const defaultValue = `${lastMonday.toISOString().split('T')[0]}_${lastSunday.toISOString().split('T')[0]}`;
+    const defaultValue = `${formatDateMMDDYYYY(lastMonday)} - ${formatDateMMDDYYYY(lastSunday)}`;
 
     weekOptions.forEach(week => {
-        const selected = week.value === defaultValue ? 'selected' : '';
-        $weekSelect.append(`<option value="${week.value}" ${selected}>${week.label}</option>`);
+        const isDefault = week.label === defaultValue ? 'selected' : '';
+        $weekSelect.append(`<option value="${week.label}" ${isDefault}>${week.label}</option>`);
     });
 }
+
 

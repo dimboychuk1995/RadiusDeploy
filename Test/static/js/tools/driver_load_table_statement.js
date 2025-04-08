@@ -1,17 +1,15 @@
 // Показывает только грузы в диапазоне: неделя + 2 дня (до вторника включительно)
 function filterLoadsByDateRange(startDateStr, endDateStr) {
-    // Преобразуем endStr в строку +2 дня (в формате YYYY-MM-DD)
-    const endDate = new Date(endDateStr);
-    endDate.setDate(endDate.getDate() + 2);
-    const extendedEndStr = endDate.toISOString().split('T')[0];
+    const [mm, dd, yyyy] = endDateStr.split('/');
+    const endDatePlus2 = new Date(`${yyyy}-${mm}-${dd}`);
+    endDatePlus2.setDate(endDatePlus2.getDate() + 2);
+    const extendedEndStr = `${(endDatePlus2.getMonth() + 1).toString().padStart(2, '0')}/${endDatePlus2.getDate().toString().padStart(2, '0')}/${endDatePlus2.getFullYear()}`;
 
     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
 
     rows.forEach(row => {
-        const deliveryCell = row.querySelector('[data-delivery-date]');
-        if (!deliveryCell) return;
-
-        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
+        const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+        if (!deliveryStr) return;
 
         row.style.display = (deliveryStr >= startDateStr && deliveryStr <= extendedEndStr) ? '' : 'none';
     });
@@ -22,16 +20,13 @@ function highlightWeekLoads(startDateStr, endDateStr) {
     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
 
     rows.forEach(row => {
-        const deliveryCell = row.querySelector('[data-delivery-date]');
-        if (!deliveryCell) return;
+        const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+        if (!deliveryStr) return;
 
-        const deliveryStr = deliveryCell.dataset.deliveryDate.trim();
-
-        if (deliveryStr >= startDateStr && deliveryStr <= endDateStr) {
-            row.classList.add('table-success');
-        } else {
-            row.classList.remove('table-success');
-        }
+        row.classList.toggle(
+            'table-success',
+            deliveryStr >= startDateStr && deliveryStr <= endDateStr
+        );
     });
 }
 

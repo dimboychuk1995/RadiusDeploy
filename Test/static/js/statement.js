@@ -1,10 +1,6 @@
 let selectedDriverData = null;
 let selectedLoads = [];
 
-/**
- * Инициализация событий внутри модального окна стейтмента:
- * выбор водителя, неделя, загрузка грузов, создание стейтмента
- */
 function initStatementEvents() {
     const select = $('#driverSelect');
     const createBtn = document.getElementById("createStatementBtn");
@@ -51,22 +47,17 @@ function initStatementEvents() {
 
                 const weekValue = document.getElementById("weekSelect")?.value;
                 if (weekValue) {
-                    const [startStr, endStr] = weekValue.split('_');
+                    const [startStr, endStr] = weekValue.split(' - ');
                     filterLoadsByDateRange(startStr, endStr);
                     highlightWeekLoads(startStr, endStr);
 
                     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
                     rows.forEach(row => {
                         const checkbox = row.querySelector('.load-checkbox');
-                        const deliveryCell = row.querySelector('[data-delivery-date]');
-                        if (!checkbox || !deliveryCell) return;
+                        const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+                        if (!checkbox || !deliveryStr) return;
 
-                        const deliveryDate = new Date(deliveryCell.dataset.deliveryDate.trim());
-                        const startDate = new Date(startStr);
-                        const endDate = new Date(endStr);
-                        endDate.setHours(23, 59, 59, 999);
-
-                        checkbox.checked = deliveryDate >= startDate && deliveryDate <= endDate;
+                        checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
                         checkbox.addEventListener('change', calculateAndDisplaySalary);
                     });
 
@@ -85,22 +76,17 @@ function initStatementEvents() {
     document.getElementById("weekSelect")?.addEventListener("change", function () {
         const weekValue = this.value;
         if (weekValue) {
-            const [startStr, endStr] = weekValue.split('_');
+            const [startStr, endStr] = weekValue.split(' - ');
             filterLoadsByDateRange(startStr, endStr);
             highlightWeekLoads(startStr, endStr);
 
             const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
             rows.forEach(row => {
                 const checkbox = row.querySelector('.load-checkbox');
-                const deliveryCell = row.querySelector('[data-delivery-date]');
-                if (!checkbox || !deliveryCell) return;
+                const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+                if (!checkbox || !deliveryStr) return;
 
-                const deliveryDate = new Date(deliveryCell.dataset.deliveryDate.trim());
-                const startDate = new Date(startStr);
-                const endDate = new Date(endStr);
-                endDate.setHours(23, 59, 59, 999);
-
-                checkbox.checked = deliveryDate >= startDate && deliveryDate <= endDate;
+                checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
                 checkbox.addEventListener('change', calculateAndDisplaySalary);
             });
 
@@ -161,9 +147,6 @@ function initStatementEvents() {
     });
 }
 
-/**
- * Парсит HTML таблицу с грузами и возвращает массив цен
- */
 function parseLoadsFromHTML(html) {
     const temp = document.createElement("div");
     temp.innerHTML = html;
@@ -183,9 +166,6 @@ function parseLoadsFromHTML(html) {
     return loads;
 }
 
-/**
- * Возвращает объект водителя по ID из select опции
- */
 function getDriverDataById(driverId) {
     const option = document.querySelector(`#driverSelect option[value="${driverId}"]`);
     if (!option || !option.dataset.driver) return null;
@@ -197,9 +177,6 @@ function getDriverDataById(driverId) {
     }
 }
 
-/**
- * Расчёт зарплаты водителя и отображение итогов
- */
 function calculateAndDisplaySalary() {
     if (!selectedDriverData) return;
 
@@ -254,9 +231,6 @@ function calculateAndDisplaySalary() {
     salaryElement.dataset.gross = gross.toFixed(2);
 }
 
-/**
- * Применяет плоскую процентную комиссию (грубо)
- */
 function applyTieredFlatCommission(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
     const sorted = table.slice().sort((a, b) => a.from - b.from);
@@ -272,9 +246,6 @@ function applyTieredFlatCommission(table, amount) {
     return amount * (applicablePercent / 100);
 }
 
-/**
- * Получает применимый процент по таблице комиссий
- */
 function getApplicablePercent(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
     const sorted = table.slice().sort((a, b) => a.from - b.from);
@@ -290,23 +261,14 @@ function getApplicablePercent(table, amount) {
     return applicablePercent;
 }
 
-/**
- * Открывает модальное окно стейтмента
- */
 function openStatementModal() {
     document.getElementById('createStatementModal')?.classList.add('open');
 }
 
-/**
- * Закрывает модальное окно стейтмента
- */
 function closeStatementModal() {
     document.getElementById('createStatementModal')?.classList.remove('open');
 }
 
-/**
- * Комбинированный фильтр по имени водителя и неделе
- */
 function applyCombinedFilter() {
     const nameInput = document.getElementById("filterDriver");
     const weekInput = document.getElementById("filterWeek");
@@ -327,9 +289,6 @@ function applyCombinedFilter() {
     });
 }
 
-/**
- * Инициализация фильтра по имени и неделе — вызывается вручную после вставки фрагмента
- */
 function initStatementFilter() {
     const filterInput = document.getElementById("filterDriver");
     const weekSelect = document.getElementById("filterWeek");
@@ -344,19 +303,18 @@ function initStatementFilter() {
     }
 }
 
-//клик по строке
 function initStatementRowClicks() {
-  document.querySelectorAll("table tbody tr").forEach(row => {
-    row.addEventListener("click", () => {
-      const statementId = row.dataset.statementId;
-      if (statementId) {
-        fetch(`/statement/details/${statementId}`)
-          .then(res => res.text())
-          .then(html => {
-            const section = document.getElementById("section-statements");
-            section.innerHTML = html;
-          });
-      }
+    document.querySelectorAll("table tbody tr").forEach(row => {
+        row.addEventListener("click", () => {
+            const statementId = row.dataset.statementId;
+            if (statementId) {
+                fetch(`/statement/details/${statementId}`)
+                    .then(res => res.text())
+                    .then(html => {
+                        const section = document.getElementById("section-statements");
+                        section.innerHTML = html;
+                    });
+            }
+        });
     });
-  });
 }
