@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from pymongo import MongoClient
@@ -20,6 +22,16 @@ try:
 except Exception as e:
     logging.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
+
+
+def format_week_range(billing_date_str):
+    try:
+        billing_date = datetime.strptime(billing_date_str, "%m/%d/%Y")
+        previous_sunday = billing_date - timedelta(days=1)
+        start_of_week = previous_sunday - timedelta(days=6)
+        return f"{start_of_week.strftime('%m/%d/%Y')} - {previous_sunday.strftime('%m/%d/%Y')}"
+    except Exception as e:
+        return ""
 
 def extract_text_from_pdf_file(file_storage):
     reader = PdfReader(file_storage)
@@ -165,3 +177,35 @@ def upload_transactions():
 @login_required
 def fuel_cards_transactions_fragment():
     return render_template('fragments/fuel_cards_transactions_fragment.html')
+
+
+@fuel_cards_bp.route('/fuel_cards/transactions')
+@login_required
+def get_all_transactions():
+    try:
+        transactions = list(fuel_cards_transactions_collection.find(
+            {'company': current_user.company}
+        ))
+
+        result = []
+        for tx in transactions:
+            billing_raw = tx.get("billing_date", "")
+            week_range = format_week_range(billing_raw)
+
+            result.append({
+                "billing_range": week_range,
+                "date": tx.get("date"),
+                "card_number": tx.get("card_number"),
+                "driver_id": tx.get("driver_id"),
+                "vehicle_id": tx.get("vehicle_id"),
+                "qty": tx.get("qty"),
+                "fuel_total": tx.get("fuel_total"),
+                "retail_price": tx.get("retail_price"),
+                "invoice_total": tx.get("invoice_total"),
+                "driver_name": tx.get("driver_name"),
+            })
+
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"Ошибка при получении транзакций: {e}")
+        return jsonify([]), 500
