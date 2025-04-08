@@ -1,5 +1,3 @@
-console.log('load_highlight.js loaded (строковое сравнение дат)');
-
 // Показывает только грузы в диапазоне: неделя + 2 дня (до вторника включительно)
 function filterLoadsByDateRange(startDateStr, endDateStr) {
     // Преобразуем endStr в строку +2 дня (в формате YYYY-MM-DD)

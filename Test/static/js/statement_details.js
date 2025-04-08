@@ -1,5 +1,3 @@
-console.log("statement_details.js");
-
 function loadStatementFragment() {
   fetch('/statement/fragment')
     .then(res => res.text())

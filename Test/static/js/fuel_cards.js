@@ -4,6 +4,7 @@ function initFuelCards() {
     setupFuelCardFormSubmit();     // Настраивает отправку формы
     loadFuelCards(); // 🔹 Загружаем список при инициализации
     setupTransactionUpload();
+    setupFuelCardTransactionsButton();
 }
 
 // 🔹 Настраивает поведение кнопки "Создать"
