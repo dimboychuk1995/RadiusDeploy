@@ -1,3 +1,6 @@
+//fuel_cards.js
+
+
 // 🔹 Основная точка входа — вызывается при загрузке фрагмента
 function initFuelCards() {
     setupOpenModalButton();        // Настраивает кнопку "Создать"
@@ -5,6 +8,7 @@ function initFuelCards() {
     loadFuelCards(); // 🔹 Загружаем список при инициализации
     setupTransactionUpload();
     setupFuelCardTransactionsButton();
+    setupUploadTransactionsModalButton();
 }
 
 // 🔹 Настраивает поведение кнопки "Создать"
@@ -139,5 +143,12 @@ function setupTransactionUpload() {
         .catch(err => {
             console.error('Ошибка загрузки файла:', err);
         });
+    });
+}
+
+//Вызывает модальное окно для импортирования транзакций
+function setupUploadTransactionsModalButton() {
+    document.getElementById('btn-upload-transactions')?.addEventListener('click', () => {
+        $('#uploadTransactionsModal').modal('show'); // ✅ Просто открываем модальное окно
     });
 }

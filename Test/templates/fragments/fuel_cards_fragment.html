@@ -3,11 +3,7 @@
         <h4>Топливные карты</h4>
 
         <div class="d-flex gap-2">
-            <form id="upload-transactions-form" enctype="multipart/form-data" class="form-inline">
-                <input type="file" class="form-control-file mr-2" id="transaction-file" name="file" accept=".pdf" required>
-                <button type="submit" class="btn btn-success">Загрузить транзакции</button>
-            </form>
-
+            <button class="btn btn-success" id="btn-upload-transactions">Загрузить транзакции</button>
             <button class="btn btn-primary" id="btn-open-fuel-card-modal">Создать</button>
             <button class="btn btn-secondary" id="btn-open-fuel-transactions">Транзакции</button>
         </div>
@@ -70,6 +66,34 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
                         <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно загрузки PDF транзакций -->
+    <div class="modal fade" id="uploadTransactionsModal" tabindex="-1" role="dialog" aria-labelledby="uploadTransactionsModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <form id="upload-transactions-form" enctype="multipart/form-data">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="uploadTransactionsModalLabel">Загрузка транзакций</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="transaction-file">Выберите PDF-файл</label>
+                            <input type="file" class="form-control" id="transaction-file" name="file" accept=".pdf" required>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-success">Загрузить</button>
                     </div>
                 </div>
             </form>
