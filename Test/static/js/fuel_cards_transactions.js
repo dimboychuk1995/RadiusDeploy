@@ -1,5 +1,3 @@
-console.log('fuel transactions js called')
-
 //загружает fuel card transaction fragment
 function setupFuelCardTransactionsButton() {
     document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {

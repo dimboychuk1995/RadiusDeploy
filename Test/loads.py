@@ -25,6 +25,8 @@ except Exception as e:
     exit(1)
 
 
+from datetime import datetime
+
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role('admin')
 def add_load():
@@ -41,17 +43,24 @@ def add_load():
             if not driver_id:
                 raise ValueError("Driver is required")
 
+            # ✅ Преобразование дат в формат mm/dd/yyyy
+            pickup_raw = request.form.get('pickup_date')
+            delivery_raw = request.form.get('delivery_date')
+
+            pickup_formatted = datetime.strptime(pickup_raw, '%Y-%m-%d').strftime('%m/%d/%Y') if pickup_raw else ''
+            delivery_formatted = datetime.strptime(delivery_raw, '%Y-%m-%d').strftime('%m/%d/%Y') if delivery_raw else ''
+
             load_data = {
                 'driver': ObjectId(driver_id),
                 'pickup_location': request.form.get('pickup_location'),
                 'delivery_location': request.form.get('delivery_location'),
-                'pickup_date': request.form.get('pickup_date'),
-                'delivery_date': request.form.get('delivery_date'),
+                'pickup_date': pickup_formatted,
+                'delivery_date': delivery_formatted,
                 'status': request.form.get('status'),
                 'rate_con': file_id,
                 'company': current_user.company,
                 'price': request.form.get('price'),
-                'was_added_to_statement': False  # ✅ добавили это поле
+                'was_added_to_statement': False  # ✅ флаг
             }
 
             loads_collection.insert_one(load_data)
