@@ -1,39 +1,32 @@
-//fuel_cards.js
-
-
-// 🔹 Основная точка входа — вызывается при загрузке фрагмента
 function initFuelCards() {
-    setupOpenModalButton();        // Настраивает кнопку "Создать"
-    setupFuelCardFormSubmit();     // Настраивает отправку формы
-    loadFuelCards(); // 🔹 Загружаем список при инициализации
+    setupOpenModalButton();
+    setupFuelCardFormSubmit();
+    loadFuelCards();
     setupTransactionUpload();
     setupFuelCardTransactionsButton();
     setupUploadTransactionsModalButton();
 }
 
-// 🔹 Настраивает поведение кнопки "Создать"
 function setupOpenModalButton() {
     document.getElementById('btn-open-fuel-card-modal')?.addEventListener('click', () => {
         resetFuelCardForm();
         loadDriverOptions();
-        $('#fuelCardModal').modal('show'); // ✅ Bootstrap 4 способ
-    });
-}
-// 🔹 Настраивает отправку формы карты
-function setupFuelCardFormSubmit() {
-    document.getElementById('fuel-card-form')?.addEventListener('submit', function (e) {
-        e.preventDefault();                           // Предотвращает перезагрузку страницы
-        const data = collectFuelCardFormData();       // Собирает данные формы
-        submitFuelCard(data);                         // Отправляет на сервер
+        $('#fuelCardModal').modal('show');
     });
 }
 
-// 🔹 Очищает поля формы
+function setupFuelCardFormSubmit() {
+    document.getElementById('fuel-card-form')?.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const data = collectFuelCardFormData();
+        submitFuelCard(data);
+    });
+}
+
 function resetFuelCardForm() {
     document.getElementById('fuel-card-form').reset();
 }
 
-// 🔹 Собирает данные из полей формы и возвращает объект
 function collectFuelCardFormData() {
     return {
         provider: document.getElementById('provider').value,
@@ -44,7 +37,6 @@ function collectFuelCardFormData() {
     };
 }
 
-// 🔹 Отправляет данные карты на сервер
 function submitFuelCard(data) {
     fetch('/fuel_cards/create', {
         method: 'POST',
@@ -57,7 +49,7 @@ function submitFuelCard(data) {
     .then(result => {
         if (result.success) {
             console.log('Карта успешно создана');
-            $('#fuelCardModal').modal('hide'); // ✅ Bootstrap 4 способ
+            $('#fuelCardModal').modal('hide');
         } else {
             console.error('Ошибка при создании карты:', result.error);
         }
@@ -67,23 +59,20 @@ function submitFuelCard(data) {
     });
 }
 
-
-// 🔹 Загружает список водителей с backend'а
 function loadDriverOptions() {
     fetch('/fuel_cards/drivers')
         .then(res => res.json())
         .then(drivers => {
-            populateDriverSelect(drivers); // Заполняет селект водителями
+            populateDriverSelect(drivers);
         })
         .catch(err => {
             console.error("Ошибка при загрузке водителей:", err);
         });
 }
 
-// 🔹 Добавляет опции в селект Assigned Driver
 function populateDriverSelect(drivers) {
     const select = document.getElementById('assigned_driver');
-    select.innerHTML = ''; // очищаем текущие опции
+    select.innerHTML = '';
 
     drivers.forEach(driver => {
         const option = document.createElement('option');
@@ -106,7 +95,7 @@ function loadFuelCards() {
 
 function populateFuelCardTable(cards) {
     const tbody = document.querySelector('#fuel-cards-table tbody');
-    tbody.innerHTML = ''; // очищаем
+    tbody.innerHTML = '';
 
     cards.forEach(card => {
         const row = document.createElement('tr');
@@ -134,8 +123,24 @@ function setupTransactionUpload() {
         .then(res => res.json())
         .then(result => {
             if (result.success) {
-                alert('Транзакции успешно загружены');
-                // TODO: обновить таблицу
+                let html = `<div class="alert alert-info mt-3"><strong>Загружено транзакций:</strong> ${result.count}</div>`;
+
+                if (result.summary_by_card?.length) {
+                    html += `<ul class="list-group mt-2">`;
+                    result.summary_by_card.forEach(entry => {
+                        html += `
+                            <li class="list-group-item">
+                                (Card ${entry.card_number} - ${entry.driver_name}) 
+                                Qty: ${entry.qty}, 
+                                Retail: $${entry.retail}, 
+                                Invoice: $${entry.invoice}
+                            </li>
+                        `;
+                    });
+                    html += `</ul>`;
+                }
+
+                document.getElementById('upload-summary-container').innerHTML = html;
             } else {
                 alert('Ошибка: ' + result.error);
             }
@@ -146,9 +151,14 @@ function setupTransactionUpload() {
     });
 }
 
-//Вызывает модальное окно для импортирования транзакций
 function setupUploadTransactionsModalButton() {
     document.getElementById('btn-upload-transactions')?.addEventListener('click', () => {
-        $('#uploadTransactionsModal').modal('show'); // ✅ Просто открываем модальное окно
+        $('#uploadTransactionsModal').modal('show');
+    });
+}
+
+function setupFuelCardTransactionsButton() {
+    document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {
+        console.log('Открытие транзакций — в разработке');
     });
 }

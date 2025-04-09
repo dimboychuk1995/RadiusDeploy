@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 from flask import Blueprint, render_template, jsonify, request
@@ -165,13 +166,39 @@ def upload_transactions():
         for tx in transactions:
             tx['company'] = current_user.company
 
-        if transactions:
-            fuel_cards_transactions_collection.insert_many(transactions)
+        # группируем по карте
+        summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "driver_name": ""})
 
-        return jsonify({'success': True, 'count': len(transactions)})
+        for tx in transactions:
+            card_key = tx["card_number"]
+            summary[card_key]["qty"] += tx["qty"]
+            summary[card_key]["retail"] += tx["retail_price"]
+            summary[card_key]["invoice"] += tx["invoice_total"]
+            summary[card_key]["driver_name"] = tx["driver_name"]
+
+        # формируем список
+        summary_list = []
+        for card, data in summary.items():
+            summary_list.append({
+                "card_number": card,
+                "driver_name": data["driver_name"],
+                "qty": round(data["qty"], 2),
+                "retail": round(data["retail"], 2),
+                "invoice": round(data["invoice"], 2)
+            })
+
+        return jsonify({
+            'success': True,
+            'count': len(transactions),
+            'summary_by_card': summary_list
+        })
+
+        return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
+
     except Exception as e:
         logging.error(f"Ошибка при загрузке транзакций: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @fuel_cards_bp.route('/fragment/fuel_cards_transactions')
 @login_required
