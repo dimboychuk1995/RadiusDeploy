@@ -24,7 +24,7 @@ function initStatementEvents() {
             delete createBtn.dataset.driverId;
             detailsBlock.style.display = 'none';
             loadsBlock.style.display = 'none';
-            document.getElementById("salaryResult").style.display = "none";
+            document.getElementById("driverFuelBlock") && (document.getElementById("driverFuelBlock").style.display = "none");
             selectedDriverData = null;
             selectedLoads = [];
             return;
@@ -62,15 +62,16 @@ function initStatementEvents() {
                     });
 
                     calculateAndDisplaySalary();
+                    loadFuelTransactions(driverId, weekValue);
                 }
+
+                document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
+                document.getElementById("tollsInput")?.addEventListener('input', calculateAndDisplaySalary);
             })
             .catch(err => {
                 console.error("Ошибка загрузки:", err);
                 loadsContent.innerHTML = '<p class="text-danger">Ошибка загрузки грузов</p>';
             });
-
-        document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
-        document.getElementById("tollsInput")?.addEventListener('input', calculateAndDisplaySalary);
     });
 
     document.getElementById("weekSelect")?.addEventListener("change", function () {
@@ -91,6 +92,10 @@ function initStatementEvents() {
             });
 
             calculateAndDisplaySalary();
+
+            if (selectedDriverData?._id) {
+                loadFuelTransactions(selectedDriverData._id, weekValue);
+            }
         }
     });
 
@@ -145,6 +150,45 @@ function initStatementEvents() {
             alert("Ошибка при создании стейтмента");
         });
     });
+}
+
+function loadFuelTransactions(driverId, weekRange) {
+    const block = document.getElementById("driverFuelBlock");
+    const content = document.getElementById("driverFuelContent");
+
+    if (!block || !content) return;
+
+    fetch(`/statement/driver_fuel/${driverId}/${encodeURIComponent(weekRange)}`)
+        .then(res => res.text())
+        .then(html => {
+            block.style.display = "block";
+            content.innerHTML = html;
+
+            const fuelCheckboxes = content.querySelectorAll(".fuel-checkbox");
+            fuelCheckboxes.forEach(cb => {
+                cb.addEventListener("change", updateFuelTotalFromCheckboxes);
+            });
+
+            updateFuelTotalFromCheckboxes();
+        })
+        .catch(err => {
+            console.error("Ошибка загрузки топлива:", err);
+            content.innerHTML = `<p class="text-danger">Ошибка загрузки транзакций топлива</p>`;
+        });
+}
+
+function updateFuelTotalFromCheckboxes() {
+    let total = 0;
+    document.querySelectorAll(".fuel-checkbox:checked").forEach(cb => {
+        const amount = parseFloat(cb.dataset.amount || 0);
+        total += amount;
+    });
+
+    const fuelInput = document.getElementById("fuelInput");
+    if (fuelInput) {
+        fuelInput.value = total.toFixed(2);
+        calculateAndDisplaySalary();
+    }
 }
 
 function parseLoadsFromHTML(html) {

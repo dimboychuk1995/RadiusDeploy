@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
@@ -6,6 +6,7 @@ from pymongo import MongoClient
 import logging
 from bson import ObjectId
 import traceback
+from urllib.parse import unquote
 
 statement_bp = Blueprint('statement', __name__)
 
@@ -57,7 +58,9 @@ try:
     drivers_collection = db['drivers']
     trucks_collection = db['trucks']
     loads_collection = db['loads']
+    fuel_cards_collection = db['fuel_cards']
     statement_collection = db['statement']
+    fuel_cards_transactions_collection = db['fuel_cards_transactions']
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB (statement.py)")
 except Exception as e:
@@ -250,3 +253,68 @@ def delete_statement(statement_id):
     except Exception as e:
         logging.error(f"Ошибка при удалении стейтмента: {e}")
         return jsonify({'error': 'Internal Server Error'}), 500
+
+@statement_bp.route('/statement/driver_fuel/<driver_id>/<path:week_range>', methods=['GET'])
+@login_required
+def get_driver_fuel_transactions(driver_id, week_range):
+    try:
+        # Декодируем диапазон недели
+        week_range = unquote(week_range)
+
+        # Ищем карту, привязанную к водителю
+        card = fuel_cards_collection.find_one({
+            'assigned_driver': ObjectId(driver_id),
+            'company': current_user.company
+        })
+
+        if not card:
+            return "<p class='text-muted'>Карта водителя не найдена.</p>"
+
+        card_number = card.get('card_number')
+        if not card_number:
+            return "<p class='text-muted'>Номер карты не указан.</p>"
+
+        # Разбор диапазона недели
+        start_str, end_str = week_range.split(' - ')
+        selected_range = f"{start_str.strip()} - {end_str.strip()}"
+
+        # Перевод billing_date в "понедельник - воскресенье"
+        def billing_to_week_range(date_str):
+            billing_date = datetime.strptime(date_str, "%m/%d/%Y")
+            end = billing_date - timedelta(days=1)
+            start = end - timedelta(days=6)
+            return f"{start.strftime('%m/%d/%Y')} - {end.strftime('%m/%d/%Y')}"
+
+        # Загружаем транзакции по карте
+        transactions = fuel_cards_transactions_collection.find({
+            'card_number': card_number,
+            'company': current_user.company
+        })
+
+        # Фильтрация по диапазону
+        matched = []
+        for tx in transactions:
+            billing_date_str = tx.get('billing_date')
+            if not billing_date_str:
+                continue
+            tx_range = billing_to_week_range(billing_date_str)
+            if tx_range == selected_range:
+                matched.append(tx)
+
+        # Подготовка к шаблону
+        parsed = [{
+            '_id': str(t['_id']),
+            'date': t.get('date'),
+            'card_number': t.get('card_number'),
+            'qty': t.get('qty'),
+            'fuel_total': t.get('fuel_total'),
+            'retail_price': t.get('retail_price'),
+            'invoice_total': t.get('invoice_total'),
+        } for t in matched]
+
+        return render_template('fragments/partials/driver_fuel_table.html', transactions=parsed)
+
+    except Exception as e:
+        logging.error("Ошибка при получении топливных транзакций:")
+        logging.error(traceback.format_exc())
+        return "<p class='text-danger'>Ошибка загрузки топлива</p>"
