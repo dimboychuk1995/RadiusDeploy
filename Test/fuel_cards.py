@@ -162,13 +162,16 @@ def upload_transactions():
 
         transactions = parse_pdf_transactions(file)
 
-        # Добавляем компанию к каждой записи
         for tx in transactions:
             tx['company'] = current_user.company
 
-        # группируем по карте
-        summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "driver_name": ""})
+        if not transactions:
+            return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
 
+        # ✅ Сохраняем транзакции в базу
+        fuel_cards_transactions_collection.insert_many(transactions)
+
+        summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "driver_name": ""})
         for tx in transactions:
             card_key = tx["card_number"]
             summary[card_key]["qty"] += tx["qty"]
@@ -176,7 +179,6 @@ def upload_transactions():
             summary[card_key]["invoice"] += tx["invoice_total"]
             summary[card_key]["driver_name"] = tx["driver_name"]
 
-        # формируем список
         summary_list = []
         for card, data in summary.items():
             summary_list.append({
@@ -193,11 +195,10 @@ def upload_transactions():
             'summary_by_card': summary_list
         })
 
-        return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
-
     except Exception as e:
         logging.error(f"Ошибка при загрузке транзакций: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @fuel_cards_bp.route('/fragment/fuel_cards_transactions')

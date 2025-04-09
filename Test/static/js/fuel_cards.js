@@ -5,6 +5,7 @@ function initFuelCards() {
     setupTransactionUpload();
     setupFuelCardTransactionsButton();
     setupUploadTransactionsModalButton();
+    setupFuelCardTransactionsButton();
 }
 
 function setupOpenModalButton() {
