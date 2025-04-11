@@ -9,6 +9,7 @@ from accounting import accounting_bp  # Импортируем новый Bluepr
 from statement import statement_bp
 from flask_login import current_user
 from fuel_cards import fuel_cards_bp
+from integrations import integrations_bp
 import os
 
 app = Flask(__name__)
@@ -24,8 +25,9 @@ app.register_blueprint(dispatch_bp)
 app.register_blueprint(loads_bp)
 app.register_blueprint(accounting_bp)  # Регистрируем новый Blueprint
 app.register_blueprint(statement_bp)
-
 app.register_blueprint(fuel_cards_bp)
+
+app.register_blueprint(integrations_bp)
 
 
 

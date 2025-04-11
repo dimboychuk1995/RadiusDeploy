@@ -14,6 +14,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/users">Пользователи</a>
                     </li>
+                    {% if current_user.role == 'admin' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/integrations">Интеграции</a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item">
                         <a class="nav-link" href="/logout">Logout</a>
                     </li>

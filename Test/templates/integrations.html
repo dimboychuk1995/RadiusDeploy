@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Интеграции{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Интеграции</h2>
+
+    <div class="card mt-4">
+        <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="card-title mb-0">Samsara</h5>
+            </div>
+            <div>
+                <button
+                  id="samsaraToggle"
+                  class="btn"
+                  data-enabled="{{ 'true' if status else 'false' }}">
+                  ON
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
