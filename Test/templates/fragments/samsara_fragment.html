@@ -1,3 +1,14 @@
-<div class="container-fluid p-0" style="height: 100vh;">
-    <div id="samsara-map" style="width: 100%; height: 100%;"></div>
+<div class="d-flex" style="height: 100vh; overflow: hidden;">
+    <!-- Панель фильтрации -->
+    <div style="width: 300px; background: #f8f9fa; padding: 15px; border-right: 1px solid #ddd;">
+        <h5>Поиск</h5>
+        <input type="text" class="form-control mb-2" id="searchUnit" placeholder="Юнит (например: 2298)">
+        <input type="text" class="form-control mb-2" id="searchDriver" placeholder="Водитель">
+        <input type="text" class="form-control" id="searchTags" placeholder="Теги">
+    </div>
+
+    <!-- Карта -->
+    <div id="samsara-map" style="flex-grow: 1;"></div>
 </div>
+
+<script src="{{ url_for('static', filename='js/samsara.js') }}"></script>
