@@ -9,7 +9,7 @@ from accounting import accounting_bp  # Импортируем новый Bluepr
 from statement import statement_bp
 from flask_login import current_user
 from fuel_cards import fuel_cards_bp
-from integrations import integrations_bp
+from Test.integrations import integrations_bp
 import os
 
 app = Flask(__name__)
