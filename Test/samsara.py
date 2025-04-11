@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, jsonify
 import requests
 from flask_login import login_required
+from pymongo import MongoClient
 
 samsara_bp = Blueprint('samsara', __name__)
 
@@ -10,9 +11,19 @@ HEADERS = {
     "Authorization": f"Bearer {SAMSARA_API_KEY}"
 }
 
+client = MongoClient("mongodb://localhost:27017/")
+db = client["trucks_db"]
+integrations_collection = db["integrations_settings"]
+
+from flask import abort
+
 @samsara_bp.route("/fragment/samsara_fragment")
 @login_required
 def samsara_fragment():
+    integration = integrations_collection.find_one({"name": "samsara"})
+    if not integration or not integration.get("enabled"):
+        abort(403)  # можно 404, если хочешь "не существует"
+
     return render_template("fragments/samsara_fragment.html")
 
 
