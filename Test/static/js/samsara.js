@@ -13,6 +13,21 @@ function initSamsara() {
     map.addControl(new mapboxgl.NavigationControl());
 
     let markers = [];
+    let focusedVehicleId = null;
+
+    const tagSelect = $('#searchTags');
+    tagSelect.select2({
+        placeholder: 'Выберите теги',
+        theme: 'bootstrap4',
+        width: '100%',
+        allowClear: true
+    });
+
+    tagSelect.on('change', () => {
+        focusedVehicleId = null;
+        document.getElementById("showAllBtn").style.display = "none";
+        loadVehicles();
+    });
 
     function clearMarkers() {
         markers.forEach(marker => marker.remove());
@@ -27,19 +42,44 @@ function initSamsara() {
 
                 const unitQuery = document.getElementById("searchUnit")?.value?.toLowerCase() || "";
                 const driverQuery = document.getElementById("searchDriver")?.value?.toLowerCase() || "";
-                const tagsQuery = document.getElementById("searchTags")?.value?.toLowerCase() || "";
+
+                const listContainer = document.getElementById("samsara-list");
+                listContainer.innerHTML = "";
+
+                // Сбор всех уникальных тегов
+                const allTags = new Set();
+                vehicles.forEach(v => (v.tag_names || []).forEach(tag => allTags.add(tag)));
+
+                // Сохраняем текущие выбранные значения
+                const prevSelected = tagSelect.val() || [];
+
+                // Перезаполняем Select2 при каждом вызове
+                tagSelect.empty();
+                [...allTags].sort().forEach(tag => {
+                    const option = new Option(tag, tag, false, prevSelected.includes(tag));
+                    tagSelect.append(option);
+                });
+                tagSelect.trigger('change.select2');
+
+                const selectedTags = tagSelect.val() || [];
 
                 vehicles.forEach(vehicle => {
                     if (vehicle.gps && vehicle.gps.latitude && vehicle.gps.longitude) {
                         const name = (vehicle.name || "").toLowerCase();
                         const driverName = (vehicle.staticAssignedDriver?.name || "").toLowerCase();
-                        const tagString = (vehicle.tag_names || []).join(', ').toLowerCase();
+                        const vehicleTags = vehicle.tag_names || [];
 
-                        if (
+                        const matchesTags =
+                            selectedTags.length === 0 ||
+                            selectedTags.some(tag => vehicleTags.includes(tag));
+
+                        const match =
+                            (focusedVehicleId === null || vehicle.id === focusedVehicleId) &&
                             name.includes(unitQuery) &&
                             driverName.includes(driverQuery) &&
-                            tagString.includes(tagsQuery)
-                        ) {
+                            matchesTags;
+
+                        if (match) {
                             const speed = vehicle.gps.speedMilesPerHour
                                 ? vehicle.gps.speedMilesPerHour.toFixed(1) + ' mph'
                                 : 'N/A';
@@ -49,7 +89,7 @@ function initSamsara() {
                                  <p><strong>Driver:</strong> ${vehicle.staticAssignedDriver?.name || 'No Driver'}<br>
                                  <strong>Speed:</strong> ${speed}<br>
                                  <strong>Address:</strong> ${vehicle.gps.reverseGeo?.formattedLocation || 'N/A'}<br>
-                                 <strong>Tags:</strong> ${vehicle.tag_names?.join(', ') || 'No Tags'}<br>
+                                 <strong>Tags:</strong> ${vehicleTags.join(', ') || 'No Tags'}<br>
                                  <strong>Lat:</strong> ${vehicle.gps.latitude.toFixed(4)}<br>
                                  <strong>Lng:</strong> ${vehicle.gps.longitude.toFixed(4)}</p>`
                             );
@@ -60,21 +100,67 @@ function initSamsara() {
                                 .addTo(map);
 
                             markers.push(marker);
+
+                            const listItem = document.createElement("div");
+                            listItem.className = "border rounded p-2 mb-2 bg-white shadow-sm";
+                            listItem.style.cursor = "pointer";
+
+                            const badge = vehicle.gps.speedMilesPerHour
+                                ? `<span class="badge badge-success float-right">${Math.round(vehicle.gps.speedMilesPerHour)} MPH</span>`
+                                : "";
+
+                            listItem.innerHTML = `
+                                <div class="font-weight-bold">
+                                    ${vehicle.name || 'No Name'} ${badge}
+                                </div>
+                                <div class="text-muted" style="font-size: 0.9em;">
+                                    📍 ${vehicle.gps.reverseGeo?.formattedLocation || 'No Address'}
+                                </div>
+                                <div style="font-size: 0.9em;">
+                                    👤 ${vehicle.staticAssignedDriver?.name || 'No Driver'}
+                                </div>
+                            `;
+
+                            listItem.addEventListener("click", () => {
+                                focusedVehicleId = vehicle.id;
+                                document.getElementById("showAllBtn").style.display = "block";
+                                loadVehicles();
+
+                                map.flyTo({
+                                    center: [vehicle.gps.longitude, vehicle.gps.latitude],
+                                    zoom: 10
+                                });
+                            });
+
+                            listContainer.appendChild(listItem);
                         }
                     }
                 });
             });
     }
 
-    // Инициализация
+    // Первичная загрузка
     loadVehicles();
     setInterval(loadVehicles, 60000);
 
-    // Живой фильтр
-    ["searchUnit", "searchDriver", "searchTags"].forEach(id => {
+    // Живой текстовый фильтр
+    ["searchUnit", "searchDriver"].forEach(id => {
         const input = document.getElementById(id);
         if (input) {
-            input.addEventListener("input", loadVehicles);
+            input.addEventListener("input", () => {
+                focusedVehicleId = null;
+                document.getElementById("showAllBtn").style.display = "none";
+                loadVehicles();
+            });
         }
     });
+
+    const showAllBtn = document.getElementById("showAllBtn");
+    if (showAllBtn) {
+        showAllBtn.addEventListener("click", () => {
+            focusedVehicleId = null;
+            showAllBtn.style.display = "none";
+            loadVehicles();
+        });
+    }
 }
