@@ -29,7 +29,6 @@ app.register_blueprint(accounting_bp)  # Регистрируем новый Blu
 app.register_blueprint(statement_bp)
 app.register_blueprint(fuel_cards_bp)
 app.register_blueprint(integrations_bp)
-
 app.register_blueprint(samsara_bp)
 
 

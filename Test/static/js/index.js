@@ -40,6 +40,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initStatementRowClicks();
                     } else if (url.includes('fuel_cards')) {
                         initFuelCards?.();
+                    } else if (url.includes('samsara')) {
+                        initSamsara?.(); // 👈 вызывем карту после подгрузки
                     }
                 });
         }
