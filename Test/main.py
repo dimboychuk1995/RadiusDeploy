@@ -1,5 +1,7 @@
 from flask import Flask, render_template, redirect, url_for
 import logging
+
+from samsara import samsara_bp
 from auth import auth_bp, login_manager
 from trucks import trucks_bp
 from drivers import drivers_bp
@@ -26,8 +28,9 @@ app.register_blueprint(loads_bp)
 app.register_blueprint(accounting_bp)  # Регистрируем новый Blueprint
 app.register_blueprint(statement_bp)
 app.register_blueprint(fuel_cards_bp)
-
 app.register_blueprint(integrations_bp)
+
+app.register_blueprint(samsara_bp)
 
 
 

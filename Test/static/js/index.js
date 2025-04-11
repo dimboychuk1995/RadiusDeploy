@@ -7,7 +7,8 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
         'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
         'btn-statements': { id: 'section-statements', url: '/statement/fragment' }, // 🔹 Новый блок
-        'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' } // 🔹 Новый блок
+        'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' },
+        'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' }// 🔹 Новый блок
     };
 
     function loadFragment(sectionId, url) {
