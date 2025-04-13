@@ -6,37 +6,87 @@
             <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addLoadModal">
                 ➕ Добавить груз
             </button>
+
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th>Цена</th>
+                        <th>Load ID</th>
+                        <th>Broker Load ID</th>
+                        <th>Тип</th>
                         <th>Водитель</th>
-                        <th>Откуда</th>
-                        <th>Куда</th>
-                        <th>Пикап дата</th>
-                        <th>Деливери дата</th>
+                        <th>Pickup</th>
+                        <th>Extra Pickup</th>
+                        <th>Delivery</th>
+                        <th>Extra Delivery</th>
                         <th>Статус</th>
+                        <th>Оплата</th>
                         <th>Rate Con</th>
+                        <th>BOL</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for load in loads %}
-                        <tr>
-                            <td>{{ load.price }}</td>
-                            <td>{{ load.driver_name }}</td>
-                            <td>{{ load.pickup_location }}</td>
-                            <td>{{ load.delivery_location }}</td>
-                            <td>{{ load.pickup_date }}</td>
-                            <td>{{ load.delivery_date }}</td>
-                            <td>{{ load.status }}</td>
-                            <td>
-                                {% if load.rate_con %}
-                                    <a href="{{ url_for('loads.get_rate_con', file_id=load.rate_con) }}" target="_blank">Скачать</a>
-                                {% else %}
-                                    Нет файла
-                                {% endif %}
-                            </td>
-                        </tr>
+                    <tr>
+                        <td>{{ load.load_id }}</td>
+                        <td>{{ load.broker_load_id }}</td>
+                        <td>{{ load.type }}</td>
+                        <td>{{ load.driver_name }}</td>
+
+                        <td>
+                            <b>{{ load.pickup.company }}</b><br>
+                            {{ load.pickup.address }}<br>
+                            {{ load.pickup.date }}<br>
+                            {{ load.pickup.instructions }}
+                        </td>
+
+                        <td>
+                            {% if load.extra_pickup %}
+                                <b>{{ load.extra_pickup.company }}</b><br>
+                                {{ load.extra_pickup.address }}<br>
+                                {{ load.extra_pickup.date }}<br>
+                                {{ load.extra_pickup.instructions }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <b>{{ load.delivery.company }}</b><br>
+                            {{ load.delivery.address }}<br>
+                            {{ load.delivery.date }}<br>
+                            {{ load.delivery.instructions }}
+                        </td>
+
+                        <td>
+                            {% if load.extra_delivery %}
+                                <b>{{ load.extra_delivery.company }}</b><br>
+                                {{ load.extra_delivery.address }}<br>
+                                {{ load.extra_delivery.date }}<br>
+                                {{ load.extra_delivery.instructions }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>{{ load.status }}</td>
+                        <td>{{ load.payment_status }}</td>
+
+                        <td>
+                            {% if load.rate_con %}
+                                <a href="{{ url_for('loads.get_rate_con', file_id=load.rate_con) }}" target="_blank">Скачать</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if load.bol %}
+                                <a href="{{ url_for('loads.get_bol', file_id=load.bol) }}" target="_blank">Скачать</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -44,64 +94,152 @@
     </div>
 </div>
 
-<!-- Модальное окно добавления груза -->
+<!-- Модальное окно добавления нового груза -->
 <div class="modal fade" id="addLoadModal" tabindex="-1" role="dialog" aria-labelledby="addLoadModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg" role="document">
     <div class="modal-content">
       <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
         <div class="modal-header">
-          <h5 class="modal-title" id="addLoadModalLabel">Добавить новый груз</h5>
+          <h5 class="modal-title">Добавить новый груз</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть">
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
+
         <div class="modal-body">
+          <div class="form-group">
+            <label for="load_id">Load ID</label>
+            <input type="text" class="form-control" name="load_id" required>
+          </div>
+          <div class="form-group">
+            <label for="broker_load_id">Broker Load ID</label>
+            <input type="text" class="form-control" name="broker_load_id">
+          </div>
+          <div class="form-group">
+            <label for="type">Тип груза</label>
+            <input type="text" class="form-control" name="type">
+          </div>
+          <div class="form-group">
+            <label for="assigned_driver">Водитель</label>
+            <select name="assigned_driver" class="form-control">
+              {% for driver in drivers %}
+                <option value="{{ driver._id }}">{{ driver.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="assigned_dispatch">Диспетчер</label>
+            <input type="text" class="form-control" name="assigned_dispatch">
+          </div>
 
-            <div class="form-group">
-                <label for="price">Цена</label>
-                <input type="text" id="price" name="price" class="form-control" required>
-            </div>
-            <div class="form-group">
-                <label for="driver">Водитель</label>
-                <select id="driver" name="driver" class="form-control" required>
-                    {% for driver in drivers %}
-                        <option value="{{ driver._id }}">{{ driver.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="pickup_location">Откуда</label>
-                <input type="text" id="pickup_location" name="pickup_location" class="form-control">
-            </div>
-            <div class="form-group">
-                <label for="delivery_location">Куда</label>
-                <input type="text" id="delivery_location" name="delivery_location" class="form-control">
-            </div>
-            <div class="form-group">
-                <label for="pickup_date">Пикап дата</label>
-                <input type="date" id="pickup_date" name="pickup_date" class="form-control">
-            </div>
-            <div class="form-group">
-                <label for="delivery_date">Деливери дата</label>
-                <input type="date" id="delivery_date" name="delivery_date" class="form-control">
-            </div>
-            <div class="form-group">
-                <label for="status">Статус</label>
-                <select id="status" name="status" class="form-control">
-                    <option value="Взят">Взят</option>
-                    <option value="Пикапнут">Пикапнут</option>
-                    <option value="Доставлен">Доставлен</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="rate_con">Rate Con</label>
-                <input type="file" id="rate_con" name="rate_con" class="form-control">
-            </div>
+          <hr>
+          <h5>Pickup</h5>
+          <div class="form-group">
+            <label>Компания</label>
+            <input type="text" class="form-control" name="pickup_company">
+          </div>
+          <div class="form-group">
+            <label>Адрес</label>
+            <input type="text" class="form-control" name="pickup_address">
+          </div>
+          <div class="form-group">
+            <label>Дата</label>
+            <input type="date" class="form-control" name="pickup_date">
+          </div>
+          <div class="form-group">
+            <label>Инструкции</label>
+            <textarea class="form-control" name="pickup_instructions"></textarea>
+          </div>
 
+          <hr>
+          <h5>Extra Pickup (необязательно)</h5>
+          <div class="form-group">
+            <label>Компания</label>
+            <input type="text" class="form-control" name="extra_pickup_company">
+          </div>
+          <div class="form-group">
+            <label>Адрес</label>
+            <input type="text" class="form-control" name="extra_pickup_address">
+          </div>
+          <div class="form-group">
+            <label>Дата</label>
+            <input type="date" class="form-control" name="extra_pickup_date">
+          </div>
+          <div class="form-group">
+            <label>Инструкции</label>
+            <textarea class="form-control" name="extra_pickup_instructions"></textarea>
+          </div>
+
+          <hr>
+          <h5>Delivery</h5>
+          <div class="form-group">
+            <label>Компания</label>
+            <input type="text" class="form-control" name="delivery_company">
+          </div>
+          <div class="form-group">
+            <label>Адрес</label>
+            <input type="text" class="form-control" name="delivery_address">
+          </div>
+          <div class="form-group">
+            <label>Дата</label>
+            <input type="date" class="form-control" name="delivery_date">
+          </div>
+          <div class="form-group">
+            <label>Инструкции</label>
+            <textarea class="form-control" name="delivery_instructions"></textarea>
+          </div>
+
+          <hr>
+          <h5>Extra Delivery (необязательно)</h5>
+          <div class="form-group">
+            <label>Компания</label>
+            <input type="text" class="form-control" name="extra_delivery_company">
+          </div>
+          <div class="form-group">
+            <label>Адрес</label>
+            <input type="text" class="form-control" name="extra_delivery_address">
+          </div>
+          <div class="form-group">
+            <label>Дата</label>
+            <input type="date" class="form-control" name="extra_delivery_date">
+          </div>
+          <div class="form-group">
+            <label>Инструкции</label>
+            <textarea class="form-control" name="extra_delivery_instructions"></textarea>
+          </div>
+
+          <hr>
+          <div class="form-group">
+            <label for="status">Статус груза</label>
+            <select class="form-control" name="status">
+              <option value="Новый">Новый</option>
+              <option value="В пути">В пути</option>
+              <option value="Доставлен">Доставлен</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="payment_status">Статус оплаты</label>
+            <select class="form-control" name="payment_status">
+              <option value="Не оплачен">Не оплачен</option>
+              <option value="Ожидает">Ожидает</option>
+              <option value="Оплачен">Оплачен</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="rate_con">Rate Con (PDF)</label>
+            <input type="file" class="form-control" name="rate_con">
+          </div>
+          <div class="form-group">
+            <label for="bol">BOL (PDF)</label>
+            <input type="file" class="form-control" name="bol">
+          </div>
         </div>
+
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
-          <button type="submit" class="btn btn-primary">Добавить</button>
+          <button type="submit" class="btn btn-primary">Сохранить груз</button>
         </div>
       </form>
     </div>
