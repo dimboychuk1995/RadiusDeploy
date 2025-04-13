@@ -1,9 +1,11 @@
-
-<!-- Фильтры -->
+<!-- Грузы -->
 <div class="container mt-4">
     <div class="row mb-3">
         <div class="col-md-12">
             <h2>Грузы</h2>
+            <button class="btn btn-primary mb-3" data-toggle="modal" data-target="#addLoadModal">
+                ➕ Добавить груз
+            </button>
             <table class="table table-striped">
                 <thead>
                     <tr>
@@ -40,52 +42,68 @@
             </table>
         </div>
     </div>
-    <div class="row">
-        <div class="col-md-12">
-            <h2>Добавить новый груз</h2>
-            <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
-                <div class="form-group">
-                    <label for="price">Цена</label>
-                    <input type="text" id="price" name="price" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label for="driver">Водитель</label>
-                    <select id="driver" name="driver" class="form-control" required>
-                        {% for driver in drivers %}
-                            <option value="{{ driver._id }}">{{ driver.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="pickup_location">Откуда</label>
-                    <input type="text" id="pickup_location" name="pickup_location" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label for="delivery_location">Куда</label>
-                    <input type="text" id="delivery_location" name="delivery_location" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label for="pickup_date">Пикап дата</label>
-                    <input type="date" id="pickup_date" name="pickup_date" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label for="delivery_date">Деливери дата</label>
-                    <input type="date" id="delivery_date" name="delivery_date" class="form-control">
-                </div>
-                <div class="form-group">
-                    <label for="status">Статус</label>
-                    <select id="status" name="status" class="form-control">
-                        <option value="Взят">Взят</option>
-                        <option value="Пикапнут">Пикапнут</option>
-                        <option value="Доставлен">Доставлен</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="rate_con">Rate Con</label>
-                    <input type="file" id="rate_con" name="rate_con" class="form-control">
-                </div>
-                <button type="submit" class="btn btn-primary">Добавить</button>
-            </form>
+</div>
+
+<!-- Модальное окно добавления груза -->
+<div class="modal fade" id="addLoadModal" tabindex="-1" role="dialog" aria-labelledby="addLoadModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addLoadModalLabel">Добавить новый груз</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть">
+            <span aria-hidden="true">&times;</span>
+          </button>
         </div>
+        <div class="modal-body">
+
+            <div class="form-group">
+                <label for="price">Цена</label>
+                <input type="text" id="price" name="price" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="driver">Водитель</label>
+                <select id="driver" name="driver" class="form-control" required>
+                    {% for driver in drivers %}
+                        <option value="{{ driver._id }}">{{ driver.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="pickup_location">Откуда</label>
+                <input type="text" id="pickup_location" name="pickup_location" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="delivery_location">Куда</label>
+                <input type="text" id="delivery_location" name="delivery_location" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="pickup_date">Пикап дата</label>
+                <input type="date" id="pickup_date" name="pickup_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="delivery_date">Деливери дата</label>
+                <input type="date" id="delivery_date" name="delivery_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="status">Статус</label>
+                <select id="status" name="status" class="form-control">
+                    <option value="Взят">Взят</option>
+                    <option value="Пикапнут">Пикапнут</option>
+                    <option value="Доставлен">Доставлен</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="rate_con">Rate Con</label>
+                <input type="file" id="rate_con" name="rate_con" class="form-control">
+            </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
