@@ -38,14 +38,40 @@ def parse_date(date_str):
 @requires_role('admin')
 def add_load():
     try:
-        # Загрузка файлов
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
 
         rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
         bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
 
-        # Основная информация
+        def parse_date(d): return datetime.strptime(d, "%Y-%m-%d").strftime("%m/%d/%Y") if d else ""
+
+        # 🔹 Extra Pickup
+        extra_pickups = []
+        for key in request.form:
+            if key.startswith("extra_pickup[") and key.endswith("][company]"):
+                idx = key.split("[")[1].split("]")[0]
+                pickup = {
+                    "company": request.form.get(f"extra_pickup[{idx}][company]"),
+                    "address": request.form.get(f"extra_pickup[{idx}][address]"),
+                    "date": parse_date(request.form.get(f"extra_pickup[{idx}][date]")),
+                    "instructions": request.form.get(f"extra_pickup[{idx}][instructions]")
+                }
+                extra_pickups.append(pickup)
+
+        # 🔹 Extra Delivery
+        extra_deliveries = []
+        for key in request.form:
+            if key.startswith("extra_delivery[") and key.endswith("][company]"):
+                idx = key.split("[")[1].split("]")[0]
+                delivery = {
+                    "company": request.form.get(f"extra_delivery[{idx}][company]"),
+                    "address": request.form.get(f"extra_delivery[{idx}][address]"),
+                    "date": parse_date(request.form.get(f"extra_delivery[{idx}][date]")),
+                    "instructions": request.form.get(f"extra_delivery[{idx}][instructions]")
+                }
+                extra_deliveries.append(delivery)
+
         load_data = {
             "load_id": request.form.get("load_id"),
             "broker_load_id": request.form.get("broker_load_id"),
@@ -67,6 +93,10 @@ def add_load():
                 "instructions": request.form.get("delivery_instructions")
             },
 
+            "extra_pickup": extra_pickups if extra_pickups else None,
+            "extra_delivery": extra_deliveries if extra_deliveries else None,
+            "extra_stops": len(extra_pickups) + len(extra_deliveries),  # ✅ Добавляем
+
             "status": request.form.get("status"),
             "payment_status": request.form.get("payment_status"),
             "rate_con": rate_con_id,
@@ -75,30 +105,12 @@ def add_load():
             "was_added_to_statement": False
         }
 
-        # Опциональные extra pickup/delivery
-        if request.form.get("extra_pickup_company"):
-            load_data["extra_pickup"] = {
-                "company": request.form.get("extra_pickup_company"),
-                "address": request.form.get("extra_pickup_address"),
-                "date": parse_date(request.form.get("extra_pickup_date")),
-                "instructions": request.form.get("extra_pickup_instructions")
-            }
-
-        if request.form.get("extra_delivery_company"):
-            load_data["extra_delivery"] = {
-                "company": request.form.get("extra_delivery_company"),
-                "address": request.form.get("extra_delivery_address"),
-                "date": parse_date(request.form.get("extra_delivery_date")),
-                "instructions": request.form.get("extra_delivery_instructions")
-            }
-
         loads_collection.insert_one(load_data)
         return redirect(url_for('index') + '#section-loads-fragment')
 
     except Exception as e:
-        logging.exception("Error adding load")
-        return render_template("error.html", message="Ошибка при добавлении груза")
-
+        logging.exception("Ошибка при добавлении груза")
+        return render_template("error.html", message="Ошибка при сохранении груза")
 
 @loads_bp.route('/rate_con/<file_id>', methods=['GET'])
 @login_required
