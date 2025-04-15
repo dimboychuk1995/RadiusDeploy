@@ -1,12 +1,10 @@
 <!-- Кнопка -->
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4>Грузы</h4>
-  <button class="btn btn-primary" onclick="openLoadModal()">
-    ➕ Добавить груз
-  </button>
+  <button class="btn btn-primary" onclick="openLoadModal()">➕ Добавить груз</button>
 </div>
 
-<!-- Таблица грузов (без изменений) -->
+<!-- Таблица -->
 <table class="table table-striped">
   <thead>
     <tr>
@@ -79,89 +77,104 @@
     </div>
 
     <div class="custom-offcanvas-body">
-      <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
-        <div class="form-group"><label>Load ID</label><input type="text" class="form-control" name="load_id" required></div>
-        <div class="form-group"><label>Broker Load ID</label><input type="text" class="form-control" name="broker_load_id"></div>
+      <div class="load-modal-content">
+        <!-- Левая часть -->
+        <div class="load-modal-left">
+          <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
+            <div class="form-group"><label>Load ID</label><input type="text" class="form-control" name="load_id" required></div>
+            <div class="form-group"><label>Broker Load ID</label><input type="text" class="form-control" name="broker_load_id"></div>
 
-        <div class="form-group">
-          <label>Тип груза</label>
-          <select name="type" class="form-control">
-            <option value="">-- Выбрать тип --</option>
-            <option value="general">General</option>
-            <option value="flat bed">Flat Bed</option>
-            <option value="reefer">Reefer</option>
-            <option value="equipment">Equipment</option>
-            <option value="vehicle">Vehicle</option>
-          </select>
+            <div class="form-group">
+              <label>Тип груза</label>
+              <select name="type" class="form-control">
+                <option value="">-- Выбрать тип --</option>
+                <option value="general">General</option>
+                <option value="flat bed">Flat Bed</option>
+                <option value="reefer">Reefer</option>
+                <option value="equipment">Equipment</option>
+                <option value="vehicle">Vehicle</option>
+              </select>
+            </div>
+
+            <div id="description-block" style="display: none;">
+              <div class="form-group"><label>Load Description</label><textarea class="form-control" name="load_description"></textarea></div>
+            </div>
+
+            <div id="vehicles-block" style="display: none;">
+              <h5>Информация об авто</h5>
+              <div id="vehicle-entries"></div>
+              <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addVehicle()">➕ Добавить авто</button>
+            </div>
+
+            <div class="form-group">
+              <label>Водитель</label>
+              <select name="assigned_driver" class="form-control">
+                {% for driver in drivers %}
+                <option value="{{ driver._id }}">{{ driver.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group"><label>Диспетчер</label><input type="text" class="form-control" name="assigned_dispatch"></div>
+
+            <hr><h5>Pickup</h5>
+            <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="pickup_company"></div>
+            <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="pickup_address"></div>
+            <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="pickup_date"></div>
+            <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="pickup_instructions"></textarea></div>
+
+            <hr><h5>Extra Pickup</h5>
+            <div id="extra-pickups-container"></div>
+            <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraPickup()">➕ Добавить Extra Pickup</button>
+
+            <hr><h5>Delivery</h5>
+            <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="delivery_company"></div>
+            <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="delivery_address"></div>
+            <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="delivery_date"></div>
+            <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="delivery_instructions"></textarea></div>
+
+            <hr><h5>Extra Delivery</h5>
+            <div id="extra-deliveries-container"></div>
+            <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraDelivery()">➕ Добавить Extra Delivery</button>
+
+            <div class="form-group mt-3">
+              <label>Статус груза</label>
+              <select class="form-control" name="status">
+                <option value="Новый">Новый</option>
+                <option value="В пути">В пути</option>
+                <option value="Доставлен">Доставлен</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Статус оплаты</label>
+              <select class="form-control" name="payment_status">
+                <option value="Не оплачен">Не оплачен</option>
+                <option value="Ожидает">Ожидает</option>
+                <option value="Оплачен">Оплачен</option>
+              </select>
+            </div>
+
+            <div class="form-group"><label>Rate Con (PDF)</label><input type="file" class="form-control" name="rate_con"></div>
+            <div class="form-group"><label>BOL (PDF)</label><input type="file" class="form-control" name="bol"></div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeLoadModal()">Отмена</button>
+              <button type="submit" class="btn btn-primary">Сохранить груз</button>
+            </div>
+          </form>
         </div>
 
-        <div id="description-block" style="display: none;">
-          <div class="form-group"><label>Load Description</label><textarea class="form-control" name="load_description"></textarea></div>
+        <!-- Правая часть -->
+        <div class="load-modal-right">
+          <div class="upload-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <strong>Import Rate Confirmation Document</strong>
+            <p class="text-muted">Drag and drop or <label for="rateConInput">choose PDF</label> to upload</p>
+            <input type="file" id="rateConInput" accept="application/pdf">
+          </div>
         </div>
-
-        <div id="vehicles-block" style="display: none;">
-          <h5>Информация об авто</h5>
-          <div id="vehicle-entries"></div>
-          <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addVehicle()">➕ Добавить авто</button>
-        </div>
-
-        <div class="form-group">
-          <label>Водитель</label>
-          <select name="assigned_driver" class="form-control">
-            {% for driver in drivers %}
-            <option value="{{ driver._id }}">{{ driver.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="form-group"><label>Диспетчер</label><input type="text" class="form-control" name="assigned_dispatch"></div>
-
-        <hr><h5>Pickup</h5>
-        <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="pickup_company"></div>
-        <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="pickup_address"></div>
-        <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="pickup_date"></div>
-        <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="pickup_instructions"></textarea></div>
-
-        <hr><h5>Extra Pickup</h5>
-        <div id="extra-pickups-container"></div>
-        <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraPickup()">➕ Добавить Extra Pickup</button>
-
-        <hr><h5>Delivery</h5>
-        <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="delivery_company"></div>
-        <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="delivery_address"></div>
-        <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="delivery_date"></div>
-        <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="delivery_instructions"></textarea></div>
-
-        <hr><h5>Extra Delivery</h5>
-        <div id="extra-deliveries-container"></div>
-        <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraDelivery()">➕ Добавить Extra Delivery</button>
-
-        <div class="form-group mt-3">
-          <label>Статус груза</label>
-          <select class="form-control" name="status">
-            <option value="Новый">Новый</option>
-            <option value="В пути">В пути</option>
-            <option value="Доставлен">Доставлен</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label>Статус оплаты</label>
-          <select class="form-control" name="payment_status">
-            <option value="Не оплачен">Не оплачен</option>
-            <option value="Ожидает">Ожидает</option>
-            <option value="Оплачен">Оплачен</option>
-          </select>
-        </div>
-
-        <div class="form-group"><label>Rate Con (PDF)</label><input type="file" class="form-control" name="rate_con"></div>
-        <div class="form-group"><label>BOL (PDF)</label><input type="file" class="form-control" name="bol"></div>
-
-        <div class="mt-4 d-flex justify-content-end">
-          <button type="button" class="btn btn-secondary mr-2" onclick="closeLoadModal()">Отмена</button>
-          <button type="submit" class="btn btn-primary">Сохранить груз</button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 </div>
