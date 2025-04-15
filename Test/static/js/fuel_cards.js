@@ -5,14 +5,19 @@ function initFuelCards() {
     setupTransactionUpload();
     setupFuelCardTransactionsButton();
     setupUploadTransactionsModalButton();
-    setupFuelCardTransactionsButton();
 }
 
 function setupOpenModalButton() {
     document.getElementById('btn-open-fuel-card-modal')?.addEventListener('click', () => {
         resetFuelCardForm();
         loadDriverOptions();
-        $('#fuelCardModal').modal('show');
+        openFuelCardModal();
+    });
+}
+
+function setupUploadTransactionsModalButton() {
+    document.getElementById('btn-upload-transactions')?.addEventListener('click', () => {
+        openUploadTransactionsModal();
     });
 }
 
@@ -41,16 +46,14 @@ function collectFuelCardFormData() {
 function submitFuelCard(data) {
     fetch('/fuel_cards/create', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
     .then(res => res.json())
     .then(result => {
         if (result.success) {
             console.log('Карта успешно создана');
-            $('#fuelCardModal').modal('hide');
+            closeFuelCardModal();
         } else {
             console.error('Ошибка при создании карты:', result.error);
         }
@@ -74,7 +77,6 @@ function loadDriverOptions() {
 function populateDriverSelect(drivers) {
     const select = document.getElementById('assigned_driver');
     select.innerHTML = '';
-
     drivers.forEach(driver => {
         const option = document.createElement('option');
         option.value = driver._id;
@@ -114,7 +116,6 @@ function populateFuelCardTable(cards) {
 function setupTransactionUpload() {
     document.getElementById('upload-transactions-form')?.addEventListener('submit', function (e) {
         e.preventDefault();
-
         const formData = new FormData(this);
 
         fetch('/fuel_cards/upload_transactions', {
@@ -125,7 +126,6 @@ function setupTransactionUpload() {
         .then(result => {
             if (result.success) {
                 let html = `<div class="alert alert-info mt-3"><strong>Загружено транзакций:</strong> ${result.count}</div>`;
-
                 if (result.summary_by_card?.length) {
                     html += `<ul class="list-group mt-2">`;
                     result.summary_by_card.forEach(entry => {
@@ -140,7 +140,6 @@ function setupTransactionUpload() {
                     });
                     html += `</ul>`;
                 }
-
                 document.getElementById('upload-summary-container').innerHTML = html;
             } else {
                 alert('Ошибка: ' + result.error);
@@ -152,14 +151,29 @@ function setupTransactionUpload() {
     });
 }
 
-function setupUploadTransactionsModalButton() {
-    document.getElementById('btn-upload-transactions')?.addEventListener('click', () => {
-        $('#uploadTransactionsModal').modal('show');
-    });
-}
-
 function setupFuelCardTransactionsButton() {
     document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {
         console.log('Открытие транзакций — в разработке');
     });
+}
+
+// === Универсальные модалки ===
+function openFuelCardModal() {
+    document.getElementById("fuelCardModal").classList.add("show");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+}
+
+function closeFuelCardModal() {
+    document.getElementById("fuelCardModal").classList.remove("show");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+}
+
+function openUploadTransactionsModal() {
+    document.getElementById("uploadTransactionsModal").classList.add("show");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+}
+
+function closeUploadTransactionsModal() {
+    document.getElementById("uploadTransactionsModal").classList.remove("show");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
