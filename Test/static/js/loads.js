@@ -1,8 +1,4 @@
-console.log('loads.js loaded')
-
 function initLoads() {
-  console.log("✅ initLoads запущен");
-
   const typeSelect = document.querySelector('select[name="type"]');
   const descBlock = document.getElementById("description-block");
   const vehiclesBlock = document.getElementById("vehicles-block");
@@ -23,7 +19,7 @@ function initLoads() {
     typeSelect.addEventListener("change", updateVisibility);
   }
 
-  const modal = document.getElementById("addLoadModal");
+  const modal = document.getElementById("createLoadModal");
   if (modal) {
     const observer = new MutationObserver(() => {
       if (modal.classList.contains("show")) {
@@ -34,14 +30,16 @@ function initLoads() {
   }
 }
 
-
 document.addEventListener("DOMContentLoaded", () => {
-    console.log('loads.js loaded')
+  initLoads(); // важно вызвать здесь, чтобы отработало при загрузке
+
+  const modal = document.getElementById("createLoadModal");
   const typeSelect = document.querySelector('select[name="type"]');
   const descBlock = document.getElementById("description-block");
   const vehiclesBlock = document.getElementById("vehicles-block");
 
   function updateVisibility() {
+    if (!typeSelect || !descBlock || !vehiclesBlock) return;
     const selected = typeSelect.value;
     if (selected === "vehicle") {
       descBlock.style.display = "none";
@@ -57,17 +55,18 @@ document.addEventListener("DOMContentLoaded", () => {
     typeSelect.addEventListener("change", updateVisibility);
   }
 
-  // Обновляем видимость при открытии модального окна
-  const modal = document.getElementById("addLoadModal");
   if (modal) {
-    modal.addEventListener("shown.bs.modal", () => {
-      updateVisibility();
+    const observer = new MutationObserver(() => {
+      if (modal.classList.contains("show")) {
+        updateVisibility();
+      }
     });
+    observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
   }
 });
 
+// --- Extra Stops ---
 function addExtraPickup() {
-    console.log('loads.js loaded')
   const container = document.getElementById("extra-pickups-container");
   const index = container.children.length;
   const html = `
@@ -82,7 +81,6 @@ function addExtraPickup() {
 }
 
 function addExtraDelivery() {
-    console.log('loads.js loaded')
   const container = document.getElementById("extra-deliveries-container");
   const index = container.children.length;
   const html = `
@@ -96,8 +94,8 @@ function addExtraDelivery() {
   container.insertAdjacentHTML("beforeend", html);
 }
 
+// --- Vehicles ---
 function addVehicle() {
-    console.log('loads.js loaded')
   const container = document.getElementById("vehicle-entries");
   const index = container.children.length;
   const html = `
@@ -114,27 +112,17 @@ function addVehicle() {
   container.insertAdjacentHTML("beforeend", html);
 }
 
+// --- Открытие/закрытие модалки ---
+function openLoadModal() {
+  const modal = document.getElementById("createLoadModal");
+  const backdrop = document.querySelector(".custom-offcanvas-backdrop");
+  if (modal) modal.classList.add("open");  // <== было "show"
+  if (backdrop) backdrop.classList.add("show");
+}
 
-// Fallback для показа полей при открытии модального окна без jQuery
-const modal = document.getElementById("addLoadModal");
-console.log('loads.js loaded')
-if (modal) {
-  const observer = new MutationObserver(() => {
-    if (modal.classList.contains("show")) {
-      const typeSelect = document.querySelector('select[name="type"]');
-      const descBlock = document.getElementById("description-block");
-      const vehiclesBlock = document.getElementById("vehicles-block");
-      const selected = typeSelect.value;
-
-      if (selected === "vehicle") {
-        descBlock.style.display = "none";
-        vehiclesBlock.style.display = "block";
-      } else {
-        descBlock.style.display = "block";
-        vehiclesBlock.style.display = "none";
-      }
-    }
-  });
-
-  observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+function closeLoadModal() {
+  const modal = document.getElementById("createLoadModal");
+  const backdrop = document.querySelector(".custom-offcanvas-backdrop");
+  if (modal) modal.classList.remove("open");  // <== было "show"
+  if (backdrop) backdrop.classList.remove("show");
 }
