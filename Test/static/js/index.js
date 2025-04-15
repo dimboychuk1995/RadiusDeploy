@@ -42,6 +42,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initFuelCards?.();
                     } else if (url.includes('samsara')) {
                         initSamsara?.(); // 👈 вызывем карту после подгрузки
+                    } else if (url.includes('loads')) {
+                        initLoads?.();
                     }
                 });
         }
