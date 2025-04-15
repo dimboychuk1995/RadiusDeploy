@@ -44,88 +44,75 @@
 </form>
 
 <!-- 💰 Кнопка модалки -->
-<button type="button" class="btn btn-info mt-3" data-toggle="modal" data-target="#salarySchemeModal">
+<button type="button" class="btn btn-info mt-3" onclick="openSalaryModal()">
     💰 Схема зарплаты
 </button>
 
-<!-- 💼 Модальное окно -->
-<div class="modal fade" id="salarySchemeModal" tabindex="-1" role="dialog" aria-labelledby="salarySchemeModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <form id="salarySchemeForm" data-driver-id="{{ driver._id }}">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="salarySchemeModalLabel">Настройка схемы зарплаты</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Закрыть">
-            <span aria-hidden="true">&times;</span>
-          </button>
+<!-- 💼 Выезжающее модальное окно -->
+<div class="custom-offcanvas custom-offcanvas-right" id="salarySchemeModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Настройка схемы зарплаты</h5>
+      <button type="button" class="close" onclick="closeSalaryModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <form id="salarySchemeForm" data-driver-id="{{ driver._id }}">
+        <div class="form-group">
+          <label>Схема расчёта</label>
+          <select class="form-control" name="scheme_type" id="schemeTypeSelect">
+            <option value="percent" {% if scheme_data.scheme_type == 'percent' %}selected{% endif %}>Процент от суммы грузов</option>
+            <option value="net_percent" {% if scheme_data.scheme_type == 'net_percent' %}selected{% endif %}>Процент от чистой прибыли</option>
+          </select>
         </div>
-        <div class="modal-body">
 
-            <!-- Выбор типа схемы -->
-            <div class="form-group">
-                <label>Схема расчёта</label>
-                <select class="form-control" name="scheme_type" id="schemeTypeSelect">
-                    <option value="percent" {% if scheme_data.scheme_type == 'percent' %}selected{% endif %}>Процент от суммы грузов</option>
-                    <option value="net_percent" {% if scheme_data.scheme_type == 'net_percent' %}selected{% endif %}>Процент от чистой прибыли</option>
-                </select>
+        <div id="percentSchemeBlock" {% if scheme_data.scheme_type != 'percent' %}style="display: none;"{% endif %}>
+          <div class="form-group">
+            <label>Базовый процент от $0:</label>
+            <input type="number" step="0.01" name="base_percent" class="form-control"
+                   value="{{ scheme_data.commission_table[0].percent if scheme_data.commission_table and scheme_data.commission_table[0].from_sum == 0 else 30 }}">
+          </div>
+          <label>Дополнительные уровни:</label>
+          <div id="commissionTable">
+            {% for entry in scheme_data.commission_table[1:] %}
+            <div class="form-row mb-2">
+              <div class="col"><input type="number" step="0.01" class="form-control" name="gross_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)"></div>
+              <div class="col"><input type="number" step="0.01" class="form-control" name="gross_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)"></div>
             </div>
-
-            <!-- 💵 Процент от суммы -->
-            <div id="percentSchemeBlock" {% if scheme_data.scheme_type != 'percent' %}style="display: none;"{% endif %}>
-                <div class="form-group">
-                    <label>Базовый процент от $0:</label>
-                    <input type="number" step="0.01" name="base_percent" class="form-control"
-                           value="{{ scheme_data.commission_table[0].percent if scheme_data.commission_table and scheme_data.commission_table[0].from_sum == 0 else 30 }}">
-                </div>
-
-                <label>Дополнительные уровни:</label>
-                <div id="commissionTable">
-                    {% for entry in scheme_data.commission_table[1:] %}
-                    <div class="form-row mb-2">
-                        <div class="col">
-                            <input type="number" step="0.01" class="form-control" name="gross_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)">
-                        </div>
-                        <div class="col">
-                            <input type="number" step="0.01" class="form-control" name="gross_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)">
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="addCommissionRow">+ Добавить строку</button>
-            </div>
-
-            <!-- 📉 Процент от чистой прибыли -->
-            <div id="netPercentBlock" {% if scheme_data.scheme_type == 'percent' %}style="display: none;"{% endif %}>
-                <div class="form-group">
-                    <label>Базовый процент от $0:</label>
-                    <input type="number" step="0.01" name="base_percent" class="form-control"
-                           value="{{ scheme_data.net_commission_table[0].percent if scheme_data.net_commission_table and scheme_data.net_commission_table[0].from_sum == 0 else 30 }}">
-                </div>
-
-                <label>Дополнительные уровни:</label>
-                <div id="netCommissionTable">
-                    {% for entry in scheme_data.net_commission_table[1:] %}
-                    <div class="form-row mb-2">
-                        <div class="col">
-                            <input type="number" step="0.01" class="form-control" name="net_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)">
-                        </div>
-                        <div class="col">
-                            <input type="number" step="0.01" class="form-control" name="net_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)">
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="addNetCommissionRow">+ Добавить строку</button>
-            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addCommissionRow">+ Добавить строку</button>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Отмена</button>
+
+        <div id="netPercentBlock" {% if scheme_data.scheme_type == 'percent' %}style="display: none;"{% endif %}>
+          <div class="form-group">
+            <label>Базовый процент от $0:</label>
+            <input type="number" step="0.01" name="base_percent" class="form-control"
+                   value="{{ scheme_data.net_commission_table[0].percent if scheme_data.net_commission_table and scheme_data.net_commission_table[0].from_sum == 0 else 30 }}">
+          </div>
+          <label>Дополнительные уровни:</label>
+          <div id="netCommissionTable">
+            {% for entry in scheme_data.net_commission_table[1:] %}
+            <div class="form-row mb-2">
+              <div class="col"><input type="number" step="0.01" class="form-control" name="net_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)"></div>
+              <div class="col"><input type="number" step="0.01" class="form-control" name="net_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)"></div>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addNetCommissionRow">+ Добавить строку</button>
+        </div>
+
+        <div class="mt-4 d-flex justify-content-end">
+          <button type="button" class="btn btn-secondary mr-2" onclick="closeSalaryModal()">Отмена</button>
           <button type="submit" class="btn btn-primary">Сохранить схему</button>
         </div>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </div>
+<div class="custom-offcanvas-backdrop" onclick="closeSalaryModal()"></div>
 
 <!-- 🔍 Отладочная вставка -->
 <div class="alert alert-info mt-3">Driver ID: {{ driver._id }}</div>

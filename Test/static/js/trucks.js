@@ -1,23 +1,9 @@
 document.addEventListener("DOMContentLoaded", function () {
   initTruckModalActions();
   initTruckSearch();
-
-  const closeBtn = document.getElementById("truckCloseBtn");
-  const addBtn = document.getElementById("addTruckBtn");
-
-  if (closeBtn) {
-    closeBtn.addEventListener("click", () => {
-      const modal = document.getElementById("truckModal");
-      if (modal) modal.classList.remove("show");
-    });
-  }
-
-  if (addBtn) {
-    addBtn.addEventListener("click", openTruckModal);
-  }
 });
 
-// === ПОИСК ПО ЮНИТУ ===
+// === ПОИСК ===
 function initTruckSearch() {
   const searchInput = document.getElementById("search-unit-number");
   const truckTable = document.getElementById("trucks-table");
@@ -38,11 +24,8 @@ function initTruckSearch() {
   }
 }
 
-// === МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ ===
+// === МОДАЛКА ===
 function initTruckModalActions() {
-  const truckModal = document.getElementById("truckModal");
-  const addTruckBtn = document.getElementById("addTruckBtn");
-  const truckSpan = document.getElementById("truckCloseBtn");
   const truckForm = document.getElementById("truckForm");
   const truckModalTitle = document.getElementById("truckModalTitle");
 
@@ -57,63 +40,40 @@ function initTruckModalActions() {
     truckForm.mileage.value = row.querySelector(".truck-mileage")?.textContent.trim() || "";
     truckForm.vin.value = row.querySelector(".truck-vin")?.textContent.trim() || "";
 
-    const type = row.querySelector(".truck-type")?.textContent.trim() || "";
-    const typeSelect = truckForm.querySelector("select[name='type']");
-    if (typeSelect) {
-      for (let i = 0; i < typeSelect.options.length; i++) {
-        if (typeSelect.options[i].text === type) {
-          typeSelect.selectedIndex = i;
-          break;
-        }
-      }
-    }
-
     truckForm.action = `/edit_truck/${truckId}`;
-    if (truckModalTitle) truckModalTitle.textContent = "Редактировать грузовик";
-    if (truckModal) truckModal.style.display = "block";
+    truckModalTitle.textContent = "Редактировать грузовик";
+    openTruckModal();
   };
 
   window.deleteTruck = function (truckId) {
     if (confirm("Вы уверены, что хотите удалить этот грузовик?")) {
-      fetch(`/delete_truck/${truckId}`, {
-        method: "POST",
-      }).then(response => {
-        if (response.ok) {
-          const row = document.getElementById(`truck-${truckId}`);
-          if (row) row.remove();
-        } else {
-          alert("Ошибка при удалении грузовика.");
-        }
-      });
+      fetch(`/delete_truck/${truckId}`, { method: "POST" })
+        .then(response => {
+          if (response.ok) {
+            document.getElementById(`truck-${truckId}`)?.remove();
+          } else {
+            alert("Ошибка при удалении грузовика.");
+          }
+        });
     }
   };
 
-  if (addTruckBtn && truckModal && truckForm && truckModalTitle) {
-    addTruckBtn.addEventListener("click", () => {
+  document.getElementById("addTruckBtn")?.addEventListener("click", () => {
+    if (truckForm && truckModalTitle) {
       truckForm.reset();
       truckForm.action = "/add_truck";
       truckModalTitle.textContent = "Добавить грузовик";
-      truckModal.style.display = "block";
-    });
-  }
-
-  if (truckSpan && truckModal) {
-    truckSpan.addEventListener("click", () => {
-      truckModal.style.display = "none";
-    });
-  }
-
-  if (truckModal) {
-    window.addEventListener("click", (event) => {
-      if (event.target === truckModal) {
-        truckModal.style.display = "none";
-      }
-    });
-  }
+      openTruckModal();
+    }
+  });
 }
 
-// Функция для открытия модалки
 function openTruckModal() {
-  const modal = document.getElementById("truckModal");
-  if (modal) modal.classList.add("show");
+  document.getElementById("truckModal")?.classList.add("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+}
+
+function closeTruckModal() {
+  document.getElementById("truckModal")?.classList.remove("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }

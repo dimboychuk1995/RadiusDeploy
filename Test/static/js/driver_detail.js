@@ -131,7 +131,7 @@ function initDriverDetailActions() {
                 .then(data => {
                     if (data.success) {
                         alert("✅ Схема зарплаты сохранена");
-                        $('#salarySchemeModal').modal('hide');
+                        closeSalaryModal();
                         window.location.reload();
                     } else {
                         alert("❌ Ошибка при сохранении схемы");
@@ -143,4 +143,14 @@ function initDriverDetailActions() {
                 });
         });
     }
+}
+
+function openSalaryModal() {
+  document.getElementById("salarySchemeModal")?.classList.add("open");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+}
+
+function closeSalaryModal() {
+  document.getElementById("salarySchemeModal")?.classList.remove("open");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }

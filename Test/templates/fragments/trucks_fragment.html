@@ -10,7 +10,7 @@
 <table class="table table-striped" id="trucks-table">
   <thead>
     <tr>
-        <th>Unit Number</th>
+      <th>Unit Number</th>
       <th>Год</th>
       <th>Производитель</th>
       <th>Модель</th>
@@ -23,15 +23,13 @@
   <tbody>
     {% for truck in trucks %}
     <tr class="clickable-row" data-id="{{ truck._id }}" id="truck-{{ truck._id }}" style="cursor: pointer;">
-
-        <td class="truck-unit">{{ truck.unit_number }}</td>
+      <td class="truck-unit">{{ truck.unit_number }}</td>
       <td class="truck-year">{{ truck.year }}</td>
       <td class="truck-make">{{ truck.make }}</td>
       <td class="truck-model">{{ truck.model }}</td>
       <td class="truck-mileage">{{ truck.mileage }}</td>
       <td class="truck-vin">{{ truck.vin }}</td>
       <td class="truck-type">{{ truck.type }}</td>
-
       <td>
         <button class="btn btn-primary btn-sm edit-btn" onclick="openEditTruckModal('{{ truck._id }}'); event.stopPropagation();">Редактировать</button>
         <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck._id }}'); event.stopPropagation();">Удалить</button>
@@ -45,115 +43,46 @@
 <button id="addTruckBtn" class="btn btn-primary">Добавить грузовик</button>
 
 <!-- Модальное окно -->
-<!-- Модальное окно -->
-<div id="truckModal" class="modal">
-  <div class="modal-content">
-    <span class="close" id="truckCloseBtn">&times;</span>
-    <h2 id="truckModalTitle">Добавить новый грузовик</h2>
-    <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+<div class="custom-offcanvas custom-offcanvas-right" id="truckModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title" id="truckModalTitle">Добавить новый грузовик</h5>
+      <button type="button" class="close" onclick="closeTruckModal()"><span>&times;</span></button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+        <div class="form-group"><label for="unit_number">Unit Number:</label><input type="text" class="form-control" id="unit_number" name="unit_number" required></div>
+        <div class="form-group"><label for="make">Make:</label><input type="text" class="form-control" id="make" name="make" required></div>
+        <div class="form-group"><label for="model">Model:</label><input type="text" class="form-control" id="model" name="model" required></div>
+        <div class="form-group"><label for="year">Year:</label><input type="text" class="form-control" id="year" name="year" required></div>
+        <div class="form-group"><label for="mileage">Mileage:</label><input type="text" class="form-control" id="mileage" name="mileage" required></div>
+        <div class="form-group"><label for="vin">VIN:</label><input type="text" class="form-control" id="vin" name="vin" required></div>
+        <div class="form-group"><label for="unit_type">Unit Type:</label><select class="form-control" id="unit_type" name="unit_type" required>{% for t in truck_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+        <div class="form-group"><label for="subtype">Subtype:</label><select class="form-control" id="subtype" name="subtype" required>{% for st in truck_subtypes %}<option value="{{ st }}">{{ st }}</option>{% endfor %}</select></div>
 
-      <div class="form-group">
-        <label for="unit_number">Unit Number:</label>
-        <input type="text" class="form-control" id="unit_number" name="unit_number" required>
-      </div>
+        <hr><h5>Registration</h5>
+        <div class="form-group"><label for="registration_plate">License Plate:</label><input type="text" class="form-control" id="registration_plate" name="registration_plate"></div>
+        <div class="form-group"><label for="registration_exp">Expiration Date:</label><input type="date" class="form-control" id="registration_exp" name="registration_exp"></div>
+        <div class="form-group"><label for="registration_file">Registration File:</label><input type="file" class="form-control-file" id="registration_file" name="registration_file"></div>
 
-      <div class="form-group">
-        <label for="make">Make:</label>
-        <input type="text" class="form-control" id="make" name="make" required>
-      </div>
+        <hr><h5>Annual Inspection</h5>
+        <div class="form-group"><label for="inspection_exp">Expiration Date:</label><input type="date" class="form-control" id="inspection_exp" name="inspection_exp"></div>
+        <div class="form-group"><label for="inspection_file">Inspection File:</label><input type="file" class="form-control-file" id="inspection_file" name="inspection_file"></div>
 
-      <div class="form-group">
-        <label for="model">Model:</label>
-        <input type="text" class="form-control" id="model" name="model" required>
-      </div>
+        <hr><h5>Power of Attorney</h5>
+        <div class="form-group"><label for="power_of_attorney_file">File:</label><input type="file" class="form-control-file" id="power_of_attorney_file" name="power_of_attorney_file"></div>
 
-      <div class="form-group">
-        <label for="year">Year:</label>
-        <input type="text" class="form-control" id="year" name="year" required>
-      </div>
+        <hr><h5>Liability Insurance</h5>
+        <div class="form-group"><label for="insurance_provider">Provider:</label><input type="text" class="form-control" id="insurance_provider" name="insurance_provider"></div>
+        <div class="form-group"><label for="insurance_policy">Policy Number:</label><input type="text" class="form-control" id="insurance_policy" name="insurance_policy"></div>
+        <div class="form-group"><label for="insurance_exp">Expiration Date:</label><input type="date" class="form-control" id="insurance_exp" name="insurance_exp"></div>
+        <div class="form-group"><label for="insurance_file">Insurance File:</label><input type="file" class="form-control-file" id="insurance_file" name="insurance_file"></div>
 
-      <div class="form-group">
-        <label for="mileage">Mileage:</label>
-        <input type="text" class="form-control" id="mileage" name="mileage" required>
-      </div>
-
-      <div class="form-group">
-        <label for="vin">VIN:</label>
-        <input type="text" class="form-control" id="vin" name="vin" required>
-      </div>
-
-      <div class="form-group">
-        <label for="unit_type">Unit Type:</label>
-        <select class="form-control" id="unit_type" name="unit_type" required>
-          {% for t in truck_types %}
-            <option value="{{ t }}">{{ t }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="subtype">Subtype:</label>
-        <select class="form-control" id="subtype" name="subtype" required>
-          {% for st in truck_subtypes %}
-            <option value="{{ st }}">{{ st }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <hr>
-      <h5>Registration</h5>
-      <div class="form-group">
-        <label for="registration_plate">License Plate:</label>
-        <input type="text" class="form-control" id="registration_plate" name="registration_plate">
-      </div>
-      <div class="form-group">
-        <label for="registration_exp">Expiration Date:</label>
-        <input type="date" class="form-control" id="registration_exp" name="registration_exp">
-      </div>
-      <div class="form-group">
-        <label for="registration_file">Registration File:</label>
-        <input type="file" class="form-control-file" id="registration_file" name="registration_file">
-      </div>
-
-      <hr>
-      <h5>Annual Inspection</h5>
-      <div class="form-group">
-        <label for="inspection_exp">Expiration Date:</label>
-        <input type="date" class="form-control" id="inspection_exp" name="inspection_exp">
-      </div>
-      <div class="form-group">
-        <label for="inspection_file">Inspection File:</label>
-        <input type="file" class="form-control-file" id="inspection_file" name="inspection_file">
-      </div>
-
-      <hr>
-      <h5>Power of Attorney</h5>
-      <div class="form-group">
-        <label for="power_of_attorney_file">File:</label>
-        <input type="file" class="form-control-file" id="power_of_attorney_file" name="power_of_attorney_file">
-      </div>
-
-      <hr>
-      <h5>Liability Insurance</h5>
-      <div class="form-group">
-        <label for="insurance_provider">Provider:</label>
-        <input type="text" class="form-control" id="insurance_provider" name="insurance_provider">
-      </div>
-      <div class="form-group">
-        <label for="insurance_policy">Policy Number:</label>
-        <input type="text" class="form-control" id="insurance_policy" name="insurance_policy">
-      </div>
-      <div class="form-group">
-        <label for="insurance_exp">Expiration Date:</label>
-        <input type="date" class="form-control" id="insurance_exp" name="insurance_exp">
-      </div>
-      <div class="form-group">
-        <label for="insurance_file">Insurance File:</label>
-        <input type="file" class="form-control-file" id="insurance_file" name="insurance_file">
-      </div>
-
-      <input type="hidden" id="truck_id" name="truck_id">
-      <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
-    </form>
+        <input type="hidden" id="truck_id" name="truck_id">
+        <button type="submit" class="btn btn-success" id="save-button">Сохранить</button>
+      </form>
+    </div>
   </div>
 </div>
+
+<div class="custom-offcanvas-backdrop" onclick="closeTruckModal()"></div>
