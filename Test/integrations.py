@@ -31,9 +31,8 @@ def requires_admin(f):
 @integrations_bp.route("/integrations")
 @requires_admin
 def integrations():
-    doc = integrations_collection.find_one({"name": "samsara"})
-    status = doc.get("enabled", True) if doc else True
-    return render_template("integrations.html", status=status)
+    all_integrations = list(integrations_collection.find())
+    return render_template("integrations.html", integrations=all_integrations)
 
 # API для обновления статуса
 @integrations_bp.route("/api/integrations/samsara", methods=["POST"])
@@ -49,3 +48,36 @@ def update_samsara_status():
         upsert=True
     )
     return jsonify({"success": True, "enabled": status})
+
+@integrations_bp.route("/api/integrations/samsara/key", methods=["POST"])
+@requires_admin
+def update_samsara_key():
+    data = request.get_json()
+    api_key = data.get("api_key")
+
+    if not api_key:
+        return jsonify({"success": False, "error": "API key is required"}), 400
+
+    integrations_collection.update_one(
+        {"name": "samsara"},
+        {"$set": {"api_key": api_key}},
+        upsert=True
+    )
+    return jsonify({"success": True})
+
+@integrations_bp.route("/api/integrations/<name>/save", methods=["POST"])
+@requires_admin
+def save_generic_integration(name):
+    data = request.get_json()
+    enabled = data.get("enabled", False)
+    api_key = data.get("api_key", "")
+
+    if not api_key:
+        return jsonify({"success": False, "error": "API ключ не указан"}), 400
+
+    integrations_collection.update_one(
+        {"name": name},
+        {"$set": {"enabled": enabled, "api_key": api_key}},
+        upsert=True
+    )
+    return jsonify({"success": True})

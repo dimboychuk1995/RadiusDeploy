@@ -1,7 +1,7 @@
 function initSamsara() {
     console.log('🌐 Init Samsara Map');
 
-    mapboxgl.accessToken = 'pk.eyJ1IjoiZGltYm95Y2h1azE5OTUiLCJhIjoiY205YnQ4ZWFhMGtsZDJrcG5ncmNydXA1OSJ9.2TL3NMfPdfTtZzJJ5gYj2w';
+    mapboxgl.accessToken = 'samsara_api_zbYYGWZKhEizNujQwN72Kr9YrCejwO';
 
     const map = new mapboxgl.Map({
         container: 'samsara-map',
