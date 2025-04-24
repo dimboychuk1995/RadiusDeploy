@@ -43,7 +43,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('samsara')) {
                         initSamsara?.(); // 👈 вызывем карту после подгрузки
                     } else if (url.includes('loads')) {
+                        // Ждём пока DOM обновится, потом инициализируем парсер
+                        setTimeout(() => {
+                            console.log("🔁 Пытаемся запустить initLoadParser после загрузки loads_fragment");
+                            initLoadParser?.();
+                        }, 100);
+
                         initLoads?.();
+                        initLoadParser();
                     }
                 });
         }

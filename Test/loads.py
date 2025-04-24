@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+import os
+
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from flask_login import login_required, current_user
@@ -6,6 +8,9 @@ from werkzeug.utils import secure_filename
 import logging
 import gridfs
 from datetime import datetime
+import fitz  # PyMuPDF
+import json
+from openai import OpenAI
 
 from Test.auth import requires_role
 
@@ -154,3 +159,128 @@ def loads_fragment():
         return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads)
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
+
+
+UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'pdf'}
+
+client = OpenAI(api_key="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")  # ⬅️ ВСТАВЬ СВОЙ КЛЮЧ OpenAI
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def extract_text_from_pdf(path):
+    doc = fitz.open(path)
+    return "".join(page.get_text() for page in doc)
+
+def ask_gpt(text):
+    prompt = f"""
+    Extract ONLY the following structured information from the text below and return strictly as JSON:
+
+    {{
+        "Load Number": "",
+        "Broker Name": "",
+        "Broker Phone Number": "",
+        "Broker Email": "",
+        "Price": "",
+        "Total Miles": "",
+        "Pickup Locations": [
+            {{
+                "Address": "",
+                "Date": "",
+                "Time": "",
+                "Instructions": "",
+                "Location Phone Number": "",
+                "Contact Person": ""
+            }}
+        ],
+        "Delivery Locations": [
+            {{
+                "Address": "",
+                "Date": "",
+                "Time": "",
+                "Instructions": "",
+                "Location Phone Number": "",
+                "Contact Person": ""
+            }}
+        ]
+    }}
+
+    Include multiple pickup and delivery locations if present.
+    -----
+    {text}
+    """
+
+    try:
+        print("🧠 Отправляем запрос к GPT...")
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        content = response.choices[0].message.content
+        print("✅ Ответ от GPT получен. Длина:", len(content))
+
+        # Убираем возможные обёртки ```json или ```
+        cleaned = content.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[len("```json"):].strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned[len("```"):].strip()
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-len("```")].strip()
+
+        print("📄 Чистый текст для JSON-парсинга:\n", cleaned)
+
+        try:
+            result = json.loads(cleaned)
+            print("✅ JSON успешно распарсен")
+            return result
+        except json.JSONDecodeError as json_err:
+            print("❌ Ошибка при JSON-парсинге:", json_err)
+            raise Exception(f"Ошибка при JSON-парсинге: {json_err}\nОтвет GPT:\n{cleaned}")
+
+    except Exception as e:
+        print("❌ Ошибка при работе с OpenAI:", e)
+        raise Exception(f"Ошибка OpenAI: {str(e)}")
+
+
+@loads_bp.route('/api/parse_load_pdf', methods=['POST'])
+def parse_load_pdf():
+    print("📥 parse_load_pdf вызван")
+
+    file = request.files.get('file')
+    if not file:
+        print("❌ Файл не передан")
+        return jsonify({'error': 'Файл не был передан'}), 400
+
+    if not allowed_file(file.filename):
+        print("❌ Неверный тип файла:", file.filename)
+        return jsonify({'error': 'Допустим только PDF'}), 400
+
+    filename = secure_filename(file.filename)
+    path = os.path.join(UPLOAD_FOLDER, filename)
+
+    try:
+        file.save(path)
+        print(f"📁 Файл сохранён по пути: {path}")
+    except Exception as e:
+        print(f"❌ Ошибка при сохранении файла: {e}")
+        return jsonify({'error': f'Ошибка при сохранении файла: {str(e)}'}), 500
+
+    try:
+        text = extract_text_from_pdf(path)
+        print("📄 Извлечённый текст длиной:", len(text))
+    except Exception as e:
+        print("❌ Ошибка при чтении PDF:", e)
+        return jsonify({'error': f'Ошибка при чтении PDF: {str(e)}'}), 500
+
+    try:
+        result = ask_gpt(text)
+        print("✅ Ответ от GPT получен")
+        return jsonify(result)
+    except Exception as e:
+        logging.exception("❌ Ошибка при запросе к GPT")
+        return jsonify({'error': f'Ошибка при обработке GPT: {str(e)}'}), 500
