@@ -36,45 +36,51 @@ function initLoadParser() {
   }, 100);
 }
 
+function formatDateToInput(dateString) {
+  if (!dateString) return "";
+  const parts = dateString.split("/");
+  if (parts.length !== 3) return "";
+  return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+}
+
 function autofillLoadForm(data) {
   if (!data) return;
 
-  // Очищаем Extra Pickup и Delivery перед автозаполнением
   document.getElementById('extra-pickups-container').innerHTML = "";
   document.getElementById('extra-deliveries-container').innerHTML = "";
 
-  // Заполняем базовые поля
   document.querySelector('[name="load_id"]').value = data["Load Number"] || "";
   document.querySelector('[name="broker_load_id"]').value = data["Broker Name"] || "";
 
-  // Основной Pickup
+  if (data["Weight"]) {
+    document.querySelector('[name="weight"]').value = data["Weight"];
+  }
+
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
     const firstPickup = pickups[0];
     document.querySelector('[name="pickup_address"]').value = firstPickup["Address"] || "";
-    document.querySelector('[name="pickup_date"]').value = firstPickup["Date"] || "";
+    document.querySelector('[name="pickup_date"]').value = formatDateToInput(firstPickup["Date"]) || "";
     document.querySelector('[name="pickup_instructions"]').value = firstPickup["Instructions"] || "";
   }
 
-  // Основной Delivery
   const deliveries = data["Delivery Locations"] || [];
   if (deliveries.length > 0) {
     const firstDelivery = deliveries[0];
     document.querySelector('[name="delivery_address"]').value = firstDelivery["Address"] || "";
-    document.querySelector('[name="delivery_date"]').value = firstDelivery["Date"] || "";
+    document.querySelector('[name="delivery_date"]').value = formatDateToInput(firstDelivery["Date"]) || "";
     document.querySelector('[name="delivery_instructions"]').value = firstDelivery["Instructions"] || "";
   }
 
-  // Extra Pickups
   if (pickups.length > 1) {
     const container = document.getElementById('extra-pickups-container');
     pickups.slice(1).forEach((pickup, index) => {
-      const idx = Date.now() + index; // Уникальный индекс
+      const idx = Date.now() + index;
       const html = `
         <div class="extra-pickup-block mb-3" data-idx="${idx}">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${idx}][company]" value=""></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${idx}][address]" value="${pickup["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${pickup["Date"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${formatDateToInput(pickup["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${idx}][instructions]">${pickup["Instructions"] || ""}</textarea></div>
         </div>
       `;
@@ -82,16 +88,15 @@ function autofillLoadForm(data) {
     });
   }
 
-  // Extra Deliveries
   if (deliveries.length > 1) {
     const container = document.getElementById('extra-deliveries-container');
     deliveries.slice(1).forEach((delivery, index) => {
-      const idx = Date.now() + index; // Уникальный индекс
+      const idx = Date.now() + index;
       const html = `
         <div class="extra-delivery-block mb-3" data-idx="${idx}">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${idx}][company]" value=""></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${idx}][address]" value="${delivery["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${delivery["Date"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${formatDateToInput(delivery["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${idx}][instructions]">${delivery["Instructions"] || ""}</textarea></div>
         </div>
       `;
@@ -102,5 +107,4 @@ function autofillLoadForm(data) {
   console.log("✅ Форма полностью автозаполнена по данным GPT!");
 }
 
-// 👇 Делаем функцию доступной глобально
 window.initLoadParser = initLoadParser;

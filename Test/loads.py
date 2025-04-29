@@ -88,6 +88,7 @@ def add_load():
             "broker_load_id": request.form.get("broker_load_id"),
             "type": request.form.get("type"),
             "load_description": request.form.get("load_description"),
+            "weight": request.form.get("weight"),  # ✅ добавил вес
             "vehicles": vehicles if vehicles else None,
             "assigned_driver": ObjectId(request.form.get("assigned_driver")) if request.form.get("assigned_driver") else None,
             "assigned_dispatch": request.form.get("assigned_dispatch"),
@@ -160,11 +161,11 @@ def loads_fragment():
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
-
+# --- парсинг PDF --- всё оставляем как было ---
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf'}
 
-client = OpenAI(api_key="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")  # ⬅️ ВСТАВЬ СВОЙ КЛЮЧ OpenAI
+client = OpenAI(api_key="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")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -185,6 +186,7 @@ def ask_gpt(text):
         "Broker Phone Number": "",
         "Broker Email": "",
         "Price": "",
+        "Weight": "",
         "Total Miles": "",
         "Pickup Locations": [
             {{
@@ -212,7 +214,6 @@ def ask_gpt(text):
     -----
     {text}
     """
-
     try:
         print("🧠 Отправляем запрос к GPT...")
         response = client.chat.completions.create(
@@ -223,7 +224,6 @@ def ask_gpt(text):
         content = response.choices[0].message.content
         print("✅ Ответ от GPT получен. Длина:", len(content))
 
-        # Убираем возможные обёртки ```json или ```
         cleaned = content.strip()
         if cleaned.startswith("```json"):
             cleaned = cleaned[len("```json"):].strip()
@@ -234,30 +234,21 @@ def ask_gpt(text):
 
         print("📄 Чистый текст для JSON-парсинга:\n", cleaned)
 
-        try:
-            result = json.loads(cleaned)
-            print("✅ JSON успешно распарсен")
-            return result
-        except json.JSONDecodeError as json_err:
-            print("❌ Ошибка при JSON-парсинге:", json_err)
-            raise Exception(f"Ошибка при JSON-парсинге: {json_err}\nОтвет GPT:\n{cleaned}")
+        result = json.loads(cleaned)
+        print("✅ JSON успешно распарсен")
+        return result
 
     except Exception as e:
         print("❌ Ошибка при работе с OpenAI:", e)
         raise Exception(f"Ошибка OpenAI: {str(e)}")
 
-
 @loads_bp.route('/api/parse_load_pdf', methods=['POST'])
 def parse_load_pdf():
     print("📥 parse_load_pdf вызван")
-
     file = request.files.get('file')
     if not file:
-        print("❌ Файл не передан")
         return jsonify({'error': 'Файл не был передан'}), 400
-
     if not allowed_file(file.filename):
-        print("❌ Неверный тип файла:", file.filename)
         return jsonify({'error': 'Допустим только PDF'}), 400
 
     filename = secure_filename(file.filename)
@@ -265,22 +256,9 @@ def parse_load_pdf():
 
     try:
         file.save(path)
-        print(f"📁 Файл сохранён по пути: {path}")
-    except Exception as e:
-        print(f"❌ Ошибка при сохранении файла: {e}")
-        return jsonify({'error': f'Ошибка при сохранении файла: {str(e)}'}), 500
-
-    try:
         text = extract_text_from_pdf(path)
-        print("📄 Извлечённый текст длиной:", len(text))
-    except Exception as e:
-        print("❌ Ошибка при чтении PDF:", e)
-        return jsonify({'error': f'Ошибка при чтении PDF: {str(e)}'}), 500
-
-    try:
         result = ask_gpt(text)
-        print("✅ Ответ от GPT получен")
         return jsonify(result)
     except Exception as e:
-        logging.exception("❌ Ошибка при запросе к GPT")
-        return jsonify({'error': f'Ошибка при обработке GPT: {str(e)}'}), 500
+        logging.exception("❌ Ошибка при обработке PDF")
+        return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
