@@ -7,7 +7,7 @@ from trucks import trucks_bp
 from drivers import drivers_bp
 from dispatch import dispatch_bp
 from loads import loads_bp
-from accounting import accounting_bp  # Импортируем новый Blueprint
+from accounting import accounting_bp
 from statement import statement_bp
 from flask_login import current_user
 from fuel_cards import fuel_cards_bp

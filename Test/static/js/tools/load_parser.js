@@ -51,59 +51,63 @@ function autofillLoadForm(data) {
 
   document.querySelector('[name="load_id"]').value = data["Load Number"] || "";
   document.querySelector('[name="broker_load_id"]').value = data["Broker Name"] || "";
-
-  if (data["Weight"]) {
-    document.querySelector('[name="weight"]').value = data["Weight"];
-  }
-
-  if (data["Price"]) {
-    document.querySelector('[name="price"]').value = data["Price"];
-  }
+  document.querySelector('[name="price"]').value = data["Price"] || "";
+  document.querySelector('[name="weight"]').value = data["Weight"] || "";
 
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
-    const firstPickup = pickups[0];
-    document.querySelector('[name="pickup_address"]').value = firstPickup["Address"] || "";
-    document.querySelector('[name="pickup_date"]').value = formatDateToInput(firstPickup["Date"]) || "";
-    document.querySelector('[name="pickup_instructions"]').value = firstPickup["Instructions"] || "";
-  }
-
-  const deliveries = data["Delivery Locations"] || [];
-  if (deliveries.length > 0) {
-    const firstDelivery = deliveries[0];
-    document.querySelector('[name="delivery_address"]').value = firstDelivery["Address"] || "";
-    document.querySelector('[name="delivery_date"]').value = formatDateToInput(firstDelivery["Date"]) || "";
-    document.querySelector('[name="delivery_instructions"]').value = firstDelivery["Instructions"] || "";
+    const p = pickups[0];
+    document.querySelector('[name="pickup_address"]').value = p["Address"] || "";
+    document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["Date"]);
+    document.querySelector('[name="pickup_instructions"]').value = p["Instructions"] || "";
+    document.querySelector('[name="pickup_contact_person"]').value = p["Contact Person"] || "";
+    document.querySelector('[name="pickup_contact_phone_number"]').value = p["Location Phone Number"] || "";
+    document.querySelector('[name="pickup_contact_email"]').value = p["Contact Email"] || "";
   }
 
   if (pickups.length > 1) {
     const container = document.getElementById('extra-pickups-container');
-    pickups.slice(1).forEach((pickup, index) => {
+    pickups.slice(1).forEach((p, index) => {
       const idx = Date.now() + index;
       const html = `
         <div class="extra-pickup-block mb-3" data-idx="${idx}">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${idx}][company]" value=""></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${idx}][address]" value="${pickup["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${formatDateToInput(pickup["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${idx}][instructions]">${pickup["Instructions"] || ""}</textarea></div>
-        </div>
-      `;
+          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${idx}][address]" value="${p["Address"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${formatDateToInput(p["Date"]) || ""}"></div>
+          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${idx}][instructions]">${p["Instructions"] || ""}</textarea></div>
+          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${idx}][contact_person]" value="${p["Contact Person"] || ""}"></div>
+          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${idx}][contact_phone_number]" value="${p["Location Phone Number"] || ""}"></div>
+          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_pickup[${idx}][contact_email]" value="${p["Contact Email"] || ""}"></div>
+        </div>`;
       container.insertAdjacentHTML("beforeend", html);
     });
   }
 
+  const deliveries = data["Delivery Locations"] || [];
+  if (deliveries.length > 0) {
+    const d = deliveries[0];
+    document.querySelector('[name="delivery_address"]').value = d["Address"] || "";
+    document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["Date"]);
+    document.querySelector('[name="delivery_instructions"]').value = d["Instructions"] || "";
+    document.querySelector('[name="delivery_contact_person"]').value = d["Contact Person"] || "";
+    document.querySelector('[name="delivery_contact_phone_number"]').value = d["Location Phone Number"] || "";
+    document.querySelector('[name="delivery_contact_email"]').value = d["Contact Email"] || "";
+  }
+
   if (deliveries.length > 1) {
     const container = document.getElementById('extra-deliveries-container');
-    deliveries.slice(1).forEach((delivery, index) => {
+    deliveries.slice(1).forEach((d, index) => {
       const idx = Date.now() + index;
       const html = `
         <div class="extra-delivery-block mb-3" data-idx="${idx}">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${idx}][company]" value=""></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${idx}][address]" value="${delivery["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${formatDateToInput(delivery["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${idx}][instructions]">${delivery["Instructions"] || ""}</textarea></div>
-        </div>
-      `;
+          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${idx}][address]" value="${d["Address"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${formatDateToInput(d["Date"]) || ""}"></div>
+          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${idx}][instructions]">${d["Instructions"] || ""}</textarea></div>
+          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${idx}][contact_person]" value="${d["Contact Person"] || ""}"></div>
+          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${idx}][contact_phone_number]" value="${d["Location Phone Number"] || ""}"></div>
+          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_delivery[${idx}][contact_email]" value="${d["Contact Email"] || ""}"></div>
+        </div>`;
       container.insertAdjacentHTML("beforeend", html);
     });
   }
