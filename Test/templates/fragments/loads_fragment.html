@@ -11,6 +11,7 @@
       <th>Load ID</th>
       <th>Broker Load ID</th>
       <th>Тип</th>
+      <th>Цена</th>
       <th>Водитель</th>
       <th>Pickup</th>
       <th>Extra Pickup</th>
@@ -28,6 +29,7 @@
       <td>{{ load.load_id }}</td>
       <td>{{ load.broker_load_id }}</td>
       <td>{{ load.type }}</td>
+      <td>{{ load.price }}</td>
       <td>{{ load.driver_name }}</td>
       <td>
         <b>{{ load.pickup.company }}</b><br>{{ load.pickup.address }}<br>{{ load.pickup.date }}<br>{{ load.pickup.instructions }}
@@ -94,6 +96,10 @@
                 <option value="equipment">Equipment</option>
                 <option value="vehicle">Vehicle</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>Цена груза ($)</label>
+              <input type="text" class="form-control" name="price">
             </div>
             <div class="form-group">
               <label>Вес груза (lbs)</label>

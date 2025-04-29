@@ -56,6 +56,10 @@ function autofillLoadForm(data) {
     document.querySelector('[name="weight"]').value = data["Weight"];
   }
 
+  if (data["Price"]) {
+    document.querySelector('[name="price"]').value = data["Price"];
+  }
+
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
     const firstPickup = pickups[0];

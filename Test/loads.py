@@ -193,6 +193,7 @@ def add_load():
             "load_id": request.form.get("load_id"),
             "broker_load_id": request.form.get("broker_load_id"),
             "type": request.form.get("type"),
+            "price": request.form.get("price"),
             "load_description": request.form.get("load_description"),
             "weight": request.form.get("weight"),  # ✅ Вставил поле веса
             "vehicles": vehicles if vehicles else None,
