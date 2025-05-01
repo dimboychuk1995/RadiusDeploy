@@ -1,7 +1,16 @@
 function initSamsara() {
     console.log('🌐 Init Samsara Map');
 
-    mapboxgl.accessToken = 'samsara_api_zbYYGWZKhEizNujQwN72Kr9YrCejwO';
+    const tokenElement = document.getElementById("samsara-map");
+    const mapboxToken = tokenElement?.dataset?.mapboxToken;
+    console.log("📦 Mapbox Token:", mapboxToken);
+
+    if (!mapboxToken) {
+        alert("❌ Mapbox token not found in dataset!");
+        return;
+    }
+
+    mapboxgl.accessToken = mapboxToken;
 
     const map = new mapboxgl.Map({
         container: 'samsara-map',
@@ -46,14 +55,11 @@ function initSamsara() {
                 const listContainer = document.getElementById("samsara-list");
                 listContainer.innerHTML = "";
 
-                // Сбор всех уникальных тегов
                 const allTags = new Set();
                 vehicles.forEach(v => (v.tag_names || []).forEach(tag => allTags.add(tag)));
 
-                // Сохраняем текущие выбранные значения
                 const prevSelected = tagSelect.val() || [];
 
-                // Перезаполняем Select2 при каждом вызове
                 tagSelect.empty();
                 [...allTags].sort().forEach(tag => {
                     const option = new Option(tag, tag, false, prevSelected.includes(tag));
@@ -139,11 +145,9 @@ function initSamsara() {
             });
     }
 
-    // Первичная загрузка
     loadVehicles();
     setInterval(loadVehicles, 60000);
 
-    // Живой текстовый фильтр
     ["searchUnit", "searchDriver"].forEach(id => {
         const input = document.getElementById(id);
         if (input) {

@@ -5,13 +5,13 @@
         <input type="text" class="form-control mb-2" id="searchUnit" placeholder="Юнит">
         <input type="text" class="form-control mb-2" id="searchDriver" placeholder="Водитель">
         <label for="searchTags">Теги</label>
-            <select id="searchTags" class="form-control mb-3" multiple></select>
+        <select id="searchTags" class="form-control mb-3" multiple></select>
 
         <button id="showAllBtn" class="btn btn-sm btn-outline-secondary mb-3" style="display: none;">Показать всех</button>
 
         <div id="samsara-list"></div>
     </div>
 
-    <!-- Карта -->
-    <div id="samsara-map" style="flex-grow: 1;"></div>
+    <!-- Карта с Mapbox токеном -->
+    <div id="samsara-map" data-mapbox-token="{{ mapbox_token }}" style="flex-grow: 1;"></div>
 </div>
