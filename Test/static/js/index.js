@@ -44,11 +44,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initSamsara?.(); // 👈 вызывем карту после подгрузки
                     } else if (url.includes('loads')) {
                         // Ждём пока DOM обновится, потом инициализируем парсер
-                        setTimeout(() => {
-                            console.log("🔁 Пытаемся запустить initLoadParser после загрузки loads_fragment");
-                            initLoadParser?.();
-                        }, 100);
-
+                        initLoadParser?.();
                         initLoads?.();
                         initLoadParser();
                     }

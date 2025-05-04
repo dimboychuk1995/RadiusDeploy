@@ -71,6 +71,7 @@ function initTruckModalActions() {
 function openTruckModal() {
   document.getElementById("truckModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+  initTruckParser(); // 👈 Добавь сюда
 }
 
 function closeTruckModal() {
