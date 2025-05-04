@@ -132,19 +132,41 @@ def statement_fragment():
 def get_driver_loads(driver_id):
     try:
         loads = loads_collection.find({
-            'driver': ObjectId(driver_id),
+            'assigned_driver': ObjectId(driver_id),
             'company': current_user.company,
             'was_added_to_statement': {'$ne': True}
         })
 
         parsed = []
+
         for l in loads:
+            # Основная доставка
+            delivery_dates = []
+            main_delivery = l.get('delivery', {})
+            if main_delivery.get('date'):
+                delivery_dates.append(main_delivery['date'])
+
+            # Дополнительные доставки
+            extra_deliveries = l.get('extra_delivery', [])
+            for ed in extra_deliveries:
+                if isinstance(ed, dict) and ed.get('date'):
+                    delivery_dates.append(ed['date'])
+
+            # Найти самую позднюю дату
+            latest_delivery_date = ''
+            if delivery_dates:
+                try:
+                    parsed_dates = [datetime.strptime(d, "%m/%d/%Y") for d in delivery_dates if d]
+                    latest_delivery_date = max(parsed_dates).strftime("%m/%d/%Y")
+                except Exception as e:
+                    logging.warning(f"Ошибка при разборе дат доставки: {e}")
+
             parsed.append({
                 '_id': str(l.get('_id')),
-                'pickup_location': l.get('pickup_location', ''),
-                'delivery_location': l.get('delivery_location', ''),
-                'pickup_date': l.get('pickup_date', ''),
-                'delivery_date': l.get('delivery_date', ''),
+                'pickup_location': l.get('pickup', {}).get('address', ''),
+                'delivery_location': l.get('delivery', {}).get('address', ''),
+                'pickup_date': l.get('pickup', {}).get('date', ''),
+                'delivery_date': latest_delivery_date,
                 'price': l.get('price', '0'),
                 'status': l.get('status', ''),
                 'rate_con': str(l.get('rate_con')) if l.get('rate_con') else None,

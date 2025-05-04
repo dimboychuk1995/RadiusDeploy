@@ -126,3 +126,9 @@
     font-size: 1rem;
     margin-bottom: 10px;
 }
+
+.custom-offcanvas-body {
+    max-height: calc(100vh - 70px); /* или 100% если offcanvas полностью фиксирован */
+    overflow-y: auto;
+    padding-right: 15px; /* для скролла */
+}
