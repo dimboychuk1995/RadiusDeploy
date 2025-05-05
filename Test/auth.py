@@ -14,7 +14,7 @@ auth_bp = Blueprint('auth', __name__)
 
 # Настройки подключения к MongoDB
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
     db = client['trucks_db']
     users_collection = db['users']  # Коллекция для пользователей
     client.admin.command('ping')

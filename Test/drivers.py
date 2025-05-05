@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.ERROR)
 drivers_bp = Blueprint('drivers', __name__)
 
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
     db = client['trucks_db']
     drivers_collection = db['drivers']
     trucks_collection = db['trucks']

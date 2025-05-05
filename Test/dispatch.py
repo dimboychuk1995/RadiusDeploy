@@ -9,7 +9,7 @@ dispatch_bp = Blueprint('dispatch', __name__)
 
 # Настройки подключения к MongoDB
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
     db = client['trucks_db']
     trucks_collection = db['trucks']
     drivers_collection = db['drivers']

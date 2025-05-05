@@ -17,8 +17,8 @@ logging.basicConfig(level=logging.ERROR)
 trucks_bp = Blueprint('trucks', __name__)
 
 try:
-    client = MongoClient('mongodb://localhost:27017/')
-    db = client['trucks_db']
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
+    db = client["trucks_db"]
     trucks_collection = db['trucks']
     client.admin.command('ping')
     logging.info("Successfully connected to MongoDB")

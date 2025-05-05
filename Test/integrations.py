@@ -6,7 +6,7 @@ import logging
 
 # Подключение к базе
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
     db = client['trucks_db']
     integrations_collection = db['integrations_settings']
     client.admin.command('ping')

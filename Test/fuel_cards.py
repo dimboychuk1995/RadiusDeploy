@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.ERROR)
 fuel_cards_bp = Blueprint('fuel_cards', __name__)
 
 try:
-    client = MongoClient('mongodb://localhost:27017/')
+    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
     db = client['trucks_db']
     drivers_collection = db['drivers']
     fuel_cards_collection = db['fuel_cards']  # 🔹 создаём новую коллекцию
