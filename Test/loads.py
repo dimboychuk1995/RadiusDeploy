@@ -10,9 +10,9 @@ import gridfs
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
-from openai import OpenAI
 
 from Test.auth import requires_role
+from Test.tools.gpt_connection import get_openai_client
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -39,12 +39,6 @@ def parse_date(date_str):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def get_openai_client():
-    doc = db.global_integrations.find_one({"name": "openai"})
-    if not doc or not doc.get("api_key"):
-        raise Exception("OpenAI API Key not found in global_integrations")
-    return OpenAI(api_key=doc["api_key"])
 
 def ask_gpt(content):
     client = get_openai_client()
