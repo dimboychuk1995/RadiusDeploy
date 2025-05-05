@@ -117,6 +117,7 @@ def parse_load_pdf():
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Допустим только PDF'}), 400
     try:
+        # читаем файл в байты (без сохранения на диск)
         pdf_bytes = file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
@@ -136,17 +137,15 @@ def parse_load_pdf():
 
         for i in range(len(doc)):
             try:
-                # 1. Пробуем обычный текст
                 page_text = doc[i].get_text().strip()
 
-                # 2. Если пусто — OCR
                 if not page_text:
                     pix = doc[i].get_pixmap(dpi=300)
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     page_text = pytesseract.image_to_string(img)
 
                 if not page_text.strip():
-                    continue  # пропуск пустых страниц
+                    continue
 
                 result = ask_gpt(page_text)
 
