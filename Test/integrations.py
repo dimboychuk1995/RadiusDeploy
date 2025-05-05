@@ -1,22 +1,12 @@
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import current_user
 from functools import wraps
-from pymongo import MongoClient
 import logging
 
-# Подключение к базе
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    integrations_collection = db['integrations_settings']
-    client.admin.command('ping')
-    logging.info("Connected to MongoDB [integrations]")
-except Exception as e:
-    logging.error(f"MongoDB connection error in integrations: {e}")
-    exit(1)
+from Test.tools.db import db
 
-# Blueprint
 integrations_bp = Blueprint('integrations', __name__)
+integrations_collection = db['integrations_settings']
 
 # Декоратор для админа
 def requires_admin(f):
@@ -34,14 +24,13 @@ def integrations():
     all_integrations = list(integrations_collection.find())
     return render_template("integrations.html", integrations=all_integrations)
 
-# API для обновления статуса
+# API для обновления статуса Samsara
 @integrations_bp.route("/api/integrations/samsara", methods=["POST"])
 @requires_admin
 def update_samsara_status():
     data = request.get_json()
     status = data.get("enabled", True)
 
-    # upsert = insert if not exist
     integrations_collection.update_one(
         {"name": "samsara"},
         {"$set": {"enabled": status}},
@@ -49,6 +38,7 @@ def update_samsara_status():
     )
     return jsonify({"success": True, "enabled": status})
 
+# API для сохранения API-ключа Samsara
 @integrations_bp.route("/api/integrations/samsara/key", methods=["POST"])
 @requires_admin
 def update_samsara_key():
@@ -65,6 +55,7 @@ def update_samsara_key():
     )
     return jsonify({"success": True})
 
+# API для сохранения любой интеграции
 @integrations_bp.route("/api/integrations/<name>/save", methods=["POST"])
 @requires_admin
 def save_generic_integration(name):

@@ -1,14 +1,22 @@
 from datetime import datetime, timedelta
-
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
-from pymongo import MongoClient
-import logging
 from bson import ObjectId
+import logging
 import traceback
 from urllib.parse import unquote
 
+from Test.tools.db import db
+from Test.auth import requires_role
+
 statement_bp = Blueprint('statement', __name__)
+
+drivers_collection = db['drivers']
+trucks_collection = db['trucks']
+loads_collection = db['loads']
+fuel_cards_collection = db['fuel_cards']
+statement_collection = db['statement']
+fuel_cards_transactions_collection = db['fuel_cards_transactions']
 
 # --- Очистка и нормализация ---
 def cleanup_doc(doc):
@@ -43,30 +51,13 @@ def normalize_commission_table(raw_table):
         percent = row.get('percent', 0)
         to_val = None
         if i + 1 < len(raw_table):
-            to_val = raw_table[i + 1].get('from') or raw_table[i + 1].get('from_sum')
+            to_val = row.get('to') or raw_table[i + 1].get('from') or raw_table[i + 1].get('from_sum')
         normalized.append({
             'from': from_val,
             'to': to_val,
             'percent': percent
         })
     return normalized
-
-# --- Подключение к MongoDB ---
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    drivers_collection = db['drivers']
-    trucks_collection = db['trucks']
-    loads_collection = db['loads']
-    fuel_cards_collection = db['fuel_cards']
-    statement_collection = db['statement']
-    fuel_cards_transactions_collection = db['fuel_cards_transactions']
-    client.admin.command('ping')
-    logging.info("Successfully connected to MongoDB (statement.py)")
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
-
 
 # --- Загрузка основного фрагмента ---
 @statement_bp.route('/statement/fragment', methods=['GET'])
@@ -85,7 +76,7 @@ def statement_fragment():
 
         for driver in drivers:
             d = cleanup_doc(driver)
-            d['_id'] = str(d['_id'])  # 🔥 обязательно строка
+            d['_id'] = str(d['_id'])
 
             raw_commission = driver.get('commission_table', [])
             raw_net_commission = driver.get('net_commission_table', [])
@@ -110,7 +101,7 @@ def statement_fragment():
 
         for s in statements:
             s['_id'] = str(s['_id'])
-            s['driver_id'] = str(s.get('driver_id'))  # 🔥 тоже строка!
+            s['driver_id'] = str(s.get('driver_id'))
             s['load_ids'] = [str(lid) for lid in s.get('load_ids', [])]
             s['created_at'] = s.get('created_at').strftime('%Y-%m-%d %H:%M') if s.get('created_at') else ''
 
@@ -119,12 +110,10 @@ def statement_fragment():
                                trucks=trucks,
                                loads=loads,
                                statements=statements)
-
     except Exception as e:
         logging.error("Ошибка в statement_fragment:")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to retrieve statement data")
-
 
 # --- Таблица грузов (AJAX) ---
 @statement_bp.route('/statement/driver_loads/<driver_id>', methods=['GET'])
@@ -140,19 +129,16 @@ def get_driver_loads(driver_id):
         parsed = []
 
         for l in loads:
-            # Основная доставка
             delivery_dates = []
             main_delivery = l.get('delivery', {})
             if main_delivery.get('date'):
                 delivery_dates.append(main_delivery['date'])
 
-            # Дополнительные доставки
             extra_deliveries = l.get('extra_delivery', [])
             for ed in extra_deliveries:
                 if isinstance(ed, dict) and ed.get('date'):
                     delivery_dates.append(ed['date'])
 
-            # Найти самую позднюю дату
             latest_delivery_date = ''
             if delivery_dates:
                 try:
@@ -258,13 +244,10 @@ def delete_statement(statement_id):
         if not statement:
             return jsonify({'error': 'Statement not found'}), 404
 
-        # Получаем список грузов из стейтмента
         load_ids = statement.get('load_ids', [])
 
-        # Удаляем сам стейтмент
         statement_collection.delete_one({'_id': ObjectId(statement_id)})
 
-        # Снимаем флаг was_added_to_statement у грузов
         loads_collection.update_many(
             {'_id': {'$in': load_ids}},
             {'$set': {'was_added_to_statement': False}}
@@ -280,10 +263,8 @@ def delete_statement(statement_id):
 @login_required
 def get_driver_fuel_transactions(driver_id, week_range):
     try:
-        # Декодируем диапазон недели
         week_range = unquote(week_range)
 
-        # Ищем карту, привязанную к водителю
         card = fuel_cards_collection.find_one({
             'assigned_driver': ObjectId(driver_id),
             'company': current_user.company
@@ -296,24 +277,20 @@ def get_driver_fuel_transactions(driver_id, week_range):
         if not card_number:
             return "<p class='text-muted'>Номер карты не указан.</p>"
 
-        # Разбор диапазона недели
         start_str, end_str = week_range.split(' - ')
         selected_range = f"{start_str.strip()} - {end_str.strip()}"
 
-        # Перевод billing_date в "понедельник - воскресенье"
         def billing_to_week_range(date_str):
             billing_date = datetime.strptime(date_str, "%m/%d/%Y")
             end = billing_date - timedelta(days=1)
             start = end - timedelta(days=6)
             return f"{start.strftime('%m/%d/%Y')} - {end.strftime('%m/%d/%Y')}"
 
-        # Загружаем транзакции по карте
         transactions = fuel_cards_transactions_collection.find({
             'card_number': card_number,
             'company': current_user.company
         })
 
-        # Фильтрация по диапазону
         matched = []
         for tx in transactions:
             billing_date_str = tx.get('billing_date')
@@ -323,7 +300,6 @@ def get_driver_fuel_transactions(driver_id, week_range):
             if tx_range == selected_range:
                 matched.append(tx)
 
-        # Подготовка к шаблону
         parsed = [{
             '_id': str(t['_id']),
             'date': t.get('date'),

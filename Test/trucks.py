@@ -3,28 +3,19 @@ import logging
 import traceback
 from io import BytesIO
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_file
-from pymongo import MongoClient
-from bson.objectid import ObjectId
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-import json
+from bson.objectid import ObjectId
 
 from Test.auth import requires_role
 from Test.loads import get_openai_client
+from Test.tools.db import db
 
 logging.basicConfig(level=logging.ERROR)
 
 trucks_bp = Blueprint('trucks', __name__)
 
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client["trucks_db"]
-    trucks_collection = db['trucks']
-    client.admin.command('ping')
-    logging.info("Successfully connected to MongoDB")
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+trucks_collection = db['trucks']
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 TRUCK_TYPES = ["Truck", "Trailer"]
@@ -140,4 +131,3 @@ def unit_details_fragment(truck_id):
         logging.error(f"Error loading unit details: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Ошибка при загрузке данных юнита")
-

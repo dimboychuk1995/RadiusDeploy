@@ -1,28 +1,22 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
-
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
-from pymongo import MongoClient
 from bson.objectid import ObjectId
 import logging
 from PyPDF2 import PdfReader
 import re
-from io import BytesIO
 
-logging.basicConfig(level=logging.ERROR)
+from Test.tools.db import db
+from Test.auth import requires_role
+
 fuel_cards_bp = Blueprint('fuel_cards', __name__)
+logging.basicConfig(level=logging.ERROR)
 
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    drivers_collection = db['drivers']
-    fuel_cards_collection = db['fuel_cards']  # 🔹 создаём новую коллекцию
-    fuel_cards_transactions_collection = db['fuel_cards_transactions']
-    client.admin.command('ping')
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+# Коллекции из централизованного подключения
+drivers_collection = db['drivers']
+fuel_cards_collection = db['fuel_cards']
+fuel_cards_transactions_collection = db['fuel_cards_transactions']
 
 
 def format_week_range(billing_date_str):
@@ -31,8 +25,9 @@ def format_week_range(billing_date_str):
         previous_sunday = billing_date - timedelta(days=1)
         start_of_week = previous_sunday - timedelta(days=6)
         return f"{start_of_week.strftime('%m/%d/%Y')} - {previous_sunday.strftime('%m/%d/%Y')}"
-    except Exception as e:
+    except Exception:
         return ""
+
 
 def extract_text_from_pdf_file(file_storage):
     reader = PdfReader(file_storage)
@@ -41,15 +36,16 @@ def extract_text_from_pdf_file(file_storage):
         text += page.extract_text() or ''
     return text
 
+
 def extract_billing_date(text):
     match = re.search(r'Billing Date:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
     return match.group(1) if match else None
+
 
 def parse_pdf_transactions(file_storage):
     text = extract_text_from_pdf_file(file_storage)
     billing_date = extract_billing_date(text)
 
-    # Card → Driver mapping
     driver_map = {
         match.group(1): match.group(2)
         for match in re.finditer(r"Subtotal for Card (\d+) - (.+)", text)
@@ -95,7 +91,7 @@ def parse_pdf_transactions(file_storage):
 def fuel_cards_fragment():
     return render_template('fragments/fuel_cards_fragment.html')
 
-# 🔹 Вернём водителей для селекта
+
 @fuel_cards_bp.route('/fuel_cards/drivers')
 @login_required
 def get_drivers_for_fuel_cards():
@@ -106,6 +102,7 @@ def get_drivers_for_fuel_cards():
     except Exception as e:
         logging.error(f"Error fetching drivers: {e}")
         return jsonify([]), 500
+
 
 @fuel_cards_bp.route('/fuel_cards/create', methods=['POST'])
 @login_required
@@ -125,6 +122,7 @@ def create_fuel_card():
     except Exception as e:
         logging.error(f"Ошибка при создании карты: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @fuel_cards_bp.route('/fuel_cards/list')
 @login_required
@@ -152,6 +150,7 @@ def get_fuel_cards():
         logging.error(f"Ошибка при получении списка карт: {e}")
         return jsonify([]), 500
 
+
 @fuel_cards_bp.route('/fuel_cards/upload_transactions', methods=['POST'])
 @login_required
 def upload_transactions():
@@ -168,7 +167,6 @@ def upload_transactions():
         if not transactions:
             return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
 
-        # ✅ Сохраняем транзакции в базу
         fuel_cards_transactions_collection.insert_many(transactions)
 
         summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "driver_name": ""})
@@ -200,7 +198,6 @@ def upload_transactions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-
 @fuel_cards_bp.route('/fragment/fuel_cards_transactions')
 @login_required
 def fuel_cards_transactions_fragment():
@@ -211,15 +208,11 @@ def fuel_cards_transactions_fragment():
 @login_required
 def get_all_transactions():
     try:
-        transactions = list(fuel_cards_transactions_collection.find(
-            {'company': current_user.company}
-        ))
-
+        transactions = list(fuel_cards_transactions_collection.find({'company': current_user.company}))
         result = []
         for tx in transactions:
             billing_raw = tx.get("billing_date", "")
             week_range = format_week_range(billing_raw)
-
             result.append({
                 "billing_range": week_range,
                 "date": tx.get("date"),
@@ -232,7 +225,6 @@ def get_all_transactions():
                 "invoice_total": tx.get("invoice_total"),
                 "driver_name": tx.get("driver_name"),
             })
-
         return jsonify(result)
     except Exception as e:
         logging.error(f"Ошибка при получении транзакций: {e}")

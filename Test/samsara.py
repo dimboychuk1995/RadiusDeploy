@@ -1,13 +1,11 @@
 from flask import Blueprint, render_template, jsonify, abort
 import requests
 from flask_login import login_required
-from pymongo import MongoClient
+from Test.tools.db import db
 
 samsara_bp = Blueprint('samsara', __name__)
 
 BASE_URL = "https://api.samsara.com"
-client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-db = client["trucks_db"]
 integrations_collection = db["integrations_settings"]
 
 def get_samsara_headers():

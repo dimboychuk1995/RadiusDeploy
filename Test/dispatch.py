@@ -1,24 +1,15 @@
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
-from pymongo import MongoClient
 import logging
 
 from Test.auth import users_collection
+from Test.tools.db import db  # централизованное подключение
 
 dispatch_bp = Blueprint('dispatch', __name__)
 
-# Настройки подключения к MongoDB
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    trucks_collection = db['trucks']
-    drivers_collection = db['drivers']
-    client.admin.command('ping')
-    logging.info("Successfully connected to MongoDB")
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
-
+# Коллекции
+trucks_collection = db['trucks']
+drivers_collection = db['drivers']
 
 @dispatch_bp.route('/fragment/dispatch_fragment', methods=['GET'])
 @login_required

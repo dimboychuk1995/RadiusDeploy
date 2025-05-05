@@ -1,24 +1,18 @@
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
-from pymongo import MongoClient
 from bson.objectid import ObjectId
 import logging
 from flask_login import login_required, current_user
-from Test.auth import requires_role
 
-logging.basicConfig(level=logging.ERROR)
+from Test.auth import requires_role, users_collection
+from Test.tools.db import db
+
 drivers_bp = Blueprint('drivers', __name__)
+logging.basicConfig(level=logging.ERROR)
 
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    drivers_collection = db['drivers']
-    trucks_collection = db['trucks']
-    users_collection = db['users']
-    loads_collection = db['loads']
-    client.admin.command('ping')
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+# Коллекции из общего подключения
+drivers_collection = db['drivers']
+trucks_collection = db['trucks']
+loads_collection = db['loads']
 
 def convert_to_str_id(data):
     if isinstance(data, dict) and '_id' in data:
@@ -141,25 +135,19 @@ def set_salary_scheme(driver_id):
         scheme_type = request.form.get('scheme_type')
 
         if scheme_type == 'percent':
-            gross_table = []
-
-            base_percent = float(request.form.get('base_percent', 30))
-            gross_table.append({
+            gross_table = [{
                 'from_sum': 0,
-                'percent': base_percent,
+                'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
-            })
+            }]
 
             gross_from = request.form.getlist('gross_from_sum[]')
             gross_percent = request.form.getlist('gross_percent[]')
 
             for from_val, percent_val in zip(gross_from, gross_percent):
-                if from_val and percent_val:
-                    from_float = float(from_val)
-                    if from_float == 0:
-                        continue
+                if from_val and percent_val and float(from_val) != 0:
                     gross_table.append({
-                        'from_sum': from_float,
+                        'from_sum': float(from_val),
                         'percent': float(percent_val),
                         'to_sum': None
                     })
@@ -171,35 +159,28 @@ def set_salary_scheme(driver_id):
             }
 
         elif scheme_type == 'net_percent':
-            net_table = []
-
-            base_percent = float(request.form.get('base_percent', 30))
-            net_table.append({
+            net_table = [{
                 'from_sum': 0,
-                'percent': base_percent,
+                'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
-            })
+            }]
 
             net_from = request.form.getlist('net_from_sum[]')
             net_percent = request.form.getlist('net_percent[]')
 
             for from_val, percent_val in zip(net_from, net_percent):
-                if from_val and percent_val:
-                    from_float = float(from_val)
-                    if from_float == 0:
-                        continue
+                if from_val and percent_val and float(from_val) != 0:
                     net_table.append({
-                        'from_sum': from_float,
+                        'from_sum': float(from_val),
                         'percent': float(percent_val),
                         'to_sum': None
                     })
 
             update_data = {
                 'scheme_type': 'net_percent',
-                'net_commission_table': net_table,
-                'commission_table': None
+                'commission_table': None,
+                'net_commission_table': net_table
             }
-
         else:
             return jsonify({'success': False, 'error': 'Неверный тип схемы'}), 400
 

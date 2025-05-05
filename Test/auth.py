@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, g
 from werkzeug.security import generate_password_hash, check_password_hash
-from pymongo import MongoClient
 import logging
 from functools import wraps
 from bson.objectid import ObjectId
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+
+from Test.tools.db import db  # <-- Используем единое подключение к MongoDB
 
 # Настраиваем логирование
 logging.basicConfig(level=logging.ERROR)
@@ -12,16 +13,8 @@ logging.basicConfig(level=logging.ERROR)
 # Создаем Blueprint для аутентификации
 auth_bp = Blueprint('auth', __name__)
 
-# Настройки подключения к MongoDB
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    users_collection = db['users']  # Коллекция для пользователей
-    client.admin.command('ping')
-    logging.info("Successfully connected to MongoDB")
-except Exception as e:
-    logging.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+# Коллекция пользователей
+users_collection = db['users']
 
 # Настраиваем Flask-Login
 login_manager = LoginManager()

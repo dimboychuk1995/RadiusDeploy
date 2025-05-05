@@ -13,19 +13,14 @@ import pytesseract
 
 from Test.auth import requires_role
 from Test.tools.gpt_connection import get_openai_client
+from Test.tools.db import db
 
 loads_bp = Blueprint('loads', __name__)
 
-try:
-    client = MongoClient("mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db")
-    db = client['trucks_db']
-    loads_collection = db['loads']
-    drivers_collection = db['drivers']
-    fs = gridfs.GridFS(db)
-    client.admin.command('ping')
-except Exception as e:
-    logging.error(f"MongoDB connection failed: {e}")
-    exit(1)
+fs = gridfs.GridFS(db)
+
+loads_collection = db['loads']
+drivers_collection = db['drivers']
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
