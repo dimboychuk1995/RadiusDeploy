@@ -51,12 +51,24 @@ function autofillLoadForm(data) {
 
   document.querySelector('[name="load_id"]').value = data["Load Number"] || "";
   document.querySelector('[name="broker_load_id"]').value = data["Broker Name"] || "";
+  document.querySelector('[name="type"]').value = data["Type Of Load"] || "";
   document.querySelector('[name="price"]').value = data["Price"] || "";
   document.querySelector('[name="weight"]').value = data["Weight"] || "";
+  document.querySelector('[name="load_description"]').value = data["Load Description"] || "";
+
+  const brokerPhone = document.querySelector('[name="broker_phone_number"]');
+  if (brokerPhone) brokerPhone.value = data["Broker Phone Number"] || "";
+
+  const brokerEmail = document.querySelector('[name="broker_email"]');
+  if (brokerEmail) brokerEmail.value = data["Broker Email"] || "";
+
+  const totalMiles = document.querySelector('[name="total_miles"]');
+  if (totalMiles) totalMiles.value = data["Total Miles"] || "";
 
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
     const p = pickups[0];
+    document.querySelector('[name="pickup_company"]').value = p["Company"] || "";
     document.querySelector('[name="pickup_address"]').value = p["Address"] || "";
     document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["Date"]);
     document.querySelector('[name="pickup_instructions"]').value = p["Instructions"] || "";
@@ -71,7 +83,7 @@ function autofillLoadForm(data) {
       const idx = Date.now() + index;
       const html = `
         <div class="extra-pickup-block mb-3" data-idx="${idx}">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${idx}][company]" value=""></div>
+          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${idx}][company]" value="${p["Company"] || ""}"></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${idx}][address]" value="${p["Address"] || ""}"></div>
           <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${formatDateToInput(p["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${idx}][instructions]">${p["Instructions"] || ""}</textarea></div>
@@ -86,6 +98,7 @@ function autofillLoadForm(data) {
   const deliveries = data["Delivery Locations"] || [];
   if (deliveries.length > 0) {
     const d = deliveries[0];
+    document.querySelector('[name="delivery_company"]').value = d["Company"] || "";
     document.querySelector('[name="delivery_address"]').value = d["Address"] || "";
     document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["Date"]);
     document.querySelector('[name="delivery_instructions"]').value = d["Instructions"] || "";
@@ -100,7 +113,7 @@ function autofillLoadForm(data) {
       const idx = Date.now() + index;
       const html = `
         <div class="extra-delivery-block mb-3" data-idx="${idx}">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${idx}][company]" value=""></div>
+          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${idx}][company]" value="${d["Company"] || ""}"></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${idx}][address]" value="${d["Address"] || ""}"></div>
           <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${formatDateToInput(d["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${idx}][instructions]">${d["Instructions"] || ""}</textarea></div>
@@ -112,7 +125,7 @@ function autofillLoadForm(data) {
     });
   }
 
-  console.log("✅ Форма полностью автозаполнена по данным GPT!");
+  console.log("✅ Все поля автозаполнены!");
 }
 
 window.initLoadParser = initLoadParser;

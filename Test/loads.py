@@ -55,18 +55,27 @@ def extract_text_from_pdf(path):
 def ask_gpt(text):
     client = get_openai_client()
     prompt = f"""
-    Extract ONLY the following structured information from the text below and return strictly as JSON:
+    Analyze the following Rate Con or BOL text and try to fill in the following JSON structure as accurately as possible.
+
+    If some fields cannot be reliably determined, leave them blank.
+
+    Reasonable approximations are allowed (e.g., use "Morning" if no exact time is available).
+
+    Return ONLY the JSON structure:
 
     {{
         "Load Number": "",
         "Broker Name": "",
+        "Type Of Load": "",
         "Broker Phone Number": "",
         "Broker Email": "",
         "Price": "",
         "Total Miles": "",
         "Weight": "",
+        "Load Description": "",
         "Pickup Locations": [
             {{
+                "Company": "",
                 "Address": "",
                 "Date": "",
                 "Time": "",
@@ -78,6 +87,7 @@ def ask_gpt(text):
         ],
         "Delivery Locations": [
             {{
+                "Company": "",
                 "Address": "",
                 "Date": "",
                 "Time": "",
@@ -89,7 +99,7 @@ def ask_gpt(text):
         ]
     }}
 
-    Include multiple pickup and delivery locations if present.
+    Document text:
     -----
     {text}
     """
@@ -97,7 +107,7 @@ def ask_gpt(text):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0
+            temperature=0.3
         )
         content = response.choices[0].message.content.strip()
         if content.startswith("```json"):
@@ -108,7 +118,7 @@ def ask_gpt(text):
             content = content[:-len("```")].strip()
         return json.loads(content)
     except Exception as e:
-        raise Exception(f"Ошибка OpenAI: {str(e)}")
+        raise Exception(f"OpenAI error: {str(e)}")
 
 @loads_bp.route('/api/parse_load_pdf', methods=['POST'])
 def parse_load_pdf():
@@ -121,6 +131,7 @@ def parse_load_pdf():
         text = extract_text_from_pdf(path)
         result = ask_gpt(text)
         return jsonify(result)
+
     except Exception as e:
         logging.exception("Ошибка при обработке PDF")
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
