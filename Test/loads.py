@@ -1,14 +1,15 @@
-import os
+import logging
+import json
+from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-import logging
 import gridfs
-from datetime import datetime
 import fitz  # PyMuPDF
-import json
+from PIL import Image
+import pytesseract
 from openai import OpenAI
 
 from Test.auth import requires_role
@@ -26,10 +27,7 @@ except Exception as e:
     logging.error(f"MongoDB connection failed: {e}")
     exit(1)
 
-UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'pdf'}
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def parse_date(date_str):
     if not date_str:
@@ -48,75 +46,68 @@ def get_openai_client():
         raise Exception("OpenAI API Key not found in global_integrations")
     return OpenAI(api_key=doc["api_key"])
 
-def extract_text_from_pdf(path):
-    doc = fitz.open(path)
-    return "".join(page.get_text() for page in doc)
-
-def ask_gpt(text):
+def ask_gpt(content):
     client = get_openai_client()
+
     prompt = f"""
-    Analyze the following Rate Con or BOL text and try to fill in the following JSON structure as accurately as possible.
+Analyze the following Rate Con or BOL text and try to fill in the following JSON structure as accurately as possible.
+Leave blank any fields that are missing. Return only valid JSON:
 
-    If some fields cannot be reliably determined, leave them blank.
+{{
+    "Load Number": "",
+    "Broker Name": "",
+    "Type Of Load": "",
+    "Broker Phone Number": "",
+    "Broker Email": "",
+    "Price": "",
+    "Total Miles": "",
+    "Weight": "",
+    "Load Description": "",
+    "Pickup Locations": [
+        {{
+            "Company": "",
+            "Address": "",
+            "Date": "",
+            "Time": "",
+            "Instructions": "",
+            "Location Phone Number": "",
+            "Contact Person": "",
+            "Contact Email": ""
+        }}
+    ],
+    "Delivery Locations": [
+        {{
+            "Company": "",
+            "Address": "",
+            "Date": "",
+            "Time": "",
+            "Instructions": "",
+            "Location Phone Number": "",
+            "Contact Person": "",
+            "Contact Email": ""
+        }}
+    ]
+}}
 
-    Reasonable approximations are allowed (e.g., use "Morning" if no exact time is available).
+Document:
+-----
+{content}
+"""
 
-    Return ONLY the JSON structure:
-
-    {{
-        "Load Number": "",
-        "Broker Name": "",
-        "Type Of Load": "",
-        "Broker Phone Number": "",
-        "Broker Email": "",
-        "Price": "",
-        "Total Miles": "",
-        "Weight": "",
-        "Load Description": "",
-        "Pickup Locations": [
-            {{
-                "Company": "",
-                "Address": "",
-                "Date": "",
-                "Time": "",
-                "Instructions": "",
-                "Location Phone Number": "",
-                "Contact Person": "",
-                "Contact Email": ""
-            }}
-        ],
-        "Delivery Locations": [
-            {{
-                "Company": "",
-                "Address": "",
-                "Date": "",
-                "Time": "",
-                "Instructions": "",
-                "Location Phone Number": "",
-                "Contact Person": "",
-                "Contact Email": ""
-            }}
-        ]
-    }}
-
-    Document text:
-    -----
-    {text}
-    """
     try:
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[len("```json"):].strip()
-        if content.startswith("```"):
-            content = content[len("```"):].strip()
-        if content.endswith("```"):
-            content = content[:-len("```")].strip()
-        return json.loads(content)
+        message = response.choices[0].message.content.strip()
+        if message.startswith("```json"):
+            message = message[len("```json"):].strip()
+        if message.startswith("```"):
+            message = message[len("```"):].strip()
+        if message.endswith("```"):
+            message = message[:-len("```")].strip()
+        return json.loads(message)
     except Exception as e:
         raise Exception(f"OpenAI error: {str(e)}")
 
@@ -125,16 +116,54 @@ def parse_load_pdf():
     file = request.files.get('file')
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Допустим только PDF'}), 400
-    path = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
     try:
-        file.save(path)
-        text = extract_text_from_pdf(path)
-        result = ask_gpt(text)
-        return jsonify(result)
+        pdf_bytes = file.read()
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
+        merged_result = {
+            "Load Number": "",
+            "Broker Name": "",
+            "Type Of Load": "",
+            "Broker Phone Number": "",
+            "Broker Email": "",
+            "Price": "",
+            "Total Miles": "",
+            "Weight": "",
+            "Load Description": "",
+            "Pickup Locations": [],
+            "Delivery Locations": []
+        }
+
+        for i in range(len(doc)):
+            try:
+                # 1. Пробуем обычный текст
+                page_text = doc[i].get_text().strip()
+
+                # 2. Если пусто — OCR
+                if not page_text:
+                    pix = doc[i].get_pixmap(dpi=300)
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    page_text = pytesseract.image_to_string(img)
+
+                if not page_text.strip():
+                    continue  # пропуск пустых страниц
+
+                result = ask_gpt(page_text)
+
+                for key in merged_result:
+                    if key in ["Pickup Locations", "Delivery Locations"]:
+                        merged_result[key].extend(result.get(key, []))
+                    else:
+                        if not merged_result[key]:
+                            merged_result[key] = result.get(key, "")
+            except Exception as e:
+                logging.warning(f"❌ Ошибка при обработке страницы {i + 1}: {str(e)}")
+
+        return jsonify(merged_result)
     except Exception as e:
-        logging.exception("Ошибка при обработке PDF")
+        logging.exception("Ошибка при OCR и обработке PDF")
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
+
 
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role('admin')

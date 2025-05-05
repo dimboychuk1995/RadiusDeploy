@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 import json
 
 from Test.auth import requires_role
-from Test.loads import get_openai_client, UPLOAD_FOLDER, extract_text_from_pdf
+from Test.loads import get_openai_client
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -141,63 +141,3 @@ def unit_details_fragment(truck_id):
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Ошибка при загрузке данных юнита")
 
-@trucks_bp.route('/api/parse_truck_pdf', methods=['POST'])
-@login_required
-def parse_truck_pdf():
-    file = request.files.get('file')
-    if not file or not allowed_file(file.filename):
-        return jsonify({'error': 'Допустим только PDF'}), 400
-
-    path = os.path.join(UPLOAD_FOLDER, secure_filename(file.filename))
-    try:
-        file.save(path)
-        text = extract_text_from_pdf(path)
-
-        prompt = f"""
-        Extract ONLY the following truck unit data from the text below and return strictly as JSON:
-
-        {{
-            "Unit Number": "",
-            "Make": "",
-            "Model": "",
-            "Year": "",
-            "Mileage": "",
-            "VIN": "",
-            "License Plate": "",
-            "Registration Expiration": "",
-            "Inspection Expiration": "",
-            "Insurance Provider": "",
-            "Insurance Policy Number": "",
-            "Insurance Expiration": ""
-        }}
-
-        Do not add any explanation. Return JSON only.
-        -----
-        {text}
-        """
-
-        client = get_openai_client()
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[len("```json"):].strip()
-        if content.startswith("```"):
-            content = content[len("```"):].strip()
-        if content.endswith("```"):
-            content = content[:-len("```")].strip()
-
-        try:
-            parsed = json.loads(content)
-            return jsonify(parsed)
-        except json.JSONDecodeError as decode_err:
-            logging.error("JSON decode error: %s", decode_err)
-            logging.debug("Raw response: %s", content)
-            return jsonify({'error': 'Ошибка разбора ответа от AI. Проверь формат.'}), 500
-
-    except Exception as e:
-        logging.exception("Ошибка при анализе PDF для трака")
-        return jsonify({'error': f'Ошибка: {str(e)}'}), 500
