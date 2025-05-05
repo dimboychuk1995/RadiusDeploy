@@ -25,7 +25,6 @@ def convert_to_str_id(data):
         data['_id'] = str(data['_id'])
     return data
 
-
 @drivers_bp.route('/fragment/drivers', methods=['GET'])
 @login_required
 def drivers_fragment():
@@ -58,9 +57,9 @@ def driver_details_fragment(driver_id):
         truck = trucks_collection.find_one({'_id': ObjectId(driver.get('truck'))}) if driver.get('truck') else None
         dispatcher = users_collection.find_one({'_id': ObjectId(driver.get('dispatcher'))}) if driver.get('dispatcher') else None
 
-        trucks = list(trucks_collection.find({'company': current_user.company})) or []
-        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'})) or []
-        loads = list(loads_collection.find({'driver': ObjectId(driver['_id'])})) or []
+        trucks = list(trucks_collection.find({'company': current_user.company}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
+        loads = list(loads_collection.find({'driver': ObjectId(driver['_id'])}))
 
         scheme_data = {
             'scheme_type': driver.get('scheme_type'),
@@ -90,6 +89,10 @@ def add_driver():
             'name': request.form.get('name'),
             'license_number': request.form.get('license_number'),
             'contact_number': request.form.get('contact_number'),
+            'address': request.form.get('address'),
+            'email': request.form.get('email'),
+            'dob': request.form.get('dob'),
+            'driver_type': request.form.get('driver_type'),
             'truck': request.form.get('truck'),
             'dispatcher': request.form.get('dispatcher'),
             'company': current_user.company
@@ -100,7 +103,6 @@ def add_driver():
         logging.error(f"Error adding driver: {e}")
         return render_template('error.html', message="Failed to add driver")
 
-
 @drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
 @login_required
 def edit_driver(driver_id):
@@ -109,6 +111,10 @@ def edit_driver(driver_id):
             'name': request.form.get('name'),
             'license_number': request.form.get('license_number'),
             'contact_number': request.form.get('contact_number'),
+            'address': request.form.get('address'),
+            'email': request.form.get('email'),
+            'dob': request.form.get('dob'),
+            'driver_type': request.form.get('driver_type'),
             'truck': request.form.get('truck'),
             'dispatcher': request.form.get('dispatcher')
         }
@@ -203,8 +209,6 @@ def set_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
 
 @drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
 @login_required

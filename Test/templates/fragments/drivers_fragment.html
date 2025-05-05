@@ -1,27 +1,8 @@
-<!-- templates/fragments/drivers_fragment.html -->
 <h2>Водители</h2>
 
 <button class="btn btn-success mb-3" type="button" data-toggle="collapse" data-target="#addDriverForm" aria-expanded="false" aria-controls="addDriverForm">
     ➕ Добавить водителя
 </button>
-
-<!-- Фильтры -->
-<div class="row mb-4">
-    <div class="col-md-4">
-        <input type="text" id="searchNameInput" class="form-control" placeholder="Поиск по имени">
-    </div>
-    <div class="col-md-4">
-        <input type="text" id="searchUnitNumberInput" class="form-control" placeholder="По юнит номеру">
-    </div>
-    <div class="col-md-4">
-        <select id="searchDispatcherSelect" class="form-control">
-            <option value="">Все диспетчеры</option>
-            {% for dispatcher in dispatchers %}
-                <option value="{{ dispatcher.username }}">{{ dispatcher.username }}</option>
-            {% endfor %}
-        </select>
-    </div>
-</div>
 
 <div class="collapse mb-4" id="addDriverForm">
     <div class="card card-body">
@@ -30,33 +11,51 @@
                 <label for="name">Имя:</label>
                 <input type="text" id="name" name="name" class="form-control" required>
             </div>
-
             <div class="form-group">
                 <label for="license_number">Номер лицензии:</label>
                 <input type="text" id="license_number" name="license_number" class="form-control" required>
             </div>
-
             <div class="form-group">
-                <label for="contact_number">Номер телефона:</label>
+                <label for="contact_number">Телефон:</label>
                 <input type="text" id="contact_number" name="contact_number" class="form-control" required>
             </div>
-
+            <div class="form-group">
+                <label for="address">Адрес:</label>
+                <input type="text" id="address" name="address" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="dob">Дата рождения:</label>
+                <input type="date" id="dob" name="dob" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="driver_type">Тип водителя:</label>
+                <select id="driver_type" name="driver_type" class="form-control">
+                    <option value="W2">W2</option>
+                    <option value="1099">1099</option>
+                    <option value="Owner Operator">Owner Operator</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary">Сохранить</button>
         </form>
     </div>
 </div>
 
-<!-- Таблица водителей -->
 <table class="table table-striped" id="driversTable">
     <thead>
         <tr>
             <th>Имя</th>
-            <th>Номер лицензии</th>
+            <th>Лицензия</th>
             <th>Телефон</th>
+            <th>Адрес</th>
+            <th>Email</th>
+            <th>Дата рождения</th>
+            <th>Тип</th>
             <th>Трак</th>
             <th>Диспетчер</th>
-            <th>Тип схемы</th>
-            <th>Дата создания</th>
             <th>Действия</th>
         </tr>
     </thead>
@@ -64,16 +63,16 @@
         {% for driver in drivers %}
             <tr id="driver-{{ driver._id }}"
                 class="clickable-row"
-                data-href="{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}"
-                data-truck-id="{{ driver.truck if driver.truck else '' }}"
-                data-dispatcher-id="{{ driver.dispatcher if driver.dispatcher else '' }}">
-                <td class="driver-name">{{ driver.name }}</td>
-                <td class="driver-license">{{ driver.license_number }}</td>
-                <td class="driver-phone">{{ driver.contact_number }}</td>
-                <td class="truck-unit">{{ driver.truck_unit or 'Нет трака' }}</td>
-                <td class="dispatcher-name">{{ driver.dispatcher_name or 'Нет диспетчера' }}</td>
-                <td>{{ driver.scheme_type or '—' }}</td>
-                <td>{{ driver.created_at or '—' }}</td>
+                data-href="{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}">
+                <td>{{ driver.name }}</td>
+                <td>{{ driver.license_number }}</td>
+                <td>{{ driver.contact_number }}</td>
+                <td>{{ driver.address or '' }}</td>
+                <td>{{ driver.email or '' }}</td>
+                <td>{{ driver.dob or '' }}</td>
+                <td>{{ driver.driver_type or '' }}</td>
+                <td>{{ driver.truck_unit or 'Нет трака' }}</td>
+                <td>{{ driver.dispatcher_name or 'Нет диспетчера' }}</td>
                 <td>
                     <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteDriver('{{ driver._id }}')">Удалить</button>
                 </td>
