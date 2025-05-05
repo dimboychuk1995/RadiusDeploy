@@ -55,6 +55,8 @@
             <th>Телефон</th>
             <th>Трак</th>
             <th>Диспетчер</th>
+            <th>Тип схемы</th>
+            <th>Дата создания</th>
             <th>Действия</th>
         </tr>
     </thead>
@@ -70,6 +72,8 @@
                 <td class="driver-phone">{{ driver.contact_number }}</td>
                 <td class="truck-unit">{{ driver.truck_unit or 'Нет трака' }}</td>
                 <td class="dispatcher-name">{{ driver.dispatcher_name or 'Нет диспетчера' }}</td>
+                <td>{{ driver.scheme_type or '—' }}</td>
+                <td>{{ driver.created_at or '—' }}</td>
                 <td>
                     <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteDriver('{{ driver._id }}')">Удалить</button>
                 </td>
@@ -78,5 +82,3 @@
     </tbody>
 </table>
 
-<!-- Подключаем JavaScript -->
-<script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
