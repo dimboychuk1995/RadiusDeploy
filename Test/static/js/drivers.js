@@ -45,10 +45,15 @@ function initClickableRows() {
 
 function initDriverModalActions() {
     const modal = document.getElementById("driverModal");
-    const openBtn = document.getElementById("addDriverBtn");
-    const closeBtn = document.getElementById("driverCloseBtn");
     const form = document.getElementById("driverForm");
     const title = document.getElementById("driverModalTitle");
+
+    window.openDriverModal = () => {
+        form.reset();
+        form.action = "/add_driver";
+        title.textContent = "Добавить водителя";
+        modal.classList.add("open");
+    };
 
     window.openEditDriverModal = function (driverId) {
         const row = document.getElementById(`driver-${driverId}`);
@@ -57,6 +62,10 @@ function initDriverModalActions() {
         form.name.value = row.querySelector(".driver-name")?.textContent.trim();
         form.license_number.value = row.querySelector(".driver-license")?.textContent.trim();
         form.contact_number.value = row.querySelector(".driver-phone")?.textContent.trim();
+        form.address.value = row.querySelector(".driver-address")?.textContent.trim();
+        form.email.value = row.querySelector(".driver-email")?.textContent.trim();
+        form.dob.value = row.querySelector(".driver-dob")?.textContent.trim();
+        form.driver_type.value = row.querySelector(".driver-type")?.textContent.trim();
 
         const truckId = row.getAttribute("data-truck-id");
         const dispatcherId = row.getAttribute("data-dispatcher-id");
@@ -65,7 +74,7 @@ function initDriverModalActions() {
 
         form.action = `/edit_driver/${driverId}`;
         title.textContent = "Редактировать водителя";
-        modal.style.display = "block";
+        modal.classList.add("open");
     };
 
     window.deleteDriver = function (driverId) {
@@ -80,26 +89,9 @@ function initDriverModalActions() {
         }
     };
 
-    if (openBtn) {
-        openBtn.addEventListener("click", () => {
-            form.reset();
-            form.action = "/drivers";
-            title.textContent = "Добавить водителя";
-            modal.style.display = "block";
-        });
-    }
-
-    if (closeBtn) {
-        closeBtn.addEventListener("click", () => {
-            modal.style.display = "none";
-        });
-    }
-
-    window.addEventListener("click", (event) => {
-        if (event.target === modal) {
-            modal.style.display = "none";
-        }
-    });
+    window.closeDriverModal = () => {
+        modal.classList.remove("open");
+    };
 }
 
 function loadDriverDetailsFragment(href) {
@@ -114,7 +106,6 @@ function loadDriverDetailsFragment(href) {
             const script = document.createElement("script");
             script.src = "/static/js/driver_detail.js";
             script.onload = () => {
-                console.log("✅ driver_detail.js загружен");
                 if (typeof initDriverDetailActions === "function") {
                     initDriverDetailActions();
                 }

@@ -6,6 +6,12 @@ from flask_login import login_required, current_user
 from Test.auth import requires_role, users_collection
 from Test.tools.db import db
 
+from werkzeug.utils import secure_filename
+
+import gridfs
+
+
+
 drivers_bp = Blueprint('drivers', __name__)
 logging.basicConfig(level=logging.ERROR)
 
@@ -13,6 +19,7 @@ logging.basicConfig(level=logging.ERROR)
 drivers_collection = db['drivers']
 trucks_collection = db['trucks']
 loads_collection = db['loads']
+fs = gridfs.GridFS(db)
 
 def convert_to_str_id(data):
     if isinstance(data, dict) and '_id' in data:
@@ -40,6 +47,56 @@ def drivers_fragment():
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
 
+@drivers_bp.route('/add_driver', methods=['POST'])
+@login_required
+def add_driver():
+    try:
+        def save_file(field_name):
+            file = request.files.get(field_name)
+            if file and file.filename:
+                file_id = fs.put(file, filename=secure_filename(file.filename))
+                return file_id
+            return None
+
+        driver_data = {
+            'name': request.form.get('name'),
+            'contact_number': request.form.get('contact_number'),
+            'address': request.form.get('address'),
+            'email': request.form.get('email'),
+            'dob': request.form.get('dob'),
+            'driver_type': request.form.get('driver_type'),
+            'truck': request.form.get('truck'),
+            'dispatcher': request.form.get('dispatcher'),
+            'company': current_user.company,
+            'license': {
+                'number': request.form.get('license_number'),
+                'class': request.form.get('license_class'),
+                'state': request.form.get('license_state'),
+                'address': request.form.get('license_address'),
+                'issued_date': request.form.get('license_issued_date'),
+                'expiration_date': request.form.get('license_expiration_date'),
+                'restrictions': request.form.get('license_restrictions'),
+                'file_id': save_file('license_file')
+            },
+            'medical_card': {
+                'issued_date': request.form.get('med_issued_date'),
+                'expiration_date': request.form.get('med_expiration_date'),
+                'restrictions': request.form.get('med_restrictions'),
+                'file_id': save_file('med_file')
+            },
+            'drug_test': {
+                'issued_date': request.form.get('drug_issued_date'),
+                'file_id': save_file('drug_file')
+            }
+        }
+
+        drivers_collection.insert_one(driver_data)
+        return redirect(url_for('index'))
+    except Exception as e:
+        logging.error(f"Error adding driver: {e}")
+        return render_template('error.html', message="Failed to add driver")
+
+# остальные функции остаются без изменений
 @drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])
 @login_required
 def driver_details_fragment(driver_id):
@@ -74,28 +131,6 @@ def driver_details_fragment(driver_id):
     except Exception as e:
         logging.error(f"Error fetching driver details: {e}")
         return render_template('error.html', message="Failed to retrieve driver details")
-
-@drivers_bp.route('/add_driver', methods=['POST'])
-@login_required
-def add_driver():
-    try:
-        driver_data = {
-            'name': request.form.get('name'),
-            'license_number': request.form.get('license_number'),
-            'contact_number': request.form.get('contact_number'),
-            'address': request.form.get('address'),
-            'email': request.form.get('email'),
-            'dob': request.form.get('dob'),
-            'driver_type': request.form.get('driver_type'),
-            'truck': request.form.get('truck'),
-            'dispatcher': request.form.get('dispatcher'),
-            'company': current_user.company
-        }
-        drivers_collection.insert_one(driver_data)
-        return redirect(url_for('index'))
-    except Exception as e:
-        logging.error(f"Error adding driver: {e}")
-        return render_template('error.html', message="Failed to add driver")
 
 @drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
 @login_required
