@@ -2,7 +2,6 @@ import logging
 import json
 from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
-from pymongo import MongoClient
 from bson.objectid import ObjectId
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
