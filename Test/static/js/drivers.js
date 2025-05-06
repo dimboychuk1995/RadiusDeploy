@@ -123,32 +123,47 @@ function highlightExpiringDrivers() {
 
   rows.forEach(row => {
     const status = row.children[6]?.innerText.trim();
-    const expDateStr = row.children[12]?.innerText.trim();
+    if (status !== 'Active') return;
 
-    if (status !== 'Active' || !expDateStr) return;
+    const warnings = [];
+    let rowClass = '';
 
-    const [month, day, year] = expDateStr.split('/');
-    if (!month || !day || !year) return;
+    const checks = [
+      { label: 'Driver License', index: 12 },
+      { label: 'Medical Card', index: 15 },
+      { label: 'Drug Test', index: 17 }
+    ];
 
-    const expDate = new Date(`${year}-${month}-${day}`);
-    const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+    for (const check of checks) {
+      const dateStr = row.children[check.index]?.innerText.trim();
+      if (!dateStr) continue;
 
-    if (diffDays >= 0 && diffDays <= 30) {
-      // 💡 добавляем bootstrap-класс и свой класс
-      row.classList.add('table-warning', 'expiring-highlight');
+      const [month, day, year] = dateStr.split('/');
+      if (!month || !day || !year) continue;
 
-      // Тултип по всей строке
-      row.setAttribute('data-bs-toggle', 'tooltip');
-      row.setAttribute('title', '⚠️ Driver License Expiring Soon');
+      const expDate = new Date(`${year}-${month}-${day}`);
+      const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        rowClass = 'table-danger';
+        warnings.push(`❌ ${check.label} Expired`);
+      } else if (diffDays <= 30) {
+        if (rowClass !== 'table-danger') rowClass = 'table-warning';
+        warnings.push(`⚠️ ${check.label} Expiring Soon`);
+      }
+    }
+
+    if (rowClass) {
+      row.classList.add(rowClass);
+      row.setAttribute('data-toggle', 'tooltip');
+      row.setAttribute('title', warnings.join('\n'));
     }
   });
 
-  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-  tooltipTriggerList.forEach(el => {
-    new bootstrap.Tooltip(el, {
-      trigger: 'hover',
-      placement: 'top',
-      customClass: 'expiring-tooltip'
-    });
+  // Инициализация Bootstrap 4 tooltips
+  $('[data-toggle="tooltip"]').tooltip({
+    trigger: 'hover',
+    placement: 'top',
+    container: 'body'
   });
 }
