@@ -128,7 +128,42 @@
 
           <hr>
             <h5>➕ Additional Charges</h5>
-            <div id="additionalChargesContainer"></div>
+            <div id="additionalChargesContainer">
+              {% for charge in scheme_data.additional_charges %}
+              <div class="border p-3 mb-3 rounded bg-light">
+                <div class="form-group">
+                  <label>Тип списания:</label>
+                  <input type="text" name="charge_type[]" class="form-control" value="{{ charge.type }}">
+                </div>
+
+                <div class="form-group">
+                  <label>Период:</label>
+                  <select name="charge_period[]" class="form-control period-select">
+                    <option value="statement" {% if charge.period == 'statement' %}selected{% endif %}>Каждый стейтмент</option>
+                    <option value="monthly" {% if charge.period == 'monthly' %}selected{% endif %}>Раз в месяц</option>
+                  </select>
+                </div>
+
+                <div class="form-group date-group {% if charge.period != 'monthly' %}d-none{% endif %}">
+                  <label>Число месяца:</label>
+                  <input type="number" name="charge_day_of_month[]" class="form-control" value="{{ charge.day_of_month or '' }}">
+                </div>
+
+                <div class="form-group">
+                  <label>Файл:</label>
+                  <input type="file" name="charge_file[]" class="form-control-file">
+                  {% if charge.file %}
+                  <small class="form-text text-muted">Загружено: {{ charge.file.filename }}</small>
+                  {% endif %}
+                </div>
+
+                <div class="form-group">
+                  <label>Сумма ($):</label>
+                  <input type="number" step="0.01" name="charge_amount[]" class="form-control" value="{{ charge.amount }}">
+                </div>
+              </div>
+              {% endfor %}
+            </div>
             <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addChargeBtn">+ Добавить списание</button>
 
         <div class="mt-4 d-flex justify-content-end">

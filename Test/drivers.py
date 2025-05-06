@@ -4,7 +4,6 @@ from bson.binary import Binary
 import logging
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-from io import BytesIO
 
 from Test.auth import requires_role, users_collection
 from Test.tools.db import db
@@ -130,7 +129,8 @@ def driver_details_fragment(driver_id):
         scheme_data = {
             'scheme_type': driver.get('scheme_type'),
             'commission_table': driver.get('commission_table') or [],
-            'net_commission_table': driver.get('net_commission_table') or []
+            'net_commission_table': driver.get('net_commission_table') or [],
+            'additional_charges': driver.get('additional_charges') or []
         }
 
         return render_template(
@@ -178,11 +178,15 @@ def delete_driver(driver_id):
         logging.error(f"Error deleting driver: {e}")
         return jsonify({'success': False, 'error': 'Failed to delete driver'})
 
+import base64
+
 @drivers_bp.route('/set_salary_scheme/<driver_id>', methods=['POST'])
 @login_required
 def set_salary_scheme(driver_id):
     try:
         scheme_type = request.form.get('scheme_type')
+
+        update_data = {}
 
         if scheme_type == 'percent':
             gross_table = [{
@@ -190,8 +194,10 @@ def set_salary_scheme(driver_id):
                 'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
             }]
+
             gross_from = request.form.getlist('gross_from_sum[]')
             gross_percent = request.form.getlist('gross_percent[]')
+
             for from_val, percent_val in zip(gross_from, gross_percent):
                 if from_val and percent_val and float(from_val) != 0:
                     gross_table.append({
@@ -199,11 +205,12 @@ def set_salary_scheme(driver_id):
                         'percent': float(percent_val),
                         'to_sum': None
                     })
-            update_data = {
+
+            update_data.update({
                 'scheme_type': 'percent',
                 'commission_table': gross_table,
                 'net_commission_table': None
-            }
+            })
 
         elif scheme_type == 'net_percent':
             net_table = [{
@@ -211,8 +218,10 @@ def set_salary_scheme(driver_id):
                 'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
             }]
+
             net_from = request.form.getlist('net_from_sum[]')
             net_percent = request.form.getlist('net_percent[]')
+
             for from_val, percent_val in zip(net_from, net_percent):
                 if from_val and percent_val and float(from_val) != 0:
                     net_table.append({
@@ -220,13 +229,50 @@ def set_salary_scheme(driver_id):
                         'percent': float(percent_val),
                         'to_sum': None
                     })
-            update_data = {
+
+            update_data.update({
                 'scheme_type': 'net_percent',
                 'commission_table': None,
                 'net_commission_table': net_table
-            }
+            })
+
         else:
             return jsonify({'success': False, 'error': 'Неверный тип схемы'}), 400
+
+        # 🧾 Дополнительные списания
+        charges = []
+        charge_types = request.form.getlist('charge_type[]')
+        charge_periods = request.form.getlist('charge_period[]')
+        charge_days = request.form.getlist('charge_day_of_month[]')
+        charge_amounts = request.form.getlist('charge_amount[]')
+        charge_files = request.files.getlist('charge_file[]')
+
+        for i in range(len(charge_types)):
+            if not charge_types[i] or not charge_amounts[i]:
+                continue
+
+            charge = {
+                'type': charge_types[i],
+                'period': charge_periods[i],
+                'day_of_month': int(charge_days[i]) if charge_periods[i] == 'monthly' and charge_days[i] else None,
+                'amount': float(charge_amounts[i]),
+                'file': None
+            }
+
+            # 📎 Добавим файл как base64
+            if i < len(charge_files):
+                file = charge_files[i]
+                if file and file.filename:
+                    file_content = file.read()
+                    encoded_file = base64.b64encode(file_content).decode('utf-8')
+                    charge['file'] = {
+                        'filename': file.filename,
+                        'content': encoded_file
+                    }
+
+            charges.append(charge)
+
+        update_data['additional_charges'] = charges
 
         drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': update_data})
         return jsonify({'success': True})
@@ -234,6 +280,7 @@ def set_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
 @login_required
