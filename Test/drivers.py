@@ -108,8 +108,8 @@ def download_driver_file(driver_id, doc_type):
 
     return Response(
         file_data['content'],
-        mimetype=file_data['content_type'],
-        headers={"Content-Disposition": f"attachment; filename={file_data['filename']}"}
+        mimetype=file_data['content_type']
+        # ⛔ Убираем Content-Disposition, чтобы не было принудительного скачивания
     )
 
 @drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])

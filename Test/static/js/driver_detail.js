@@ -11,7 +11,7 @@ function initDriverDetailActions() {
         editBtn.addEventListener('click', function () {
             formElements.forEach(element => element.disabled = false);
             editBtn.classList.add('d-none');
-            saveBtn.classList.remove('d-none'); // ✅ Показываем "Сохранить"
+            saveBtn.classList.remove('d-none');
         });
     }
 
@@ -107,6 +107,61 @@ function initDriverDetailActions() {
         });
     }
 
+    // 🔧 Additional Charges
+    const additionalContainer = document.getElementById("additionalChargesContainer");
+    const addChargeBtn = document.getElementById("addChargeBtn");
+
+    if (addChargeBtn && additionalContainer) {
+        addChargeBtn.addEventListener("click", () => {
+            const block = document.createElement("div");
+            block.className = "border p-3 mb-3 rounded bg-light";
+
+            block.innerHTML = `
+                <div class="form-group">
+                    <label>Тип списания:</label>
+                    <input type="text" name="charge_type[]" class="form-control" placeholder="например: штраф, аренда и т.д.">
+                </div>
+
+                <div class="form-group">
+                    <label>Период:</label>
+                    <select name="charge_period[]" class="form-control period-select">
+                        <option value="statement">Каждый стейтмент</option>
+                        <option value="monthly">Раз в месяц</option>
+                    </select>
+                </div>
+
+                <div class="form-group date-group d-none">
+                    <label>Число месяца:</label>
+                    <input type="number" name="charge_day_of_month[]" class="form-control" placeholder="например: 15">
+                </div>
+
+                <div class="form-group">
+                    <label>Файл:</label>
+                    <input type="file" name="charge_file[]" class="form-control-file">
+                </div>
+
+                <div class="form-group">
+                    <label>Сумма ($):</label>
+                    <input type="number" step="0.01" name="charge_amount[]" class="form-control" placeholder="например: 75.00">
+                </div>
+            `;
+
+            const periodSelect = block.querySelector(".period-select");
+            const dateGroup = block.querySelector(".date-group");
+
+            periodSelect.addEventListener("change", () => {
+                if (periodSelect.value === "monthly") {
+                    dateGroup.classList.remove("d-none");
+                } else {
+                    dateGroup.classList.add("d-none");
+                    block.querySelector('[name="charge_day_of_month[]"]').value = '';
+                }
+            });
+
+            additionalContainer.appendChild(block);
+        });
+    }
+
     const salaryForm = document.getElementById("salarySchemeForm");
 
     if (salaryForm) {
@@ -146,11 +201,11 @@ function initDriverDetailActions() {
 }
 
 function openSalaryModal() {
-  document.getElementById("salarySchemeModal")?.classList.add("open");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+    document.getElementById("salarySchemeModal")?.classList.add("open");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
 }
 
 function closeSalaryModal() {
-  document.getElementById("salarySchemeModal")?.classList.remove("open");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+    document.getElementById("salarySchemeModal")?.classList.remove("open");
+    document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
