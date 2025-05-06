@@ -348,17 +348,21 @@ def parse_driver_pdf():
         client = get_openai_client()
         prompt = f"""
 Extract the following driver information from the document. Return the result strictly as a JSON object, and leave any unknown fields empty. Do not include any explanations — only valid JSON.
+License State is on LOGO 
+License Issued usually mark as ISS
+License Class usually mark as CLASS or License Type
+License Expiration usually mark as EXP
+License Restrictions usually mark as RESTRICTIONS
+
+if you can find exact this values think by yourself
 
 {{
-  "Name": "",
-  "Phone": "",
+  "Name": "", 
   "Address": "",
-  "Email": "",
   "DOB": "",
   "License Number": "",
   "License Class": "",
   "License State": "",
-  "License Address": "",
   "License Issued": "",
   "License Expiration": "",
   "License Restrictions": ""

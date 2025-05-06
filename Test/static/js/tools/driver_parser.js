@@ -58,15 +58,13 @@ function autofillDriverForm(data) {
   }
 
   form.name.value = data["Name"] || "";
-  form.contact_number.value = data["Phone"] || "";
   form.address.value = data["Address"] || "";
-  form.email.value = data["Email"] || "";
   form.dob.value = parseDate(data["DOB"]);
 
   form.license_number.value = data["License Number"] || "";
   form.license_class.value = data["License Class"] || "";
   form.license_state.value = data["License State"] || "";
-  form.license_address.value = data["License Address"] || "";
+  form.license_address.value = data["Address"] || "";
   form.license_issued_date.value = parseDate(data["License Issued"]);
   form.license_expiration_date.value = parseDate(data["License Expiration"]);
   form.license_restrictions.value = data["License Restrictions"] || "";
