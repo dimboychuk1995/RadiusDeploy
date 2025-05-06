@@ -130,15 +130,19 @@ def get_driver_loads(driver_id):
 
         for l in loads:
             delivery_dates = []
+
+            # Основной delivery
             main_delivery = l.get('delivery', {})
             if main_delivery.get('date'):
                 delivery_dates.append(main_delivery['date'])
 
-            extra_deliveries = l.get('extra_delivery', [])
+            # Дополнительные delivery (если есть)
+            extra_deliveries = l.get('extra_delivery') or []
             for ed in extra_deliveries:
                 if isinstance(ed, dict) and ed.get('date'):
                     delivery_dates.append(ed['date'])
 
+            # Самая поздняя дата
             latest_delivery_date = ''
             if delivery_dates:
                 try:
@@ -149,13 +153,16 @@ def get_driver_loads(driver_id):
 
             parsed.append({
                 '_id': str(l.get('_id')),
-                'pickup_location': l.get('pickup', {}).get('address', ''),
-                'delivery_location': l.get('delivery', {}).get('address', ''),
-                'pickup_date': l.get('pickup', {}).get('date', ''),
-                'delivery_date': latest_delivery_date,
+                'pickup': {
+                    'address': l.get('pickup', {}).get('address', ''),
+                    'date': l.get('pickup', {}).get('date', '')
+                },
+                'delivery': {
+                    'address': l.get('delivery', {}).get('address', ''),
+                    'date': latest_delivery_date
+                },
                 'price': l.get('price', '0'),
                 'status': l.get('status', ''),
-                'rate_con': str(l.get('rate_con')) if l.get('rate_con') else None,
                 'was_added_to_statement': l.get('was_added_to_statement', False)
             })
 
@@ -164,6 +171,7 @@ def get_driver_loads(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при получении грузов водителя: {e}")
         return "<p class='text-danger'>Ошибка загрузки данных</p>"
+
 
 # --- Создание стейтмента ---
 @statement_bp.route('/statement/create', methods=['POST'])

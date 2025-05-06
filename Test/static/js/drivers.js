@@ -156,14 +156,16 @@ function highlightExpiringDrivers() {
     if (rowClass) {
       row.classList.add(rowClass);
       row.setAttribute('data-toggle', 'tooltip');
-      row.setAttribute('title', warnings.join('\n'));
+      row.setAttribute('data-html', 'true');
+      row.setAttribute('title', warnings.join('<br>'));
     }
   });
 
-  // Инициализация Bootstrap 4 tooltips
+  // Инициализация Bootstrap tooltips с html-разметкой
   $('[data-toggle="tooltip"]').tooltip({
     trigger: 'hover',
     placement: 'top',
-    container: 'body'
+    container: 'body',
+    html: true
   });
 }
