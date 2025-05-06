@@ -47,10 +47,6 @@ function autofillDriverForm(data) {
     return;
   }
 
-  form.name.value = data["Name"] || "";
-  form.contact_number.value = data["Phone"] || "";
-  form.address.value = data["Address"] || "";
-  form.dob.value = parseDate(data["DOB"]);
 
   form.license_number.value = data["License Number"] || "";
   form.license_class.value = data["License Class"] || "";
