@@ -30,6 +30,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initClickableRows?.();
                         initDriverModalActions?.();
                         initDriverParser();
+                        highlightExpiringDrivers();
                     } else if (url.includes('dispatch_fragment')) {
                         initDispatchFilter?.();
                         highlightDriversWithoutDispatcher?.();

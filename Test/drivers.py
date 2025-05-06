@@ -59,6 +59,16 @@ def drivers_fragment():
 @login_required
 def add_driver():
     try:
+        from datetime import datetime
+
+        def to_mmddyyyy(date_str):
+            if not date_str:
+                return ""
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
+            except Exception:
+                return date_str
+
         def save_file(field_name):
             file = request.files.get(field_name)
             if file and file.filename:
@@ -75,9 +85,9 @@ def add_driver():
             'contact_number': request.form.get('contact_number'),
             'address': request.form.get('address'),
             'email': request.form.get('email'),
-            'dob': request.form.get('dob'),
+            'dob': to_mmddyyyy(request.form.get('dob')),
             'driver_type': request.form.get('driver_type'),
-            'status': request.form.get('status', 'В процессе принятия'),  # <-- новое поле
+            'status': request.form.get('status', 'В процессе принятия'),
             'truck': request.form.get('truck'),
             'dispatcher': request.form.get('dispatcher'),
             'company': current_user.company,
@@ -86,19 +96,19 @@ def add_driver():
                 'class': request.form.get('license_class'),
                 'state': request.form.get('license_state'),
                 'address': request.form.get('license_address'),
-                'issued_date': request.form.get('license_issued_date'),
-                'expiration_date': request.form.get('license_expiration_date'),
+                'issued_date': to_mmddyyyy(request.form.get('license_issued_date')),
+                'expiration_date': to_mmddyyyy(request.form.get('license_expiration_date')),
                 'restrictions': request.form.get('license_restrictions'),
                 'file': save_file('license_file')
             },
             'medical_card': {
-                'issued_date': request.form.get('med_issued_date'),
-                'expiration_date': request.form.get('med_expiration_date'),
+                'issued_date': to_mmddyyyy(request.form.get('med_issued_date')),
+                'expiration_date': to_mmddyyyy(request.form.get('med_expiration_date')),
                 'restrictions': request.form.get('med_restrictions'),
                 'file': save_file('med_file')
             },
             'drug_test': {
-                'issued_date': request.form.get('drug_issued_date'),
+                'issued_date': to_mmddyyyy(request.form.get('drug_issued_date')),
                 'file': save_file('drug_file')
             }
         }

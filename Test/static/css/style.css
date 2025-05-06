@@ -80,3 +80,32 @@ body {
 .card-header {
     font-size: 1.1rem;
 }
+
+
+
+
+
+
+.expiring-warning {
+  background-color: #fff3cd !important;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.expiring-warning:hover {
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.3);
+}
+
+.expiring-tooltip {
+  background-color: #ffc107;
+  color: #000;
+  font-weight: bold;
+}
+
+.tooltip.expiring-tooltip .tooltip-inner {
+  background-color: #ffc107;
+  color: #000;
+  font-weight: 600;
+  padding: 6px 12px;
+  font-size: 14px;
+  border: 1px solid #e0a800;
+}

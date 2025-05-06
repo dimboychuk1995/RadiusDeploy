@@ -116,3 +116,39 @@ function loadDriverDetailsFragment(href) {
             console.error("Ошибка загрузки данных водителя:", error);
         });
 }
+
+function highlightExpiringDrivers() {
+  const rows = document.querySelectorAll('#driversTable tbody tr');
+  const today = new Date();
+
+  rows.forEach(row => {
+    const status = row.children[6]?.innerText.trim();
+    const expDateStr = row.children[12]?.innerText.trim();
+
+    if (status !== 'Active' || !expDateStr) return;
+
+    const [month, day, year] = expDateStr.split('/');
+    if (!month || !day || !year) return;
+
+    const expDate = new Date(`${year}-${month}-${day}`);
+    const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+
+    if (diffDays >= 0 && diffDays <= 30) {
+      // 💡 добавляем bootstrap-класс и свой класс
+      row.classList.add('table-warning', 'expiring-highlight');
+
+      // Тултип по всей строке
+      row.setAttribute('data-bs-toggle', 'tooltip');
+      row.setAttribute('title', '⚠️ Driver License Expiring Soon');
+    }
+  });
+
+  const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  tooltipTriggerList.forEach(el => {
+    new bootstrap.Tooltip(el, {
+      trigger: 'hover',
+      placement: 'top',
+      customClass: 'expiring-tooltip'
+    });
+  });
+}
