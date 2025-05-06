@@ -13,7 +13,8 @@
                 <th>Адрес</th>
                 <th>Email</th>
                 <th>Дата рождения</th>
-                <th>Тип</th>
+                <th>Тип
+                <th>Статус</th>
                 <th>Лицензия №</th>
                 <th>Класс</th>
                 <th>Штат</th>
@@ -40,6 +41,7 @@
                 <td>{{ driver.email }}</td>
                 <td>{{ driver.dob }}</td>
                 <td>{{ driver.driver_type }}</td>
+                <td>{{ driver.status or "—" }}</td>
                 <td>{{ driver.license.number if driver.license }}</td>
                 <td>{{ driver.license.class if driver.license }}</td>
                 <td>{{ driver.license.state if driver.license }}</td>
@@ -86,8 +88,16 @@
                 <option value="Fleet Owner">Fleet Owner</option>
               </select>
             </div>
+            <div class="form-group">
+              <label>Статус:</label>
+              <select name="status" class="form-control">
+                <option value="Hiring">В процессе принятия</option>
+                <option value="Active">Активный</option>
+                <option value="Inactive">Неактивный</option>
+              </select>
+            </div>
 
-            <hr><h5>Лицензия</h5>
+              <hr><h5>Лицензия</h5>
             <div class="form-group"><label>Номер:</label><input type="text" name="license_number" class="form-control"></div>
             <div class="form-group"><label>Класс:</label><input type="text" name="license_class" class="form-control"></div>
             <div class="form-group"><label>Штат:</label><input type="text" name="license_state" class="form-control"></div>

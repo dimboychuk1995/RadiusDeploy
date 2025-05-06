@@ -9,7 +9,7 @@ function initDriverParser() {
     driverPdfInput.addEventListener("change", () => {
       const file = driverPdfInput.files[0];
       if (!file || !/\.(pdf|jpg|jpeg|png|webp|tiff|tif|bmp|heic)$/i.test(file.name)) {
-        alert("Only PDF or image files are supported.");
+        alert("File is not supported.");
         return;
       }
 

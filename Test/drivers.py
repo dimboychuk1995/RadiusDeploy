@@ -77,6 +77,7 @@ def add_driver():
             'email': request.form.get('email'),
             'dob': request.form.get('dob'),
             'driver_type': request.form.get('driver_type'),
+            'status': request.form.get('status', 'В процессе принятия'),  # <-- новое поле
             'truck': request.form.get('truck'),
             'dispatcher': request.form.get('dispatcher'),
             'company': current_user.company,
@@ -107,6 +108,7 @@ def add_driver():
     except Exception as e:
         logging.error(f"Error adding driver: {e}")
         return render_template('error.html', message="Failed to add driver")
+
 
 @drivers_bp.route('/download_file/<driver_id>/<doc_type>', methods=['GET'])
 @login_required
