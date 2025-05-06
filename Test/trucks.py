@@ -1,20 +1,23 @@
 import os
 import logging
 import traceback
+import json
 from io import BytesIO
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, send_file
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from bson.objectid import ObjectId
+import fitz  # PyMuPDF
+from PIL import Image
+import pytesseract
 
 from Test.auth import requires_role
-from Test.loads import get_openai_client
 from Test.tools.db import db
+from Test.loads import get_openai_client
 
 logging.basicConfig(level=logging.ERROR)
 
 trucks_bp = Blueprint('trucks', __name__)
-
 trucks_collection = db['trucks']
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
@@ -131,3 +134,73 @@ def unit_details_fragment(truck_id):
         logging.error(f"Error loading unit details: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Ошибка при загрузке данных юнита")
+
+@trucks_bp.route('/api/parse_unit_pdf', methods=['POST'])
+def parse_unit_pdf():
+    file = request.files.get('file')
+    if not file or not file.filename.lower().endswith(".pdf"):
+        return jsonify({'error': 'Допустим только PDF'}), 400
+
+    try:
+        pdf_bytes = file.read()
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+
+        full_text = ""
+        for i, page in enumerate(doc):
+            try:
+                text = page.get_text().strip()
+                if not text:
+                    pix = page.get_pixmap(dpi=300)
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    text = pytesseract.image_to_string(img)
+                full_text += "\n" + text
+            except Exception as e:
+                logging.warning(f"❌ Ошибка на странице {i+1}: {e}")
+
+        # GPT-запрос
+        prompt = f"""
+Analyze the following Unit document and extract structured data as JSON with the following fields:
+
+{{
+  "Unit Number": "",
+  "Make": "",
+  "Model": "",
+  "Year": "",
+  "Mileage": "",
+  "VIN": "",
+  "License Plate": "",
+  "Registration Expiration": "",
+  "Inspection Expiration": "",
+  "Insurance Provider": "",
+  "Insurance Policy Number": "",
+  "Insurance Expiration": ""
+}}
+
+Return only valid JSON.
+
+Document:
+-----
+{full_text}
+"""
+
+        client = get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        if result.startswith("```json"):
+            result = result[len("```json"):].strip()
+        if result.startswith("```"):
+            result = result[len("```"):].strip()
+        if result.endswith("```"):
+            result = result[:-3].strip()
+
+        return jsonify(json.loads(result))
+
+    except Exception as e:
+        logging.exception("❌ Ошибка при анализе PDF для трака")
+        return jsonify({'error': f'Ошибка при анализе: {str(e)}'}), 500

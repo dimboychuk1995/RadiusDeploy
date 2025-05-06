@@ -13,9 +13,9 @@ function initTruckParser() {
       const formData = new FormData();
       formData.append("file", file);
 
-      console.log("📤 Отправляем PDF в /api/parse_truck_pdf", file.name);
+      console.log("📤 Отправляем PDF в /api/parse_unit_pdf:", file.name);
 
-      fetch("/api/parse_truck_pdf", {
+      fetch("/api/parse_unit_pdf", {
         method: "POST",
         body: formData
       })
@@ -25,6 +25,7 @@ function initTruckParser() {
             alert("Ошибка: " + data.error);
             return;
           }
+          console.log("📥 Ответ от GPT:", data);
           autofillTruckForm(data);
         })
         .catch(err => {
