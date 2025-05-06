@@ -1,25 +1,20 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, Response
 from bson.objectid import ObjectId
+from bson.binary import Binary
 import logging
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
+from io import BytesIO
 
 from Test.auth import requires_role, users_collection
 from Test.tools.db import db
 
-from werkzeug.utils import secure_filename
-
-import gridfs
-
-
-
 drivers_bp = Blueprint('drivers', __name__)
 logging.basicConfig(level=logging.ERROR)
 
-# Коллекции из общего подключения
 drivers_collection = db['drivers']
 trucks_collection = db['trucks']
 loads_collection = db['loads']
-fs = gridfs.GridFS(db)
 
 def convert_to_str_id(data):
     if isinstance(data, dict) and '_id' in data:
@@ -54,8 +49,12 @@ def add_driver():
         def save_file(field_name):
             file = request.files.get(field_name)
             if file and file.filename:
-                file_id = fs.put(file, filename=secure_filename(file.filename))
-                return file_id
+                content = file.read()
+                return {
+                    'filename': secure_filename(file.filename),
+                    'content': Binary(content),
+                    'content_type': file.content_type
+                }
             return None
 
         driver_data = {
@@ -76,17 +75,17 @@ def add_driver():
                 'issued_date': request.form.get('license_issued_date'),
                 'expiration_date': request.form.get('license_expiration_date'),
                 'restrictions': request.form.get('license_restrictions'),
-                'file_id': save_file('license_file')
+                'file': save_file('license_file')
             },
             'medical_card': {
                 'issued_date': request.form.get('med_issued_date'),
                 'expiration_date': request.form.get('med_expiration_date'),
                 'restrictions': request.form.get('med_restrictions'),
-                'file_id': save_file('med_file')
+                'file': save_file('med_file')
             },
             'drug_test': {
                 'issued_date': request.form.get('drug_issued_date'),
-                'file_id': save_file('drug_file')
+                'file': save_file('drug_file')
             }
         }
 
@@ -96,7 +95,23 @@ def add_driver():
         logging.error(f"Error adding driver: {e}")
         return render_template('error.html', message="Failed to add driver")
 
-# остальные функции остаются без изменений
+@drivers_bp.route('/download_file/<driver_id>/<doc_type>', methods=['GET'])
+@login_required
+def download_driver_file(driver_id, doc_type):
+    driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
+    if not driver:
+        return "Driver not found", 404
+
+    file_data = driver.get(doc_type, {}).get('file')
+    if not file_data:
+        return "File not found", 404
+
+    return Response(
+        file_data['content'],
+        mimetype=file_data['content_type'],
+        headers={"Content-Disposition": f"attachment; filename={file_data['filename']}"}
+    )
+
 @drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])
 @login_required
 def driver_details_fragment(driver_id):
@@ -175,10 +190,8 @@ def set_salary_scheme(driver_id):
                 'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
             }]
-
             gross_from = request.form.getlist('gross_from_sum[]')
             gross_percent = request.form.getlist('gross_percent[]')
-
             for from_val, percent_val in zip(gross_from, gross_percent):
                 if from_val and percent_val and float(from_val) != 0:
                     gross_table.append({
@@ -186,7 +199,6 @@ def set_salary_scheme(driver_id):
                         'percent': float(percent_val),
                         'to_sum': None
                     })
-
             update_data = {
                 'scheme_type': 'percent',
                 'commission_table': gross_table,
@@ -199,10 +211,8 @@ def set_salary_scheme(driver_id):
                 'percent': float(request.form.get('base_percent', 30)),
                 'to_sum': None
             }]
-
             net_from = request.form.getlist('net_from_sum[]')
             net_percent = request.form.getlist('net_percent[]')
-
             for from_val, percent_val in zip(net_from, net_percent):
                 if from_val and percent_val and float(from_val) != 0:
                     net_table.append({
@@ -210,7 +220,6 @@ def set_salary_scheme(driver_id):
                         'percent': float(percent_val),
                         'to_sum': None
                     })
-
             update_data = {
                 'scheme_type': 'net_percent',
                 'commission_table': None,

@@ -29,8 +29,8 @@
     <p><strong>Дата выдачи:</strong> {{ driver.license.issued_date }}</p>
     <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
     <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
-    {% if driver.license.file_id %}
-    <p><strong>Файл:</strong> <a href="/get_file/{{ driver.license.file_id }}" target="_blank">Скачать</a></p>
+    {% if driver.license.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
     {% endif %}
   </div>
 </div>
@@ -42,8 +42,8 @@
     <p><strong>Дата выдачи:</strong> {{ driver.medical_card.issued_date }}</p>
     <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
     <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
-    {% if driver.medical_card.file_id %}
-    <p><strong>Файл:</strong> <a href="/get_file/{{ driver.medical_card.file_id }}" target="_blank">Скачать</a></p>
+    {% if driver.medical_card.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
     {% endif %}
   </div>
 </div>
@@ -53,8 +53,8 @@
   <div class="card-header">Драг тест</div>
   <div class="card-body">
     <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
-    {% if driver.drug_test.file_id %}
-    <p><strong>Файл:</strong> <a href="/get_file/{{ driver.drug_test.file_id }}" target="_blank">Скачать</a></p>
+    {% if driver.drug_test.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
     {% endif %}
   </div>
 </div>
@@ -72,8 +72,6 @@
 <button type="button" class="btn btn-info mt-3" onclick="openSalaryModal()">💰 Схема зарплаты</button>
 
 <!-- 💼 Модалка зарплаты -->
-<!-- ВСТАВЛЯЕМ СЮДА ПОЛНЫЙ КОД МОДАЛКИ -->
-<!-- ... модалка, как в предыдущем сообщении, уже вставлена сюда полностью ... -->
 <div class="custom-offcanvas custom-offcanvas-right" id="salarySchemeModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -91,6 +89,7 @@
             <option value="net_percent" {% if scheme_data.scheme_type == 'net_percent' %}selected{% endif %}>Процент от чистой прибыли</option>
           </select>
         </div>
+
         <div id="percentSchemeBlock" {% if scheme_data.scheme_type != 'percent' %}style="display: none;"{% endif %}>
           <div class="form-group">
             <label>Базовый процент от $0:</label>
@@ -108,6 +107,7 @@
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary" id="addCommissionRow">+ Добавить строку</button>
         </div>
+
         <div id="netPercentBlock" {% if scheme_data.scheme_type == 'percent' %}style="display: none;"{% endif %}>
           <div class="form-group">
             <label>Базовый процент от $0:</label>
@@ -125,6 +125,7 @@
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary" id="addNetCommissionRow">+ Добавить строку</button>
         </div>
+
         <div class="mt-4 d-flex justify-content-end">
           <button type="button" class="btn btn-secondary mr-2" onclick="closeSalaryModal()">Отмена</button>
           <button type="submit" class="btn btn-primary">Сохранить схему</button>
