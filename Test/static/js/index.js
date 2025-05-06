@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initDriverFilter?.();
                         initClickableRows?.();
                         initDriverModalActions?.();
+                        initDriverParser();
                     } else if (url.includes('dispatch_fragment')) {
                         initDispatchFilter?.();
                         highlightDriversWithoutDispatcher?.();

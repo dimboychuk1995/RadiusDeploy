@@ -1,3 +1,6 @@
+import json
+
+import fitz
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, Response
 from bson.objectid import ObjectId
 from bson.binary import Binary
@@ -7,6 +10,10 @@ from werkzeug.utils import secure_filename
 
 from Test.auth import requires_role, users_collection
 from Test.tools.db import db
+from Test.tools.gpt_connection import get_openai_client
+
+from PIL import Image
+import pytesseract
 
 drivers_bp = Blueprint('drivers', __name__)
 logging.basicConfig(level=logging.ERROR)
@@ -14,6 +21,13 @@ logging.basicConfig(level=logging.ERROR)
 drivers_collection = db['drivers']
 trucks_collection = db['trucks']
 loads_collection = db['loads']
+
+
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'webp', 'tiff'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 
 def convert_to_str_id(data):
     if isinstance(data, dict) and '_id' in data:
@@ -300,3 +314,77 @@ def get_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при получении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@drivers_bp.route('/api/parse_driver_pdf', methods=['POST'])
+@login_required
+def parse_driver_pdf():
+    file = request.files.get('file')
+    if not file or not allowed_file(file.filename):
+        return jsonify({'error': 'Only PDF or image files are allowed'}), 400
+
+    try:
+        file_ext = file.filename.rsplit('.', 1)[1].lower()
+        full_text = ""
+
+        if file_ext == 'pdf':
+            pdf_bytes = file.read()
+            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            for page in doc:
+                page_text = page.get_text().strip()
+                if not page_text:
+                    pix = page.get_pixmap(dpi=300)
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    page_text = pytesseract.image_to_string(img)
+                full_text += page_text + "\n"
+        else:
+            # обработка изображения
+            img = Image.open(file.stream).convert('RGB')
+            full_text = pytesseract.image_to_string(img)
+
+        if not full_text.strip():
+            return jsonify({'error': 'Could not extract text from file'}), 400
+
+        client = get_openai_client()
+        prompt = f"""
+Extract the following driver information from the document. Return the result strictly as a JSON object, and leave any unknown fields empty. Do not include any explanations — only valid JSON.
+
+{{
+  "Name": "",
+  "Phone": "",
+  "Address": "",
+  "Email": "",
+  "DOB": "",
+  "License Number": "",
+  "License Class": "",
+  "License State": "",
+  "License Address": "",
+  "License Issued": "",
+  "License Expiration": "",
+  "License Restrictions": ""
+}}
+
+Document text:
+-----
+{full_text}
+        """
+
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+
+        result = response.choices[0].message.content.strip()
+        if result.startswith("```json"):
+            result = result[len("```json"):].strip()
+        if result.startswith("```"):
+            result = result[len("```"):].strip()
+        if result.endswith("```"):
+            result = result[:-len("```")].strip()
+
+        return jsonify(json.loads(result))
+
+    except Exception as e:
+        logging.error(f"Error parsing driver file: {e}")
+        return jsonify({'error': 'Failed to process the file'}), 500
