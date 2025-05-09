@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initTolls?.();
                         initTransponderForm();
                         loadTransponders();
+                        initVehicleSelect();
                     }
                 });
         }

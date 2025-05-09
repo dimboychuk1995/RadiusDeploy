@@ -55,10 +55,16 @@ function initTransponderForm() {
         });
 
         if (res.ok) {
-            alert('Транспондер добавлен');
             form.reset();
-            bootstrap.Offcanvas.getInstance(document.getElementById('addTransponderModal')).hide();
-            loadTransponders(); // перезагрузить список
+            closeTransponderModal();
+
+            // Активировать панель Transponders
+            document.getElementById('btn-transponders').click();
+
+            // Загрузить обновлённый список
+            setTimeout(() => {
+                loadTransponders();
+            }, 200); // небольшая задержка, чтобы UI успел переключиться
         } else {
             alert('Ошибка при сохранении');
         }
@@ -90,4 +96,25 @@ async function loadTransponders() {
     } catch (err) {
         console.error("Ошибка загрузки транспондеров:", err);
     }
+}
+
+function initVehicleSelect() {
+    const $select = $('#vehicleSelect');
+    if (!$select.length) return;
+
+    $select.select2({
+        placeholder: 'Выберите юнит',
+        allowClear: true,
+        ajax: {
+            url: '/api/trucks',
+            dataType: 'json',
+            delay: 250,
+            processResults: function (data) {
+                return {
+                    results: data
+                };
+            }
+        },
+        dropdownParent: $('#addTransponderModal') // ⬅️ важно для оффканваса!
+    });
 }

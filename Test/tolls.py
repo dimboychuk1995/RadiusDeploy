@@ -30,3 +30,27 @@ def add_transponder():
     data['company'] = current_user.company
     transponders_collection.insert_one(data)
     return jsonify({"status": "success"}), 201
+
+
+@tolls_bp.route('/api/trucks', methods=['GET'])
+@login_required
+def get_trucks():
+    term = request.args.get('term', '').strip().lower()
+    query = {'company': current_user.company}
+
+    if term:
+        query['unit_number'] = {'$regex': term, '$options': 'i'}
+
+    trucks = db['trucks'].find(query)
+    result = []
+
+    for t in trucks:
+        unit = t.get('unit_number', '')
+        make = t.get('make', '')
+        model = t.get('model', '')
+        year = t.get('year', '')
+
+        label = f"{unit} — {make} {model} {year}".strip()
+        result.append({"id": unit, "text": label})
+
+    return jsonify(result)
