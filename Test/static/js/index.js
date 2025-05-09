@@ -9,7 +9,8 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-statements': { id: 'section-statements', url: '/statement/fragment' },
         'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' },
         'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' },
-        'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' } // ✅ Новый блок
+        'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' }, // ✅ Новый блок
+        'btn-fleet': { id: 'section-fleet', url: '/fragment/fleet_fragment' },
     };
 
     function loadFragment(sectionId, url) {
@@ -60,6 +61,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         loadAllTolls(0, limitPerPage);
                         initTollCsvUpload();
                         loadTollsSummary();
+                    } else if (url.includes('fleet')) {
+
                     }
                 });
         }
