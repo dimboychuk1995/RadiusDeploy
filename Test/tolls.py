@@ -128,9 +128,17 @@ def add_toll():
 @tolls_bp.route('/api/all_tolls', methods=['GET'])
 @login_required
 def get_all_tolls():
-    items = list(db['all_tolls'].find({'company': current_user.company}))
+    offset = int(request.args.get('offset', 0))
+    limit = int(request.args.get('limit', 30))
+
+    items = list(
+        db['all_tolls']
+        .find({'company': current_user.company})
+        .skip(offset)
+        .limit(limit)
+    )
     for item in items:
-        item['_id'] = str(item['_id'])  # для фронта
+        item['_id'] = str(item['_id'])
     return jsonify(items)
 
 @tolls_bp.route('/api/tolls/<toll_id>', methods=['DELETE'])

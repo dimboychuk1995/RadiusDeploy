@@ -22,6 +22,10 @@ function initTolls() {
             document.getElementById(navButtons[btnId]).style.display = 'block';
         });
     });
+
+    document.getElementById('loadMoreTollsBtn')?.addEventListener('click', () => {
+        loadAllTolls(currentOffset, limitPerPage, true);
+    });
 }
 
 function openTransponderModal() {
@@ -237,14 +241,18 @@ function initTollForm() {
 }
 
 
-function loadAllTolls() {
-    const tbody = document.getElementById('allTollsTableBody');
-    if (!tbody) return;
-    tbody.innerHTML = '';
+let currentOffset = 0;
+const limitPerPage = 30;
 
-    fetch('/api/all_tolls')
+function loadAllTolls(offset = 0, limit = 30, append = false) {
+    const tbody = document.getElementById('allTollsTableBody');
+    if (!append) tbody.innerHTML = '';
+
+    fetch(`/api/all_tolls?offset=${offset}&limit=${limit}`)
         .then(res => res.json())
         .then(data => {
+            if (!Array.isArray(data)) return;
+
             data.forEach(toll => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -265,11 +273,22 @@ function loadAllTolls() {
                 `;
                 tbody.appendChild(row);
             });
+
+            currentOffset += data.length;
+
+            // показать кнопку "Показать ещё", если пришло limit записей
+            const moreBtn = document.getElementById('loadMoreTollsBtn');
+            if (data.length === limit) {
+                moreBtn.style.display = 'block';
+            } else {
+                moreBtn.style.display = 'none';
+            }
         })
         .catch(err => {
             console.error("Ошибка загрузки Toll'ов:", err);
         });
 }
+
 
 function deleteToll(id) {
     if (!confirm("Удалить этот Toll?")) return;
