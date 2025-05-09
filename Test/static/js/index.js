@@ -59,6 +59,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initTollForm();
                         loadAllTolls(0, limitPerPage);
                         initTollCsvUpload();
+                        loadTollsSummary();
                     }
                 });
         }

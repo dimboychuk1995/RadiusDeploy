@@ -401,3 +401,26 @@ function initTollCsvUpload() {
     };
 }
 
+function loadTollsSummary() {
+    const tbody = document.getElementById('tollsSummaryTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    fetch('/api/tolls_summary')
+        .then(res => res.json())
+        .then(data => {
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.serial_number}</td>
+                    <td>${item.count}</td>
+                    <td>$${item.total.toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(err => {
+            console.error("Ошибка загрузки Toll Summary:", err);
+        });
+}

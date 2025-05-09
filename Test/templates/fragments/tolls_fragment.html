@@ -11,7 +11,20 @@
 
 <!-- 📦 Контейнеры под контент -->
 <div id="tolls-summary-section">
-    <p>Здесь будет отображаться итоговая информация по толлам.</p>
+    <div class="table-responsive">
+      <table class="table table-bordered table-striped" id="tollsSummaryTable">
+        <thead class="thead-dark">
+          <tr>
+            <th>Serial Number</th>
+            <th>Count of Transactions</th>
+            <th>Total Amount</th>
+          </tr>
+        </thead>
+        <tbody id="tollsSummaryTableBody">
+          <!-- Данные будут вставлены динамически -->
+        </tbody>
+      </table>
+    </div>
 </div>
 
 <div id="transponders-section" style="display: none;">

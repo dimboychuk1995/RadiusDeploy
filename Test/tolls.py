@@ -200,3 +200,38 @@ def bulk_import_tolls():
         "updated": updated,
         "skipped": skipped
     }), 200
+
+
+@tolls_bp.route('/api/tolls_summary', methods=['GET'])
+@login_required
+def tolls_summary():
+    company = current_user.company
+
+    # Получаем все транспондеры
+    transponders = list(db['transponders'].find({'company': company}))
+    summary = []
+
+    for t in transponders:
+        serial = t.get('serial_number')
+        if not serial:
+            continue
+
+        # Находим все толлы по этому serial_number → tag_id
+        matches = list(db['all_tolls'].find({
+            'company': company,
+            'tag_id': serial
+        }))
+
+        count = len(matches)
+        total = sum(
+            float(toll.get('amount', 0)) for toll in matches
+            if isinstance(toll.get('amount'), (int, float)) or str(toll.get('amount')).replace('.', '', 1).replace('-', '').isdigit()
+        )
+
+        summary.append({
+            'serial_number': serial,
+            'count': count,
+            'total': round(total, 2)
+        })
+
+    return jsonify(summary)
