@@ -56,6 +56,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         loadTransponders();
                         initVehicleSelect();
                         initCsvUpload();
+                        initTollForm();
+                        loadAllTolls();
                     }
                 });
         }

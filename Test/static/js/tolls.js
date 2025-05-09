@@ -196,4 +196,74 @@ function initCsvUpload() {
 }
 
 
+function openTollModal() {
+    document.getElementById('addTollModal').classList.add('show');
+    document.querySelector('.custom-offcanvas-backdrop').classList.add('show');
+}
 
+function closeTollModal() {
+    document.getElementById('addTollModal').classList.remove('show');
+    document.querySelector('.custom-offcanvas-backdrop').classList.remove('show');
+}
+
+function initTollForm() {
+    const form = document.getElementById('tollForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = {};
+        formData.forEach((val, key) => {
+            if (val) data[key] = val;
+        });
+
+        const res = await fetch('/api/tolls', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            form.reset();
+            closeTollModal();
+            alert("Toll успешно добавлен");
+            // TODO: loadAllTolls(); если будет отображение
+        } else {
+            alert("Ошибка при добавлении Toll");
+        }
+    });
+}
+
+
+function loadAllTolls() {
+    const tbody = document.getElementById('allTollsTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    fetch('/api/all_tolls')
+        .then(res => res.json())
+        .then(data => {
+            data.forEach(toll => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${toll.tag_id || ''}</td>
+                    <td>${toll.posting_date || ''}</td>
+                    <td>${toll.exit_date || ''}</td>
+                    <td>${toll.lane || ''}</td>
+                    <td>${toll.direction || ''}</td>
+                    <td>${toll.plaza || ''}</td>
+                    <td>${toll.license_plate || ''}</td>
+                    <td>${toll.state || ''}</td>
+                    <td>${toll.collection_type || ''}</td>
+                    <td>${toll.amount || ''}</td>
+                    <td>${toll.agency || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(err => {
+            console.error("Ошибка загрузки Toll'ов:", err);
+        });
+}

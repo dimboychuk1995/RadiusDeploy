@@ -116,3 +116,19 @@ def add_bulk_transponders():
         "updated": updated,
         "skipped": skipped
     }), 200
+
+@tolls_bp.route('/api/tolls', methods=['POST'])
+@login_required
+def add_toll():
+    data = request.json
+    data['company'] = current_user.company
+    db['all_tolls'].insert_one(data)
+    return jsonify({'status': 'success'}), 201
+
+@tolls_bp.route('/api/all_tolls', methods=['GET'])
+@login_required
+def get_all_tolls():
+    items = list(db['all_tolls'].find({'company': current_user.company}))
+    for item in items:
+        item['_id'] = str(item['_id'])  # для фронта
+    return jsonify(items)
