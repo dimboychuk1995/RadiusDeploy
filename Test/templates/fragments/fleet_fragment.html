@@ -1,2 +1,51 @@
 <h2>Fleet</h2>
-<p>Раздел находится в разработке.</p>
+
+<!-- Центрированная панель навигации -->
+<div class="d-flex justify-content-center mb-3">
+    <div class="btn-group" role="group">
+        <button id="btn-fleet-units" class="btn btn-outline-primary active">Юниты</button>
+        <button id="btn-fleet-stats" class="btn btn-outline-primary">Статистика</button>
+        <button id="btn-fleet-other" class="btn btn-outline-primary">Другое</button>
+    </div>
+</div>
+
+<!-- Секция: Юниты -->
+<div id="fleet-units-section">
+    <table class="table table-striped" id="fleetUnitsTable">
+        <thead>
+            <tr>
+                <th>Unit #</th>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Year</th>
+                <th>Mileage</th>
+                <th>VIN</th>
+                <th>Driver</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for truck in trucks %}
+            <tr class="clickable-row" data-id="{{ truck._id }}">
+                <td>{{ truck.unit_number }}</td>
+                <td>{{ truck.make }}</td>
+                <td>{{ truck.model }}</td>
+                <td>{{ truck.year }}</td>
+                <td>{{ truck.mileage }}</td>
+                <td>{{ truck.vin }}</td>
+                {% set driver = driver_map[truck._id|string] if truck._id|string in driver_map else None %}
+                <td>{{ driver.name if driver else "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Секция: Статистика -->
+<div id="fleet-stats-section" style="display: none;">
+    <p>Здесь будет статистика по флоту.</p>
+</div>
+
+<!-- Секция: Другое -->
+<div id="fleet-other-section" style="display: none;">
+    <p>Здесь будет дополнительная информация.</p>
+</div>

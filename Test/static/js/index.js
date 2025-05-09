@@ -62,7 +62,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initTollCsvUpload();
                         loadTollsSummary();
                     } else if (url.includes('fleet')) {
-
+                        initFleet();
+                        initFleetUnitClicks?.();
                     }
                 });
         }
