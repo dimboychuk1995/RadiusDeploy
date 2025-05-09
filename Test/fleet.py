@@ -116,26 +116,42 @@ def analyze_service_file():
         # GPT-подключение
         client = get_openai_client()
         prompt = f"""
-You are an assistant specialized in parsing auto repair or service documents.
+        You are a specialized assistant that extracts structured data from auto repair or maintenance invoices.
 
-Based on the following text, extract and return ONLY a JSON object in this format:
+        Your job is to return the following JSON format:
 
-{{
-  "date": "",              // Service or invoice date (MM/DD/YYYY)
-  "invoice_no": "",        // Invoice number
-  "shop": "",              // Name of the shop
-  "shop_address": "",      // Address of the repair shop
-  "phone_number": "",      // Contact phone number
-  "mileage": "",           // Vehicle mileage at time of service
-  "amount": "",            // Total billed amount
-  "description": ""        // Work performed (brief summary)
-}}
+        {{
+          "date": "",
+          "invoice_no": "",
+          "shop": "",
+          "shop_address": "",
+          "phone_number": "",
+          "mileage": "",
+          "amount": "",
+          "description": ""
+        }}
 
-If any value is missing or unclear, leave it as an empty string.
+        For the "description" field:
 
-Document text:
------
-{full_text}
+        1. Identify each labor/service performed in the document. For each labor:
+           - Extract its name and cost (if present).
+        2. Then find all parts related to that labor, with names and prices.
+        3. Format the description clearly, as:
+
+        Labor: <labor name> ($<price>)
+          Parts: 
+          <part1> ($<price>), 
+          <part2> ($<price>)
+
+        If any price is missing, leave it blank like ($).
+
+        Separate each labor block with a new line.
+
+        If a field (e.g., invoice number or mileage) is not found, leave it empty.
+
+        Document text:
+        -----
+        {full_text}
         """
 
         response = client.chat.completions.create(
