@@ -66,3 +66,18 @@ def delete_transponder(transponder_id):
         return jsonify({"status": "deleted"}), 200
     else:
         return jsonify({"error": "Not found"}), 404
+
+
+@tolls_bp.route('/api/transponders/bulk', methods=['POST'])
+@login_required
+def add_bulk_transponders():
+    data = request.json
+    items = data.get('items', [])
+
+    for item in items:
+        item['company'] = current_user.company
+
+    if items:
+        transponders_collection.insert_many(items)
+
+    return jsonify({"status": "bulk inserted", "count": len(items)})

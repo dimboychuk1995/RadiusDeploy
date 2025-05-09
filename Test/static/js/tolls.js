@@ -10,17 +10,14 @@ function initTolls() {
     Object.keys(navButtons).forEach(btnId => {
         const button = document.getElementById(btnId);
         button.addEventListener('click', () => {
-            // Скрываем все секции
             Object.values(navButtons).forEach(sectionId => {
                 document.getElementById(sectionId).style.display = 'none';
             });
 
-            // Деактивируем все кнопки
             Object.keys(navButtons).forEach(id => {
                 document.getElementById(id).classList.remove('active');
             });
 
-            // Активируем текущую
             button.classList.add('active');
             document.getElementById(navButtons[btnId]).style.display = 'block';
         });
@@ -41,6 +38,8 @@ function closeTransponderModal() {
 
 function initTransponderForm() {
     const form = document.getElementById('transponderForm');
+    if (!form) return;
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -57,14 +56,8 @@ function initTransponderForm() {
         if (res.ok) {
             form.reset();
             closeTransponderModal();
-
-            // Активировать панель Transponders
             document.getElementById('btn-transponders').click();
-
-            // Загрузить обновлённый список
-            setTimeout(() => {
-                loadTransponders();
-            }, 200); // небольшая задержка, чтобы UI успел переключиться
+            setTimeout(() => loadTransponders(), 200);
         } else {
             alert('Ошибка при сохранении');
         }
@@ -99,7 +92,6 @@ function loadTransponders() {
         .catch(err => console.error("Ошибка загрузки транспондеров:", err));
 }
 
-
 function initVehicleSelect() {
     const $select = $('#vehicleSelect');
     if (!$select.length) return;
@@ -117,7 +109,7 @@ function initVehicleSelect() {
                 };
             }
         },
-        dropdownParent: $('#addTransponderModal') // ⬅️ важно для оффканваса!
+        dropdownParent: $('#addTransponderModal')
     });
 }
 
@@ -139,3 +131,66 @@ function deleteTransponder(id) {
         alert("Ошибка при удалении");
     });
 }
+
+function normalizeHeader(header) {
+    return header.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function initCsvUpload() {
+    const input = document.getElementById('transponderCsvInput');
+    if (!input) return;
+
+    input.addEventListener('change', async function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const text = await file.text();
+        const delimiter = text.includes(',') ? ',' : '\t';
+
+        const rows = text.split('\n').map(r => r.trim()).filter(Boolean);
+        if (rows.length < 2) {
+            alert("Файл пуст или содержит только заголовки");
+            return;
+        }
+
+        // Просто пропускаем первую строку и парсим по индексам
+        const transponders = [];
+
+        for (let i = 1; i < rows.length; i++) {
+            const cols = rows[i].split(delimiter).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+            if (cols.length < 4 || cols.every(c => !c)) continue;
+
+            const obj = {
+                serial_number: cols[0] || '',
+                vehicle_class: cols[1] || '',
+                transponder_type: cols[2] || '',
+                status: cols[3] || ''
+            };
+
+            transponders.push(obj);
+        }
+
+        console.log("📥 Готово к импорту:", transponders);
+
+        if (!transponders.length) {
+            alert("Нет валидных строк для импорта.");
+            return;
+        }
+
+        const res = await fetch('/api/transponders/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: transponders })
+        });
+
+        if (res.ok) {
+            alert('Импорт завершён');
+            loadTransponders();
+        } else {
+            alert('Ошибка при импорте');
+        }
+    });
+}
+
+
+

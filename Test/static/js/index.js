@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initTransponderForm();
                         loadTransponders();
                         initVehicleSelect();
+                        initCsvUpload();
                     }
                 });
         }
