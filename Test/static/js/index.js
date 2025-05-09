@@ -58,6 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initCsvUpload();
                         initTollForm();
                         loadAllTolls();
+                        initTollCsvUpload();
                     }
                 });
         }

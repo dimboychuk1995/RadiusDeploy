@@ -132,3 +132,35 @@ def get_all_tolls():
     for item in items:
         item['_id'] = str(item['_id'])  # для фронта
     return jsonify(items)
+
+@tolls_bp.route('/api/tolls/<toll_id>', methods=['DELETE'])
+@login_required
+def delete_toll(toll_id):
+    result = db['all_tolls'].delete_one({
+        '_id': ObjectId(toll_id),
+        'company': current_user.company
+    })
+    if result.deleted_count == 1:
+        return jsonify({'status': 'deleted'}), 200
+    else:
+        return jsonify({'error': 'Not found'}), 404
+
+
+@tolls_bp.route('/api/tolls/bulk', methods=['POST'])
+@login_required
+def bulk_import_tolls():
+    items = request.json.get('items', [])
+    print(f"📥 Получено {len(items)} записей на импорт")
+
+    company = current_user.company
+    print(f"🏢 Компания пользователя: {company}")
+
+    for item in items:
+        print(f"📄 Импортируемая строка: {item}")
+        item['company'] = company
+
+    if items:
+        db['all_tolls'].insert_many(items)
+        print(f"✅ Вставлено {len(items)} записей в базу all_tolls")
+
+    return jsonify({'status': 'imported', 'count': len(items)})

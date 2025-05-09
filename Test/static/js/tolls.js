@@ -259,6 +259,9 @@ function loadAllTolls() {
                     <td>${toll.collection_type || ''}</td>
                     <td>${toll.amount || ''}</td>
                     <td>${toll.agency || ''}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="deleteToll('${toll._id}')">Удалить</button>
+                    </td>
                 `;
                 tbody.appendChild(row);
             });
@@ -267,3 +270,112 @@ function loadAllTolls() {
             console.error("Ошибка загрузки Toll'ов:", err);
         });
 }
+
+function deleteToll(id) {
+    if (!confirm("Удалить этот Toll?")) return;
+
+    fetch(`/api/tolls/${id}`, {
+        method: 'DELETE'
+    })
+    .then(res => {
+        if (res.ok) {
+            loadAllTolls();
+        } else {
+            alert("Ошибка при удалении");
+        }
+    })
+    .catch(err => {
+        console.error("Ошибка удаления Toll:", err);
+        alert("Ошибка при удалении");
+    });
+}
+
+function initTollCsvUpload() {
+    const input = document.getElementById('tollCsvInput');
+    if (!input) return;
+
+    input.onchange = async function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const text = await file.text();
+        const delimiter = text.includes(',') ? ',' : '\t';
+
+        const rows = text.split('\n').map(r => r.trim()).filter(Boolean);
+        if (rows.length < 2) {
+            alert("Файл пуст или содержит только заголовки");
+            return;
+        }
+
+        const headerMap = {
+            "Account Number": "account_number",
+            "First Name": "first_name",
+            "Last Name": "last_name",
+            "TAG ID": "tag_id",
+            "Posting Date": "posting_date",
+            "Exit Date": "exit_date",
+            "Lane": "lane",
+            "Direction": "direction",
+            "Plaza": "plaza",
+            "License Plate": "license_plate",
+            "State": "state",
+            "Collection Type": "collection_type",
+            "Amount": "amount",
+            "Agency": "agency"
+        };
+
+        const originalHeaders = rows[0].split(delimiter).map(h =>
+            h.trim().replace(/^"(.*)"$/, '$1') // удаляет двойные кавычки
+        );
+
+        console.log("🔎 Заголовки из CSV:", originalHeaders);
+
+        const mappedHeaders = originalHeaders.map(h => headerMap[h] || null);
+        console.log("🗺️ Маппинг:", mappedHeaders);
+
+        const tolls = [];
+
+        for (let i = 1; i < rows.length; i++) {
+            const cols = rows[i].split(delimiter).map(c =>
+                c.trim().replace(/^"(.*)"$/, '$1')
+            );
+
+            const obj = {};
+            mappedHeaders.forEach((key, idx) => {
+                if (key && cols[idx] !== undefined) {
+                    let val = cols[idx].trim();
+                    if (key === 'amount') {
+                        val = parseFloat(val.replace('$', '').replace(',', '')) || 0;
+                    }
+                    obj[key] = val;
+                }
+            });
+
+            if (Object.keys(obj).length > 0) {
+                tolls.push(obj);
+            }
+        }
+
+        console.log("📊 Финальный список Toll'ов:", tolls);
+
+        if (!tolls.length) {
+            alert("Нет валидных строк для импорта.");
+            return;
+        }
+
+        const res = await fetch('/api/tolls/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: tolls })
+        });
+
+        if (res.ok) {
+            const result = await res.json();
+            alert(`Импорт завершён:\n✅ Импортировано: ${result.count}`);
+            loadAllTolls();
+        } else {
+            alert("Ошибка при импорте Toll'ов");
+        }
+    };
+}
+
