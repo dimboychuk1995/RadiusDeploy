@@ -3,8 +3,15 @@ from flask_login import login_required, current_user
 from bson.objectid import ObjectId
 from Test.tools.db import db
 import logging
+from datetime import datetime
 
 fleet_bp = Blueprint('fleet', __name__)
+
+def to_mmddyyyy(date_str):
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
+    except Exception:
+        return date_str  # если формат не тот
 
 @fleet_bp.route('/fragment/fleet_fragment', methods=['GET'])
 @login_required
@@ -52,7 +59,7 @@ def add_service():
 
         service = {
             'unit_id': ObjectId(request.form.get('unit_id')),
-            'date': request.form.get('date'),
+            'date': to_mmddyyyy(request.form.get('date')),
             'invoice_no': request.form.get('invoice_no'),
             'shop': request.form.get('shop'),
             'shop_address': request.form.get('shop_address'),
@@ -60,6 +67,7 @@ def add_service():
             'type': request.form.get('type'),
             'mileage': request.form.get('mileage'),
             'amount': float(request.form.get('amount')) if request.form.get('amount') else 0,
+            'description': request.form.get('description'),
             'file': file_data
         }
 
