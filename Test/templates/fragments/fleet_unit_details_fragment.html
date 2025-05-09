@@ -49,36 +49,54 @@
       <button class="btn btn-sm btn-secondary" onclick="closeServiceModal()">✖</button>
     </div>
     <div class="custom-offcanvas-body">
-      <form id="serviceForm" method="POST" action="/fleet/add_service" enctype="multipart/form-data" onsubmit="submitServiceForm(event)">
-        <input type="hidden" name="unit_id" value="{{ unit._id }}">
+      <div class="load-modal-content">
+        <!-- Левая часть -->
+        <div class="load-modal-left">
+          <form id="serviceForm" method="POST" action="/fleet/add_service" enctype="multipart/form-data" onsubmit="submitServiceForm(event)">
+            <input type="hidden" name="unit_id" value="{{ unit._id }}">
 
-        <div class="form-group"><label>Дата:</label><input type="date" name="date" class="form-control" required></div>
-        <div class="form-group"><label>Invoice #:</label><input type="text" name="invoice_no" class="form-control"></div>
-        <div class="form-group"><label>Шоп:</label><input type="text" name="shop" class="form-control"></div>
-        <div class="form-group"><label>Адрес шопа:</label><input type="text" name="shop_address" class="form-control"></div>
-        <div class="form-group"><label>Номер телефона:</label><input type="text" name="phone_number" class="form-control"></div>
-        <div class="form-group">
-          <label>Тип:</label>
-          <select name="type" class="form-control">
-            <option value="service">Сервис</option>
-            <option value="repair">Ремонт</option>
-          </select>
-        </div>
-        <div class="form-group"><label>Пробег:</label><input type="number" name="mileage" class="form-control"></div>
-        <div class="form-group"><label>Сумма:</label><input type="number" step="0.01" name="amount" class="form-control"></div>
-          <div class="form-group">
-              <label>Описание работ:</label>
+            <div class="form-group"><label>Дата:</label><input type="date" name="date" class="form-control" required></div>
+            <div class="form-group"><label>Invoice #:</label><input type="text" name="invoice_no" class="form-control"></div>
+            <div class="form-group"><label>Шоп:</label><input type="text" name="shop" class="form-control"></div>
+            <div class="form-group"><label>Адрес шопа:</label><input type="text" name="shop_address" class="form-control"></div>
+            <div class="form-group"><label>Номер телефона:</label><input type="text" name="phone_number" class="form-control"></div>
+            <div class="form-group">
+              <label>Тип:</label>
+              <select name="type" class="form-control">
+                <option value="service">Сервис</option>
+                <option value="repair">Ремонт</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Пробег:</label><input type="number" name="mileage" class="form-control"></div>
+            <div class="form-group"><label>Сумма:</label><input type="number" step="0.01" name="amount" class="form-control"></div>
+            <div class="form-group"><label>Описание работ:</label>
               <textarea name="description" class="form-control" rows="3"></textarea>
             </div>
-        <div class="form-group"><label>Файл:</label><input type="file" name="file" class="form-control-file"></div>
+            <div class="form-group">
+              <label>Файл (альтернатива):</label>
+              <input type="file" name="file" class="form-control-file" id="leftFileInput">
+            </div>
 
-        <div class="d-flex justify-content-end mt-4">
-          <button type="button" class="btn btn-secondary mr-2" onclick="closeServiceModal()">Отмена</button>
-          <button type="submit" class="btn btn-success">Сохранить</button>
+            <div class="d-flex justify-content-end mt-4">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeServiceModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
         </div>
-      </form>
+
+        <!-- Правая часть -->
+        <div class="load-modal-right">
+          <div class="upload-box" onclick="document.getElementById('rightFileInput').click()" style="cursor: pointer;">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <strong>Загрузить файл</strong>
+            <p class="text-muted">Нажмите или перетащите</p>
+            <input type="file" name="file" id="rightFileInput" class="d-none">
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="custom-offcanvas-backdrop" onclick="closeServiceModal()"></div>
+

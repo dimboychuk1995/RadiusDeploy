@@ -1,3 +1,22 @@
+document.addEventListener("DOMContentLoaded", () => {
+    const rightInput = document.getElementById('rightFileInput');
+    const leftInput = document.getElementById('leftFileInput');
+
+    if (rightInput && leftInput) {
+        rightInput.addEventListener('change', () => {
+            if (rightInput.files.length > 0) {
+                leftInput.files = rightInput.files;
+            }
+        });
+
+        leftInput.addEventListener('change', () => {
+            if (leftInput.files.length > 0) {
+                rightInput.files = leftInput.files;
+            }
+        });
+    }
+});
+
 function initFleetUnitClicks() {
     document.querySelectorAll(".clickable-row").forEach(row => {
         row.addEventListener("click", () => {
@@ -54,3 +73,5 @@ function submitServiceForm(e) {
         alert("❌ " + err.message);
     });
 }
+
+
