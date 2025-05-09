@@ -71,13 +71,48 @@ def delete_transponder(transponder_id):
 @tolls_bp.route('/api/transponders/bulk', methods=['POST'])
 @login_required
 def add_bulk_transponders():
-    data = request.json
-    items = data.get('items', [])
+    items = request.json.get('items', [])
+    company = current_user.company
+
+    inserted = 0
+    updated = 0
+    skipped = 0
 
     for item in items:
-        item['company'] = current_user.company
+        # Нормализуем serial_number
+        serial = str(item.get('serial_number', '')).strip().replace('"', '')
+        if not serial:
+            continue
 
-    if items:
-        transponders_collection.insert_many(items)
+        item['serial_number'] = serial
+        item['company'] = company
 
-    return jsonify({"status": "bulk inserted", "count": len(items)})
+        existing = transponders_collection.find_one({
+            'serial_number': serial,
+            'company': company
+        })
+
+        if existing:
+            changed = False
+            for key in item:
+                if key not in ['_id', 'company'] and item[key] != existing.get(key):
+                    changed = True
+                    break
+
+            if changed:
+                transponders_collection.update_one(
+                    {'_id': existing['_id']},
+                    {'$set': item}
+                )
+                updated += 1
+            else:
+                skipped += 1
+        else:
+            transponders_collection.insert_one(item)
+            inserted += 1
+
+    return jsonify({
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped
+    }), 200

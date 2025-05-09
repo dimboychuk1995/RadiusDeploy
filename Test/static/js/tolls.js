@@ -132,15 +132,11 @@ function deleteTransponder(id) {
     });
 }
 
-function normalizeHeader(header) {
-    return header.trim().toLowerCase().replace(/\s+/g, '_');
-}
-
 function initCsvUpload() {
     const input = document.getElementById('transponderCsvInput');
     if (!input) return;
 
-    input.addEventListener('change', async function (e) {
+    input.onchange = async function (e) {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -153,11 +149,12 @@ function initCsvUpload() {
             return;
         }
 
-        // Просто пропускаем первую строку и парсим по индексам
         const transponders = [];
-
         for (let i = 1; i < rows.length; i++) {
-            const cols = rows[i].split(delimiter).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+            const cols = rows[i].split(delimiter).map(c =>
+                c.trim().replace(/^"(.*)"$/, '$1')  // удаляем кавычки
+            );
+
             if (cols.length < 4 || cols.every(c => !c)) continue;
 
             const obj = {
@@ -167,13 +164,18 @@ function initCsvUpload() {
                 status: cols[3] || ''
             };
 
+            // нормализуем serial_number
+            if (obj.serial_number) {
+                obj.serial_number = obj.serial_number.replace(/^"+|"+$/g, '').trim();
+            }
+
             transponders.push(obj);
         }
 
-        console.log("📥 Готово к импорту:", transponders);
+        console.log("📥 Готово к отправке:", transponders);
 
         if (!transponders.length) {
-            alert("Нет валидных строк для импорта.");
+            alert("Нет данных для импорта.");
             return;
         }
 
@@ -184,12 +186,13 @@ function initCsvUpload() {
         });
 
         if (res.ok) {
-            alert('Импорт завершён');
+            const result = await res.json();
+            alert(`Импорт завершён:\n✅ Добавлено: ${result.inserted}\n🔁 Обновлено: ${result.updated}\n⏩ Пропущено: ${result.skipped}`);
             loadTransponders();
         } else {
             alert('Ошибка при импорте');
         }
-    });
+    };
 }
 
 
