@@ -371,8 +371,11 @@ function initTollCsvUpload() {
 
         if (res.ok) {
             const result = await res.json();
-            alert(`Импорт завершён:\n✅ Импортировано: ${result.count}`);
-            loadAllTolls();
+                alert(`Импорт завершён:
+                ✅ Добавлено: ${result.inserted}
+                🔁 Обновлено: ${result.updated}
+                ⏩ Пропущено: ${result.skipped}`);
+                loadAllTolls();
         } else {
             alert("Ошибка при импорте Toll'ов");
         }

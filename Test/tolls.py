@@ -150,17 +150,45 @@ def delete_toll(toll_id):
 @login_required
 def bulk_import_tolls():
     items = request.json.get('items', [])
-    print(f"📥 Получено {len(items)} записей на импорт")
-
     company = current_user.company
-    print(f"🏢 Компания пользователя: {company}")
+
+    inserted = 0
+    updated = 0
+    skipped = 0
 
     for item in items:
-        print(f"📄 Импортируемая строка: {item}")
         item['company'] = company
+        tag_id = item.get('tag_id')
+        posting_date = item.get('posting_date')
 
-    if items:
-        db['all_tolls'].insert_many(items)
-        print(f"✅ Вставлено {len(items)} записей в базу all_tolls")
+        if not tag_id or not posting_date:
+            continue
 
-    return jsonify({'status': 'imported', 'count': len(items)})
+        existing = db['all_tolls'].find_one({
+            'tag_id': tag_id,
+            'posting_date': posting_date,
+            'company': company
+        })
+
+        if existing:
+            # Проверка: есть ли отличия
+            fields_to_compare = set(item.keys()) - {'_id', 'company'}
+            is_different = any(item.get(field) != existing.get(field) for field in fields_to_compare)
+
+            if is_different:
+                db['all_tolls'].update_one(
+                    {'_id': existing['_id']},
+                    {'$set': item}
+                )
+                updated += 1
+            else:
+                skipped += 1
+        else:
+            db['all_tolls'].insert_one(item)
+            inserted += 1
+
+    return jsonify({
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped
+    }), 200
