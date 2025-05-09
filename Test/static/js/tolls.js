@@ -71,32 +71,34 @@ function initTransponderForm() {
     });
 }
 
-async function loadTransponders() {
+function loadTransponders() {
     const tbody = document.getElementById('transpondersTableBody');
-    tbody.innerHTML = ''; // очистка
+    tbody.innerHTML = '';
 
-    try {
-        const res = await fetch('/api/transponders');
-        const data = await res.json();
-
-        if (Array.isArray(data)) {
-            data.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${item.serial_number || ''}</td>
-                    <td>${item.vehicle_class || ''}</td>
-                    <td>${item.transponder_type || ''}</td>
-                    <td>${item.status || ''}</td>
-                    <td>${item.vehicle || ''}</td>
-                    <td>${item.provider || ''}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-    } catch (err) {
-        console.error("Ошибка загрузки транспондеров:", err);
-    }
+    fetch('/api/transponders')
+        .then(res => res.json())
+        .then(data => {
+            if (Array.isArray(data)) {
+                data.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.serial_number || ''}</td>
+                        <td>${item.vehicle_class || ''}</td>
+                        <td>${item.transponder_type || ''}</td>
+                        <td>${item.status || ''}</td>
+                        <td>${item.vehicle || ''}</td>
+                        <td>${item.provider || ''}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteTransponder('${item._id}')">Удалить</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        })
+        .catch(err => console.error("Ошибка загрузки транспондеров:", err));
 }
+
 
 function initVehicleSelect() {
     const $select = $('#vehicleSelect');
@@ -116,5 +118,24 @@ function initVehicleSelect() {
             }
         },
         dropdownParent: $('#addTransponderModal') // ⬅️ важно для оффканваса!
+    });
+}
+
+function deleteTransponder(id) {
+    if (!confirm("Удалить этот транспондер?")) return;
+
+    fetch(`/api/transponders/${id}`, {
+        method: 'DELETE'
+    })
+    .then(res => {
+        if (res.ok) {
+            loadTransponders();
+        } else {
+            alert("Ошибка при удалении");
+        }
+    })
+    .catch(err => {
+        console.error("Ошибка:", err);
+        alert("Ошибка при удалении");
     });
 }

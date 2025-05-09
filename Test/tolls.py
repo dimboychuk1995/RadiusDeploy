@@ -54,3 +54,15 @@ def get_trucks():
         result.append({"id": unit, "text": label})
 
     return jsonify(result)
+
+@tolls_bp.route('/api/transponders/<transponder_id>', methods=['DELETE'])
+@login_required
+def delete_transponder(transponder_id):
+    result = db['transponders'].delete_one({
+        '_id': ObjectId(transponder_id),
+        'company': current_user.company
+    })
+    if result.deleted_count == 1:
+        return jsonify({"status": "deleted"}), 200
+    else:
+        return jsonify({"error": "Not found"}), 404
