@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
-from bson.objectid import ObjectId
+from flask import current_app
+from bson.objectid import ObjectId, InvalidId
 from Test.tools.db import db  # централизованное подключение к базе
 
 tolls_bp = Blueprint('tolls', __name__)
@@ -19,6 +20,8 @@ def get_transponders():
     items = list(transponders_collection.find({'company': current_user.company}))
     for item in items:
         item['_id'] = str(item['_id'])
+        if 'vehicle' in item and isinstance(item['vehicle'], ObjectId):
+            item['vehicle'] = str(item['vehicle'])
     return jsonify(items)
 
 
@@ -51,7 +54,10 @@ def get_trucks():
         year = t.get('year', '')
 
         label = f"{unit} — {make} {model} {year}".strip()
-        result.append({"id": unit, "text": label})
+        result.append({
+            "id": str(t["_id"]),  # ✅ ObjectId как строка
+            "text": f"{t.get('unit_number', '')} — {t.get('make', '')} {t.get('model', '')} {t.get('year', '')}"
+        })
 
     return jsonify(result)
 
@@ -202,21 +208,41 @@ def bulk_import_tolls():
     }), 200
 
 
+from bson import ObjectId
+
 @tolls_bp.route('/api/tolls_summary', methods=['GET'])
 @login_required
 def tolls_summary():
     company = current_user.company
 
-    # Получаем все транспондеры
     transponders = list(db['transponders'].find({'company': company}))
     summary = []
 
     for t in transponders:
         serial = t.get('serial_number')
-        if not serial:
-            continue
+        vehicle_id = t.get('vehicle')
 
-        # Находим все толлы по этому serial_number → tag_id
+        # Получаем юнит (если указан)
+        unit_info = {
+            'unit_number': '',
+            'make': '',
+            'model': '',
+            'year': ''
+        }
+
+        if vehicle_id:
+            truck = db['trucks'].find_one({
+                '_id': ObjectId(vehicle_id),
+                'company': company
+            })
+            if truck:
+                unit_info = {
+                    'unit_number': truck.get('unit_number', ''),
+                    'make': truck.get('make', ''),
+                    'model': truck.get('model', ''),
+                    'year': truck.get('year', '')
+                }
+
         matches = list(db['all_tolls'].find({
             'company': company,
             'tag_id': serial
@@ -231,7 +257,36 @@ def tolls_summary():
         summary.append({
             'serial_number': serial,
             'count': count,
-            'total': round(total, 2)
+            'total': round(total, 2),
+            **unit_info
         })
 
     return jsonify(summary)
+
+from bson.objectid import ObjectId, InvalidId
+
+@tolls_bp.route('/api/transponders/<transponder_id>/assign_vehicle', methods=['PATCH'])
+@login_required
+def assign_vehicle_to_transponder(transponder_id):
+    vehicle_id = request.json.get('vehicle')
+    company = current_user.company
+
+    current_app.logger.info(f"🛠️ PATCH транспондер {transponder_id}, vehicle: {vehicle_id}, company: {company}")
+
+    try:
+        update = {'vehicle': ObjectId(vehicle_id)} if vehicle_id else {'vehicle': None}
+    except (InvalidId, TypeError):
+        current_app.logger.warning("⚠️ Невалидный ObjectId")
+        return jsonify({'error': 'Invalid vehicle ID'}), 400
+
+    result = db['transponders'].update_one(
+        {'_id': ObjectId(transponder_id), 'company': company},
+        {'$set': update}
+    )
+
+    current_app.logger.info(f"📝 Modified count: {result.modified_count}")
+
+    if result.modified_count == 1:
+        return jsonify({'status': 'updated'})
+    else:
+        return jsonify({'error': 'not found or not updated'}), 400

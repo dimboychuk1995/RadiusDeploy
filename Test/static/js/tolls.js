@@ -75,23 +75,57 @@ function loadTransponders() {
     fetch('/api/transponders')
         .then(res => res.json())
         .then(data => {
-            if (Array.isArray(data)) {
-                data.forEach(item => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${item.serial_number || ''}</td>
-                        <td>${item.vehicle_class || ''}</td>
-                        <td>${item.transponder_type || ''}</td>
-                        <td>${item.status || ''}</td>
-                        <td>${item.vehicle || ''}</td>
-                        <td>${item.provider || ''}</td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" onclick="deleteTransponder('${item._id}')">Удалить</button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
+            if (!Array.isArray(data)) return;
+
+            fetch('/api/trucks')
+                .then(res => res.json())
+                .then(trucks => {
+                    data.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.serial_number || ''}</td>
+                            <td>${item.vehicle_class || ''}</td>
+                            <td>${item.transponder_type || ''}</td>
+                            <td>${item.status || ''}</td>
+                            <td>
+                                <select class="form-control form-control-sm vehicle-select" data-id="${item._id}">
+                                    <option value="">—</option>
+                                </select>
+                            </td>
+                            <td>${item.provider || ''}</td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" onclick="deleteTransponder('${item._id}')">Удалить</button>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    // Заполняем все <select> списком юнитов
+                    document.querySelectorAll('.vehicle-select').forEach(select => {
+                        const id = select.dataset.id;
+                        const row = data.find(row => row._id === id);
+                        trucks.forEach(truck => {
+                            const option = document.createElement('option');
+                            option.value = truck.id;
+                            option.textContent = truck.text;
+                            if (row.vehicle === truck.id) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+
+                        // При изменении значения — отправляем PATCH
+                        select.addEventListener('change', () => {
+                            fetch(`/api/transponders/${id}/assign_vehicle`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ vehicle: select.value })
+                            }).then(res => {
+                                if (!res.ok) alert('Ошибка при обновлении юнита');
+                            });
+                        });
+                    });
                 });
-            }
         })
         .catch(err => console.error("Ошибка загрузки транспондеров:", err));
 }
@@ -414,6 +448,10 @@ function loadTollsSummary() {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${item.serial_number}</td>
+                    <td>${item.unit_number}</td>
+                    <td>${item.make}</td>
+                    <td>${item.model}</td>
+                    <td>${item.year}</td>
                     <td>${item.count}</td>
                     <td>$${item.total.toFixed(2)}</td>
                 `;
@@ -424,3 +462,4 @@ function loadTollsSummary() {
             console.error("Ошибка загрузки Toll Summary:", err);
         });
 }
+
