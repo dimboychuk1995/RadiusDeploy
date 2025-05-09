@@ -52,6 +52,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initLoadParser();
                     } else if (url.includes('tolls')) {
                         initTolls?.();
+                        initTransponderForm();
+                        loadTransponders();
                     }
                 });
         }

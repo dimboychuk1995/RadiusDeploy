@@ -15,6 +15,9 @@
 </div>
 
 <div id="transponders-section" style="display: none;">
+    <div class="mb-3 text-end">
+        <button class="btn btn-primary" onclick="openTransponderModal()">➕ Добавить транспондер</button>
+    </div>
     <div class="table-responsive">
         <table class="table table-striped table-bordered">
             <thead class="thead-dark">
@@ -36,3 +39,70 @@
 <div id="all-tolls-section" style="display: none;">
     <p>Здесь будет полный список толлов.</p>
 </div>
+
+
+<!-- 🟦 Модалка добавления транспондера -->
+<div class="custom-offcanvas custom-offcanvas-right" id="addTransponderModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title" id="transponderModalTitle">Добавить транспондер</h5>
+      <button type="button" class="close" onclick="closeTransponderModal()"><span>&times;</span></button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <!-- Левая часть формы -->
+        <div class="load-modal-left">
+          <form id="transponderForm">
+            <div class="form-group mb-3">
+              <label>Serial Number:</label>
+              <input type="text" class="form-control" name="serial_number" required>
+            </div>
+            <div class="form-group mb-3">
+              <label>Vehicle Class:</label>
+              <input type="text" class="form-control" name="vehicle_class">
+            </div>
+            <div class="form-group mb-3">
+              <label>Transponder Type:</label>
+              <input type="text" class="form-control" name="transponder_type">
+            </div>
+            <div class="form-group mb-3">
+              <label>Status:</label>
+              <select class="form-control" name="status">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div class="form-group mb-3">
+              <label>Vehicle:</label>
+              <input type="text" class="form-control" name="vehicle">
+            </div>
+            <div class="form-group mb-3">
+              <label>Provider:</label>
+              <input type="text" class="form-control" name="provider">
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeTransponderModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Правая часть (импорт) -->
+        <div class="load-modal-right">
+          <div class="upload-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64">
+              <path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/>
+            </svg>
+            <strong>Import Transponder PDF</strong>
+            <p class="text-muted">Drag and drop or <label for="transponderPdfInput">choose PDF</label> to upload</p>
+            <input type="file" id="transponderPdfInput" accept="application/pdf">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" onclick="closeTransponderModal()"></div>
