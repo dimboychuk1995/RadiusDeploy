@@ -1,22 +1,3 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const rightInput = document.getElementById('rightFileInput');
-    const leftInput = document.getElementById('leftFileInput');
-
-    if (rightInput && leftInput) {
-        rightInput.addEventListener('change', () => {
-            if (rightInput.files.length > 0) {
-                leftInput.files = rightInput.files;
-            }
-        });
-
-        leftInput.addEventListener('change', () => {
-            if (leftInput.files.length > 0) {
-                rightInput.files = leftInput.files;
-            }
-        });
-    }
-});
-
 function initFleetUnitClicks() {
     document.querySelectorAll(".clickable-row").forEach(row => {
         row.addEventListener("click", () => {
@@ -24,12 +5,13 @@ function initFleetUnitClicks() {
             fetch(`/fragment/fleet_unit_details/${unitId}`)
                 .then(res => res.text())
                 .then(html => {
-                    // Скрыть все секции
                     document.querySelectorAll(".content-section").forEach(s => s.style.display = "none");
 
                     const details = document.getElementById("unit_details_fragment");
                     details.innerHTML = html;
                     details.style.display = "block";
+
+                    initServiceFileParser(); // подгружаем слушатель после вставки
                 });
         });
     });
@@ -68,10 +50,75 @@ function submitServiceForm(e) {
         const details = document.getElementById("unit_details_fragment");
         details.innerHTML = html;
         details.style.display = "block";
+
+        initServiceFileParser();
     })
     .catch(err => {
         alert("❌ " + err.message);
     });
 }
 
+function initServiceFileParser() {
+    const rightInput = document.getElementById('rightFileInput');
+    const leftInput = document.getElementById('leftFileInput');
 
+    if (rightInput && leftInput) {
+        rightInput.addEventListener('change', () => {
+            if (rightInput.files.length > 0) {
+                leftInput.files = rightInput.files;
+
+                const file = rightInput.files[0];
+                console.log("📂 Выбран файл:", file.name);
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                fetch('/api/analyze_service_file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.fields) {
+                        const f = data.fields;
+
+                        const parseDate = (d) => {
+                            const parts = d.split('/');
+                            return parts.length === 3
+                                ? `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
+                                : '';
+                        };
+
+                        const cleanNumber = (str) => {
+                            if (!str) return '';
+                            return str.replace(/[^\d.]/g, '');
+                        };
+
+                        document.querySelector('[name="date"]').value = parseDate(f.date || '');
+                        document.querySelector('[name="invoice_no"]').value = f.invoice_no || '';
+                        document.querySelector('[name="shop"]').value = f.shop || '';
+                        document.querySelector('[name="shop_address"]').value = f.shop_address || '';
+                        document.querySelector('[name="phone_number"]').value = f.phone_number || '';
+                        document.querySelector('[name="mileage"]').value = cleanNumber(f.mileage);
+                        document.querySelector('[name="amount"]').value = cleanNumber(f.amount);
+                        document.querySelector('[name="description"]').value = f.description || '';
+                    } else {
+                        alert("GPT didn't return expected data");
+                    }
+                })
+                .catch(err => {
+                    console.error("Ошибка анализа:", err);
+                    alert("Ошибка при анализе документа");
+                });
+            }
+        });
+
+        leftInput.addEventListener('change', () => {
+            if (leftInput.files.length > 0) {
+                rightInput.files = leftInput.files;
+            }
+        });
+    } else {
+        console.warn("⚠️ Не найден файл input (rightFileInput / leftFileInput)");
+    }
+}
