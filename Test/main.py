@@ -12,6 +12,7 @@ from statement import statement_bp
 from flask_login import current_user
 from fuel_cards import fuel_cards_bp
 from Test.integrations import integrations_bp
+from tolls import tolls_bp
 import os
 
 app = Flask(__name__)
@@ -30,7 +31,7 @@ app.register_blueprint(statement_bp)
 app.register_blueprint(fuel_cards_bp)
 app.register_blueprint(integrations_bp)
 app.register_blueprint(samsara_bp)
-
+app.register_blueprint(tolls_bp)
 
 
 login_manager.init_app(app)

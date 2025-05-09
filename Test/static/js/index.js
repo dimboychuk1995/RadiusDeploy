@@ -6,9 +6,10 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
         'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
-        'btn-statements': { id: 'section-statements', url: '/statement/fragment' }, // 🔹 Новый блок
+        'btn-statements': { id: 'section-statements', url: '/statement/fragment' },
         'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' },
-        'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' }// 🔹 Новый блок
+        'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' },
+        'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' } // ✅ Новый блок
     };
 
     function loadFragment(sectionId, url) {
@@ -49,6 +50,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initLoadParser?.();
                         initLoads?.();
                         initLoadParser();
+                    } else if (url.includes('tolls')) {
+                        initTolls?.();
                     }
                 });
         }
