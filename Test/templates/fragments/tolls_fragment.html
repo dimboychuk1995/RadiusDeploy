@@ -1,22 +1,38 @@
-<h2>Толлы</h2>
+<h2 class="text-center mb-4">Толлы</h2>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <button class="btn btn-primary" onclick="openTollModal()">➕ Добавить толл</button>
+<!-- 🔘 Навигационная панель -->
+<div class="d-flex justify-content-center mb-4">
+    <div class="btn-group" role="group" aria-label="Tolls Navigation">
+        <button type="button" class="btn btn-outline-primary active" id="btn-tolls-summary">Tolls Summary</button>
+        <button type="button" class="btn btn-outline-primary" id="btn-transponders">Transponders</button>
+        <button type="button" class="btn btn-outline-primary" id="btn-all-tolls">All Tolls</button>
+    </div>
 </div>
 
-<!-- Таблица или контент -->
-<div id="tollTableWrapper">
-    <!-- Тут будет таблица с толлами -->
-    <p>Здесь будет отображаться список толлов...</p>
+<!-- 📦 Контейнеры под контент -->
+<div id="tolls-summary-section">
+    <p>Здесь будет отображаться итоговая информация по толлам.</p>
 </div>
 
-<!-- Модальное окно добавления (будет реализовано позже) -->
-<div class="offcanvas offcanvas-end custom-offcanvas" tabindex="-1" id="addTollModal">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title">Добавить толл</h5>
-    <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
-  </div>
-  <div class="offcanvas-body">
-    <p>Форма добавления толла будет здесь.</p>
-  </div>
+<div id="transponders-section" style="display: none;">
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered">
+            <thead class="thead-dark">
+                <tr>
+                    <th>Serial Number</th>
+                    <th>Vehicle Class</th>
+                    <th>Transponder Type</th>
+                    <th>Status</th>
+                    <th>Vehicle</th>
+                    <th>Provider</th>
+                </tr>
+            </thead>
+            <tbody id="transpondersTableBody">
+                <!-- Данные будут добавляться динамически -->
+            </tbody>
+        </table>
+    </div>
+</div>
+<div id="all-tolls-section" style="display: none;">
+    <p>Здесь будет полный список толлов.</p>
 </div>
