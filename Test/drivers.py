@@ -45,15 +45,16 @@ def drivers_fragment():
         truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
         dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
 
-        for driver in drivers:
-            driver = convert_to_str_id(driver)
-            driver['truck_unit'] = truck_units.get(driver.get('truck'), 'Нет трака')
-            driver['dispatcher_name'] = dispatcher_map.get(driver.get('dispatcher'), 'Нет диспетчера')
+        for i in range(len(drivers)):
+            drivers[i] = convert_to_str_id(drivers[i])
+            drivers[i]['truck_unit'] = truck_units.get(str(drivers[i].get('truck')), 'Нет трака')
+            drivers[i]['dispatcher_name'] = dispatcher_map.get(str(drivers[i].get('dispatcher')), 'Нет диспетчера')
 
         return render_template('fragments/drivers_fragment.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers)
     except Exception as e:
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
+
 
 @drivers_bp.route('/add_driver', methods=['POST'])
 @login_required
@@ -88,8 +89,8 @@ def add_driver():
             'dob': to_mmddyyyy(request.form.get('dob')),
             'driver_type': request.form.get('driver_type'),
             'status': request.form.get('status', 'В процессе принятия'),
-            'truck': request.form.get('truck'),
-            'dispatcher': request.form.get('dispatcher'),
+            'truck': ObjectId(request.form.get('truck')) if request.form.get('truck') else None,
+            'dispatcher': ObjectId(request.form.get('dispatcher')) if request.form.get('dispatcher') else None,
             'company': current_user.company,
             'license': {
                 'number': request.form.get('license_number'),
