@@ -185,3 +185,11 @@ def delete_service(service_id):
     except Exception as e:
         logging.error(f"Ошибка при удалении сервиса: {e}")
         return jsonify({'success': False, 'error': 'Ошибка при удалении'}), 500
+
+
+@fleet_bp.route('/fragment/service_details/<service_id>', methods=['GET'])
+@login_required
+def service_details_fragment(service_id):
+    service = db['fleet_services'].find_one({'_id': ObjectId(service_id)})
+    unit = db['trucks'].find_one({'_id': service['unit_id']}) if service else None
+    return render_template('fragments/service_details_fragment.html', service=service, unit=unit)

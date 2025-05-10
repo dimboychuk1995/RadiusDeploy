@@ -147,3 +147,26 @@ function deleteService(serviceId, unitId) {
         alert("❌ " + err.message);
     });
 }
+
+function openServiceDetails(serviceId) {
+    fetch(`/fragment/service_details/${serviceId}`)
+        .then(res => res.text())
+        .then(html => {
+            document.querySelectorAll(".content-section").forEach(s => s.style.display = "none");
+            const target = document.getElementById("section-service-details");
+            target.innerHTML = html;
+            target.style.display = "block";
+        });
+}
+
+function goBackToUnitDetails(unitId) {
+    fetch(`/fragment/fleet_unit_details/${unitId}`)
+        .then(res => res.text())
+        .then(html => {
+            document.querySelectorAll(".content-section").forEach(s => s.style.display = "none");
+            const details = document.getElementById("unit_details_fragment");
+            details.innerHTML = html;
+            details.style.display = "block";
+            initServiceFileParser();
+        });
+}

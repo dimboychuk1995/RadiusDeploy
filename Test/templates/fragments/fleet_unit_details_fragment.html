@@ -37,6 +37,9 @@
                 —
               {% endif %}
               <button class="btn btn-sm btn-danger ml-2" onclick="deleteService('{{ service._id }}', '{{ unit._id }}')">🗑</button>
+
+                <button class="btn btn-sm btn-info ml-2" onclick="openServiceDetails('{{ service._id }}')">Детали</button>
+
             </td>
         </tr>
         {% endfor %}
