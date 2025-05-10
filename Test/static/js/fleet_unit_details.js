@@ -170,3 +170,15 @@ function goBackToUnitDetails(unitId) {
             initServiceFileParser();
         });
 }
+
+function goBackToFleet() {
+    const sectionFleet = document.getElementById("section-fleet");
+    const unitDetails = document.getElementById("unit_details_fragment");
+
+    // Скрыть детали
+    unitDetails.style.display = "none";
+    unitDetails.innerHTML = "";
+
+    // Показать fleet
+    sectionFleet.style.display = "block";
+}
