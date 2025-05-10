@@ -175,3 +175,13 @@ def analyze_service_file():
         logging.error(f"Ошибка при анализе документа: {e}")
         return jsonify({'success': False, 'error': 'Ошибка при анализе документа'}), 500
 
+
+@fleet_bp.route('/fleet/delete_service/<service_id>', methods=['POST'])
+@login_required
+def delete_service(service_id):
+    try:
+        db['fleet_services'].delete_one({'_id': ObjectId(service_id)})
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Ошибка при удалении сервиса: {e}")
+        return jsonify({'success': False, 'error': 'Ошибка при удалении'}), 500

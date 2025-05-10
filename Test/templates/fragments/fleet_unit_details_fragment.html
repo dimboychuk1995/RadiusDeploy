@@ -16,7 +16,7 @@
             <th>Тип</th>
             <th>Пробег</th>
             <th>Сумма</th>
-            <th>Файл</th>
+            <th>Действия</th>
         </tr>
     </thead>
     <tbody>
@@ -31,11 +31,12 @@
             <td>{{ service.mileage }}</td>
             <td>${{ '%.2f'|format(service.amount) }}</td>
             <td>
-                {% if service.file %}
-                    <a href="{{ url_for('fleet.download_service_file', service_id=service._id) }}" target="_blank">📄</a>
-                {% else %}
-                    —
-                {% endif %}
+              {% if service.file %}
+                <a href="{{ url_for('fleet.download_service_file', service_id=service._id) }}" target="_blank">📄</a>
+              {% else %}
+                —
+              {% endif %}
+              <button class="btn btn-sm btn-danger ml-2" onclick="deleteService('{{ service._id }}', '{{ unit._id }}')">🗑</button>
             </td>
         </tr>
         {% endfor %}

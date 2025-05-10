@@ -122,3 +122,28 @@ function initServiceFileParser() {
         console.warn("⚠️ Не найден файл input (rightFileInput / leftFileInput)");
     }
 }
+
+function deleteService(serviceId, unitId) {
+    if (!confirm("Удалить этот сервис/ремонт?")) return;
+
+    fetch(`/fleet/delete_service/${serviceId}`, {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            return fetch(`/fragment/fleet_unit_details/${unitId}`).then(r => r.text());
+        } else {
+            throw new Error(data.error || "Не удалось удалить");
+        }
+    })
+    .then(html => {
+        const details = document.getElementById("unit_details_fragment");
+        details.innerHTML = html;
+        details.style.display = "block";
+        initServiceFileParser(); // обновляем слушатели
+    })
+    .catch(err => {
+        alert("❌ " + err.message);
+    });
+}
