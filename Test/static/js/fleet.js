@@ -26,3 +26,43 @@ function initFleet() {
         });
     });
 }
+
+
+
+function loadFleetCharts() {
+  fetch('/api/fleet/stats/charts')
+    .then(res => res.json())
+    .then(data => {
+      renderPieChart('chartShops', 'Shops', data.shops);
+      renderPieChart('chartStates', 'States', data.states);
+      renderPieChart('chartAmounts', 'Invoice Amounts', data.amounts);
+      renderPieChart('chartPlaceholder', 'Reserved', { "Pending": 1 });
+    })
+    .catch(err => {
+      console.error("Failed to load fleet charts:", err);
+    });
+}
+
+function renderPieChart(id, label, dataMap) {
+  const ctx = document.getElementById(id).getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: Object.keys(dataMap),
+      datasets: [{
+        label: label,
+        data: Object.values(dataMap),
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+}
+

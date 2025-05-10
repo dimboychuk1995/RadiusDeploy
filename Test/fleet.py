@@ -193,3 +193,54 @@ def service_details_fragment(service_id):
     service = db['fleet_services'].find_one({'_id': ObjectId(service_id)})
     unit = db['trucks'].find_one({'_id': service['unit_id']}) if service else None
     return render_template('fragments/service_details_fragment.html', service=service, unit=unit)
+
+
+@fleet_bp.route('/api/fleet/stats/charts', methods=['GET'])
+@login_required
+def fleet_stats_charts():
+    company_filter = {'company': current_user.company}
+
+    services = list(db['fleet_services'].find({}))  # можно добавить фильтр по компании, если есть поле
+
+    # === Сервисы ===
+    shops = {}
+    for s in services:
+        shop = s.get('shop', 'Unknown').strip()
+        if shop:
+            shops[shop] = shops.get(shop, 0) + 1
+
+    # === Штаты (пытаемся извлечь 2-буквенный код из адреса) ===
+    import re
+    states = {}
+    for s in services:
+        addr = s.get('shop_address', '')
+        match = re.search(r'\b([A-Z]{2})\b', addr)
+        if match:
+            state = match.group(1)
+            states[state] = states.get(state, 0) + 1
+        else:
+            states['Unknown'] = states.get('Unknown', 0) + 1
+
+    # === Суммы инвойсов по диапазонам ===
+    amounts = {
+        '$0-99': 0,
+        '$100-199': 0,
+        '$200-299': 0,
+        '$300+': 0
+    }
+    for s in services:
+        amt = s.get('amount', 0)
+        if amt < 100:
+            amounts['$0-99'] += 1
+        elif amt < 200:
+            amounts['$100-199'] += 1
+        elif amt < 300:
+            amounts['$200-299'] += 1
+        else:
+            amounts['$300+'] += 1
+
+    return jsonify({
+        'shops': shops,
+        'states': states,
+        'amounts': amounts
+    })

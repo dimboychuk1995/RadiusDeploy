@@ -42,7 +42,24 @@
 
 <!-- Секция: Статистика -->
 <div id="fleet-stats-section" style="display: none;">
-    <p>Здесь будет статистика по флоту.</p>
+    <div class="container mt-4">
+      <h4 class="mb-4">📊 Статистика по флоту</h4>
+
+      <div class="row">
+        <div class="col-md-6 col-lg-4 mb-4">
+          <canvas id="chartShops" style="max-height: 300px;"></canvas>
+        </div>
+        <div class="col-md-6 col-lg-4 mb-4">
+          <canvas id="chartStates" style="max-height: 300px;"></canvas>
+        </div>
+        <div class="col-md-6 col-lg-4 mb-4">
+          <canvas id="chartAmounts" style="max-height: 300px;"></canvas>
+        </div>
+        <div class="col-md-6 col-lg-4 mb-4">
+          <canvas id="chartPlaceholder" style="max-height: 300px;"></canvas>
+        </div>
+      </div>
+    </div>
 </div>
 
 <!-- Секция: Другое -->

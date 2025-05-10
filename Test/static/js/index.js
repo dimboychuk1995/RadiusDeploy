@@ -64,6 +64,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('fleet')) {
                         initFleet();
                         initFleetUnitClicks?.();
+                        loadFleetCharts();
                     }
                 });
         }
