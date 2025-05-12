@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from flask import current_app
 from Test.tools.db import db  # централизованное подключение к базе
-
+from bson.objectid import ObjectId, InvalidId
 
 tolls_bp = Blueprint('tolls', __name__)
 transponders_collection = db['transponders']
@@ -206,10 +206,24 @@ def bulk_import_tolls():
     }), 200
 
 
+from datetime import datetime
+
 @tolls_bp.route('/api/tolls_summary', methods=['GET'])
 @login_required
 def tolls_summary():
     company = current_user.company
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    start_dt = None
+    end_dt = None
+
+    if start_date_str and end_date_str:
+        try:
+            start_dt = datetime.strptime(start_date_str, "%m/%d/%Y")
+            end_dt = datetime.strptime(end_date_str, "%m/%d/%Y")
+        except ValueError:
+            pass  # неверный формат — игнорируем
 
     transponders = list(db['transponders'].find({'company': company}))
     summary = []
@@ -218,19 +232,9 @@ def tolls_summary():
         serial = t.get('serial_number')
         vehicle_id = t.get('vehicle')
 
-        # Получаем юнит (если указан)
-        unit_info = {
-            'unit_number': '',
-            'make': '',
-            'model': '',
-            'year': ''
-        }
-
+        unit_info = {'unit_number': '', 'make': '', 'model': '', 'year': ''}
         if vehicle_id:
-            truck = db['trucks'].find_one({
-                '_id': ObjectId(vehicle_id),
-                'company': company
-            })
+            truck = db['trucks'].find_one({'_id': ObjectId(vehicle_id), 'company': company})
             if truck:
                 unit_info = {
                     'unit_number': truck.get('unit_number', ''),
@@ -239,15 +243,19 @@ def tolls_summary():
                     'year': truck.get('year', '')
                 }
 
-        matches = list(db['all_tolls'].find({
-            'company': company,
-            'tag_id': serial
-        }))
+        query = {'company': company, 'tag_id': serial}
+        if start_dt and end_dt:
+            query['posting_date'] = {
+                '$gte': start_dt.strftime('%m/%d/%Y'),
+                '$lte': end_dt.strftime('%m/%d/%Y') + ' 23:59:59'
+            }
+
+        matches = list(db['all_tolls'].find(query))
 
         count = len(matches)
         total = sum(
             float(toll.get('amount', 0)) for toll in matches
-            if isinstance(toll.get('amount'), (int, float)) or str(toll.get('amount')).replace('.', '', 1).replace('-', '').isdigit()
+            if isinstance(toll.get('amount'), (int, float)) or str(toll.get('amount')).replace('$', '').replace(',', '').replace('-', '').replace('.', '').isdigit()
         )
 
         summary.append({
@@ -259,7 +267,6 @@ def tolls_summary():
 
     return jsonify(summary)
 
-from bson.objectid import ObjectId, InvalidId
 
 @tolls_bp.route('/api/transponders/<transponder_id>/assign_vehicle', methods=['PATCH'])
 @login_required

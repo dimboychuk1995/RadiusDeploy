@@ -451,13 +451,18 @@ function initTollCsvUpload() {
 
 
 
-function loadTollsSummary() {
+function loadTollsSummary(start = null, end = null) {
     const tbody = document.getElementById('tollsSummaryTableBody');
     if (!tbody) return;
 
     tbody.innerHTML = '';
 
-    fetch('/api/tolls_summary')
+    let url = '/api/tolls_summary';
+    if (start && end) {
+        url += `?start_date=${start}&end_date=${end}`;
+    }
+
+    fetch(url)
         .then(res => res.json())
         .then(data => {
             data.forEach(item => {
@@ -477,5 +482,55 @@ function loadTollsSummary() {
         .catch(err => {
             console.error("Ошибка загрузки Toll Summary:", err);
         });
+}
+
+
+
+function getWeekRange(baseDate) {
+    const monday = new Date(baseDate);
+    const day = monday.getDay();
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // понедельник
+    monday.setDate(diff);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6); // воскресенье
+
+    return {
+        start: formatDate(monday),
+        end: formatDate(sunday)
+    };
+}
+
+function formatDate(dateObj) {
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const yyyy = dateObj.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+}
+
+function populateTollSummaryWeeks() {
+    const select = document.getElementById('tollSummaryWeekSelect');
+    if (!select) return;
+
+    const today = new Date();
+    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    for (let i = 0; i < 12; i++) {
+        const range = getWeekRange(new Date(base.getFullYear(), base.getMonth(), base.getDate() - i * 7));
+        const option = document.createElement('option');
+        option.value = `${range.start}|${range.end}`;
+        option.textContent = `${range.start} – ${range.end}`;
+        select.appendChild(option);
+    }
+
+    select.addEventListener('change', () => {
+        const val = select.value;
+        if (val) {
+            const [start, end] = val.split('|');
+            loadTollsSummary(start, end);
+        } else {
+            loadTollsSummary();
+        }
+    });
 }
 
