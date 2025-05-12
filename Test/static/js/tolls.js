@@ -343,6 +343,7 @@ function deleteToll(id) {
     });
 }
 
+
 function initTollCsvUpload() {
     const input = document.getElementById('tollCsvInput');
     if (!input) return;
@@ -377,8 +378,19 @@ function initTollCsvUpload() {
             "Agency": "agency"
         };
 
+        const formatDateTime = (str) => {
+            if (!str) return '';
+            const [datePart, timePart] = str.trim().split(' ');
+            const [year, month, day] = datePart.split(/[\/\-\.]/);
+            if (year && month && day) {
+                const dateFormatted = `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`;
+                return timePart ? `${dateFormatted} ${timePart}` : dateFormatted;
+            }
+            return str;
+        };
+
         const originalHeaders = rows[0].split(delimiter).map(h =>
-            h.trim().replace(/^"(.*)"$/, '$1') // удаляет двойные кавычки
+            h.trim().replace(/^"(.*)"$/, '$1')
         );
 
         console.log("🔎 Заголовки из CSV:", originalHeaders);
@@ -399,6 +411,8 @@ function initTollCsvUpload() {
                     let val = cols[idx].trim();
                     if (key === 'amount') {
                         val = parseFloat(val.replace('$', '').replace(',', '')) || 0;
+                    } else if (key === 'posting_date' || key === 'exit_date') {
+                        val = formatDateTime(val);
                     }
                     obj[key] = val;
                 }
@@ -424,16 +438,18 @@ function initTollCsvUpload() {
 
         if (res.ok) {
             const result = await res.json();
-                alert(`Импорт завершён:
-                ✅ Добавлено: ${result.inserted}
-                🔁 Обновлено: ${result.updated}
-                ⏩ Пропущено: ${result.skipped}`);
-                loadAllTolls();
+            alert(`Импорт завершён:
+            ✅ Добавлено: ${result.inserted}
+            🔁 Обновлено: ${result.updated}
+            ⏩ Пропущено: ${result.skipped}`);
+            loadAllTolls();
         } else {
             alert("Ошибка при импорте Toll'ов");
         }
     };
 }
+
+
 
 function loadTollsSummary() {
     const tbody = document.getElementById('tollsSummaryTableBody');

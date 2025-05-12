@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from flask import current_app
-from bson.objectid import ObjectId, InvalidId
 from Test.tools.db import db  # централизованное подключение к базе
+
 
 tolls_bp = Blueprint('tolls', __name__)
 transponders_collection = db['transponders']
@@ -11,7 +11,6 @@ transponders_collection = db['transponders']
 @login_required
 def tolls_fragment():
     return render_template('fragments/tolls_fragment.html')
-
 
 # ✅ Получить все транспондеры
 @tolls_bp.route('/api/transponders', methods=['GET'])
@@ -159,56 +158,53 @@ def delete_toll(toll_id):
     else:
         return jsonify({'error': 'Not found'}), 404
 
-
 @tolls_bp.route('/api/tolls/bulk', methods=['POST'])
 @login_required
 def bulk_import_tolls():
+    import hashlib
+    import json
+
+    def compute_import_hash(item):
+        # Исключаем технические поля
+        data = {k: v for k, v in item.items() if k not in ['_id', 'company']}
+        # Сортировка ключей гарантирует одинаковый порядок
+        stringified = json.dumps(data, sort_keys=True, ensure_ascii=False)
+        return hashlib.md5(stringified.encode('utf-8')).hexdigest()
+
     items = request.json.get('items', [])
     company = current_user.company
 
     inserted = 0
-    updated = 0
     skipped = 0
+    used_hashes = set()
 
     for item in items:
         item['company'] = company
-        tag_id = item.get('tag_id')
-        posting_date = item.get('posting_date')
+        item['import_hash'] = compute_import_hash(item)
 
-        if not tag_id or not posting_date:
+        if not item['import_hash'] or item['import_hash'] in used_hashes:
+            skipped += 1
             continue
 
+        used_hashes.add(item['import_hash'])
+
         existing = db['all_tolls'].find_one({
-            'tag_id': tag_id,
-            'posting_date': posting_date,
+            'import_hash': item['import_hash'],
             'company': company
         })
 
         if existing:
-            # Проверка: есть ли отличия
-            fields_to_compare = set(item.keys()) - {'_id', 'company'}
-            is_different = any(item.get(field) != existing.get(field) for field in fields_to_compare)
-
-            if is_different:
-                db['all_tolls'].update_one(
-                    {'_id': existing['_id']},
-                    {'$set': item}
-                )
-                updated += 1
-            else:
-                skipped += 1
+            skipped += 1
         else:
             db['all_tolls'].insert_one(item)
             inserted += 1
 
     return jsonify({
         "inserted": inserted,
-        "updated": updated,
+        "updated": 0,
         "skipped": skipped
     }), 200
 
-
-from bson import ObjectId
 
 @tolls_bp.route('/api/tolls_summary', methods=['GET'])
 @login_required
