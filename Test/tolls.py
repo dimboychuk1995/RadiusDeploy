@@ -232,16 +232,36 @@ def tolls_summary():
         serial = t.get('serial_number')
         vehicle_id = t.get('vehicle')
 
-        unit_info = {'unit_number': '', 'make': '', 'model': '', 'year': ''}
+        unit_info = {
+            'unit_number': '',
+            'make': '',
+            'model': '',
+            'year': '',
+            'driver_name': ''
+        }
+
         if vehicle_id:
-            truck = db['trucks'].find_one({'_id': ObjectId(vehicle_id), 'company': company})
+            truck = db['trucks'].find_one({
+                '_id': ObjectId(vehicle_id),
+                'company': company
+            })
+
             if truck:
-                unit_info = {
+                unit_info.update({
                     'unit_number': truck.get('unit_number', ''),
                     'make': truck.get('make', ''),
                     'model': truck.get('model', ''),
                     'year': truck.get('year', '')
-                }
+                })
+
+                # Найти водителя по этому траку
+                driver = db['drivers'].find_one({
+                    'truck': truck['_id'],
+                    'company': company
+                })
+
+                if driver:
+                    unit_info['driver_name'] = driver.get('name', '')
 
         query = {'company': company, 'tag_id': serial}
         if start_dt and end_dt:

@@ -469,6 +469,7 @@ function loadTollsSummary(start = null, end = null) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${item.serial_number}</td>
+                    <td>${item.driver_name || ''}</td>
                     <td>${item.unit_number}</td>
                     <td>${item.make}</td>
                     <td>${item.model}</td>
@@ -515,11 +516,22 @@ function populateTollSummaryWeeks() {
     const today = new Date();
     const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
+    let defaultValue = '';
+
     for (let i = 0; i < 12; i++) {
         const range = getWeekRange(new Date(base.getFullYear(), base.getMonth(), base.getDate() - i * 7));
+        const value = `${range.start}|${range.end}`;
+        const label = `${range.start} – ${range.end}`;
+
         const option = document.createElement('option');
-        option.value = `${range.start}|${range.end}`;
-        option.textContent = `${range.start} – ${range.end}`;
+        option.value = value;
+        option.textContent = label;
+
+        if (i === 1) {
+            option.selected = true;
+            defaultValue = value;
+        }
+
         select.appendChild(option);
     }
 
@@ -532,5 +544,11 @@ function populateTollSummaryWeeks() {
             loadTollsSummary();
         }
     });
+
+    // 🚀 Автоматически загрузим прошлую неделю
+    if (defaultValue) {
+        const [start, end] = defaultValue.split('|');
+        loadTollsSummary(start, end);
+    }
 }
 
