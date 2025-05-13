@@ -120,6 +120,7 @@
             <th>Gross</th>
             <th>Топливо</th>
             <th>Толлы</th>
+            <th>Регулярные списание</th> <!-- ✅ добавлено -->
             <th>Дата создания</th>
             <th>Примечание</th>
           </tr>
@@ -128,14 +129,27 @@
           {% for s in statements %}
             <tr data-statement-id="{{ s._id }}" style="cursor: pointer;">
               <td>
-                  {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id|string) | first %}
-                  {{ driver.name if driver else 'Неизвестно' }}
+                {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id|string) | first %}
+                {{ driver.name if driver else 'Неизвестно' }}
               </td>
               <td>{{ s.week }}</td>
               <td>${{ "%.2f"|format(s.salary or 0) }}</td>
               <td>${{ "%.2f"|format(s.gross or 0) }}</td>
               <td>${{ "%.2f"|format(s.fuel or 0) }}</td>
               <td>${{ "%.2f"|format(s.tolls or 0) }}</td>
+
+              <td>
+                {% if s.applied_charges %}
+                  <ul class="mb-0 pl-3">
+                    {% for c in s.applied_charges %}
+                      <li>{{ c.type }} — ${{ "%.2f"|format(c.amount) }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="text-muted">–</span>
+                {% endif %}
+              </td>
+
               <td>{{ s.created_at }}</td>
               <td>{{ s.note }}</td>
             </tr>

@@ -13,6 +13,27 @@
 <p><strong>Gross:</strong> ${{ "%.2f"|format(statement.gross or 0) }}</p>
 <p><strong>Топливо:</strong> ${{ "%.2f"|format(statement.fuel or 0) }}</p>
 <p><strong>Толлы:</strong> ${{ "%.2f"|format(statement.tolls or 0) }}</p>
+
+<!-- ✅ ДОПОЛНИТЕЛЬНЫЕ СПИСАНИЯ -->
+<p><strong>Доп. списания:</strong></p>
+{% if statement.applied_charges %}
+  <ul class="mb-3 pl-3">
+    {% for charge in statement.applied_charges %}
+      <li>
+        {{ charge.type }} —
+        ${{ "%.2f"|format(charge.amount or 0) }}
+        {% if charge.period == 'monthly' and charge.day_of_month %}
+          (раз в месяц, {{ charge.day_of_month }} число)
+        {% elif charge.period == 'statement' %}
+          (каждый стейтмент)
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="text-muted">Списания отсутствуют</p>
+{% endif %}
+
 <p><strong>Примечание:</strong> {{ statement.note }}</p>
 <p><strong>Дата создания:</strong> {{ statement.created_at }}</p>
 

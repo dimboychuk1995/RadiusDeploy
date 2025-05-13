@@ -191,6 +191,49 @@ def create_statement():
         if not driver_id or not load_ids:
             return jsonify({'error': 'Missing driver or loads'}), 400
 
+        # Получаем дополнительные списания
+        driver = drivers_collection.find_one({'_id': ObjectId(driver_id), 'company': current_user.company})
+        additional_charges = driver.get('additional_charges', []) if driver else []
+
+        applied_charges = []
+        start = end = None
+        if week:
+            try:
+                start_str, end_str = week.split(' - ')
+                start = datetime.strptime(start_str.strip(), "%m/%d/%Y")
+                end = datetime.strptime(end_str.strip(), "%m/%d/%Y")
+            except:
+                pass
+
+        for charge in additional_charges:
+            try:
+                period = charge.get('period')
+                amount = float(charge.get('amount', 0))
+                charge_type = charge.get('type', 'charge')
+
+                if period == 'statement':
+                    applied_charges.append({
+                        'type': charge_type,
+                        'amount': amount,
+                        'period': 'statement'
+                    })
+
+                elif period == 'monthly' and start and end:
+                    day_of_month = int(charge.get('day_of_month', 0))
+                    if start.day <= day_of_month <= end.day:
+                        applied_charges.append({
+                            'type': charge_type,
+                            'amount': amount,
+                            'period': 'monthly',
+                            'day_of_month': day_of_month
+                        })
+
+            except Exception as e:
+                logging.warning(f"Ошибка обработки списания: {e}")
+
+        charges_total = sum(c['amount'] for c in applied_charges)
+        net_salary = max(0, salary - charges_total)
+
         statement_doc = {
             'driver_id': ObjectId(driver_id),
             'week': week,
@@ -198,7 +241,8 @@ def create_statement():
             'fuel': fuel,
             'tolls': tolls,
             'gross': gross,
-            'salary': salary,
+            'salary': round(net_salary, 2),
+            'applied_charges': applied_charges,
             'load_ids': [ObjectId(lid) for lid in load_ids],
             'company': current_user.company,
             'created_at': datetime.utcnow()
@@ -216,6 +260,7 @@ def create_statement():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @statement_bp.route('/statement/details/<statement_id>', methods=['GET'])
 @login_required
