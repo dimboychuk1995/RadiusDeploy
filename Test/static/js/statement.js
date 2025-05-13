@@ -25,6 +25,7 @@ function initStatementEvents() {
             detailsBlock.style.display = 'none';
             loadsBlock.style.display = 'none';
             document.getElementById("driverFuelBlock") && (document.getElementById("driverFuelBlock").style.display = "none");
+            document.getElementById("driverTollsBlock") && (document.getElementById("driverTollsBlock").style.display = "none");
             selectedDriverData = null;
             selectedLoads = [];
             return;
@@ -63,6 +64,7 @@ function initStatementEvents() {
 
                     calculateAndDisplaySalary();
                     loadFuelTransactions(driverId, weekValue);
+                    loadTollTransactions(driverId, weekValue);
                 }
 
                 document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
@@ -95,6 +97,7 @@ function initStatementEvents() {
 
             if (selectedDriverData?._id) {
                 loadFuelTransactions(selectedDriverData._id, weekValue);
+                loadTollTransactions(selectedDriverData._id, weekValue);
             }
         }
     });
@@ -151,6 +154,7 @@ function initStatementEvents() {
         });
     });
 }
+
 
 function loadFuelTransactions(driverId, weekRange) {
     const block = document.getElementById("driverFuelBlock");
@@ -361,4 +365,43 @@ function initStatementRowClicks() {
             }
         });
     });
+}
+
+function loadTollTransactions(driverId, weekRange) {
+    const block = document.getElementById("driverTollsBlock");
+    const content = document.getElementById("driverTollsContent");
+
+    if (!block || !content) return;
+
+    fetch(`/statement/driver_tolls/${driverId}/${encodeURIComponent(weekRange)}`)
+        .then(res => res.text())
+        .then(html => {
+            block.style.display = "block";
+            content.innerHTML = html;
+
+            const checkboxes = content.querySelectorAll(".toll-checkbox");
+            checkboxes.forEach(cb => {
+                cb.addEventListener("change", updateTollsTotalFromCheckboxes);
+            });
+
+            updateTollsTotalFromCheckboxes();
+        })
+        .catch(err => {
+            console.error("Ошибка загрузки толлов:", err);
+            content.innerHTML = `<p class="text-danger">Ошибка загрузки толлов</p>`;
+        });
+}
+
+function updateTollsTotalFromCheckboxes() {
+    let total = 0;
+    document.querySelectorAll(".toll-checkbox:checked").forEach(cb => {
+        const amount = parseFloat(cb.dataset.amount || 0);
+        total += amount;
+    });
+
+    const tollsInput = document.getElementById("tollsInput");
+    if (tollsInput) {
+        tollsInput.value = total.toFixed(2);
+        calculateAndDisplaySalary();
+    }
 }

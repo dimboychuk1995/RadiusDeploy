@@ -324,3 +324,53 @@ def get_driver_fuel_transactions(driver_id, week_range):
         logging.error("Ошибка при получении топливных транзакций:")
         logging.error(traceback.format_exc())
         return "<p class='text-danger'>Ошибка загрузки топлива</p>"
+
+
+@statement_bp.route('/statement/driver_tolls/<driver_id>/<path:week_range>', methods=['GET'])
+@login_required
+def get_driver_toll_transactions(driver_id, week_range):
+    try:
+        week_range = unquote(week_range)
+        start_str, end_str = week_range.split(' - ')
+        start_date = datetime.strptime(start_str.strip(), "%m/%d/%Y")
+        end_date = datetime.strptime(end_str.strip(), "%m/%d/%Y")
+
+        # Найдём транспондер по truck → driver
+        driver = drivers_collection.find_one({'_id': ObjectId(driver_id), 'company': current_user.company})
+        if not driver or not driver.get('truck'):
+            return "<p class='text-muted'>У водителя не привязан трак.</p>"
+
+        transponder = db['transponders'].find_one({
+            'vehicle': driver['truck'],
+            'company': current_user.company
+        })
+
+        if not transponder:
+            return "<p class='text-muted'>Транспондер не найден.</p>"
+
+        serial = transponder.get('serial_number')
+        if not serial:
+            return "<p class='text-muted'>У транспондера нет номера.</p>"
+
+        tolls = db['all_tolls'].find({
+            'company': current_user.company,
+            'tag_id': serial,
+            'posting_date': {
+                '$gte': start_date.strftime('%m/%d/%Y'),
+                '$lte': end_date.strftime('%m/%d/%Y') + ' 23:59:59'
+            }
+        })
+
+        parsed = [{
+            '_id': str(t['_id']),
+            'posting_date': t.get('posting_date'),
+            'plaza': t.get('plaza'),
+            'amount': t.get('amount'),
+        } for t in tolls]
+
+        return render_template('fragments/partials/driver_toll_table.html', tolls=parsed)
+
+    except Exception as e:
+        logging.error("Ошибка при получении толлов:")
+        logging.error(traceback.format_exc())
+        return "<p class='text-danger'>Ошибка загрузки толлов</p>"
