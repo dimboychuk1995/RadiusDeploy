@@ -65,6 +65,7 @@ function initStatementEvents() {
                     calculateAndDisplaySalary();
                     loadFuelTransactions(driverId, weekValue);
                     loadTollTransactions(driverId, weekValue);
+                    loadDriverCharges(selectedDriverData, weekValue); // ✅
                 }
 
                 document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
@@ -98,6 +99,7 @@ function initStatementEvents() {
             if (selectedDriverData?._id) {
                 loadFuelTransactions(selectedDriverData._id, weekValue);
                 loadTollTransactions(selectedDriverData._id, weekValue);
+                loadDriverCharges(selectedDriverData, weekValue); // ✅
             }
         }
     });
@@ -124,6 +126,25 @@ function initStatementEvents() {
             return;
         }
 
+        const manualAdjustments = [];
+            document.querySelectorAll("#manualAdjustmentsContainer > [data-idx]").forEach(block => {
+              const type = block.querySelector(".adjustment-type")?.value || "deduction";
+              const target = block.querySelector(".adjustment-target")?.value || "salary";
+              const reason = block.querySelector(".adjustment-reason")?.value || "";
+              const amount = parseFloat(block.querySelector(".adjustment-amount")?.value || 0) || 0;
+              const fileInput = block.querySelector(".adjustment-file");
+              const file = fileInput?.files?.[0] || null;
+
+              manualAdjustments.push({
+                type,
+                target,
+                reason,
+                amount,
+                file: null, // пока не отправляем сами файлы
+                filename: file ? file.name : null
+              });
+            });
+
         fetch("/statement/create", {
             method: "POST",
             headers: {
@@ -137,6 +158,7 @@ function initStatementEvents() {
                 tolls: tolls,
                 load_ids: selectedLoadIds,
                 gross: gross,
+                manual_adjustments: manualAdjustments,
                 salary: salary
             })
         })
@@ -248,36 +270,80 @@ function calculateAndDisplaySalary() {
     const tolls = parseFloat(document.getElementById("tollsInput")?.value || 0) || 0;
 
     let gross = 0;
-
-    const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
-    rows.forEach(row => {
+    document.querySelectorAll('#driverLoadsContent tbody tr').forEach(row => {
         const checkbox = row.querySelector('.load-checkbox');
         if (!checkbox || !checkbox.checked || row.style.display === 'none') return;
 
         const priceCell = row.querySelector('td:nth-child(6)');
-        if (!priceCell) return;
-
         const price = parseFloat(priceCell.textContent.replace(/[$,\s]/g, '')) || 0;
         gross += price;
     });
 
-    const net = gross - fuel - tolls;
-    let salary = 0;
+    // 1. Ручные списания/возвраты
+    let grossAdjustment = 0;
+    let netAdjustment = 0;
 
+    document.querySelectorAll("#manualAdjustmentsContainer > [data-idx]").forEach(block => {
+        const type = block.querySelector(".adjustment-type")?.value || "deduction";
+        const target = block.querySelector(".adjustment-target")?.value || "salary";
+        const amount = parseFloat(block.querySelector(".adjustment-amount")?.value || 0) || 0;
+        const sign = type === "refund" ? 1 : -1;
+
+        if (target === "gross") {
+            grossAdjustment += sign * amount;
+        } else {
+            netAdjustment += sign * amount;
+        }
+    });
+
+    const adjustedGross = gross + grossAdjustment;
+    let net = adjustedGross - fuel - tolls;
+
+    // 2. Автоматические списания из additional_charges
+    const weekValue = document.getElementById("weekSelect")?.value || "";
+    let chargesTotal = 0;
+
+    if (selectedDriverData.additional_charges && weekValue) {
+        const [startStr, endStr] = weekValue.split(" - ");
+        const start = new Date(startStr);
+        const end = new Date(endStr);
+
+        selectedDriverData.additional_charges.forEach(charge => {
+            const period = charge.period;
+            const amount = parseFloat(charge.amount || 0);
+            if (!amount) return;
+
+            if (period === "statement") {
+                chargesTotal += amount;
+            } else if (period === "monthly") {
+                const day = parseInt(charge.day_of_month || 0);
+                if (!isNaN(day) && start.getDate() <= day && day <= end.getDate()) {
+                    chargesTotal += amount;
+                }
+            }
+        });
+    }
+
+    // 3. Расчёт по комиссии
+    let salary = 0;
     if (scheme === 'gross') {
-        salary = applyTieredFlatCommission(commissionTable, gross);
+        salary = applyTieredFlatCommission(commissionTable, adjustedGross);
     } else if (scheme === 'net' || scheme === 'net_percent') {
-        const percent = getApplicablePercent(commissionTable, gross);
+        const percent = getApplicablePercent(commissionTable, adjustedGross);
         salary = Math.max(net, 0) * (percent / 100);
     } else if (scheme === 'net_gross') {
-        salary = applyTieredFlatCommission(commissionTable, gross);
+        salary = applyTieredFlatCommission(commissionTable, adjustedGross);
     }
+
+    salary += netAdjustment;
+    salary -= chargesTotal;
 
     const salaryElement = document.getElementById("salaryAmount");
     salaryElement.style.display = "block";
     salaryElement.textContent = `$${salary.toFixed(2)}`;
-    salaryElement.dataset.gross = gross.toFixed(2);
+    salaryElement.dataset.gross = adjustedGross.toFixed(2);
 }
+
 
 function applyTieredFlatCommission(table, amount) {
     if (!Array.isArray(table) || table.length === 0) return 0;
@@ -404,4 +470,111 @@ function updateTollsTotalFromCheckboxes() {
         tollsInput.value = total.toFixed(2);
         calculateAndDisplaySalary();
     }
+}
+
+function loadDriverCharges(driver, weekRange) {
+    const block = document.getElementById("driverChargesBlock");
+    const content = document.getElementById("driverChargesContent");
+
+    if (!driver || !driver.additional_charges || !block || !content || !weekRange) {
+        block.style.display = "none";
+        return;
+    }
+
+    const charges = driver.additional_charges;
+    const [startStr, endStr] = weekRange.split(' - ');
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    const applied = [];
+
+    charges.forEach(charge => {
+        const period = charge.period;
+        const amount = parseFloat(charge.amount || 0);
+        const type = charge.type || "Списание";
+
+        if (period === "statement") {
+            applied.push({ type, amount, note: "каждый стейтмент" });
+        } else if (period === "monthly") {
+            const day = parseInt(charge.day_of_month || 0);
+            if (!isNaN(day) && day >= start.getDate() && day <= end.getDate()) {
+                applied.push({ type, amount, note: `ежемесячно, ${day} число` });
+            }
+        }
+    });
+
+    if (!applied.length) {
+        block.style.display = "none";
+        return;
+    }
+
+    block.style.display = "block";
+    const ul = document.createElement("ul");
+    ul.className = "mb-0 pl-3";
+
+    let total = 0;
+    applied.forEach(c => {
+        total += c.amount;
+        const li = document.createElement("li");
+        li.textContent = `${c.type} — $${c.amount.toFixed(2)} (${c.note})`;
+        ul.appendChild(li);
+    });
+
+    const summary = document.createElement("p");
+    summary.className = "mt-2 font-weight-bold text-danger";
+    summary.textContent = `Итого списаний: $${total.toFixed(2)}`;
+
+    content.innerHTML = '';
+    content.appendChild(ul);
+    content.appendChild(summary);
+}
+
+function addManualAdjustment() {
+  const container = document.getElementById("manualAdjustmentsContainer");
+  const idx = Date.now(); // уникальный ID
+  const wrapper = document.createElement("div");
+  wrapper.className = "border p-3 mb-3 rounded bg-light";
+  wrapper.dataset.idx = idx;
+
+  wrapper.innerHTML = `
+    <div class="form-row mb-2">
+      <div class="col-md-4">
+        <label>Тип</label>
+        <select class="form-control adjustment-type" onchange="toggleAdjustmentFields(${idx})">
+          <option value="deduction">Списание</option>
+          <option value="refund">Возврат</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label>Списать из</label>
+        <select class="form-control adjustment-target">
+          <option value="salary">из зарплаты</option>
+          <option value="gross">из gross</option>
+        </select>
+      </div>
+      <div class="col-md-4 text-right">
+        <label>&nbsp;</label>
+        <button class="btn btn-sm btn-outline-danger w-100" onclick="this.closest('[data-idx]').remove(); calculateAndDisplaySalary();">🗑 Удалить</button>
+      </div>
+    </div>
+    <div class="form-row mb-2">
+      <div class="col-md-6">
+        <label>Причина</label>
+        <input type="text" class="form-control adjustment-reason">
+      </div>
+      <div class="col-md-3">
+        <label>Сумма</label>
+        <input type="number" step="0.01" class="form-control adjustment-amount" oninput="calculateAndDisplaySalary()">
+      </div>
+      <div class="col-md-3">
+        <label>Файл</label>
+        <input type="file" class="form-control-file adjustment-file">
+      </div>
+    </div>
+  `;
+
+  container.appendChild(wrapper);
+}
+
+function toggleAdjustmentFields(idx) {
+  // Можно будет использовать для динамического поведения, если нужно
 }

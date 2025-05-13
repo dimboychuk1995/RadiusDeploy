@@ -74,6 +74,23 @@
           </div>
         </div>
 
+        <!-- ДОПОЛНИТЕЛЬНЫЕ СПИСАНИЯ -->
+        <div id="driverChargesBlock" style="display:none; margin-top: 20px;">
+          <h5>Дополнительные списания</h5>
+          <div id="driverChargesContent">
+            <p class="text-muted">Списания появятся после выбора водителя и недели.</p>
+          </div>
+        </div>
+
+        <!-- ДИНАМИЧЕСКИЕ СПИСАНИЯ/ВОЗВРАТЫ -->
+        <div id="manualAdjustmentsBlock" style="margin-top: 20px;">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">Списания / Возвраты</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addManualAdjustment()">➕ Добавить</button>
+          </div>
+          <div id="manualAdjustmentsContainer"></div>
+        </div>
+
       <!-- ЗАРПЛАТА ВОДИТЕЛЯ -->
       <div id="salaryResult" style="display: none; margin-top: 20px;">
         <h5>Расчёт зарплаты</h5>
@@ -121,6 +138,7 @@
             <th>Топливо</th>
             <th>Толлы</th>
             <th>Регулярные списание</th> <!-- ✅ добавлено -->
+            <th>Ручные списания / возвраты</th>
             <th>Дата создания</th>
             <th>Примечание</th>
           </tr>
@@ -149,6 +167,22 @@
                   <span class="text-muted">–</span>
                 {% endif %}
               </td>
+
+              <td>
+                  {% if s.manual_adjustments %}
+                    <ul class="mb-0 pl-3">
+                      {% for m in s.manual_adjustments %}
+                        <li>
+                          {{ m.type == 'refund' and 'Возврат' or 'Списание' }}:
+                          ${{ "%.2f"|format(m.amount or 0) }}
+                          ({{ m.target == 'gross' and 'из gross' or 'из зарплаты' }})
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  {% else %}
+                    <span class="text-muted">–</span>
+                  {% endif %}
+                </td>
 
               <td>{{ s.created_at }}</td>
               <td>{{ s.note }}</td>

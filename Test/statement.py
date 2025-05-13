@@ -173,7 +173,6 @@ def get_driver_loads(driver_id):
         return "<p class='text-danger'>Ошибка загрузки данных</p>"
 
 
-# --- Создание стейтмента ---
 @statement_bp.route('/statement/create', methods=['POST'])
 @login_required
 def create_statement():
@@ -184,17 +183,59 @@ def create_statement():
         note = data.get('note', '')
         fuel = float(data.get('fuel', 0))
         tolls = float(data.get('tolls', 0))
-        gross = float(data.get('gross', 0))
-        salary = float(data.get('salary', 0))
+        gross = float(data.get('gross', 0))  # ⛔️ не модифицируем вручную!
         load_ids = data.get('load_ids', [])
+        manual_adjustments = data.get('manual_adjustments', [])
 
         if not driver_id or not load_ids:
             return jsonify({'error': 'Missing driver or loads'}), 400
 
-        # Получаем дополнительные списания
         driver = drivers_collection.find_one({'_id': ObjectId(driver_id), 'company': current_user.company})
-        additional_charges = driver.get('additional_charges', []) if driver else []
+        if not driver:
+            return jsonify({'error': 'Driver not found'}), 404
 
+        scheme = driver.get('scheme_type') or 'percent'
+        commission_table = driver.get('commission_table') or []
+        net_commission_table = driver.get('net_commission_table') or []
+
+        # 1. Выбираем корректную таблицу комиссии
+        def get_applicable_percent(amount, table):
+            try:
+                sorted_table = sorted(table or [], key=lambda x: x.get('from', 0))
+                for row in reversed(sorted_table):
+                    if amount >= row.get('from', 0):
+                        return row.get('percent', 0)
+            except Exception as e:
+                logging.warning(f"Ошибка в get_applicable_percent: {e}")
+            return 0
+
+        commission_source = net_commission_table if scheme == 'net_percent' else commission_table
+
+        # 2. Вычитаем fuel/tolls только при net_percent
+        if scheme == 'net_percent':
+            net_base = gross - fuel - tolls
+        else:
+            net_base = gross  # не учитываем fuel/tolls
+
+        percent = get_applicable_percent(gross, commission_source)
+        base_salary = max(0, net_base) * (percent / 100)
+
+        # 3. Применяем ручные корректировки
+        gross_adjustment = 0
+        net_adjustment = 0
+        for adj in manual_adjustments:
+            amount = float(adj.get('amount', 0))
+            if adj.get('target') == 'gross':
+                sign = 1 if adj.get('type') == 'refund' else -1
+                gross_adjustment += sign * amount
+            elif adj.get('target') == 'salary':
+                sign = 1 if adj.get('type') == 'refund' else -1
+                net_adjustment += sign * amount
+
+        # ⚠️ Не изменяем gross! Только salary пересчитываем от скорректированных значений
+        final_salary = round(max(0, base_salary + net_adjustment), 2)
+
+        # 4. Регулярные списания
         applied_charges = []
         start = end = None
         if week:
@@ -205,47 +246,40 @@ def create_statement():
             except:
                 pass
 
+        additional_charges = driver.get('additional_charges', [])
         for charge in additional_charges:
             try:
                 period = charge.get('period')
                 amount = float(charge.get('amount', 0))
                 charge_type = charge.get('type', 'charge')
-
                 if period == 'statement':
-                    applied_charges.append({
-                        'type': charge_type,
-                        'amount': amount,
-                        'period': 'statement'
-                    })
-
-                elif period == 'monthly' and start and end:
-                    day_of_month = int(charge.get('day_of_month', 0))
-                    if start.day <= day_of_month <= end.day:
-                        applied_charges.append({
-                            'type': charge_type,
-                            'amount': amount,
-                            'period': 'monthly',
-                            'day_of_month': day_of_month
-                        })
-
+                    applied_charges.append({ 'type': charge_type, 'amount': amount, 'period': period })
+                elif period == 'monthly':
+                    day = int(charge.get('day_of_month', 0))
+                    if start and end and start.day <= day <= end.day:
+                        applied_charges.append({ 'type': charge_type, 'amount': amount, 'period': period, 'day_of_month': day })
             except Exception as e:
-                logging.warning(f"Ошибка обработки списания: {e}")
+                logging.warning(f"Charge parse error: {e}")
 
-        charges_total = sum(c['amount'] for c in applied_charges)
-        net_salary = max(0, salary - charges_total)
+        # 5. Итоговая зарплата с учетом applied_charges
+        regular_deductions = sum(c['amount'] for c in applied_charges)
+        final_salary -= regular_deductions
+        final_salary = round(max(0, final_salary), 2)
 
+        # 6. Финальный документ
         statement_doc = {
             'driver_id': ObjectId(driver_id),
             'week': week,
             'note': note,
-            'fuel': fuel,
-            'tolls': tolls,
-            'gross': gross,
-            'salary': round(net_salary, 2),
-            'applied_charges': applied_charges,
+            'fuel': round(fuel, 2),
+            'tolls': round(tolls, 2),
+            'gross': round(gross, 2),  # оставляем gross как есть
+            'salary': final_salary,
             'load_ids': [ObjectId(lid) for lid in load_ids],
             'company': current_user.company,
-            'created_at': datetime.utcnow()
+            'created_at': datetime.utcnow(),
+            'applied_charges': applied_charges,
+            'manual_adjustments': manual_adjustments
         }
 
         statement_collection.insert_one(statement_doc)
@@ -258,7 +292,8 @@ def create_statement():
         return jsonify({'status': 'ok'}), 200
 
     except Exception as e:
-        traceback.print_exc()
+        logging.error("Ошибка в create_statement:")
+        logging.error(traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
