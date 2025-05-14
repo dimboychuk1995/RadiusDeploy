@@ -1,44 +1,45 @@
-<div class="container-fluid"
-     id="dispatchContainer"
-     data-drivers='{{ drivers | tojson | safe }}'
-     data-loads='{{ loads | tojson | safe }}'>
+<div class="container-fluid">
+  <h2 class="mb-4">Dispatch Calendars</h2>
 
-  <h2 class="mb-3">Dispatch Calendar</h2>
+  {% for dispatcher in dispatchers %}
+    {% set dispatcher_id = dispatcher._id|string %}
 
-  <!-- Заголовок: выбор недели -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-      <button class="btn btn-outline-secondary btn-sm" id="prevWeekBtn">← Пред. неделя</button>
-      <button class="btn btn-outline-secondary btn-sm" id="nextWeekBtn">След. неделя →</button>
+    <div class="dispatch-dispatcher-block mb-5"
+         data-drivers='{{ grouped_drivers.get(dispatcher_id, []) | tojson | safe }}'
+         data-loads='{{ all_loads | tojson | safe }}'>
+
+      <h5 class="mb-2">Диспетчер: {{ dispatcher.username }}</h5>
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <button class="btn btn-outline-secondary btn-sm prevWeekBtn">← Пред. неделя</button>
+        <div class="fw-bold currentWeekLabel"></div>
+        <button class="btn btn-outline-secondary btn-sm nextWeekBtn">След. неделя →</button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-bordered text-center align-middle calendar-table">
+          <thead class="table-light">
+            <tr>
+              <th rowspan="2" style="width: 200px;">Водитель</th>
+              <th colspan="3">Пн</th>
+              <th colspan="3">Вт</th>
+              <th colspan="3">Ср</th>
+              <th colspan="3">Чт</th>
+              <th colspan="3">Пт</th>
+              <th colspan="3">Сб</th>
+              <th colspan="3">Вс</th>
+            </tr>
+            <tr>
+              {% for _ in range(7) %}
+                <th>Утро</th>
+                <th>День</th>
+                <th>Вечер</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody class="calendarBody"></tbody>
+        </table>
+      </div>
     </div>
-    <div id="currentWeek" class="fw-bold"></div>
-  </div>
-
-  <!-- Таблица-календарь -->
-  <div class="table-responsive">
-    <table class="table table-bordered text-center align-middle" id="dispatchCalendar">
-      <thead class="table-light">
-        <tr>
-          <th rowspan="2" style="width: 200px;">Водитель</th>
-          <th colspan="3">Пн</th>
-          <th colspan="3">Вт</th>
-          <th colspan="3">Ср</th>
-          <th colspan="3">Чт</th>
-          <th colspan="3">Пт</th>
-          <th colspan="3">Сб</th>
-          <th colspan="3">Вс</th>
-        </tr>
-        <tr>
-          {% for i in range(7) %}
-            <th>Утро</th>
-            <th>День</th>
-            <th>Вечер</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody id="calendarBody">
-        <!-- Водители и слоты добавляются через JS -->
-      </tbody>
-    </table>
-  </div>
+  {% endfor %}
 </div>

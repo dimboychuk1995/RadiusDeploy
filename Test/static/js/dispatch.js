@@ -1,24 +1,34 @@
-function initDispatchCalendar() {
-    const container = document.getElementById("dispatchContainer");
-    if (!container) return;
+function initDispatcherCalendars() {
+    const blocks = document.querySelectorAll(".dispatch-dispatcher-block");
+    blocks.forEach(block => {
+        initDispatchCalendar(block);
+    });
+}
+
+function initDispatchCalendar(containerElement) {
+    if (!containerElement) return;
 
     let drivers = [];
     let loads = [];
 
     try {
-        drivers = JSON.parse(container.dataset.drivers || "[]");
-        loads = JSON.parse(container.dataset.loads || "[]");
+        drivers = JSON.parse(containerElement.dataset.drivers || "[]");
+        loads = JSON.parse(containerElement.dataset.loads || "[]");
     } catch (e) {
         console.error("Failed to parse drivers or loads:", e);
+        return;
     }
 
     let currentStartDate = new Date();
 
-    function renderEmptyCalendar() {
-        const tbody = document.getElementById("calendarBody");
-        const weekLabel = document.getElementById("currentWeek");
-        if (!tbody || !weekLabel) return;
+    const tbody = containerElement.querySelector(".calendarBody");
+    const weekLabel = containerElement.querySelector(".currentWeekLabel");
+    const prevBtn = containerElement.querySelector(".prevWeekBtn");
+    const nextBtn = containerElement.querySelector(".nextWeekBtn");
 
+    if (!tbody || !weekLabel) return;
+
+    function renderCalendar() {
         const weekDates = getWeekDates(currentStartDate);
         weekLabel.textContent = formatWeekRange(weekDates);
         tbody.innerHTML = "";
@@ -29,18 +39,26 @@ function initDispatchCalendar() {
             const driverName = driver.name || "—";
             const row = document.createElement("tr");
             row.innerHTML = `<td>${driverName}</td>` + weekDates.map(() => {
-                return `<td></td><td></td><td></td>`;
+                return `<td></td><td></td><td></td>`; // Утро, День, Вечер
             }).join("");
             tbody.appendChild(row);
             driverRows[driver._id] = row;
         });
 
-        paintLoadCells(driverRows, weekDates);
-    }
+        console.log("🟡 DRIVERS:", drivers.map(d => d._id));
+        console.log("🔍 driverRows keys:", Object.keys(driverRows));
+        console.log("🟠 LOADS:", loads.map(l => ({
+            load_id: l.load_id,
+            assigned_driver: l.assigned_driver,
+            pickup: l.pickup?.date,
+            delivery: l.delivery?.date
+        })));
 
-    function changeWeek(deltaDays) {
-        currentStartDate.setDate(currentStartDate.getDate() + deltaDays);
-        renderEmptyCalendar();
+        // Оставляем только грузы, назначенные текущим водителям
+        const driverIds = Object.keys(driverRows);
+        const relevantLoads = loads.filter(load => driverIds.includes(load.assigned_driver));
+
+        paintLoadCells(driverRows, weekDates, relevantLoads);
     }
 
     function getWeekDates(startDate) {
@@ -75,7 +93,8 @@ function initDispatchCalendar() {
         const parseDate = (str) => {
             if (!str || typeof str !== 'string') return null;
             const [mm, dd, yyyy] = str.split('/');
-            return new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+            const parsed = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+            return isNaN(parsed.getTime()) ? null : parsed;
         };
 
         const dateToIndex = {};
@@ -88,13 +107,24 @@ function initDispatchCalendar() {
 
         loads.forEach(load => {
             const driverId = load.assigned_driver;
+            if (!driverId) {
+                console.warn(`🚫 У груза ${load.load_id} нет assigned_driver`);
+                return;
+            }
+
             const row = driverRows[driverId];
-            if (!row) return;
+            if (!row) {
+                console.warn(`⚠️ Строка не найдена для driverId: ${driverId} (load ${load.load_id})`);
+                return;
+            }
 
             const pickupDate = parseDate(load.pickup?.date);
             const deliveryDate = parseDate(load.delivery?.date);
 
-            if (!pickupDate || !deliveryDate) return;
+            if (!pickupDate || !deliveryDate) {
+                console.warn(`❌ Невалидные даты у груза ${load.load_id}: pickup=${load.pickup?.date}, delivery=${load.delivery?.date}`);
+                return;
+            }
 
             const start = pickupDate.getTime();
             const end = deliveryDate.getTime();
@@ -102,7 +132,6 @@ function initDispatchCalendar() {
             for (let ts = start; ts <= end; ts += oneDay) {
                 const d = new Date(ts);
                 const key = formatDateKey(d);
-
                 if (!(key in dateToIndex)) continue;
 
                 const dayIndex = dateToIndex[key];
@@ -119,12 +148,17 @@ function initDispatchCalendar() {
         });
     }
 
-    const prevBtn = document.getElementById("prevWeekBtn");
-    const nextBtn = document.getElementById("nextWeekBtn");
     if (prevBtn && nextBtn) {
-        prevBtn.addEventListener("click", () => changeWeek(-7));
-        nextBtn.addEventListener("click", () => changeWeek(7));
+        prevBtn.addEventListener("click", () => {
+            currentStartDate.setDate(currentStartDate.getDate() - 7);
+            renderCalendar();
+        });
+
+        nextBtn.addEventListener("click", () => {
+            currentStartDate.setDate(currentStartDate.getDate() + 7);
+            renderCalendar();
+        });
     }
 
-    renderEmptyCalendar();
+    renderCalendar();
 }
