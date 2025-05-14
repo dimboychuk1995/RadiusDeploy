@@ -34,8 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initDriverParser();
                         highlightExpiringDrivers();
                     } else if (url.includes('dispatch_fragment')) {
-                        initDispatchFilter?.();
-                        highlightDriversWithoutDispatcher?.();
+                        initDispatchCalendar();
                     } else if (url.includes('accounting')) {
                         initAccountingButtons?.();
                     } else if (url.includes('statement')) {

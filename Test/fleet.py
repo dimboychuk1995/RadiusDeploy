@@ -223,21 +223,21 @@ def fleet_stats_charts():
 
     # === Суммы инвойсов по диапазонам ===
     amounts = {
-        '$0-99': 0,
-        '$100-199': 0,
-        '$200-299': 0,
-        '$300+': 0
+        '$0-300': 0,
+        '$300-1000': 0,
+        '$1000-2000': 0,
+        '$2000+': 0
     }
     for s in services:
         amt = s.get('amount', 0)
-        if amt < 100:
-            amounts['$0-99'] += 1
-        elif amt < 200:
-            amounts['$100-199'] += 1
-        elif amt < 300:
-            amounts['$200-299'] += 1
+        if amt < 300:
+            amounts['$0-300'] += 1
+        elif amt < 1000:
+            amounts['$300-1000'] += 1
+        elif amt < 2000:
+            amounts['$1000-2000'] += 1
         else:
-            amounts['$300+'] += 1
+            amounts['$2000+'] += 1
 
     return jsonify({
         'shops': shops,

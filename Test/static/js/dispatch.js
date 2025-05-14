@@ -1,44 +1,69 @@
-document.addEventListener("DOMContentLoaded", function () {
-    initDispatchFilter();
-    highlightDriversWithoutDispatcher();
-});
+function initDispatchCalendar() {
+    const container = document.getElementById("dispatchContainer");
+    if (!container) return;
 
-function initDispatchFilter() {
-    const nameInput = document.getElementById("searchName");
-    const unitInput = document.getElementById("searchUnitNumber");
-    const dispatcherSelect = document.getElementById("searchDispatcher");
-    const table = document.getElementById("driversTable");
+    let drivers = [];
+    try {
+        drivers = JSON.parse(container.dataset.drivers || "[]");
+    } catch (e) {
+        console.error("Failed to parse drivers:", e);
+    }
 
-    if (!nameInput || !unitInput || !dispatcherSelect || !table) return;
+    // теперь drivers доступен как массив
+    let currentStartDate = new Date();
 
-    function filter() {
-        const nameFilter = nameInput.value.toLowerCase();
-        const unitFilter = unitInput.value.toLowerCase();
-        const dispatcherFilter = dispatcherSelect.value.toLowerCase();
+    function renderEmptyCalendar() {
+        const tbody = document.getElementById("calendarBody");
+        const weekLabel = document.getElementById("currentWeek");
+        if (!tbody || !weekLabel) return;
 
-        table.querySelectorAll("tbody tr").forEach(row => {
-            const name = row.querySelector(".driver-name")?.textContent.toLowerCase() || "";
-            const unit = row.querySelector(".truck-unit")?.textContent.toLowerCase() || "";
-            const dispatcher = row.querySelector(".dispatcher-name")?.textContent.toLowerCase() || "";
+        const weekDates = getWeekDates(currentStartDate);
+        weekLabel.textContent = formatWeekRange(weekDates);
+        tbody.innerHTML = "";
 
-            const match = name.includes(nameFilter) && unit.includes(unitFilter) && dispatcher.includes(dispatcherFilter);
-
-            row.style.display = match ? "" : "none";
+        drivers.forEach(driver => {
+            const driverName = driver.name || "—";
+            const row = document.createElement("tr");
+            row.innerHTML = `<td>${driverName}</td>` + weekDates.map(() => {
+                return `<td></td><td></td><td></td>`; // только 3 ячейки на день
+            }).join("");
+            tbody.appendChild(row);
         });
     }
 
-    nameInput.addEventListener("input", filter);
-    unitInput.addEventListener("input", filter);
-    dispatcherSelect.addEventListener("change", filter);
-}
+    function changeWeek(deltaDays) {
+        currentStartDate.setDate(currentStartDate.getDate() + deltaDays);
+        renderEmptyCalendar();
+    }
 
-function highlightDriversWithoutDispatcher() {
-    const rows = document.querySelectorAll(".driver-row");
+    function getWeekDates(startDate) {
+        const date = new Date(startDate);
+        const day = date.getDay(); // 0 (Sun) - 6 (Sat)
+        const monday = new Date(date);
+        monday.setDate(date.getDate() - ((day + 6) % 7)); // гарантированно Пн
 
-    rows.forEach(row => {
-        const dispatcherCell = row.querySelector(".dispatcher-name");
-        if (dispatcherCell && dispatcherCell.textContent.trim() === "Нет диспетчера") {
-            row.style.backgroundColor = "#fff3cd"; // мягкий жёлтый
+        const result = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            result.push(d);
         }
-    });
+        return result;
+    }
+
+    function formatWeekRange(dates) {
+        const options = { month: "2-digit", day: "2-digit" };
+        const start = dates[0].toLocaleDateString("en-US", options);
+        const end = dates[6].toLocaleDateString("en-US", options);
+        return `${start} - ${end}`;
+    }
+
+    const prevBtn = document.getElementById("prevWeekBtn");
+    const nextBtn = document.getElementById("nextWeekBtn");
+    if (prevBtn && nextBtn) {
+        prevBtn.addEventListener("click", () => changeWeek(-7));
+        nextBtn.addEventListener("click", () => changeWeek(7));
+    }
+
+    renderEmptyCalendar();
 }
