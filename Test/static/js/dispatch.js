@@ -45,16 +45,6 @@ function initDispatchCalendar(containerElement) {
             driverRows[driver._id] = row;
         });
 
-        console.log("🟡 DRIVERS:", drivers.map(d => d._id));
-        console.log("🔍 driverRows keys:", Object.keys(driverRows));
-        console.log("🟠 LOADS:", loads.map(l => ({
-            load_id: l.load_id,
-            assigned_driver: l.assigned_driver,
-            pickup: l.pickup?.date,
-            delivery: l.delivery?.date
-        })));
-
-        // Оставляем только грузы, назначенные текущим водителям
         const driverIds = Object.keys(driverRows);
         const relevantLoads = loads.filter(load => driverIds.includes(load.assigned_driver));
 
@@ -82,7 +72,7 @@ function initDispatchCalendar(containerElement) {
         return `${start} - ${end}`;
     }
 
-    function paintLoadCells(driverRows, weekDates) {
+    function paintLoadCells(driverRows, weekDates, loads) {
         const formatDateKey = (date) => {
             const yyyy = date.getUTCFullYear();
             const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -107,24 +97,15 @@ function initDispatchCalendar(containerElement) {
 
         loads.forEach(load => {
             const driverId = load.assigned_driver;
-            if (!driverId) {
-                console.warn(`🚫 У груза ${load.load_id} нет assigned_driver`);
-                return;
-            }
+            if (!driverId) return;
 
             const row = driverRows[driverId];
-            if (!row) {
-                console.warn(`⚠️ Строка не найдена для driverId: ${driverId} (load ${load.load_id})`);
-                return;
-            }
+            if (!row) return;
 
             const pickupDate = parseDate(load.pickup?.date);
             const deliveryDate = parseDate(load.delivery?.date);
 
-            if (!pickupDate || !deliveryDate) {
-                console.warn(`❌ Невалидные даты у груза ${load.load_id}: pickup=${load.pickup?.date}, delivery=${load.delivery?.date}`);
-                return;
-            }
+            if (!pickupDate || !deliveryDate) return;
 
             const start = pickupDate.getTime();
             const end = deliveryDate.getTime();
@@ -141,11 +122,22 @@ function initDispatchCalendar(containerElement) {
                     const cell = row.children[baseCellIndex + i];
                     if (cell) {
                         cell.style.backgroundColor = "#cfe2ff";
-                        cell.title = `Load ${load.load_id}`;
+                        cell.setAttribute('data-bs-toggle', 'tooltip');
+                        cell.setAttribute('data-bs-html', 'true');
+                        cell.setAttribute('title', `
+<b>ID:</b> ${load.load_id}<br>
+<b>From:</b> ${load.pickup?.address || '—'}<br>
+<b>To:</b> ${load.delivery?.address || '—'}<br>
+<b>Status:</b> ${load.status || '—'}
+                        `.trim());
                     }
                 }
             }
         });
+
+        // Инициализация тултипов
+        const tooltipTriggerList = [].slice.call(containerElement.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
     }
 
     if (prevBtn && nextBtn) {
