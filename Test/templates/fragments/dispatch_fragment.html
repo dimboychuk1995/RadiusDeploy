@@ -1,6 +1,13 @@
 <div class="container-fluid">
   <h2 class="mb-4">Dispatch Calendars</h2>
 
+  <!-- ✅ Глобальный переключатель недель -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <button class="btn btn-outline-secondary btn-sm" id="globalPrevWeekBtn">← Пред. неделя</button>
+    <div class="fw-bold" id="globalWeekLabel"></div>
+    <button class="btn btn-outline-secondary btn-sm" id="globalNextWeekBtn">След. неделя →</button>
+  </div>
+
   {% for dispatcher in dispatchers %}
     {% set dispatcher_id = dispatcher._id|string %}
 
@@ -9,12 +16,6 @@
          data-loads='{{ all_loads | tojson | safe }}'>
 
       <h5 class="mb-2">Диспетчер: {{ dispatcher.username }}</h5>
-
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <button class="btn btn-outline-secondary btn-sm prevWeekBtn">← Пред. неделя</button>
-        <div class="fw-bold currentWeekLabel"></div>
-        <button class="btn btn-outline-secondary btn-sm nextWeekBtn">След. неделя →</button>
-      </div>
 
       <div class="table-responsive">
         <table class="table table-bordered text-center align-middle calendar-table">
