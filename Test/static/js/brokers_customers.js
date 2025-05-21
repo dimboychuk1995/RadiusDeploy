@@ -1,3 +1,6 @@
+let editMode = false;
+let editId = null;
+
 function initBrokerCustomerSection() {
   const tabBrokers = document.getElementById("tab-brokers");
   const tabCustomers = document.getElementById("tab-customers");
@@ -22,9 +25,17 @@ function initBrokerCustomerSection() {
   const backdrop = document.getElementById("brokerCustomerBackdrop");
 
   document.getElementById("openAddBrokerCustomerBtn").addEventListener("click", () => {
+    editMode = false;
+    editId = null;
+
+    document.getElementById("brokerCustomerModalTitle").textContent = "Добавить";
     document.getElementById("brokerCustomerForm").reset();
+    document.getElementById("entityTypeSelect").disabled = false;
+    document.getElementById("entityTypeSelect").value = "";
+
     document.getElementById("commonFieldsBlock").style.display = "none";
     document.getElementById("mcDotBlock").style.display = "none";
+
     modal.classList.add("show");
     backdrop.classList.add("show");
   });
@@ -45,55 +56,54 @@ function initBrokerCustomerSection() {
     }
   });
 
-document.getElementById("brokerCustomerForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
+  document.getElementById("brokerCustomerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-  const type = document.getElementById("entityTypeSelect").value;
-  const payload = {
-    type,
-    id: editMode ? editId : undefined,
-    mc: document.getElementById("mcInput").value,
-    dot: document.getElementById("dotInput").value,
-    name: document.getElementById("nameInput").value,
-    phone: document.getElementById("phoneInput").value,
-    email: document.getElementById("emailInput").value,
-    contact_person: document.getElementById("contactPersonInput").value,
-    contact_phone: document.getElementById("contactPhoneInput").value,
-    contact_email: document.getElementById("contactEmailInput").value,
-    address: document.getElementById("addressInput").value,
-    payment_term: document.getElementById("paymentTermInput").value
-  };
+    const type = document.getElementById("entityTypeSelect").value;
+    const payload = {
+      type,
+      id: editMode ? editId : undefined,
+      mc: document.getElementById("mcInput").value,
+      dot: document.getElementById("dotInput").value,
+      name: document.getElementById("nameInput").value,
+      phone: document.getElementById("phoneInput").value,
+      email: document.getElementById("emailInput").value,
+      contact_person: document.getElementById("contactPersonInput").value,
+      contact_phone: document.getElementById("contactPhoneInput").value,
+      contact_email: document.getElementById("contactEmailInput").value,
+      address: document.getElementById("addressInput").value,
+      payment_term: document.getElementById("paymentTermInput").value
+    };
 
-  const url = editMode ? "/api/update_broker_customer" : "/api/add_broker_customer";
+    const url = editMode ? "/api/update_broker_customer" : "/api/add_broker_customer";
 
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok && data.success) {
-      alert("Сохранено!");
-      closeBrokerCustomerModal();
-      location.reload(); // или обновить строку вручную
-    } else {
-      alert("Ошибка: " + (data.error || "неизвестно"));
+      if (res.ok && data.success) {
+        alert("Сохранено!");
+        closeBrokerCustomerModal();
+        location.reload();
+      } else {
+        alert("Ошибка: " + (data.error || "неизвестно"));
+      }
+    } catch (e) {
+      console.error("Ошибка:", e);
+      alert("Сетевая ошибка");
     }
-  } catch (e) {
-    console.error("Ошибка:", e);
-    alert("Сетевая ошибка");
-  }
-});
-
-
+  });
 }
 
 function closeBrokerCustomerModal() {
   document.getElementById("addBrokerCustomerModal").classList.remove("show");
   document.getElementById("brokerCustomerBackdrop").classList.remove("show");
+  document.getElementById("entityTypeSelect").disabled = false;
 }
 
 function deleteBrokerCustomer(id, type) {
@@ -118,10 +128,6 @@ function deleteBrokerCustomer(id, type) {
       alert("Сетевая ошибка");
     });
 }
-
-
-let editMode = false;
-let editId = null;
 
 function editBrokerCustomer(id, type) {
   const row = document.getElementById(`row-${type}-${id}`);
