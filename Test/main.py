@@ -11,9 +11,10 @@ from accounting import accounting_bp
 from statement import statement_bp
 from flask_login import current_user
 from fuel_cards import fuel_cards_bp
-from Test.integrations import integrations_bp
+from integrations import integrations_bp
 from tolls import tolls_bp
-from Test.fleet import fleet_bp
+from fleet import fleet_bp
+from broker_customer import broker_customer_bp
 import os
 
 app = Flask(__name__)
@@ -34,6 +35,7 @@ app.register_blueprint(integrations_bp)
 app.register_blueprint(samsara_bp)
 app.register_blueprint(tolls_bp)
 app.register_blueprint(fleet_bp)
+app.register_blueprint(broker_customer_bp)
 
 
 login_manager.init_app(app)

@@ -34,7 +34,6 @@ document.addEventListener("DOMContentLoaded", function () {
                         highlightExpiringDrivers();
                     } else if (url.includes('dispatch_fragment')) {
                         initDispatcherCalendars();
-                        initDispatchCalendar();
                     } else if (url.includes('dispatch_brokers')) {
                         initBrokerCustomerSection?.();
                     } else if (url.includes('accounting')) {
