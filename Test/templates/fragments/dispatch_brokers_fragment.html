@@ -77,21 +77,22 @@
     <tbody>
       {% for customer in customers %}
       <tr id="row-customer-{{ customer._id }}">
-        <td>{{ customer.name }}</td>
-        <td>{{ customer.phone }}</td>
-        <td>{{ customer.email }}</td>
-        <td>{{ customer.contact_person }}</td>
-        <td>{{ customer.contact_phone }}</td>
-        <td>{{ customer.contact_email }}</td>
-        <td>{{ customer.address }}</td>
-        <td>{{ customer.payment_term }}</td>
-        <td>
-          <button class="btn btn-sm btn-primary me-1"
-                  onclick="editBrokerCustomer('{{ broker._id }}', 'broker')">✏️</button>
-          <button class="btn btn-sm btn-danger"
-                  onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">🗑️</button>
-        </td>
-      </tr>
+          <td data-field="name">{{ customer.name }}</td>
+          <td data-field="phone">{{ customer.phone }}</td>
+          <td data-field="email">{{ customer.email }}</td>
+          <td data-field="contact_person">{{ customer.contact_person }}</td>
+          <td data-field="contact_phone">{{ customer.contact_phone }}</td>
+          <td data-field="contact_email">{{ customer.contact_email }}</td>
+          <td data-field="address">{{ customer.address }}</td>
+          <td data-field="payment_term">{{ customer.payment_term }}</td>
+          <td>
+            <button class="btn btn-sm btn-primary me-1"
+                    onclick="editBrokerCustomer('{{ customer._id }}', 'customer')">✏️</button>
+            <button class="btn btn-sm btn-danger"
+                    onclick="deleteBrokerCustomer('{{ customer._id }}', 'customer')">🗑️</button>
+          </td>
+        </tr>
+
       {% endfor %}
     </tbody>
   </table>
