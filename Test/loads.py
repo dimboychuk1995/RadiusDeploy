@@ -206,6 +206,8 @@ def add_load():
         load_data = {
             "load_id": request.form.get("load_id"),
             "broker_load_id": request.form.get("broker_load_id"),
+            "broker_email": request.form.get("broker_email"),
+            "broker_phone_number": request.form.get("broker_phone_number"),
             "type": request.form.get("type"),
             "weight": request.form.get("weight"),
             "price": request.form.get("price"),

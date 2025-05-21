@@ -102,7 +102,10 @@
         <div class="load-modal-left">
           <form action="{{ url_for('loads.add_load') }}" method="POST" enctype="multipart/form-data">
             <div class="form-group"><label>Load ID</label><input type="text" class="form-control" name="load_id" required></div>
-            <div class="form-group"><label>Broker Load ID</label><input type="text" class="form-control" name="broker_load_id"></div>
+            <div class="form-group"><label>Broker</label><input type="text" class="form-control" name="broker_load_id"></div>
+            <div class="form-group"><label>Broker Email</label><input type="email" class="form-control" name="broker_email"></div>
+            <div class="form-group"><label>Broker Phone Number</label><input type="text" class="form-control" name="broker_phone_number"></div>
+
             <div class="form-group">
               <label>Тип груза</label>
               <select name="type" class="form-control">
