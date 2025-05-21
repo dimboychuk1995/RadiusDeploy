@@ -50,17 +50,18 @@ document.getElementById("brokerCustomerForm").addEventListener("submit", async (
 
   const type = document.getElementById("entityTypeSelect").value;
   const payload = {
-    type,
-    mc: document.getElementById("mcInput").value,
-    dot: document.getElementById("dotInput").value,
-    name: document.getElementById("nameInput").value,
-    email: document.getElementById("emailInput").value,
-    contact_person: document.getElementById("contactPersonInput").value,
-    contact_phone: document.getElementById("contactPhoneInput").value,
-    contact_email: document.getElementById("contactEmailInput").value,
-    address: document.getElementById("addressInput").value,
-    payment_term: document.getElementById("paymentTermInput").value
-  };
+      type,
+      mc: document.getElementById("mcInput").value,
+      dot: document.getElementById("dotInput").value,
+      name: document.getElementById("nameInput").value,
+      phone: document.getElementById("phoneInput").value, // ✅ новое поле
+      email: document.getElementById("emailInput").value,
+      contact_person: document.getElementById("contactPersonInput").value,
+      contact_phone: document.getElementById("contactPhoneInput").value,
+      contact_email: document.getElementById("contactEmailInput").value,
+      address: document.getElementById("addressInput").value,
+      payment_term: document.getElementById("paymentTermInput").value
+    };
 
   try {
     const res = await fetch("/api/add_broker_customer", {
@@ -88,4 +89,27 @@ document.getElementById("brokerCustomerForm").addEventListener("submit", async (
 function closeBrokerCustomerModal() {
   document.getElementById("addBrokerCustomerModal").classList.remove("show");
   document.getElementById("brokerCustomerBackdrop").classList.remove("show");
+}
+
+function deleteBrokerCustomer(id, type) {
+  if (!confirm("Вы уверены, что хотите удалить?")) return;
+
+  fetch(`/api/delete_broker_customer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, type })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        const row = document.getElementById(`row-${type}-${id}`);
+        if (row) row.remove();
+      } else {
+        alert("Ошибка удаления: " + (data.error || "неизвестно"));
+      }
+    })
+    .catch(err => {
+      console.error("Ошибка:", err);
+      alert("Сетевая ошибка");
+    });
 }

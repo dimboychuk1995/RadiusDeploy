@@ -19,11 +19,37 @@
   <h4>Брокеры</h4>
   <table class="table table-bordered table-sm">
     <thead>
-      <tr><th>Имя</th><th>Телефон</th><th>Email</th></tr>
+      <tr>
+          <th>MC</th>
+        <th>DOT</th>
+        <th>Название</th>
+        <th>Телефон</th>
+        <th>Email</th>
+        <th>Контактное лицо</th>
+        <th>Тел. контакта</th>
+        <th>Email контакта</th>
+        <th>Адрес</th>
+        <th>Условия оплаты</th>
+        <th>Действия</th>
+      </tr>
     </thead>
     <tbody>
       {% for broker in brokers %}
-      <tr><td>{{ broker.name }}</td><td>{{ broker.phone }}</td><td>{{ broker.email }}</td></tr>
+      <tr id="row-broker-{{ broker._id }}">
+        <td>{{ broker.mc }}</td>
+        <td>{{ broker.dot }}</td>
+        <td>{{ broker.name }}</td>
+        <td>{{ broker.phone }}</td>
+        <td>{{ broker.email }}</td>
+        <td>{{ broker.contact_person }}</td>
+        <td>{{ broker.contact_phone }}</td>
+        <td>{{ broker.contact_email }}</td>
+        <td>{{ broker.address }}</td>
+        <td>{{ broker.payment_term }}</td>
+        <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">Удалить</button>
+          </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -33,15 +59,38 @@
   <h4>Кастомеры</h4>
   <table class="table table-bordered table-sm">
     <thead>
-      <tr><th>Имя</th><th>Телефон</th><th>Email</th></tr>
+      <tr>
+        <th>Название</th>
+        <th>Телефон</th>
+        <th>Email</th>
+        <th>Контактное лицо</th>
+        <th>Тел. контакта</th>
+        <th>Email контакта</th>
+        <th>Адрес</th>
+        <th>Условия оплаты</th>
+        <th>Действия</th>
+      </tr>
     </thead>
     <tbody>
       {% for customer in customers %}
-      <tr><td>{{ customer.name }}</td><td>{{ customer.phone }}</td><td>{{ customer.email }}</td></tr>
+      <tr id="row-customer-{{ customer._id }}">
+        <td>{{ customer.name }}</td>
+        <td>{{ customer.phone }}</td>
+        <td>{{ customer.email }}</td>
+        <td>{{ customer.contact_person }}</td>
+        <td>{{ customer.contact_phone }}</td>
+        <td>{{ customer.contact_email }}</td>
+        <td>{{ customer.address }}</td>
+        <td>{{ customer.payment_term }}</td>
+        <td>
+            <button class="btn btn-sm btn-danger" onclick="deleteBrokerCustomer('{{ customer._id }}', 'customer')">Удалить</button>
+          </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
 
 <!-- ============== Модалка ============== -->
 <div class="custom-offcanvas custom-offcanvas-right" id="addBrokerCustomerModal">
@@ -81,6 +130,10 @@
           <div class="form-group mb-3">
             <label>Название:</label>
             <input type="text" class="form-control" id="nameInput" name="name" required>
+          </div>
+          <div class="form-group mb-3">
+            <label>Телефон:</label>
+            <input type="text" class="form-control" id="phoneInput" name="phone">
           </div>
           <div class="form-group mb-3">
             <label>Email:</label>

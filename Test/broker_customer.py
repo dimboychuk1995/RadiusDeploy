@@ -2,6 +2,7 @@ from flask import Blueprint, render_template
 import logging
 from flask import request, jsonify
 from flask_login import login_required, current_user
+from bson import ObjectId
 
 from Test.tools.db import db  # централизованное подключение
 
@@ -36,6 +37,7 @@ def add_broker_customer():
 
         doc = {
             'name': data.get('name'),
+            'phone': data.get('phone'),  # ✅ новое поле
             'email': data.get('email'),
             'contact_person': data.get('contact_person'),
             'contact_phone': data.get('contact_phone'),
@@ -56,4 +58,27 @@ def add_broker_customer():
 
     except Exception as e:
         logging.error(f"Ошибка добавления брокера/кастомера: {e}")
+        return jsonify({'error': 'Ошибка сервера'}), 500
+
+
+@broker_customer_bp.route('/api/delete_broker_customer', methods=['POST'])
+@login_required
+def delete_broker_customer():
+    try:
+        data = request.get_json()
+        entity_type = data.get("type")
+        _id = data.get("id")
+
+        if not _id or entity_type not in ['broker', 'customer']:
+            return jsonify({'error': 'Invalid data'}), 400
+
+        collection = brokers_collection if entity_type == 'broker' else customers_collection
+        result = collection.delete_one({'_id': ObjectId(_id), 'company': current_user.company})
+
+        if result.deleted_count == 1:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Не найдено'}), 404
+    except Exception as e:
+        logging.error(f"Ошибка удаления: {e}")
         return jsonify({'error': 'Ошибка сервера'}), 500
