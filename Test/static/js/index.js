@@ -2,14 +2,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const sections = {
         'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
         'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
-        'btn-loads': { id: 'section-loads', url: '/fragment/loads' },
-        'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
+        'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
+        'btn-brokers-fragment': { id: 'section-dispatch-brokers', url: '/fragment/dispatch_brokers' },
         'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
         'btn-statements': { id: 'section-statements', url: '/statement/fragment' },
         'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' },
         'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' },
-        'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' }, // ✅ Новый блок
+        'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' },
         'btn-fleet': { id: 'section-fleet', url: '/fragment/fleet_fragment' },
     };
 
@@ -22,7 +22,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     section.innerHTML = html;
                     section.dataset.loaded = "true";
 
-                    // Переинициализация функций
                     if (url.includes('trucks')) {
                         initTruckModalActions?.();
                         initTruckSearch?.();
@@ -36,36 +35,36 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('dispatch_fragment')) {
                         initDispatcherCalendars();
                         initDispatchCalendar();
+                    } else if (url.includes('dispatch_brokers')) {
+                        initBrokerCustomerSection?.();
                     } else if (url.includes('accounting')) {
                         initAccountingButtons?.();
                     } else if (url.includes('statement')) {
                         initStatementEvents?.();
-                        initStatementFilter?.(); // 👈 добавили
+                        initStatementFilter?.();
                         initStatementRowClicks();
                     } else if (url.includes('fuel_cards')) {
                         initFuelCards?.();
                     } else if (url.includes('samsara')) {
-                        initSamsara?.(); // 👈 вызывем карту после подгрузки
+                        initSamsara?.();
                     } else if (url.includes('loads')) {
-                        // Ждём пока DOM обновится, потом инициализируем парсер
                         initLoadParser?.();
                         initLoads?.();
-                        initLoadParser();
                     } else if (url.includes('tolls')) {
                         initTolls?.();
-                        initTransponderForm();
-                        loadTransponders();
-                        initVehicleSelect();
-                        initCsvUpload();
-                        initTollForm();
-                        loadAllTolls(0, limitPerPage);
-                        initTollCsvUpload();
-                        populateTollSummaryWeeks();
-                        loadTollsSummary();
+                        initTransponderForm?.();
+                        loadTransponders?.();
+                        initVehicleSelect?.();
+                        initCsvUpload?.();
+                        initTollForm?.();
+                        loadAllTolls?.(0, limitPerPage);
+                        initTollCsvUpload?.();
+                        populateTollSummaryWeeks?.();
+                        loadTollsSummary?.();
                     } else if (url.includes('fleet')) {
-                        initFleet();
+                        initFleet?.();
                         initFleetUnitClicks?.();
-                        loadFleetCharts();
+                        loadFleetCharts?.();
                     }
                 });
         }
@@ -77,45 +76,48 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (button) {
             button.addEventListener("click", () => {
-                // Скрыть все секции
                 Object.values(sections).forEach(({ id }) => {
                     const section = document.getElementById(id);
                     if (section) section.style.display = "none";
                 });
 
-                // Скрыть driver-details
                 const driverDetailsSection = document.getElementById("driver-details");
                 if (driverDetailsSection) {
                     driverDetailsSection.style.display = "none";
                     driverDetailsSection.innerHTML = "";
                 }
 
-                // Скрыть unit details
                 const unitDetailsSection = document.getElementById("unit_details_fragment");
                 if (unitDetailsSection) {
                     unitDetailsSection.style.display = "none";
                     unitDetailsSection.innerHTML = "";
                 }
 
-                // Убрать активность
                 Object.keys(sections).forEach(id => {
                     const btn = document.getElementById(id);
                     if (btn) btn.classList.remove("active");
                 });
 
-                // Показать нужную
                 button.classList.add("active");
                 const targetSection = document.getElementById(sectionId);
                 targetSection.style.display = "block";
                 loadFragment(sectionId, url);
-
-                // Сохранить активное состояние
                 localStorage.setItem('activeSection', buttonId);
             });
         }
     });
 
-    // Восстановление активной вкладки из localStorage
+    // Обработчик стрелки раскрытия подменю "Диспетчер"
+    const arrow = document.getElementById("dispatcherDropdownArrow");
+    if (arrow) {
+        arrow.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const submenu = document.getElementById("dispatcherSubmenu");
+            submenu.style.display = submenu.style.display === "none" ? "block" : "none";
+        });
+    }
+
+    // Восстановление активной вкладки
     const activeSection = localStorage.getItem('activeSection') || 'btn-trucks';
     document.getElementById(activeSection)?.click();
 });
