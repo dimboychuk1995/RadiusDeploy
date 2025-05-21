@@ -36,20 +36,23 @@
     <tbody>
       {% for broker in brokers %}
       <tr id="row-broker-{{ broker._id }}">
-        <td>{{ broker.mc }}</td>
-        <td>{{ broker.dot }}</td>
-        <td>{{ broker.name }}</td>
-        <td>{{ broker.phone }}</td>
-        <td>{{ broker.email }}</td>
-        <td>{{ broker.contact_person }}</td>
-        <td>{{ broker.contact_phone }}</td>
-        <td>{{ broker.contact_email }}</td>
-        <td>{{ broker.address }}</td>
-        <td>{{ broker.payment_term }}</td>
-        <td>
-            <button class="btn btn-sm btn-danger" onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">Удалить</button>
+          <td data-field="mc">{{ broker.mc }}</td>
+          <td data-field="dot">{{ broker.dot }}</td>
+          <td data-field="name">{{ broker.name }}</td>
+          <td data-field="phone">{{ broker.phone }}</td>
+          <td data-field="email">{{ broker.email }}</td>
+          <td data-field="contact_person">{{ broker.contact_person }}</td>
+          <td data-field="contact_phone">{{ broker.contact_phone }}</td>
+          <td data-field="contact_email">{{ broker.contact_email }}</td>
+          <td data-field="address">{{ broker.address }}</td>
+          <td data-field="payment_term">{{ broker.payment_term }}</td>
+          <td>
+            <button class="btn btn-sm btn-primary me-1"
+                    onclick="editBrokerCustomer('{{ broker._id }}', 'broker')">✏️</button>
+            <button class="btn btn-sm btn-danger"
+                    onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">🗑️</button>
           </td>
-      </tr>
+        </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -83,8 +86,11 @@
         <td>{{ customer.address }}</td>
         <td>{{ customer.payment_term }}</td>
         <td>
-            <button class="btn btn-sm btn-danger" onclick="deleteBrokerCustomer('{{ customer._id }}', 'customer')">Удалить</button>
-          </td>
+          <button class="btn btn-sm btn-primary me-1"
+                  onclick="editBrokerCustomer('{{ broker._id }}', 'broker')">✏️</button>
+          <button class="btn btn-sm btn-danger"
+                  onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">🗑️</button>
+        </td>
       </tr>
       {% endfor %}
     </tbody>

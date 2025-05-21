@@ -82,3 +82,46 @@ def delete_broker_customer():
     except Exception as e:
         logging.error(f"Ошибка удаления: {e}")
         return jsonify({'error': 'Ошибка сервера'}), 500
+
+@broker_customer_bp.route('/api/update_broker_customer', methods=['POST'])
+@login_required
+def update_broker_customer():
+    try:
+        data = request.json
+        entity_type = data.get("type")
+        _id = data.get("id")
+
+        if not _id or entity_type not in ['broker', 'customer']:
+            return jsonify({'error': 'Invalid data'}), 400
+
+        collection = brokers_collection if entity_type == 'broker' else customers_collection
+
+        update = {
+            "name": data.get("name"),
+            "phone": data.get("phone"),
+            "email": data.get("email"),
+            "contact_person": data.get("contact_person"),
+            "contact_phone": data.get("contact_phone"),
+            "contact_email": data.get("contact_email"),
+            "address": data.get("address"),
+            "payment_term": data.get("payment_term")
+        }
+
+        if entity_type == "broker":
+            update["mc"] = data.get("mc")
+            update["dot"] = data.get("dot")
+
+        result = collection.update_one(
+            {"_id": ObjectId(_id), "company": current_user.company},
+            {"$set": update}
+        )
+
+        if result.modified_count == 1:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Не обновлено'}), 404
+
+    except Exception as e:
+        logging.error(f"Ошибка обновления: {e}")
+        return jsonify({'error': 'Ошибка сервера'}), 500
+
