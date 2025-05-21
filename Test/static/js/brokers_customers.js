@@ -44,6 +44,45 @@ function initBrokerCustomerSection() {
       commonFields.style.display = "none";
     }
   });
+
+document.getElementById("brokerCustomerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const type = document.getElementById("entityTypeSelect").value;
+  const payload = {
+    type,
+    mc: document.getElementById("mcInput").value,
+    dot: document.getElementById("dotInput").value,
+    name: document.getElementById("nameInput").value,
+    email: document.getElementById("emailInput").value,
+    contact_person: document.getElementById("contactPersonInput").value,
+    contact_phone: document.getElementById("contactPhoneInput").value,
+    contact_email: document.getElementById("contactEmailInput").value,
+    address: document.getElementById("addressInput").value,
+    payment_term: document.getElementById("paymentTermInput").value
+  };
+
+  try {
+    const res = await fetch("/api/add_broker_customer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      alert("Успешно добавлено!");
+      closeBrokerCustomerModal();
+      location.reload(); // или перезагрузка только таблиц
+    } else {
+      const err = await res.json();
+      alert("Ошибка: " + (err.error || "Неизвестная"));
+    }
+  } catch (e) {
+    console.error("Ошибка запроса:", e);
+    alert("Сетевая ошибка");
+  }
+});
+
 }
 
 function closeBrokerCustomerModal() {

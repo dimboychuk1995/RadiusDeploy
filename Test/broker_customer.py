@@ -1,6 +1,7 @@
-from flask import Blueprint, render_template, request
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template
 import logging
+from flask import request, jsonify
+from flask_login import login_required, current_user
 
 from Test.tools.db import db  # централизованное подключение
 
@@ -22,3 +23,37 @@ def dispatch_brokers_fragment():
     except Exception as e:
         logging.error(f"Ошибка при загрузке брокеров/кастомеров: {e}")
         return "Ошибка загрузки данных", 500
+
+@broker_customer_bp.route('/api/add_broker_customer', methods=['POST'])
+@login_required
+def add_broker_customer():
+    try:
+        data = request.json
+        entity_type = data.get('type')
+
+        if entity_type not in ['broker', 'customer']:
+            return jsonify({'error': 'Invalid type'}), 400
+
+        doc = {
+            'name': data.get('name'),
+            'email': data.get('email'),
+            'contact_person': data.get('contact_person'),
+            'contact_phone': data.get('contact_phone'),
+            'contact_email': data.get('contact_email'),
+            'address': data.get('address'),
+            'payment_term': data.get('payment_term'),
+            'company': current_user.company
+        }
+
+        if entity_type == 'broker':
+            doc['mc'] = data.get('mc')
+            doc['dot'] = data.get('dot')
+            brokers_collection.insert_one(doc)
+        else:
+            customers_collection.insert_one(doc)
+
+        return jsonify({'message': 'Добавлено успешно'}), 200
+
+    except Exception as e:
+        logging.error(f"Ошибка добавления брокера/кастомера: {e}")
+        return jsonify({'error': 'Ошибка сервера'}), 500
