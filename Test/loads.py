@@ -282,6 +282,18 @@ def add_load():
         return render_template("error.html", message="Ошибка при сохранении груза")
 
 
+@loads_bp.route('/api/brokers_list')
+@login_required
+def brokers_list():
+    brokers = db["brokers"].find({"company": current_user.company})
+    return jsonify([{"name": b["name"]} for b in brokers])
+
+@loads_bp.route('/api/customers_list')
+@login_required
+def customers_list():
+    customers = db["customers"].find({"company": current_user.company})
+    return jsonify([{"name": c["name"]} for c in customers])
+
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
 def loads_fragment():

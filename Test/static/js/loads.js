@@ -103,3 +103,44 @@ function closeLoadModal() {
 document.addEventListener("DOMContentLoaded", () => {
   initLoads();
 });
+
+
+function initBrokerCustomerSelect() {
+  const typeSelect = document.querySelector('[name="broker_customer_type"]');
+  const brokerSelect = $('#brokerSelect');
+
+  function loadOptions(type) {
+    brokerSelect.empty();
+    brokerSelect.append(new Option("Загрузка...", "")).trigger("change");
+
+    fetch(`/api/${type}s_list`)
+      .then(res => res.json())
+      .then(data => {
+        brokerSelect.empty();
+        brokerSelect.append(new Option("", ""));
+        data.forEach(item => {
+          brokerSelect.append(new Option(item.name, item.name));
+        });
+      });
+  }
+
+  // инициализация Select2
+  brokerSelect.select2({
+    placeholder: "Введите или выберите название...",
+    allowClear: true,
+    width: '100%'
+  });
+
+  // при смене типа — обновляем список
+  typeSelect.addEventListener("change", () => {
+    const type = typeSelect.value;
+    if (type === "broker" || type === "customer") {
+      loadOptions(type);
+    }
+  });
+
+  // загрузка брокеров по умолчанию
+  if (typeSelect.value === "broker" || typeSelect.value === "customer") {
+    loadOptions(typeSelect.value);
+  }
+}

@@ -49,6 +49,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     } else if (url.includes('loads')) {
                         initLoadParser?.();
                         initLoads?.();
+                        initBrokerCustomerSelect();
                     } else if (url.includes('tolls')) {
                         initTolls?.();
                         initTransponderForm?.();
