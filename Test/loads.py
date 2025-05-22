@@ -9,7 +9,7 @@ import gridfs
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
-
+import requests
 from Test.auth import requires_role
 from Test.tools.gpt_connection import get_openai_client
 from Test.tools.db import db
@@ -40,6 +40,8 @@ def ask_gpt(content):
     prompt = f"""
 Analyze the following Rate Con or BOL text and try to fill in the following JSON structure as accurately as possible.
 Leave blank any fields that are missing. Return only valid JSON:
+All dates please return in format mm/dd/yyyy
+Price please return in format dddd.cc    
 
 {{
     "Load Number": "",
@@ -49,6 +51,7 @@ Leave blank any fields that are missing. Return only valid JSON:
     "Broker Email": "",
     "Price": "",
     "Total Miles": "",
+    "Rate per Mile": "",
     "Weight": "",
     "Load Description": "",
     "Pickup Locations": [
@@ -240,6 +243,7 @@ def add_load():
             "broker_phone_number": partner_phone,
             "type": request.form.get("type"),
             "weight": request.form.get("weight"),
+            "RPM": request.form.get("RPM"),
             "price": request.form.get("price"),
             "load_description": request.form.get("load_description"),
             "vehicles": vehicles if vehicles else None,
@@ -313,3 +317,38 @@ def loads_fragment():
         return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads)
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
+
+
+@loads_bp.route('/api/get_mileage', methods=['POST'])
+@login_required
+def get_mileage():
+    try:
+        data = request.get_json()
+        origin = data.get("origin")
+        destination = data.get("destination")
+
+        if not origin or not destination:
+            return jsonify({"error": "Missing origin or destination"}), 400
+
+        setting = db['integrations_settings'].find_one({
+            'name': "Google Maps API",
+        })
+        api_key = setting.get('api_key') if setting else None
+        if not api_key:
+            return jsonify({"error": "API key not found"}), 400
+
+        url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={api_key}"
+        resp = requests.get(url)
+        data = resp.json()
+
+        if data["status"] != "OK":
+            return jsonify({"error": "Google Maps API error", "details": data}), 400
+
+        meters = sum(leg["distance"]["value"] for leg in data["routes"][0]["legs"])
+        miles = meters / 1609.34
+
+        return jsonify({"miles": round(miles)})
+
+    except Exception as e:
+        logging.exception("Mileage fetch error")
+        return jsonify({"error": str(e)}), 500

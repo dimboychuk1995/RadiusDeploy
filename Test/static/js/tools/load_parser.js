@@ -56,7 +56,6 @@ function autofillLoadForm(data) {
   const brokerName = data["Broker Name"] || "";
 
   if (brokerSelect.length && brokerName) {
-    // Если такого значения ещё нет в select — добавим
     if (brokerSelect.find(`option[value="${brokerName}"]`).length === 0) {
       brokerSelect.append(new Option(brokerName, brokerName, true, true)).trigger("change");
     } else {
@@ -138,7 +137,60 @@ function autofillLoadForm(data) {
     });
   }
 
+  // === Расчёт Rate Per Mile ===
+  const pickupAddrs = (data["Pickup Locations"] || []).map(p => p["Address"]);
+  const deliveryAddrs = (data["Delivery Locations"] || []).map(d => d["Address"]);
+  const allAddrs = [...pickupAddrs, ...deliveryAddrs];
+  const price = parseFloat(document.querySelector('[name="price"]').value);
+  const rpmInput = document.querySelector('[name="RPM"]');
+
+  if (price && allAddrs.length >= 2 && rpmInput) {
+    calculateTotalMiles(allAddrs).then(totalMiles => {
+      if (totalMiles > 0) {
+        const rpm = price / totalMiles;
+        rpmInput.value = rpm.toFixed(2);
+      }
+    });
+  }
+
+  console.log("📍 Адреса для расчёта RPM:", allAddrs);
+  console.log("💲 Цена:", price);
+
   console.log("✅ Все поля автозаполнены!");
 }
 
+
 window.initLoadParser = initLoadParser;
+
+async function calculateTotalMiles(addresses) {
+  const cleanedAddresses = addresses.filter(a => a && a.trim() !== "");
+  if (cleanedAddresses.length < 2) return 0;
+
+  let totalMiles = 0;
+
+  for (let i = 0; i < cleanedAddresses.length - 1; i++) {
+    const origin = cleanedAddresses[i];
+    const destination = cleanedAddresses[i + 1];
+
+    try {
+      const res = await fetch("/api/get_mileage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origin, destination })
+      });
+
+      const data = await res.json();
+      if (data.miles) {
+        totalMiles += data.miles;
+        console.log(`✅ ${origin} → ${destination}: ${data.miles} mi`);
+      } else {
+        console.warn("❌ Ошибка маршрута:", data);
+      }
+    } catch (err) {
+      console.warn("❌ Ошибка при запросе к API сервера:", err);
+    }
+  }
+
+  return Math.round(totalMiles);
+}
+
