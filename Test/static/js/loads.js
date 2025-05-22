@@ -129,27 +129,32 @@ function initBrokerCustomerSelect() {
   brokerSelect.select2({
     placeholder: "Введите или выберите...",
     allowClear: true,
+    tags: true,  // ✅ Разрешает ручной ввод
     width: '100%'
   });
 
   brokerSelect.on('change', function () {
     const selectedName = this.value;
     const found = currentOptions.find(o => o.name === selectedName);
+
     if (found) {
       if (emailInput) emailInput.value = found.email || "";
       if (phoneInput) phoneInput.value = found.phone || "";
+    } else {
+      if (emailInput) emailInput.value = "";
+      if (phoneInput) phoneInput.value = "";
     }
   });
 
-  typeSelect.addEventListener("change", () => {
+  typeSelect?.addEventListener("change", () => {
     const type = typeSelect.value;
     if (type === "broker" || type === "customer") {
       loadOptions(type);
     }
   });
 
-  // начальная загрузка
-  if (typeSelect.value === "broker" || typeSelect.value === "customer") {
+  if (typeSelect?.value === "broker" || typeSelect?.value === "customer") {
     loadOptions(typeSelect.value);
   }
 }
+
