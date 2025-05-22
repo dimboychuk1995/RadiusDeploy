@@ -162,6 +162,31 @@ def add_load():
         rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
         bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
 
+        # === Проверка и добавление брокера/кастомера ===
+        partner_type = request.form.get("broker_customer_type", "broker")
+        partner_name = request.form.get("broker_load_id")
+        partner_email = request.form.get("broker_email")
+        partner_phone = request.form.get("broker_phone_number")
+
+        broker_id = None
+        if partner_name:
+            collection = db["brokers"] if partner_type == "broker" else db["customers"]
+            existing = collection.find_one({
+                "name": partner_name,
+                "company": current_user.company
+            })
+
+            if existing:
+                broker_id = existing["_id"]
+            else:
+                broker_id = collection.insert_one({
+                    "name": partner_name,
+                    "email": partner_email,
+                    "phone": partner_phone,
+                    "company": current_user.company
+                }).inserted_id
+
+        # === Extra pickups ===
         extra_pickups = []
         for key in request.form:
             if key.startswith("extra_pickup[") and key.endswith("][company]"):
@@ -176,6 +201,7 @@ def add_load():
                     "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
                 })
 
+        # === Extra deliveries ===
         extra_deliveries = []
         for key in request.form:
             if key.startswith("extra_delivery[") and key.endswith("][company]"):
@@ -190,6 +216,7 @@ def add_load():
                     "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
                 })
 
+        # === Vehicles ===
         vehicles = []
         for key in request.form:
             if key.startswith("vehicles[") and key.endswith("][year]"):
@@ -203,12 +230,14 @@ def add_load():
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
 
+        # === Груз ===
         load_data = {
             "load_id": request.form.get("load_id"),
-            "broker_load_id": request.form.get("broker_load_id"),
-            "broker_customer_type": request.form.get("broker_customer_type"),
-            "broker_email": request.form.get("broker_email"),
-            "broker_phone_number": request.form.get("broker_phone_number"),
+            "broker_load_id": partner_name,
+            "broker_id": broker_id,
+            "broker_customer_type": partner_type,
+            "broker_email": partner_email,
+            "broker_phone_number": partner_phone,
             "type": request.form.get("type"),
             "weight": request.form.get("weight"),
             "price": request.form.get("price"),
@@ -247,9 +276,11 @@ def add_load():
 
         loads_collection.insert_one(load_data)
         return redirect(url_for('index') + '#section-loads-fragment')
+
     except Exception as e:
         logging.exception("Ошибка при добавлении груза")
         return render_template("error.html", message="Ошибка при сохранении груза")
+
 
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
