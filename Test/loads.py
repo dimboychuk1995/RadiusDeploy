@@ -38,52 +38,56 @@ def ask_gpt(content):
     client = get_openai_client()
 
     prompt = f"""
-Analyze the following Rate Con or BOL text and try to fill in the following JSON structure as accurately as possible.
-Leave blank any fields that are missing. Return only valid JSON:
-All dates please return in format mm/dd/yyyy
-Price please return in format dddd.cc    
+    Analyze the following Rate Con or BOL text and fill in the JSON structure as accurately as possible.
 
-{{
-    "Load Number": "",
-    "Broker Name": "",
-    "Type Of Load": "",
-    "Broker Phone Number": "",
-    "Broker Email": "",
-    "Price": "",
-    "Total Miles": "",
-    "Rate per Mile": "",
-    "Weight": "",
-    "Load Description": "",
-    "Pickup Locations": [
-        {{
-            "Company": "",
-            "Address": "",
-            "Date": "",
-            "Time": "",
-            "Instructions": "",
-            "Location Phone Number": "",
-            "Contact Person": "",
-            "Contact Email": ""
-        }}
-    ],
-    "Delivery Locations": [
-        {{
-            "Company": "",
-            "Address": "",
-            "Date": "",
-            "Time": "",
-            "Instructions": "",
-            "Location Phone Number": "",
-            "Contact Person": "",
-            "Contact Email": ""
-        }}
-    ]
-}}
+    🟡 RULES:
+    - Return ONLY valid JSON (no comments, no explanations).
+    - Leave fields blank if missing.
+    - Return dates in format: MM/DD/YYYY.
+    - Return price as: ####.## (2 decimals).
+    - Do NOT include extra Pickup or Delivery entries if they are not in the document.
+    - If there is only one pickup or delivery, include only one object in the array.
 
-Document:
------
-{content}
-"""
+    🔁 JSON FORMAT:
+    {{
+        "Load Number": "",
+        "Broker Name": "",
+        "Type Of Load": "",
+        "Broker Phone Number": "",
+        "Broker Email": "",
+        "Price": "",
+        "Weight": "",
+        "Load Description": "",
+        "Pickup Locations": [
+            {{
+                "Company": "",
+                "Address": "",
+                "Date": "",
+                "Time": "",
+                "Instructions": "",
+                "Location Phone Number": "",
+                "Contact Person": "",
+                "Contact Email": ""
+            }}
+        ],
+        "Delivery Locations": [
+            {{
+                "Company": "",
+                "Address": "",
+                "Date": "",
+                "Time": "",
+                "Instructions": "",
+                "Location Phone Number": "",
+                "Contact Person": "",
+                "Contact Email": ""
+            }}
+        ]
+    }}
+
+    Document:
+    -----
+    {content}
+    """
 
     try:
         response = client.chat.completions.create(
@@ -107,8 +111,11 @@ def parse_load_pdf():
     file = request.files.get('file')
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Допустим только PDF'}), 400
+
+    def remove_empty_stops(stops):
+        return [stop for stop in stops if stop.get("Address", "").strip()]
+
     try:
-        # читаем файл в байты (без сохранения на диск)
         pdf_bytes = file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
@@ -120,6 +127,7 @@ def parse_load_pdf():
             "Broker Email": "",
             "Price": "",
             "Total Miles": "",
+            "Rate per Mile": "",
             "Weight": "",
             "Load Description": "",
             "Pickup Locations": [],
@@ -149,11 +157,15 @@ def parse_load_pdf():
             except Exception as e:
                 logging.warning(f"❌ Ошибка при обработке страницы {i + 1}: {str(e)}")
 
+        # Удаляем пустые pickup/delivery объекты
+        merged_result["Pickup Locations"] = remove_empty_stops(merged_result["Pickup Locations"])
+        merged_result["Delivery Locations"] = remove_empty_stops(merged_result["Delivery Locations"])
+
         return jsonify(merged_result)
+
     except Exception as e:
         logging.exception("Ошибка при OCR и обработке PDF")
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
-
 
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role('admin')
