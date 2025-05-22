@@ -51,6 +51,19 @@ function autofillLoadForm(data) {
 
   document.querySelector('[name="load_id"]').value = data["Load Number"] || "";
   document.querySelector('[name="broker_load_id"]').value = data["Broker Name"] || "";
+
+  const brokerSelect = $('#brokerSelect');
+  const brokerName = data["Broker Name"] || "";
+
+  if (brokerSelect.length && brokerName) {
+    // Если такого значения ещё нет в select — добавим
+    if (brokerSelect.find(`option[value="${brokerName}"]`).length === 0) {
+      brokerSelect.append(new Option(brokerName, brokerName, true, true)).trigger("change");
+    } else {
+      brokerSelect.val(brokerName).trigger("change");
+    }
+  }
+
   document.querySelector('[name="type"]').value = data["Type Of Load"] || "";
   document.querySelector('[name="price"]').value = data["Price"] || "";
   document.querySelector('[name="weight"]').value = data["Weight"] || "";
