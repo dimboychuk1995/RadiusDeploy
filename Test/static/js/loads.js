@@ -108,30 +108,39 @@ document.addEventListener("DOMContentLoaded", () => {
 function initBrokerCustomerSelect() {
   const typeSelect = document.querySelector('[name="broker_customer_type"]');
   const brokerSelect = $('#brokerSelect');
+  const emailInput = document.querySelector('[name="broker_email"]');
+  const phoneInput = document.querySelector('[name="broker_phone_number"]');
+
+  let currentOptions = [];
 
   function loadOptions(type) {
-    brokerSelect.empty();
-    brokerSelect.append(new Option("Загрузка...", "")).trigger("change");
-
+    brokerSelect.empty().append(new Option("Загрузка...", ""));
     fetch(`/api/${type}s_list`)
       .then(res => res.json())
       .then(data => {
-        brokerSelect.empty();
-        brokerSelect.append(new Option("", ""));
+        currentOptions = data;
+        brokerSelect.empty().append(new Option("", ""));
         data.forEach(item => {
           brokerSelect.append(new Option(item.name, item.name));
         });
       });
   }
 
-  // инициализация Select2
   brokerSelect.select2({
-    placeholder: "Введите или выберите название...",
+    placeholder: "Введите или выберите...",
     allowClear: true,
     width: '100%'
   });
 
-  // при смене типа — обновляем список
+  brokerSelect.on('change', function () {
+    const selectedName = this.value;
+    const found = currentOptions.find(o => o.name === selectedName);
+    if (found) {
+      if (emailInput) emailInput.value = found.email || "";
+      if (phoneInput) phoneInput.value = found.phone || "";
+    }
+  });
+
   typeSelect.addEventListener("change", () => {
     const type = typeSelect.value;
     if (type === "broker" || type === "customer") {
@@ -139,7 +148,7 @@ function initBrokerCustomerSelect() {
     }
   });
 
-  // загрузка брокеров по умолчанию
+  // начальная загрузка
   if (typeSelect.value === "broker" || typeSelect.value === "customer") {
     loadOptions(typeSelect.value);
   }

@@ -286,13 +286,19 @@ def add_load():
 @login_required
 def brokers_list():
     brokers = db["brokers"].find({"company": current_user.company})
-    return jsonify([{"name": b["name"]} for b in brokers])
+    return jsonify([
+        {"name": b["name"], "email": b.get("email", ""), "phone": b.get("phone", "")}
+        for b in brokers
+    ])
 
 @loads_bp.route('/api/customers_list')
 @login_required
 def customers_list():
     customers = db["customers"].find({"company": current_user.company})
-    return jsonify([{"name": c["name"]} for c in customers])
+    return jsonify([
+        {"name": c["name"], "email": c.get("email", ""), "phone": c.get("phone", "")}
+        for c in customers
+    ])
 
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
