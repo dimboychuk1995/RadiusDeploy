@@ -153,6 +153,18 @@ function autofillLoadForm(data) {
     });
   }
 
+  const totalMilesInput = document.querySelector('[name="total_miles"]');
+
+  if (price && allAddrs.length >= 2 && rpmInput && totalMilesInput) {
+    calculateTotalMiles(allAddrs).then(totalMiles => {
+      if (totalMiles > 0) {
+        const rpm = price / totalMiles;
+        rpmInput.value = rpm.toFixed(2);
+        totalMilesInput.value = totalMiles;
+      }
+    });
+  }
+
   console.log("📍 Адреса для расчёта RPM:", allAddrs);
   console.log("💲 Цена:", price);
 

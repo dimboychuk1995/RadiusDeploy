@@ -245,6 +245,7 @@ def add_load():
             "weight": request.form.get("weight"),
             "RPM": request.form.get("RPM"),
             "price": request.form.get("price"),
+            "total_miles": request.form.get("total_miles"),
             "load_description": request.form.get("load_description"),
             "vehicles": vehicles if vehicles else None,
             "assigned_driver": ObjectId(request.form.get("assigned_driver")) if request.form.get("assigned_driver") else None,
