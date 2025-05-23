@@ -1,6 +1,9 @@
 import logging
 import json
 from datetime import datetime
+from email.mime.application import MIMEApplication
+
+
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from bson.objectid import ObjectId
 from flask_login import login_required, current_user
@@ -16,6 +19,9 @@ from Test.tools.db import db
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from xhtml2pdf import pisa
+from io import BytesIO
+from jinja2 import Template
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -394,14 +400,7 @@ def send_load_email_to_driver(company_email, company_password, driver_email, dri
     body = f"""
 Привет, {driver_name}!
 
-Вам назначен новый груз:
-───────────────────────
-Пикап: {load_info.get('pickup', {}).get('address', '—')} ({load_info.get('pickup', {}).get('date', '')})
-Деливери: {load_info.get('delivery', {}).get('address', '—')} ({load_info.get('delivery', {}).get('date', '')})
-Цена: ${load_info.get('price', '—')}
-Вес: {load_info.get('weight', '—')} lbs
-Описание: {load_info.get('load_description', '—')}
-───────────────────────
+Вам назначен новый груз. Подробности — в прикреплённом PDF-файле.
 
 Удачи в рейсе!
     """
@@ -412,9 +411,66 @@ def send_load_email_to_driver(company_email, company_password, driver_email, dri
     msg['Subject'] = subject
     msg.attach(MIMEText(body, 'plain'))
 
+    pdf_buffer = generate_load_pdf(load_info)
+    pdf_attachment = MIMEApplication(pdf_buffer.read(), _subtype="pdf")
+    pdf_attachment.add_header('Content-Disposition', 'attachment', filename="LoadDetails.pdf")
+    msg.attach(pdf_attachment)
+
     with smtplib.SMTP('smtp.gmail.com', 587) as server:
         server.starttls()
         server.login(company_email, company_password)
         server.send_message(msg)
 
-    logging.info(f"📧 Email отправлен на {driver_email}")
+    logging.info(f"📧 Email с красивым PDF отправлен на {driver_email}")
+
+
+def generate_load_pdf(load_info):
+    html_template = """
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { color: #1a3568; }
+            .section { margin-bottom: 20px; }
+            .label { font-weight: bold; }
+            .box { border: 1px solid #ccc; padding: 10px; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <h1>Load Summary</h1>
+
+        <div class="section box">
+            <div><span class="label">Load ID:</span> {{ load.load_id or '—' }}</div>
+            <div><span class="label">Description:</span> {{ load.load_description or '—' }}</div>
+            <div><span class="label">Price:</span> ${{ load.price or '—' }}</div>
+            <div><span class="label">Weight:</span> {{ load.weight or '—' }} lbs</div>
+            <div><span class="label">Rate per Mile:</span> {{ load.RPM or '—' }}</div>
+        </div>
+
+        <div class="section box">
+            <h2>📦 Pickup</h2>
+            <div>{{ load.pickup.company }}</div>
+            <div>{{ load.pickup.address }}</div>
+            <div>Date: {{ load.pickup.date }}</div>
+        </div>
+
+        <div class="section box">
+            <h2>📬 Delivery</h2>
+            <div>{{ load.delivery.company }}</div>
+            <div>{{ load.delivery.address }}</div>
+            <div>Date: {{ load.delivery.date }}</div>
+        </div>
+    </body>
+    </html>
+    """
+
+    template = Template(html_template)
+    rendered_html = template.render(load=load_info)
+
+    pdf_io = BytesIO()
+    result = pisa.CreatePDF(rendered_html, dest=pdf_io)
+    if result.err:
+        raise Exception("❌ Ошибка генерации PDF")
+
+    pdf_io.seek(0)
+    return pdf_io
