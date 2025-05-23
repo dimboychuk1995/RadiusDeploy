@@ -13,6 +13,9 @@ import requests
 from Test.auth import requires_role
 from Test.tools.gpt_connection import get_openai_client
 from Test.tools.db import db
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -292,6 +295,25 @@ def add_load():
         }
 
         loads_collection.insert_one(load_data)
+
+        # === Отправка email водителю ===
+        if load_data.get("assigned_driver"):
+            driver = drivers_collection.find_one({"_id": load_data["assigned_driver"]})
+            company = db["companies"].find_one({"name": "UWC"})
+
+            if driver and driver.get("email") and company and company.get("email") and company.get("password"):
+                try:
+                    print("📨 Попытка отправить email водителю")
+                    send_load_email_to_driver(
+                        company_email=company["email"],
+                        company_password=company["password"],
+                        driver_email=driver["email"],
+                        driver_name=driver["name"],
+                        load_info=load_data
+                    )
+                except Exception as e:
+                    logging.warning(f"❌ Ошибка отправки email водителю: {str(e)}")
+
         return redirect(url_for('index') + '#section-loads-fragment')
 
     except Exception as e:
@@ -365,3 +387,34 @@ def get_mileage():
     except Exception as e:
         logging.exception("Mileage fetch error")
         return jsonify({"error": str(e)}), 500
+
+
+def send_load_email_to_driver(company_email, company_password, driver_email, driver_name, load_info):
+    subject = f"🚚 Новый груз для {driver_name}"
+    body = f"""
+Привет, {driver_name}!
+
+Вам назначен новый груз:
+───────────────────────
+Пикап: {load_info.get('pickup', {}).get('address', '—')} ({load_info.get('pickup', {}).get('date', '')})
+Деливери: {load_info.get('delivery', {}).get('address', '—')} ({load_info.get('delivery', {}).get('date', '')})
+Цена: ${load_info.get('price', '—')}
+Вес: {load_info.get('weight', '—')} lbs
+Описание: {load_info.get('load_description', '—')}
+───────────────────────
+
+Удачи в рейсе!
+    """
+
+    msg = MIMEMultipart()
+    msg['From'] = company_email
+    msg['To'] = driver_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        server.starttls()
+        server.login(company_email, company_password)
+        server.send_message(msg)
+
+    logging.info(f"📧 Email отправлен на {driver_email}")
