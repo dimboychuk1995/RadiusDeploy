@@ -1,0 +1,35 @@
+<div class="container mt-4">
+    <h3>Статистика по грузам</h3>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label for="dateRange">Диапазон дат:</label>
+            <input type="date" id="startDate" class="form-control mb-1">
+            <input type="date" id="endDate" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label for="driverSelect">Водитель:</label>
+            <select id="driverSelect" class="form-control">
+                <option value="">Все</option>
+                <!-- опции подгрузим динамически -->
+            </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button class="btn btn-primary" id="filterStats">Фильтровать</button>
+        </div>
+    </div>
+
+    <table class="table table-bordered" id="loadStatsTable">
+        <thead>
+            <tr>
+                <th>Водитель</th>
+                <th>Количество грузов</th>
+                <th>Общая сумма ($)</th>
+                <th>Средний RPM</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- данные вставляются через JS -->
+        </tbody>
+    </table>
+</div>

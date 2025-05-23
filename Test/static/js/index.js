@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
         'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
+        'btn-loads-stats': { id: 'section-loads-stats', url: '/fragment/load_stats_fragment' },
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
         'btn-brokers-fragment': { id: 'section-dispatch-brokers', url: '/fragment/dispatch_brokers' },
         'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
@@ -46,7 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initFuelCards?.();
                     } else if (url.includes('samsara')) {
                         initSamsara?.();
-                    } else if (url.includes('loads')) {
+                    } else if (url.includes('loads_fragment')) {
                         initLoadParser?.();
                         initLoads?.();
                         initBrokerCustomerSelect();
@@ -65,6 +66,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         initFleet?.();
                         initFleetUnitClicks?.();
                         loadFleetCharts?.();
+                    } else if (url.includes('load_stats_fragment')) {
+                        initLoadStats?.();
                     }
                 });
         }
@@ -76,11 +79,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (button) {
             button.addEventListener("click", () => {
+                // скрываем все секции
                 Object.values(sections).forEach(({ id }) => {
                     const section = document.getElementById(id);
                     if (section) section.style.display = "none";
                 });
 
+                // очищаем детальные блоки
                 const driverDetailsSection = document.getElementById("driver-details");
                 if (driverDetailsSection) {
                     driverDetailsSection.style.display = "none";
@@ -93,6 +98,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     unitDetailsSection.innerHTML = "";
                 }
 
+                // деактивируем все кнопки
                 Object.keys(sections).forEach(id => {
                     const btn = document.getElementById(id);
                     if (btn) btn.classList.remove("active");
@@ -107,13 +113,25 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // Обработчик стрелки раскрытия подменю "Диспетчер"
-    const arrow = document.getElementById("dispatcherDropdownArrow");
-    if (arrow) {
-        arrow.addEventListener("click", (e) => {
+    // Стрелка "Диспетчер"
+    const dispatcherArrow = document.getElementById("dispatcherDropdownArrow");
+    if (dispatcherArrow) {
+        dispatcherArrow.addEventListener("click", (e) => {
             e.stopPropagation();
             const submenu = document.getElementById("dispatcherSubmenu");
             submenu.style.display = submenu.style.display === "none" ? "block" : "none";
+        });
+    }
+
+    // Стрелка "Грузы"
+    const loadsArrow = document.getElementById("loadsDropdownArrow");
+    if (loadsArrow) {
+        loadsArrow.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const submenu = document.getElementById("loadsSubmenu");
+            const isVisible = submenu.style.display === "block";
+            submenu.style.display = isVisible ? "none" : "block";
+            loadsArrow.innerHTML = isVisible ? "&#9662;" : "&#9652;";
         });
     }
 

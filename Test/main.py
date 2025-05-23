@@ -17,6 +17,7 @@ from fleet import fleet_bp
 from broker_customer import broker_customer_bp
 import os
 from company_information import company_bp
+from load_stats_api import load_stats_api
 
 app = Flask(__name__)
 app.secret_key = 'secret'
@@ -38,6 +39,7 @@ app.register_blueprint(tolls_bp)
 app.register_blueprint(fleet_bp)
 app.register_blueprint(broker_customer_bp)
 app.register_blueprint(company_bp)
+app.register_blueprint(load_stats_api)
 
 
 login_manager.init_app(app)
