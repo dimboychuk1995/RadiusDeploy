@@ -80,3 +80,138 @@ def load_stats_general():
         'avg_price': avg_price,
         'loads': parsed_loads
     })
+
+
+@load_stats_api.route('/api/load_stats/by_driver')
+@login_required
+def load_stats_by_driver():
+    loads = list(db['loads'].find({'company': current_user.company}))
+    drivers_col = db['drivers']
+
+    stats_by_driver = {}
+
+    for load in loads:
+        driver_id = load.get("assigned_driver")
+        driver_name = ""
+
+        # Поиск имени водителя
+        if driver_id:
+            if isinstance(driver_id, str):
+                driver_id = ObjectId(driver_id)
+            driver = drivers_col.find_one({"_id": driver_id})
+            if driver:
+                driver_name = driver.get("name", "")
+        else:
+            driver_name = load.get("driver_name", "Без имени")
+
+        if not driver_name:
+            driver_name = "Без имени"
+
+        try:
+            price = float(load.get("price") or 0)
+        except:
+            price = 0
+
+        try:
+            miles = float(load.get("total_miles") or 0)
+        except:
+            miles = 0
+
+        if driver_name not in stats_by_driver:
+            stats_by_driver[driver_name] = {
+                "driver": driver_name,
+                "count": 0,
+                "total": 0.0,
+                "miles": 0.0
+            }
+
+        stats_by_driver[driver_name]["count"] += 1
+        stats_by_driver[driver_name]["total"] += price
+        stats_by_driver[driver_name]["miles"] += miles
+
+    result = []
+    for stat in stats_by_driver.values():
+        count = stat["count"]
+        total = stat["total"]
+        miles = stat["miles"]
+        rpm = miles / total if total else 0
+        avg_miles = miles / count if count else 0
+        avg_price = total / count if count else 0
+
+        result.append({
+            "driver": stat["driver"],
+            "count": count,
+            "total": total,
+            "rpm": rpm,
+            "avg_miles": avg_miles,
+            "avg_price": avg_price
+        })
+
+    return jsonify(result)
+
+
+@load_stats_api.route('/api/load_stats/by_broker')
+@login_required
+def load_stats_by_broker():
+    loads = list(db['loads'].find({'company': current_user.company}))
+    brokers_col = db['brokers']
+    customers_col = db['customers']
+
+    stats = {}
+
+    for load in loads:
+        broker_id = load.get("broker_id")
+        if not broker_id:
+            continue
+
+        if isinstance(broker_id, str):
+            broker_id = ObjectId(broker_id)
+
+        broker = brokers_col.find_one({"_id": broker_id})
+        if not broker:
+            broker = customers_col.find_one({"_id": broker_id})
+
+        name = broker.get("name", "Без имени") if broker else "Без имени"
+
+        try:
+            price = float(load.get("price") or 0)
+        except:
+            price = 0
+
+        try:
+            miles = float(load.get("total_miles") or 0)
+        except:
+            miles = 0
+
+        if name not in stats:
+            stats[name] = {
+                "name": name,
+                "count": 0,
+                "total": 0.0,
+                "total_miles": 0.0
+            }
+
+        stats[name]["count"] += 1
+        stats[name]["total"] += price
+        stats[name]["total_miles"] += miles
+
+    result = []
+    for s in stats.values():
+        count = s["count"]
+        total = s["total"]
+        miles = s["total_miles"]
+        rpm = miles / total if total else 0
+        avg_miles = miles / count if count else 0
+        avg_price = total / count if count else 0
+
+        result.append({
+            "name": s["name"],
+            "count": count,
+            "total": total,
+            "total_miles": miles,
+            "avg_miles": avg_miles,
+            "rpm": rpm,
+            "avg_price": avg_price
+        })
+
+    return jsonify(result)

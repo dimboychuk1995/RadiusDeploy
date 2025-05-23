@@ -108,5 +108,89 @@
             <tbody></tbody>
         </table>
     </div>
+</div>
 
+
+<div class="stats-details-container" id="driverStatsSection" style="display: none;">
+    <h4>📊 Статистика по водителям</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="driverFilterStart">Дата начала</label>
+            <input type="date" id="driverFilterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="driverFilterEnd">Дата окончания</label>
+            <input type="date" id="driverFilterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="driverFilterCompany">Компания</label>
+            <select id="driverFilterCompany" class="form-control">
+                <option value="">Все</option>
+                <!-- опции позже -->
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm" id="driverStatsTable">
+            <thead>
+                <tr>
+                    <th>Водитель</th>
+                    <th>Кол-во грузов</th>
+                    <th>Сумма</th>
+                    <th>RPM</th>
+                    <th>Средние мили</th>
+                    <th>Средняя цена</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div class="stats-details-container" id="brokerStatsSection" style="display: none;">
+    <h4>📊 Статистика по брокерам и кастомерам</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="brokerFilterStart">Дата начала</label>
+            <input type="date" id="brokerFilterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="brokerFilterEnd">Дата окончания</label>
+            <input type="date" id="brokerFilterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="brokerFilterCompany">Компания</label>
+            <select id="brokerFilterCompany" class="form-control">
+                <option value="">Все</option>
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="brokerCustomerType">Тип</label>
+            <select id="brokerCustomerType" class="form-control">
+                <option value="">Все</option>
+                <option value="broker">Брокеры</option>
+                <option value="customer">Кастомеры</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm" id="brokerStatsTable">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Кол-во грузов</th>
+                    <th>Сумма</th>
+                    <th>Общие мили</th>
+                    <th>Средние мили</th>
+                    <th>RPM</th>
+                    <th>Средняя цена</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 </div>
