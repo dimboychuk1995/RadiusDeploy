@@ -28,7 +28,33 @@ async function loadGeneralStats() {
 
         document.getElementById("totalLoads").textContent = data.total_loads;
         document.getElementById("totalAmount").textContent = `$${data.total_amount.toFixed(2)}`;
+        document.getElementById("totalMiles").textContent = data.total_miles.toFixed(2);
         document.getElementById("avgRPM").textContent = data.avg_rpm.toFixed(2);
+        document.getElementById("avgMiles").textContent = data.avg_miles.toFixed(2);
+        document.getElementById("avgPrice").textContent = `$${data.avg_price.toFixed(2)}`;
+
+
+        // 🧾 Отрисовка таблицы грузов
+        const tbody = document.querySelector("#statLoadsTable tbody");
+        tbody.innerHTML = "";
+
+        data.loads.forEach(load => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${load.load_id || ""}</td>
+                <td>${load.broker || ""}</td>
+                <td>${load.pickup || ""}</td>
+                <td>${load.delivery || ""}</td>
+                <td>${load.pickup_date || ""}</td>
+                <td>${load.delivery_date || ""}</td>
+                <td>${load.miles || ""}</td>
+                <td>${load.rpm || ""}</td>
+                <td>${load.driver || ""}</td>
+                <td>${load.dispatch || ""}</td>
+            `;
+            tbody.appendChild(row);
+        });
+
     } catch (err) {
         console.error("❌ Ошибка загрузки общей статистики:", err);
     }

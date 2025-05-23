@@ -82,6 +82,31 @@
     <ul id="generalStatsData">
         <li>📦 Количество грузов: <span id="totalLoads">...</span></li>
         <li>💵 Общая сумма: <span id="totalAmount">...</span></li>
-        <li>📏 Средний RPM: <span id="avgRPM">...</span></li>
+        <li>📏 Общие мили: <span id="totalMiles">...</span></li>
+        <li>⚖️ Средний RPM (миль / $): <span id="avgRPM">...</span></li>
+        <li>🚚 Среднее количество миль: <span id="avgMiles">...</span></li>
+        <li>💲 Средняя цена груза: <span id="avgPrice">...</span></li>
     </ul>
+
+    <h5 style="margin-top: 30px;">Грузы, попавшие в статистику</h5>
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm" id="statLoadsTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Broker</th>
+                    <th>Pickup</th>
+                    <th>Delivery</th>
+                    <th>Pickup Date</th>
+                    <th>Delivery Date</th>
+                    <th>Total Miles</th>
+                    <th>RPM</th>
+                    <th>Driver</th>
+                    <th>Dispatch</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
 </div>
