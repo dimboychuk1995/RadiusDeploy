@@ -17,6 +17,8 @@
                     <th>DOT</th>
                     <th>Телефон</th>
                     <th>Email</th>
+                    <th>Password</th>
+                    <th>Действия</th>
                 </tr>
             </thead>
             <tbody id="companyTableBody">
@@ -28,6 +30,10 @@
                     <td>{{ company.dot }}</td>
                     <td>{{ company.phone }}</td>
                     <td>{{ company.email }}</td>
+                    <td>{{ company.password }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editCompany('{{ company._id }}')">✏️</button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -68,7 +74,10 @@
           <label>Email</label>
           <input type="email" name="email" class="form-control">
         </div>
-
+        <div class="form-group mb-3">
+          <label>Password</label>
+          <input type="password" name="password" class="form-control">
+        </div>
         <div class="mt-4 d-flex justify-content-end">
           <button type="button" class="btn btn-secondary mr-2" onclick="closeCompanyModal()">Отмена</button>
           <button type="submit" class="btn btn-success">Сохранить</button>
@@ -80,5 +89,4 @@
 
 <!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" id="companyBackdrop" onclick="closeCompanyModal()"></div>
-
 {% endblock %}
