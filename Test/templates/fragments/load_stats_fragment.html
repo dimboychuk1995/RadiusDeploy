@@ -1,35 +1,87 @@
-<div class="container mt-4">
-    <h3>Статистика по грузам</h3>
+<h3 style="margin-left: 30px;">📊 Статистика по грузам</h3>
 
-    <div class="row mb-3">
-        <div class="col-md-4">
-            <label for="dateRange">Диапазон дат:</label>
-            <input type="date" id="startDate" class="form-control mb-1">
-            <input type="date" id="endDate" class="form-control">
-        </div>
-        <div class="col-md-4">
-            <label for="driverSelect">Водитель:</label>
-            <select id="driverSelect" class="form-control">
-                <option value="">Все</option>
-                <!-- опции подгрузим динамически -->
-            </select>
-        </div>
-        <div class="col-md-4 d-flex align-items-end">
-            <button class="btn btn-primary" id="filterStats">Фильтровать</button>
+<div class="stats-scroll-container">
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>1️⃣ Общая статистика <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Сводка: количество, сумма, RPM.</p>
         </div>
     </div>
 
-    <table class="table table-bordered" id="loadStatsTable">
-        <thead>
-            <tr>
-                <th>Водитель</th>
-                <th>Количество грузов</th>
-                <th>Общая сумма ($)</th>
-                <th>Средний RPM</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- данные вставляются через JS -->
-        </tbody>
-    </table>
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>2️⃣ По водителям <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>По каждому водителю: сумма, RPM.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>3️⃣ По брокерам <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Сумма, RPM по брокерам.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>4️⃣ География <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Пикапы/деливери по штатам и городам.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>6️⃣ Топ грузы <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Самые дорогие или выгодные грузы.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>7️⃣ Аномалии <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Грузы с ошибками или низким RPM.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>8️⃣ По статусу <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Delivered, Canceled и др.</p>
+        </div>
+    </div>
+</div>
+
+<div class="stats-details-container" id="generalStatsSection" style="display: none;">
+    <h4>Общая статистика по грузам</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="filterStart">Дата начала</label>
+            <input type="date" id="filterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="filterEnd">Дата окончания</label>
+            <input type="date" id="filterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="filterCompany">Компания</label>
+            <select id="filterCompany" class="form-control">
+                <option value="">Все</option>
+                <!-- будут загружены позже -->
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="filterTruckType">Тип трака</label>
+            <select id="filterTruckType" class="form-control">
+                <option value="">Все</option>
+                <!-- будут загружены позже -->
+            </select>
+        </div>
+    </div>
+
+    <ul id="generalStatsData">
+        <li>📦 Количество грузов: <span id="totalLoads">...</span></li>
+        <li>💵 Общая сумма: <span id="totalAmount">...</span></li>
+        <li>📏 Средний RPM: <span id="avgRPM">...</span></li>
+    </ul>
 </div>
