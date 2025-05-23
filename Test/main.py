@@ -16,6 +16,7 @@ from tolls import tolls_bp
 from fleet import fleet_bp
 from broker_customer import broker_customer_bp
 import os
+from company_information import company_bp
 
 app = Flask(__name__)
 app.secret_key = 'secret'
@@ -36,6 +37,7 @@ app.register_blueprint(samsara_bp)
 app.register_blueprint(tolls_bp)
 app.register_blueprint(fleet_bp)
 app.register_blueprint(broker_customer_bp)
+app.register_blueprint(company_bp)
 
 
 login_manager.init_app(app)
