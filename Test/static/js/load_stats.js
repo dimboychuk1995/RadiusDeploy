@@ -127,3 +127,56 @@ async function loadBrokerStats() {
         console.error("❌ Ошибка загрузки по брокерам:", err);
     }
 }
+
+let weeklyChartInstance = null;
+
+function renderEmptyWeeklyChart() {
+    const ctx = document.getElementById('weeklyStatsChart').getContext('2d');
+
+    if (weeklyChartInstance) {
+        weeklyChartInstance.destroy(); // уничтожаем предыдущий экземпляр
+    }
+
+    weeklyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [], // недели появятся позже
+            datasets: [
+                {
+                    label: 'Грузы',
+                    data: [],
+                    tension: 0.3,
+                    borderWidth: 2,
+                    fill: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'top'
+                },
+                title: {
+                    display: true,
+                    text: 'Динамика грузов по неделям'
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Недели'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Значение'
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
