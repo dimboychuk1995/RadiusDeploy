@@ -39,6 +39,9 @@ async function loadGeneralStats() {
         const data = await res.json();
         console.log("📦 JSON данные:", data);
 
+        // ⏬ Сохраняем все грузы глобально
+        window.lastGeneralLoads = data.loads;
+
         // Заполнение сводки
         document.getElementById("totalLoads").textContent = data.total_loads;
         document.getElementById("totalAmount").textContent = `$${data.total_amount.toFixed(2)}`;
@@ -374,5 +377,62 @@ function renderWeeklyChart(labels, weeklyBuckets) {
             }
         }
     });
+}
+
+function addRangeRow() {
+    const container = document.getElementById("rangeComparisonContainer");
+    const div = document.createElement("div");
+    div.className = "d-flex align-items-center gap-2 range-row";
+    div.innerHTML = `
+        <input type="date" class="form-control" style="max-width: 200px;">
+        <span>—</span>
+        <input type="date" class="form-control" style="max-width: 200px;">
+        <button class="btn btn-outline-danger" onclick="removeRangeRow(this)">✖</button>
+    `;
+    container.appendChild(div);
+}
+function removeRangeRow(btn) {
+    btn.parentElement.remove();
+}
+
+function calculateRangeComparison() {
+    const rows = document.querySelectorAll("#rangeComparisonContainer .range-row");
+    const tbody = document.querySelector("#rangeComparisonResult tbody");
+    tbody.innerHTML = "";
+
+    const loads = window.lastGeneralLoads || []; // сохраняй data.loads сюда в loadGeneralStats()
+
+    rows.forEach(row => {
+        const inputs = row.querySelectorAll("input");
+        const start = new Date(inputs[0].value);
+        const end = new Date(inputs[1].value);
+        if (!inputs[0].value || !inputs[1].value) return;
+
+        const filtered = loads.filter(load => {
+            const d = new Date(load.delivery_date);
+            return d >= start && d <= end;
+        });
+
+        const count = filtered.length;
+        const total = filtered.reduce((sum, l) => sum + parseFloat(l.price || 0), 0);
+        const miles = filtered.reduce((sum, l) => sum + parseFloat(l.miles || l.total_miles || 0), 0);
+        const rpm = total > 0 ? miles / total : 0;
+        const avgPrice = count > 0 ? total / count : 0;
+        const avgMiles = count > 0 ? miles / count : 0;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${inputs[0].value} – ${inputs[1].value}</td>
+            <td>${count}</td>
+            <td>$${total.toFixed(2)}</td>
+            <td>${miles.toFixed(2)}</td>
+            <td>${rpm.toFixed(2)}</td>
+            <td>$${avgPrice.toFixed(2)}</td>
+            <td>${avgMiles.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById("rangeComparisonResult").style.display = "block";
 }
 
