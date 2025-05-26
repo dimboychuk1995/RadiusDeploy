@@ -32,8 +32,6 @@ async function loadGeneralStats() {
 
     try {
         const res = await fetch("/api/load_stats/general");
-        console.log("🛰️ Ответ получен:", res);
-
         if (!res.ok) {
             throw new Error(`HTTP error! status: ${res.status}`);
         }
@@ -41,6 +39,7 @@ async function loadGeneralStats() {
         const data = await res.json();
         console.log("📦 JSON данные:", data);
 
+        // Заполнение сводки
         document.getElementById("totalLoads").textContent = data.total_loads;
         document.getElementById("totalAmount").textContent = `$${data.total_amount.toFixed(2)}`;
         document.getElementById("totalMiles").textContent = data.total_miles.toFixed(2);
@@ -48,7 +47,7 @@ async function loadGeneralStats() {
         document.getElementById("avgMiles").textContent = data.avg_miles.toFixed(2);
         document.getElementById("avgPrice").textContent = `$${data.avg_price.toFixed(2)}`;
 
-        // 🧾 Отрисовка таблицы грузов
+        // Отрисовка таблицы грузов
         const tbody = document.querySelector("#statLoadsTable tbody");
         tbody.innerHTML = "";
 
@@ -68,6 +67,21 @@ async function loadGeneralStats() {
             `;
             tbody.appendChild(row);
         });
+
+        // 📊 График по неделям
+        const weeklyBuckets = getWeeklyBucketsImproved(data.loads);
+        const sortedWeeks = Object.keys(weeklyBuckets).sort();
+
+        const labels = [];
+        const values = [];
+
+        sortedWeeks.forEach(weekStart => {
+            const item = weeklyBuckets[weekStart];
+            labels.push(weekStart);
+            values.push(item.count); // можно заменить на item.total, item.miles, item.miles / item.total и т.д.
+        });
+
+        renderWeeklyChart(labels, weeklyBuckets);
 
     } catch (err) {
         console.error("❌ Ошибка загрузки общей статистики:", err);
@@ -128,39 +142,139 @@ async function loadBrokerStats() {
     }
 }
 
+
+function getWeeklyBucketsImproved(loads) {
+    const buckets = {};
+
+    loads.forEach(load => {
+        const deliveryDateStr = load.delivery_date;
+        if (!deliveryDateStr) return;
+
+        const date = new Date(deliveryDateStr);
+        const weekStart = getMonday(date);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        const weekLabel = `${formatDateMMDDYYYY(weekStart)} - ${formatDateMMDDYYYY(weekEnd)}`;
+
+        if (!buckets[weekLabel]) {
+            buckets[weekLabel] = {
+                count: 0,
+                total: 0,
+                miles: 0
+            };
+        }
+
+        buckets[weekLabel].count += 1;
+        buckets[weekLabel].total += parseFloat(load.price || 0);
+        buckets[weekLabel].miles += parseFloat(load.miles || 0);
+    });
+
+    return buckets;
+}
+
+
+function getMonday(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Пн = 1, Вс = 0
+    return new Date(d.setDate(diff));
+}
+
+function formatDateMMDDYYYY(date) {
+    const d = new Date(date);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}/${dd}/${yyyy}`;
+}
+
 let weeklyChartInstance = null;
 
-function renderEmptyWeeklyChart() {
+
+function renderWeeklyChart(labels, weeklyBuckets) {
     const ctx = document.getElementById('weeklyStatsChart').getContext('2d');
 
     if (weeklyChartInstance) {
-        weeklyChartInstance.destroy(); // уничтожаем предыдущий экземпляр
+        weeklyChartInstance.destroy();
     }
+
+    const counts = [];
+    const totals = [];
+    const miles = [];
+    const rpms = [];
+
+    labels.forEach(label => {
+        const bucket = weeklyBuckets[label];
+        counts.push(bucket.count);
+        totals.push(+bucket.total.toFixed(2));
+        miles.push(+bucket.miles.toFixed(2));
+        const rpm = bucket.total > 0 ? (bucket.miles / bucket.total) : 0;
+        rpms.push(+rpm.toFixed(2));
+    });
 
     weeklyChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: [], // недели появятся позже
+            labels: labels,
             datasets: [
                 {
-                    label: 'Грузы',
-                    data: [],
-                    tension: 0.3,
-                    borderWidth: 2,
-                    fill: false,
+                    label: '📦 Грузы',
+                    data: counts,
+                    borderWidth: 4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    yAxisID: 'y-loads'
+                },
+                {
+                    label: '💵 Сумма',
+                    data: totals,
+                    borderWidth: 4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    yAxisID: 'y-total'
+                },
+                {
+                    label: '📏 Мили',
+                    data: miles,
+                    borderWidth: 4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    yAxisID: 'y-miles'
+                },
+                {
+                    label: '⚖️ RPM',
+                    data: rpms,
+                    borderWidth: 4,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    tension: 0.4,
+                    yAxisID: 'y-rpm'
                 }
             ]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
                     position: 'top'
                 },
                 title: {
                     display: true,
-                    text: 'Динамика грузов по неделям'
+                    text: '📈 Динамика по неделям (множественные шкалы)'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
                 }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
             },
             scales: {
                 x: {
@@ -169,14 +283,52 @@ function renderEmptyWeeklyChart() {
                         text: 'Недели'
                     }
                 },
-                y: {
+                'y-loads': {
+                    type: 'linear',
+                    position: 'left',
                     title: {
                         display: true,
-                        text: 'Значение'
+                        text: 'Грузы'
                     },
                     beginAtZero: true
+                },
+                'y-total': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Сумма'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                },
+                'y-miles': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Мили'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                },
+                'y-rpm': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'RPM'
+                    },
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    min: 0,
+                    suggestedMax: 3
                 }
             }
         }
     });
 }
+

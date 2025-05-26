@@ -67,7 +67,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initFleetUnitClicks?.();
                         loadFleetCharts?.();
                     } else if (url.includes('load_stats_fragment')) {
-                        renderEmptyWeeklyChart();
+                        loadGeneralStats?.();
                     }
                 });
         }
