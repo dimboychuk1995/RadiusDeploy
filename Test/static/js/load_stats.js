@@ -165,13 +165,17 @@ function getWeeklyBucketsImproved(loads) {
             };
         }
 
+        const price = parseFloat(load.price || 0);
+        const miles = parseFloat(load.miles || load.total_miles || 0);
+
         buckets[weekLabel].count += 1;
-        buckets[weekLabel].total += parseFloat(load.price || 0);
-        buckets[weekLabel].miles += parseFloat(load.miles || 0);
+        buckets[weekLabel].total += price;
+        buckets[weekLabel].miles += miles;
     });
 
     return buckets;
 }
+
 
 
 function getMonday(date) {
@@ -203,14 +207,22 @@ function renderWeeklyChart(labels, weeklyBuckets) {
     const totals = [];
     const miles = [];
     const rpms = [];
+    const avgMiles = [];
+    const avgPrices = [];
 
     labels.forEach(label => {
         const bucket = weeklyBuckets[label];
+        const count = bucket.count || 1; // чтобы не делить на 0
+
         counts.push(bucket.count);
         totals.push(+bucket.total.toFixed(2));
         miles.push(+bucket.miles.toFixed(2));
+
         const rpm = bucket.total > 0 ? (bucket.miles / bucket.total) : 0;
         rpms.push(+rpm.toFixed(2));
+
+        avgMiles.push(+(bucket.miles / count).toFixed(2));
+        avgPrices.push(+(bucket.total / count).toFixed(2));
     });
 
     weeklyChartInstance = new Chart(ctx, {
@@ -221,38 +233,58 @@ function renderWeeklyChart(labels, weeklyBuckets) {
                 {
                     label: '📦 Грузы',
                     data: counts,
-                    borderWidth: 4,
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     tension: 0.4,
                     yAxisID: 'y-loads'
                 },
                 {
                     label: '💵 Сумма',
                     data: totals,
-                    borderWidth: 4,
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     tension: 0.4,
                     yAxisID: 'y-total'
                 },
                 {
                     label: '📏 Мили',
                     data: miles,
-                    borderWidth: 4,
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     tension: 0.4,
                     yAxisID: 'y-miles'
                 },
                 {
                     label: '⚖️ RPM',
                     data: rpms,
-                    borderWidth: 4,
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
                     tension: 0.4,
                     yAxisID: 'y-rpm'
+                },
+                {
+                    label: '📉 Средние мили',
+                    data: avgMiles,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    yAxisID: 'y-avg-miles'
+                },
+                {
+                    label: '💲 Средняя цена',
+                    data: avgPrices,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    yAxisID: 'y-avg-price'
                 }
             ]
         },
@@ -265,7 +297,7 @@ function renderWeeklyChart(labels, weeklyBuckets) {
                 },
                 title: {
                     display: true,
-                    text: '📈 Динамика по неделям (множественные шкалы)'
+                    text: '📈 Динамика по неделям (6 показателей)'
                 },
                 tooltip: {
                     mode: 'index',
@@ -299,9 +331,7 @@ function renderWeeklyChart(labels, weeklyBuckets) {
                         display: true,
                         text: 'Сумма'
                     },
-                    grid: {
-                        drawOnChartArea: false
-                    }
+                    grid: { drawOnChartArea: false }
                 },
                 'y-miles': {
                     type: 'linear',
@@ -310,9 +340,7 @@ function renderWeeklyChart(labels, weeklyBuckets) {
                         display: true,
                         text: 'Мили'
                     },
-                    grid: {
-                        drawOnChartArea: false
-                    }
+                    grid: { drawOnChartArea: false }
                 },
                 'y-rpm': {
                     type: 'linear',
@@ -321,11 +349,27 @@ function renderWeeklyChart(labels, weeklyBuckets) {
                         display: true,
                         text: 'RPM'
                     },
-                    grid: {
-                        drawOnChartArea: false
-                    },
+                    grid: { drawOnChartArea: false },
                     min: 0,
                     suggestedMax: 3
+                },
+                'y-avg-miles': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Средние мили'
+                    },
+                    grid: { drawOnChartArea: false }
+                },
+                'y-avg-price': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Средняя цена'
+                    },
+                    grid: { drawOnChartArea: false }
                 }
             }
         }

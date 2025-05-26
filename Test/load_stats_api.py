@@ -64,6 +64,8 @@ def load_stats_general():
             "delivery_date": load.get("delivery", {}).get("date", ""),
             "miles": miles,
             "rpm": rpm,
+            "price": price,
+            "total_miles": miles,
             "driver": load.get("driver_name", ""),
             "dispatch": load.get("dispatch_name", "")
         })
