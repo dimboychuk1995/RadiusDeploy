@@ -14,9 +14,11 @@ function toggleStatsBlock(el) {
 
     if (isDriverBlock && el.classList.contains("active")) {
         document.getElementById("driverStatsSection").style.display = "block";
+        document.getElementById("driverChartSection").style.display = "block"; // 👈 показать график
         loadDriverStats();
     } else if (isDriverBlock) {
         document.getElementById("driverStatsSection").style.display = "none";
+        document.getElementById("driverChartSection").style.display = "none"; // 👈 скрыть график
     }
 
     if (isBrokerBlock && el.classList.contains("active")) {
@@ -99,26 +101,50 @@ async function loadDriverStats() {
         }
 
         const data = await res.json();
+        window.driverStatsData = data; // 👈 сохраняем для графика
+
         const tbody = document.querySelector("#driverStatsTable tbody");
         tbody.innerHTML = "";
 
-        data.forEach(stat => {
+        const select = document.getElementById("driverChartSelect");
+        select.innerHTML = `<option value="">— Не выбран —</option>`;
+
+        data.forEach((stat, index) => {
             const row = document.createElement("tr");
             row.innerHTML = `
                 <td>${stat.driver}</td>
                 <td>${stat.count}</td>
-                <td>$${stat.total.toFixed(2)}</td>
+                <ёtd>$${stat.total.toFixed(2)}</ёtd>
                 <td>${stat.rpm.toFixed(2)}</td>
                 <td>${stat.avg_miles.toFixed(2)}</td>
                 <td>$${stat.avg_price.toFixed(2)}</td>
             `;
             tbody.appendChild(row);
+
+            const option = document.createElement("option");
+            option.value = index;
+            option.textContent = stat.driver;
+            select.appendChild(option);
         });
+
+        // при выборе водителя — отрисовать график
+        select.addEventListener("change", () => {
+            const selectedIndex = select.value;
+            if (selectedIndex === "") {
+                renderDriverChart([], []);
+            } else {
+                const selected = data[selectedIndex];
+                drawDriverStatChart(selected);
+            }
+        });
+
+        renderDriverChart(); // чистый график изначально
+
     } catch (err) {
         console.error("❌ Ошибка загрузки по водителям:", err);
     }
-    renderDriverChart();
 }
+
 
 async function loadBrokerStats() {
     try {
@@ -490,3 +516,62 @@ function renderDriverChart(labels = [], datasets = []) {
         }
     });
 }
+
+function drawDriverStatChart(stat) {
+    const labels = ['Грузы', 'Сумма', 'Мили', 'RPM', 'Средняя цена', 'Средние мили'];
+    const values = [
+        stat.count,
+        +stat.total.toFixed(2),
+        +(stat.avg_miles * stat.count).toFixed(2),
+        +stat.rpm.toFixed(2),
+        +stat.avg_price.toFixed(2),
+        +stat.avg_miles.toFixed(2)
+    ];
+
+    renderDriverChart(labels, [
+        {
+            label: stat.driver,
+            data: values,
+            backgroundColor: [
+                '#4e79a7', '#59a14f', '#9c755f', '#f28e2c', '#edc948', '#b07aa1'
+            ]
+        }
+    ]);
+}
+
+function renderDriverChart(labels = [], datasets = []) {
+    const ctx = document.getElementById('driverStatsChart').getContext('2d');
+
+    if (driverChartInstance) {
+        driverChartInstance.destroy();
+    }
+
+    driverChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true },
+                title: {
+                    display: true,
+                    text: '📊 Статистика по выбранному водителю'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Значение'
+                    }
+                }
+            }
+        }
+    });
+}
+

@@ -185,9 +185,19 @@
     </div>
 </div>
 
-<h5 class="mt-4">📈 График по водителям</h5>
-<div style="height: 500px;">
-    <canvas id="driverStatsChart"></canvas>
+<div id="driverChartSection" style="display: none;">
+    <h5 class="mt-4">📈 График по водителю</h5>
+
+    <div class="mb-3" style="max-width: 300px;">
+        <label for="driverChartSelect" class="form-label">Выберите водителя:</label>
+        <select id="driverChartSelect" class="form-control">
+            <option value="">— Не выбран —</option>
+        </select>
+    </div>
+
+    <div style="height: 500px;">
+        <canvas id="driverStatsChart"></canvas>
+    </div>
 </div>
 
 <div class="stats-details-container" id="brokerStatsSection" style="display: none;">
