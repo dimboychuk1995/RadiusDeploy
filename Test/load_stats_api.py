@@ -19,6 +19,7 @@ def load_stats_general():
     loads = list(db['loads'].find({'company': current_user.company}))
     brokers_col = db['brokers']
     customers_col = db['customers']
+    drivers_col = db['drivers']  # ✅ добавлено
 
     total_loads = len(loads)
     total_amount = 0.0
@@ -55,6 +56,16 @@ def load_stats_general():
         except:
             rpm = 0
 
+        # ✅ Получение имени водителя
+        driver_name = ""
+        driver_id = load.get("assigned_driver")
+        if driver_id:
+            if isinstance(driver_id, str):
+                driver_id = ObjectId(driver_id)
+            driver = drivers_col.find_one({"_id": driver_id})
+            if driver:
+                driver_name = driver.get("name", "")
+
         parsed_loads.append({
             "load_id": load.get("load_id", ""),
             "broker": broker_name,
@@ -66,7 +77,7 @@ def load_stats_general():
             "rpm": rpm,
             "price": price,
             "total_miles": miles,
-            "driver": load.get("driver_name", ""),
+            "driver": driver_name,
             "dispatch": load.get("dispatch_name", "")
         })
 
@@ -83,7 +94,6 @@ def load_stats_general():
         'avg_price': avg_price,
         'loads': parsed_loads
     })
-
 
 @load_stats_api.route('/api/load_stats/by_driver')
 @login_required

@@ -518,60 +518,106 @@ function renderDriverChart(labels = [], datasets = []) {
 }
 
 function drawDriverStatChart(stat) {
-    const labels = ['Грузы', 'Сумма', 'Мили', 'RPM', 'Средняя цена', 'Средние мили'];
-    const values = [
-        stat.count,
-        +stat.total.toFixed(2),
-        +(stat.avg_miles * stat.count).toFixed(2),
-        +stat.rpm.toFixed(2),
-        +stat.avg_price.toFixed(2),
-        +stat.avg_miles.toFixed(2)
-    ];
+    const loads = window.lastGeneralLoads || [];
+    const weeklyBuckets = getDriverWeeklyStats(loads, stat.driver);
+    const sortedWeeks = Object.keys(weeklyBuckets).sort();
+
+    const labels = [];
+    const counts = [];
+    const totals = [];
+    const miles = [];
+    const rpms = [];
+    const avgMiles = [];
+    const avgPrices = [];
+
+    sortedWeeks.forEach(label => {
+        const bucket = weeklyBuckets[label];
+        const count = bucket.count || 1;
+        const total = bucket.total;
+        const mile = bucket.miles;
+
+        labels.push(label);
+        counts.push(count);
+        totals.push(+total.toFixed(2));
+        miles.push(+mile.toFixed(2));
+
+        const rpm = total > 0 ? mile / total : 0;
+        rpms.push(+rpm.toFixed(2));
+
+        avgMiles.push(+(mile / count).toFixed(2));
+        avgPrices.push(+(total / count).toFixed(2));
+    });
 
     renderDriverChart(labels, [
         {
-            label: stat.driver,
-            data: values,
-            backgroundColor: [
-                '#4e79a7', '#59a14f', '#9c755f', '#f28e2c', '#edc948', '#b07aa1'
-            ]
+            label: '📦 Грузы',
+            data: counts
+        },
+        {
+            label: '💵 Сумма',
+            data: totals
+        },
+        {
+            label: '📏 Мили',
+            data: miles
+        },
+        {
+            label: '⚖️ RPM',
+            data: rpms
+        },
+        {
+            label: '📉 Средние мили',
+            data: avgMiles
+        },
+        {
+            label: '💲 Средняя цена',
+            data: avgPrices
         }
     ]);
 }
 
-function renderDriverChart(labels = [], datasets = []) {
-    const ctx = document.getElementById('driverStatsChart').getContext('2d');
 
-    if (driverChartInstance) {
-        driverChartInstance.destroy();
-    }
+function getDriverWeeklyStats(loads, driverName) {
+    const buckets = {};
+    console.log("🔍 Фильтруем грузы по водителю:", driverName);
 
-    driverChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: true },
-                title: {
-                    display: true,
-                    text: '📊 Статистика по выбранному водителю'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Значение'
-                    }
-                }
-            }
+    loads.forEach(load => {
+        const loadDriver = (load.driver || load.driver_name || "").trim().toLowerCase();
+        const statDriver = (driverName || "").trim().toLowerCase();
+        console.log("🚚", {loadDriver, statDriver});
+
+        if (loadDriver !== statDriver) return;
+
+        const deliveryDateStr = load.delivery_date;
+        if (!deliveryDateStr) return;
+
+        const date = new Date(deliveryDateStr);
+        if (isNaN(date)) {
+            console.warn("⛔ Invalid date:", deliveryDateStr);
+            return;
         }
-    });
-}
 
+        const weekStart = getMonday(date);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const weekLabel = `${formatDateMMDDYYYY(weekStart)} - ${formatDateMMDDYYYY(weekEnd)}`;
+
+        if (!buckets[weekLabel]) {
+            buckets[weekLabel] = {
+                count: 0,
+                total: 0,
+                miles: 0
+            };
+        }
+
+        const price = parseFloat(load.price || 0);
+        const miles = parseFloat(load.miles || load.total_miles || 0);
+
+        buckets[weekLabel].count += 1;
+        buckets[weekLabel].total += price;
+        buckets[weekLabel].miles += miles;
+    });
+
+    console.log("📦 Бакеты для водителя:", driverName, buckets);
+    return buckets;
+}
