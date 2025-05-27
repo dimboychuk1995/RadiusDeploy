@@ -13,58 +13,34 @@ loads_collection = db['loads']
 def load_stats_fragment():
     return render_template('fragments/load_stats_fragment.html')
 
+
 @load_stats_api.route('/api/load_stats/general')
 @login_required
 def load_stats_general():
     loads = list(db['loads'].find({'company': current_user.company}))
     brokers_col = db['brokers']
     customers_col = db['customers']
-    drivers_col = db['drivers']  # ✅ добавлено
 
     total_loads = len(loads)
     total_amount = 0.0
     total_miles = 0.0
-
     parsed_loads = []
 
     for load in loads:
-        try:
-            price = float(load.get('price') or 0)
-        except:
-            price = 0
-
-        try:
-            miles = float(load.get('total_miles') or 0)
-        except:
-            miles = 0
-
+        price = float(load.get('price') or 0)
+        miles = float(load.get('total_miles') or 0)
         total_amount += price
         total_miles += miles
 
-        # Получение имени брокера или кастомера
         broker_id = load.get("broker_id")
         broker_name = ""
         if broker_id:
             if isinstance(broker_id, str):
                 broker_id = ObjectId(broker_id)
-
             broker = brokers_col.find_one({"_id": broker_id}) or customers_col.find_one({"_id": broker_id})
             broker_name = broker.get("name") if broker else ""
 
-        try:
-            rpm = float(load.get('RPM') or 0)
-        except:
-            rpm = 0
-
-        # ✅ Получение имени водителя
-        driver_name = ""
-        driver_id = load.get("assigned_driver")
-        if driver_id:
-            if isinstance(driver_id, str):
-                driver_id = ObjectId(driver_id)
-            driver = drivers_col.find_one({"_id": driver_id})
-            if driver:
-                driver_name = driver.get("name", "")
+        rpm = float(load.get('RPM') or 0)
 
         parsed_loads.append({
             "load_id": load.get("load_id", ""),
@@ -77,7 +53,8 @@ def load_stats_general():
             "rpm": rpm,
             "price": price,
             "total_miles": miles,
-            "driver": driver_name,
+            "driver": load.get("driver_name", ""),
+            "driver_id": str(load.get("assigned_driver", "")),  # 👈 добавили
             "dispatch": load.get("dispatch_name", "")
         })
 
@@ -95,6 +72,7 @@ def load_stats_general():
         'loads': parsed_loads
     })
 
+
 @load_stats_api.route('/api/load_stats/by_driver')
 @login_required
 def load_stats_by_driver():
@@ -106,8 +84,8 @@ def load_stats_by_driver():
     for load in loads:
         driver_id = load.get("assigned_driver")
         driver_name = ""
+        driver_oid_str = str(driver_id) if driver_id else ""
 
-        # Поиск имени водителя
         if driver_id:
             if isinstance(driver_id, str):
                 driver_id = ObjectId(driver_id)
@@ -120,27 +98,21 @@ def load_stats_by_driver():
         if not driver_name:
             driver_name = "Без имени"
 
-        try:
-            price = float(load.get("price") or 0)
-        except:
-            price = 0
+        price = float(load.get("price") or 0)
+        miles = float(load.get("total_miles") or 0)
 
-        try:
-            miles = float(load.get("total_miles") or 0)
-        except:
-            miles = 0
-
-        if driver_name not in stats_by_driver:
-            stats_by_driver[driver_name] = {
+        if driver_oid_str not in stats_by_driver:
+            stats_by_driver[driver_oid_str] = {
                 "driver": driver_name,
+                "driver_id": driver_oid_str,  # 👈 добавляем driver_id
                 "count": 0,
                 "total": 0.0,
                 "miles": 0.0
             }
 
-        stats_by_driver[driver_name]["count"] += 1
-        stats_by_driver[driver_name]["total"] += price
-        stats_by_driver[driver_name]["miles"] += miles
+        stats_by_driver[driver_oid_str]["count"] += 1
+        stats_by_driver[driver_oid_str]["total"] += price
+        stats_by_driver[driver_oid_str]["miles"] += miles
 
     result = []
     for stat in stats_by_driver.values():
@@ -153,6 +125,7 @@ def load_stats_by_driver():
 
         result.append({
             "driver": stat["driver"],
+            "driver_id": stat["driver_id"],  # 👈 вот он
             "count": count,
             "total": total,
             "rpm": rpm,

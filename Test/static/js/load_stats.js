@@ -138,8 +138,6 @@ async function loadDriverStats() {
             }
         });
 
-        renderDriverChart(); // чистый график изначально
-
     } catch (err) {
         console.error("❌ Ошибка загрузки по водителям:", err);
     }
@@ -465,29 +463,120 @@ function calculateRangeComparison() {
 
 let driverChartInstance = null;
 
-function renderDriverChart(labels = [], datasets = []) {
+function renderDriverChart(labels, weeklyBuckets) {
     const ctx = document.getElementById('driverStatsChart').getContext('2d');
 
     if (driverChartInstance) {
         driverChartInstance.destroy();
     }
 
+    const counts = [];
+    const totals = [];
+    const miles = [];
+    const rpms = [];
+    const avgMiles = [];
+    const avgPrices = [];
+
+    labels.forEach(label => {
+        const bucket = weeklyBuckets[label];
+
+        if (!bucket) {
+            // Если данных по неделе нет — заполняем нулями
+            counts.push(0);
+            totals.push(0);
+            miles.push(0);
+            rpms.push(0);
+            avgMiles.push(0);
+            avgPrices.push(0);
+            return;
+        }
+
+        const count = bucket.count || 1;
+
+        counts.push(bucket.count);
+        totals.push(+bucket.total.toFixed(2));
+        miles.push(+bucket.miles.toFixed(2));
+
+        const rpm = bucket.total > 0 ? (bucket.miles / bucket.total) : 0;
+        rpms.push(+rpm.toFixed(2));
+
+        avgMiles.push(+(bucket.miles / count).toFixed(2));
+        avgPrices.push(+(bucket.total / count).toFixed(2));
+    });
+
     driverChartInstance = new Chart(ctx, {
-        type: 'bar',
+        type: 'line',
         data: {
             labels: labels,
-            datasets: datasets // пока пустой []
+            datasets: [
+                {
+                    label: '📦 Грузы',
+                    data: counts,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.4,
+                    yAxisID: 'y-loads'
+                },
+                {
+                    label: '💵 Сумма',
+                    data: totals,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.4,
+                    yAxisID: 'y-total'
+                },
+                {
+                    label: '📏 Мили',
+                    data: miles,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.4,
+                    yAxisID: 'y-miles'
+                },
+                {
+                    label: '⚖️ RPM',
+                    data: rpms,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    tension: 0.4,
+                    yAxisID: 'y-rpm'
+                },
+                {
+                    label: '📉 Средние мили',
+                    data: avgMiles,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    yAxisID: 'y-avg-miles'
+                },
+                {
+                    label: '💲 Средняя цена',
+                    data: avgPrices,
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    yAxisID: 'y-avg-price'
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                title: {
-                    display: true,
-                    text: '📈 Показатели по водителям'
-                },
                 legend: {
                     position: 'top'
+                },
+                title: {
+                    display: true,
+                    text: '📈 Показатели по выбранному водителю (недели)'
                 },
                 tooltip: {
                     mode: 'index',
@@ -502,24 +591,77 @@ function renderDriverChart(labels = [], datasets = []) {
                 x: {
                     title: {
                         display: true,
-                        text: 'Водители'
+                        text: 'Недели'
                     }
                 },
-                y: {
+                'y-loads': {
+                    type: 'linear',
+                    position: 'left',
                     title: {
                         display: true,
-                        text: 'Значение'
+                        text: 'Грузы'
                     },
                     beginAtZero: true
+                },
+                'y-total': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Сумма'
+                    },
+                    grid: { drawOnChartArea: false }
+                },
+                'y-miles': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Мили'
+                    },
+                    grid: { drawOnChartArea: false }
+                },
+                'y-rpm': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'RPM'
+                    },
+                    grid: { drawOnChartArea: false },
+                    min: 0,
+                    suggestedMax: 3
+                },
+                'y-avg-miles': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Средние мили'
+                    },
+                    grid: { drawOnChartArea: false }
+                },
+                'y-avg-price': {
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Средняя цена'
+                    },
+                    grid: { drawOnChartArea: false }
                 }
             }
         }
     });
 }
 
+
+
 function drawDriverStatChart(stat) {
     const loads = window.lastGeneralLoads || [];
-    const weeklyBuckets = getDriverWeeklyStats(loads, stat.driver);
+    const driverId = String(stat.driver_id || "").trim();
+
+    const weeklyBuckets = getDriverWeeklyStats(loads, driverId);
     const sortedWeeks = Object.keys(weeklyBuckets).sort();
 
     const labels = [];
@@ -543,59 +685,38 @@ function drawDriverStatChart(stat) {
 
         const rpm = total > 0 ? mile / total : 0;
         rpms.push(+rpm.toFixed(2));
-
         avgMiles.push(+(mile / count).toFixed(2));
         avgPrices.push(+(total / count).toFixed(2));
     });
 
-    renderDriverChart(labels, [
-        {
-            label: '📦 Грузы',
-            data: counts
-        },
-        {
-            label: '💵 Сумма',
-            data: totals
-        },
-        {
-            label: '📏 Мили',
-            data: miles
-        },
-        {
-            label: '⚖️ RPM',
-            data: rpms
-        },
-        {
-            label: '📉 Средние мили',
-            data: avgMiles
-        },
-        {
-            label: '💲 Средняя цена',
-            data: avgPrices
-        }
-    ]);
+    renderDriverChart(labels, {
+        ...Object.fromEntries(labels.map((label, i) => [label, {
+            count: counts[i],
+            total: totals[i],
+            miles: miles[i],
+            rpm: rpms[i],
+            avg_miles: avgMiles[i],
+            avg_price: avgPrices[i]
+        }]))
+    });
 }
 
 
-function getDriverWeeklyStats(loads, driverName) {
+function getDriverWeeklyStats(loads, driverId) {
     const buckets = {};
-    console.log("🔍 Фильтруем грузы по водителю:", driverName);
+    const normalized = String(driverId).trim();
+
+    console.log("🔍 Фильтруем по driver_id:", normalized);
 
     loads.forEach(load => {
-        const loadDriver = (load.driver || load.driver_name || "").trim().toLowerCase();
-        const statDriver = (driverName || "").trim().toLowerCase();
-        console.log("🚚", {loadDriver, statDriver});
-
-        if (loadDriver !== statDriver) return;
+        const loadDriverId = String(load.driver_id || "").trim();
+        if (loadDriverId !== normalized) return;
 
         const deliveryDateStr = load.delivery_date;
         if (!deliveryDateStr) return;
 
         const date = new Date(deliveryDateStr);
-        if (isNaN(date)) {
-            console.warn("⛔ Invalid date:", deliveryDateStr);
-            return;
-        }
+        if (isNaN(date)) return;
 
         const weekStart = getMonday(date);
         const weekEnd = new Date(weekStart);
@@ -618,6 +739,6 @@ function getDriverWeeklyStats(loads, driverName) {
         buckets[weekLabel].miles += miles;
     });
 
-    console.log("📦 Бакеты для водителя:", driverName, buckets);
+    console.log("📦 Итог по driver_id:", driverId, buckets);
     return buckets;
 }
