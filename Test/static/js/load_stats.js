@@ -117,6 +117,7 @@ async function loadDriverStats() {
     } catch (err) {
         console.error("❌ Ошибка загрузки по водителям:", err);
     }
+    renderDriverChart();
 }
 
 async function loadBrokerStats() {
@@ -436,3 +437,56 @@ function calculateRangeComparison() {
     document.getElementById("rangeComparisonResult").style.display = "block";
 }
 
+let driverChartInstance = null;
+
+function renderDriverChart(labels = [], datasets = []) {
+    const ctx = document.getElementById('driverStatsChart').getContext('2d');
+
+    if (driverChartInstance) {
+        driverChartInstance.destroy();
+    }
+
+    driverChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: datasets // пока пустой []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '📈 Показатели по водителям'
+                },
+                legend: {
+                    position: 'top'
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Водители'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Значение'
+                    },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
