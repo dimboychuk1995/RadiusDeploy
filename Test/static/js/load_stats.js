@@ -14,11 +14,13 @@ function toggleStatsBlock(el) {
 
     if (isDriverBlock && el.classList.contains("active")) {
         document.getElementById("driverStatsSection").style.display = "block";
-        document.getElementById("driverChartSection").style.display = "block"; // 👈 показать график
+        document.getElementById("driverChartSection").style.display = "block";
+        document.getElementById("driverComparisonSection").style.display = "block"; // 👈 показать сравнение
         loadDriverStats();
     } else if (isDriverBlock) {
         document.getElementById("driverStatsSection").style.display = "none";
-        document.getElementById("driverChartSection").style.display = "none"; // 👈 скрыть график
+        document.getElementById("driverChartSection").style.display = "none";
+        document.getElementById("driverComparisonSection").style.display = "none";
     }
 
     if (isBrokerBlock && el.classList.contains("active")) {
@@ -114,7 +116,7 @@ async function loadDriverStats() {
             row.innerHTML = `
                 <td>${stat.driver}</td>
                 <td>${stat.count}</td>
-                <ёtd>$${stat.total.toFixed(2)}</ёtd>
+                <td>$${stat.total.toFixed(2)}</td>
                 <td>${stat.rpm.toFixed(2)}</td>
                 <td>${stat.avg_miles.toFixed(2)}</td>
                 <td>$${stat.avg_price.toFixed(2)}</td>
@@ -741,4 +743,74 @@ function getDriverWeeklyStats(loads, driverId) {
 
     console.log("📦 Итог по driver_id:", driverId, buckets);
     return buckets;
+}
+
+// ✅ Добавь это в конец load_stats.js
+
+let compareDriverIndex = 0;
+
+function addDriverCompare() {
+    const container = document.getElementById("driverCompareContainer");
+    const div = document.createElement("div");
+    div.className = "d-flex align-items-center gap-2 mb-2";
+    div.dataset.index = compareDriverIndex;
+
+    const select = document.createElement("select");
+    select.className = "form-select";
+    select.style.maxWidth = "250px";
+
+    // Заполняем список водителей
+    const stats = window.driverStatsData || [];
+    stats.forEach((stat, index) => {
+        const option = document.createElement("option");
+        option.value = stat.driver_id || stat.driver || index; // 👈 предпочтительно использовать ID
+        option.textContent = stat.driver;
+        select.appendChild(option);
+    });
+
+    select.addEventListener("change", calculateDriverComparison);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "btn btn-outline-danger";
+    removeBtn.innerHTML = "✖";
+    removeBtn.onclick = () => {
+        div.remove();
+        calculateDriverComparison();
+    };
+
+    div.appendChild(select);
+    div.appendChild(removeBtn);
+    container.appendChild(div);
+
+    compareDriverIndex++;
+    calculateDriverComparison();
+}
+
+function calculateDriverComparison() {
+    const stats = window.driverStatsData || [];
+    const selectedDrivers = [];
+
+    const selects = document.querySelectorAll("#driverCompareContainer select");
+    selects.forEach(select => {
+        const value = select.value;
+        const match = stats.find(s => (s.driver_id || s.driver) === value);
+        if (match) selectedDrivers.push(match);
+    });
+
+    const tbody = document.getElementById("driverCompareTableBody");
+    tbody.innerHTML = "";
+
+    selectedDrivers.forEach(stat => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${stat.driver}</td>
+            <td>${stat.count}</td>
+            <td>$${stat.total.toFixed(2)}</td>
+            <td>${stat.miles.toFixed(2)}</td>
+            <td>${stat.rpm.toFixed(2)}</td>
+            <td>$${stat.avg_price.toFixed(2)}</td>
+            <td>${stat.avg_miles.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+    });
 }

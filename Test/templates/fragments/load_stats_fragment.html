@@ -200,6 +200,29 @@
     </div>
 </div>
 
+<!-- Сравнение водителей -->
+<div id="driverComparisonSection" style="display: none;">
+    <h5>📊 Сравнение водителей</h5>
+    <div id="driverCompareContainer"></div>
+    <button class="btn btn-primary mt-2" onclick="addDriverCompare()">➕ Добавить водителя</button>
+    <button class="btn btn-success mt-2 ms-2" onclick="calculateDriverComparison()">🔍 Сравнить</button>
+
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th>Водитель</th>
+                <th>Кол-во грузов</th>
+                <th>Сумма</th>
+                <th>Мили</th>
+                <th>RPM</th>
+                <th>Средняя цена</th>
+                <th>Средние мили</th>
+            </tr>
+        </thead>
+        <tbody id="driverCompareTableBody"></tbody>
+    </table>
+</div>
+
 <div class="stats-details-container" id="brokerStatsSection" style="display: none;">
     <h4>📊 Статистика по брокерам и кастомерам</h4>
 

@@ -82,37 +82,52 @@ def load_stats_by_driver():
     stats_by_driver = {}
 
     for load in loads:
-        driver_id = load.get("assigned_driver")
+        driver_id = load.get("assigned_driver") or load.get("driver_id")
         driver_name = ""
-        driver_oid_str = str(driver_id) if driver_id else ""
 
+        # Поиск имени водителя
         if driver_id:
             if isinstance(driver_id, str):
-                driver_id = ObjectId(driver_id)
-            driver = drivers_col.find_one({"_id": driver_id})
-            if driver:
-                driver_name = driver.get("name", "")
+                try:
+                    driver_obj_id = ObjectId(driver_id)
+                except:
+                    driver_obj_id = None
+            else:
+                driver_obj_id = driver_id
+
+            if driver_obj_id:
+                driver = drivers_col.find_one({"_id": driver_obj_id})
+                if driver:
+                    driver_name = driver.get("name", "")
         else:
             driver_name = load.get("driver_name", "Без имени")
 
-        if not driver_name:
-            driver_name = "Без имени"
+        driver_name = driver_name or "Без имени"
+        driver_id_str = str(driver_id) if driver_id else ""
 
-        price = float(load.get("price") or 0)
-        miles = float(load.get("total_miles") or 0)
+        try:
+            price = float(load.get("price") or 0)
+        except:
+            price = 0
 
-        if driver_oid_str not in stats_by_driver:
-            stats_by_driver[driver_oid_str] = {
+        try:
+            miles = float(load.get("total_miles") or 0)
+        except:
+            miles = 0
+
+        key = driver_id_str or driver_name
+        if key not in stats_by_driver:
+            stats_by_driver[key] = {
+                "driver_id": driver_id_str,
                 "driver": driver_name,
-                "driver_id": driver_oid_str,  # 👈 добавляем driver_id
                 "count": 0,
                 "total": 0.0,
                 "miles": 0.0
             }
 
-        stats_by_driver[driver_oid_str]["count"] += 1
-        stats_by_driver[driver_oid_str]["total"] += price
-        stats_by_driver[driver_oid_str]["miles"] += miles
+        stats_by_driver[key]["count"] += 1
+        stats_by_driver[key]["total"] += price
+        stats_by_driver[key]["miles"] += miles
 
     result = []
     for stat in stats_by_driver.values():
@@ -124,16 +139,18 @@ def load_stats_by_driver():
         avg_price = total / count if count else 0
 
         result.append({
+            "driver_id": stat["driver_id"],
             "driver": stat["driver"],
-            "driver_id": stat["driver_id"],  # 👈 вот он
             "count": count,
             "total": total,
+            "miles": miles,
             "rpm": rpm,
             "avg_miles": avg_miles,
             "avg_price": avg_price
         })
 
     return jsonify(result)
+
 
 
 @load_stats_api.route('/api/load_stats/by_broker')
