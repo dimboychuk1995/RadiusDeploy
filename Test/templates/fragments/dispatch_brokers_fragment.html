@@ -107,74 +107,78 @@
       <button class="btn btn-sm btn-secondary" onclick="closeBrokerCustomerModal()">✖</button>
     </div>
     <div class="custom-offcanvas-body">
-      <form id="brokerCustomerForm" method="POST" enctype="multipart/form-data">
-
-        <!-- Тип -->
-        <div class="form-group mb-3">
-          <label>Тип:</label>
-          <select class="form-control" id="entityTypeSelect" required>
-            <option value="" disabled selected>Выберите тип</option>
-            <option value="broker">Брокер</option>
-            <option value="customer">Кастомер</option>
-          </select>
-        </div>
-
-        <!-- Общий блок -->
-        <div id="commonFieldsBlock" style="display: none;">
-          <!-- Только для брокеров -->
-          <div id="mcDotBlock" style="display: none;">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="brokerCustomerForm" method="POST" enctype="multipart/form-data">
             <div class="form-group mb-3">
-              <label>MC:</label>
-              <input type="text" class="form-control" id="mcInput" name="mc">
+              <label>Тип:</label>
+              <select class="form-control" id="entityTypeSelect" name="entity_type" required>
+                <option value="" disabled selected>Выберите тип</option>
+                <option value="broker">Брокер</option>
+                <option value="customer">Кастомер</option>
+              </select>
             </div>
-            <div class="form-group mb-3">
-              <label>DOT:</label>
-              <input type="text" class="form-control" id="dotInput" name="dot">
+
+            <div id="commonFieldsBlock" style="display: none;">
+              <div id="mcDotBlock" style="display: none;">
+                <div class="form-group mb-3">
+                  <label>MC:</label>
+                  <input type="text" class="form-control" id="mcInput" name="mc">
+                </div>
+                <div class="form-group mb-3">
+                  <label>DOT:</label>
+                  <input type="text" class="form-control" id="dotInput" name="dot">
+                </div>
+              </div>
+
+              <div class="form-group mb-3">
+                <label>Название:</label>
+                <input type="text" class="form-control" id="nameInput" name="name" required>
+              </div>
+              <div class="form-group mb-3">
+                <label>Телефон:</label>
+                <input type="text" class="form-control" id="phoneInput" name="phone">
+              </div>
+              <div class="form-group mb-3">
+                <label>Email:</label>
+                <input type="email" class="form-control" id="emailInput" name="email">
+              </div>
+              <div class="form-group mb-3">
+                <label>Контактное лицо:</label>
+                <input type="text" class="form-control" id="contactPersonInput" name="contact_person">
+              </div>
+              <div class="form-group mb-3">
+                <label>Телефон контакта:</label>
+                <input type="text" class="form-control" id="contactPhoneInput" name="contact_phone">
+              </div>
+              <div class="form-group mb-3">
+                <label>Email контакта:</label>
+                <input type="email" class="form-control" id="contactEmailInput" name="contact_email">
+              </div>
+              <div class="form-group mb-3">
+                <label>Адрес:</label>
+                <input type="text" class="form-control" id="addressInput" name="address">
+              </div>
+              <div class="form-group mb-3">
+                <label>Условия оплаты:</label>
+                <input type="text" class="form-control" id="paymentTermInput" name="payment_term">
+              </div>
+
+              <div class="mt-4 d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary me-2" onclick="closeBrokerCustomerModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+              </div>
             </div>
-          </div>
-
-          <!-- Общие поля -->
-          <div class="form-group mb-3">
-            <label>Название:</label>
-            <input type="text" class="form-control" id="nameInput" name="name" required>
-          </div>
-          <div class="form-group mb-3">
-            <label>Телефон:</label>
-            <input type="text" class="form-control" id="phoneInput" name="phone">
-          </div>
-          <div class="form-group mb-3">
-            <label>Email:</label>
-            <input type="email" class="form-control" id="emailInput" name="email">
-          </div>
-          <div class="form-group mb-3">
-            <label>Контактное лицо:</label>
-            <input type="text" class="form-control" id="contactPersonInput" name="contact_person">
-          </div>
-          <div class="form-group mb-3">
-            <label>Телефон контакта:</label>
-            <input type="text" class="form-control" id="contactPhoneInput" name="contact_phone">
-          </div>
-          <div class="form-group mb-3">
-            <label>Email контакта:</label>
-            <input type="email" class="form-control" id="contactEmailInput" name="contact_email">
-          </div>
-          <div class="form-group mb-3">
-            <label>Адрес:</label>
-            <input type="text" class="form-control" id="addressInput" name="address">
-          </div>
-          <div class="form-group mb-3">
-            <label>Условия оплаты:</label>
-            <input type="text" class="form-control" id="paymentTermInput" name="payment_term">
-          </div>
-
-          <div class="mt-4 d-flex justify-content-end">
-            <button type="button" class="btn btn-secondary mr-2" onclick="closeBrokerCustomerModal()">Отмена</button>
-            <button type="submit" class="btn btn-success">Сохранить</button>
-          </div>
+          </form>
         </div>
-      </form>
+        <!-- Правая колонка пока не используется -->
+      </div>
     </div>
   </div>
 </div>
+
+
+<div class="custom-offcanvas-backdrop" id="brokerCustomerBackdrop" onclick="closeBrokerCustomerModal()"></div>
+
 
 <div class="custom-offcanvas-backdrop" id="brokerCustomerBackdrop" onclick="closeBrokerCustomerModal()"></div>
