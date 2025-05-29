@@ -21,9 +21,9 @@
 <body>
     {% include 'navbar.html' %}
 
-    <div class="app-container">
+    <div class="app-container d-flex" style="height: calc(100vh - 56px); overflow: hidden;">
         {% block sidebar %}{% endblock %}
-        <div class="main-content">
+        <div class="main-content" style="overflow-y: auto; width: 100%;">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}

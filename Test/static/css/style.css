@@ -8,7 +8,7 @@ body {
 /* === Сайдбар === */
 .sidebar {
     position: fixed;
-    top: 56px; /* высота navbar */
+    top: 56px;
     left: 0;
     width: 200px;
     height: calc(100% - 56px);
@@ -16,6 +16,7 @@ body {
     padding-top: 1rem;
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
     z-index: 1000;
+    overflow-y: auto;
 }
 
 .sidebar .list-group-item {
