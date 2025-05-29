@@ -49,43 +49,49 @@
       <button class="btn btn-sm btn-secondary" onclick="closeCompanyModal()">✖</button>
     </div>
     <div class="custom-offcanvas-body">
-      <form id="addCompanyForm">
-        <div class="form-group mb-3">
-          <label>Имя</label>
-          <input type="text" name="name" class="form-control" required>
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="addCompanyForm">
+            <div class="form-group mb-3">
+              <label>Имя</label>
+              <input type="text" name="name" class="form-control" required>
+            </div>
+            <div class="form-group mb-3">
+              <label>Адрес</label>
+              <input type="text" name="address" class="form-control">
+            </div>
+            <div class="form-group mb-3">
+              <label>MC</label>
+              <input type="text" name="mc" class="form-control">
+            </div>
+            <div class="form-group mb-3">
+              <label>DOT</label>
+              <input type="text" name="dot" class="form-control">
+            </div>
+            <div class="form-group mb-3">
+              <label>Телефон</label>
+              <input type="text" name="phone" class="form-control">
+            </div>
+            <div class="form-group mb-3">
+              <label>Email</label>
+              <input type="email" name="email" class="form-control">
+            </div>
+            <div class="form-group mb-3">
+              <label>Password</label>
+              <input type="password" name="password" class="form-control">
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeCompanyModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
         </div>
-        <div class="form-group mb-3">
-          <label>Адрес</label>
-          <input type="text" name="address" class="form-control">
-        </div>
-        <div class="form-group mb-3">
-          <label>MC</label>
-          <input type="text" name="mc" class="form-control">
-        </div>
-        <div class="form-group mb-3">
-          <label>DOT</label>
-          <input type="text" name="dot" class="form-control">
-        </div>
-        <div class="form-group mb-3">
-          <label>Телефон</label>
-          <input type="text" name="phone" class="form-control">
-        </div>
-        <div class="form-group mb-3">
-          <label>Email</label>
-          <input type="email" name="email" class="form-control">
-        </div>
-        <div class="form-group mb-3">
-          <label>Password</label>
-          <input type="password" name="password" class="form-control">
-        </div>
-        <div class="mt-4 d-flex justify-content-end">
-          <button type="button" class="btn btn-secondary mr-2" onclick="closeCompanyModal()">Отмена</button>
-          <button type="submit" class="btn btn-success">Сохранить</button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 </div>
+
 
 <!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" id="companyBackdrop" onclick="closeCompanyModal()"></div>
