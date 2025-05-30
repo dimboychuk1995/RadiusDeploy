@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' },
         'btn-fleet': { id: 'section-fleet', url: '/fragment/fleet_fragment' },
         'btn-dispatchers-fragment': { id: 'section-dispatchers', url: '/fragment/dispatchers' },
+        'btn-safety': { id: 'section-safety', url: '/fragment/safety' },
     };
 
     function loadFragment(sectionId, url) {

@@ -19,6 +19,7 @@ import os
 from company_information import company_bp
 from load_stats_api import load_stats_api
 from dispatchers import dispatchers_bp
+from safety import safety_bp
 
 app = Flask(__name__)
 app.secret_key = 'secret'
@@ -42,6 +43,7 @@ app.register_blueprint(broker_customer_bp)
 app.register_blueprint(company_bp)
 app.register_blueprint(load_stats_api)
 app.register_blueprint(dispatchers_bp)
+app.register_blueprint(safety_bp)
 
 
 login_manager.init_app(app)
