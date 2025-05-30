@@ -29,7 +29,9 @@ fs = gridfs.GridFS(db)
 
 loads_collection = db['loads']
 drivers_collection = db['drivers']
+
 companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
+dispatchers = list(db["users"].find({"role": "dispatch"}, {"_id": 1, "username": 1}))
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -178,7 +180,7 @@ def parse_load_pdf():
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
 
 @loads_bp.route('/add_load', methods=['POST'])
-@requires_role('admin')
+@requires_role(['admin', 'dispatch'])
 def add_load():
     try:
         rate_con_file = request.files.get('rate_con')
@@ -272,7 +274,7 @@ def add_load():
             "load_description": request.form.get("load_description"),
             "vehicles": vehicles if vehicles else None,
             "assigned_driver": ObjectId(request.form.get("assigned_driver")) if request.form.get("assigned_driver") else None,
-            "assigned_dispatch": request.form.get("assigned_dispatch"),
+            "assigned_dispatch": ObjectId(request.form.get("assigned_dispatch")) if request.form.get("assigned_dispatch") else None,
             "pickup": {
                 "company": request.form.get("pickup_company"),
                 "address": request.form.get("pickup_address"),
@@ -357,7 +359,7 @@ def loads_fragment():
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
-        return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads, companies=companies)
+        return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads, companies=companies, dispatchers=dispatchers)
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 

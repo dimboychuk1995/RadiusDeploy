@@ -58,13 +58,16 @@ if users_collection.find_one({'username': 'user'}) is None:
     add_user('user', 'password', 'user', 'UWC')
 
 # Декоратор для ограничения по роли
-def requires_role(role):
+def requires_role(roles):
+    if isinstance(roles, str):
+        roles = [roles]
+
     def decorator(f):
         @wraps(f)
         @login_required
         def decorated_function(*args, **kwargs):
-            if current_user.role != role:
-                flash(f'Требуется роль {role}', 'danger')
+            if current_user.role not in roles:
+                flash(f'Требуется роль: {", ".join(roles)}', 'danger')
                 return redirect(url_for('index'))
             return f(*args, **kwargs)
         return decorated_function
