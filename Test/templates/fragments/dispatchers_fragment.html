@@ -1,4 +1,24 @@
 <div class="p-4">
     <h4>📋 Диспетчеры</h4>
-    <p>Раздел в разработке...</p>
+
+    {% if dispatchers %}
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th>Имя пользователя</th>
+                    <th>Компания</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in dispatchers %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.company }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Нет зарегистрированных диспетчеров.</p>
+    {% endif %}
 </div>
