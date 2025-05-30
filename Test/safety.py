@@ -1,11 +1,13 @@
 from datetime import datetime
 
-from bson import ObjectId
+
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from Test.tools.db import db
-import os
-from werkzeug.utils import secure_filename
+import json
+from gridfs import GridFS
+
+fs = GridFS(db)
 safety_bp = Blueprint('safety', __name__)
 
 @safety_bp.route('/fragment/safety')
@@ -35,6 +37,7 @@ def trucks_dropdown():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @safety_bp.route('/api/add_inspection', methods=['POST'])
 @login_required
 def add_inspection():
@@ -43,34 +46,28 @@ def add_inspection():
         data["company"] = current_user.company
         data["created_at"] = datetime.utcnow()
 
-        # Преобразуем даты и времена
-        data["date"] = datetime.strptime(data.get("date", ""), "%Y-%m-%d") if data.get("date") else None
+        # Преобразуем дату в MM/DD/YYYY
+        raw_date = data.get("date")
+        if raw_date:
+            try:
+                parsed_date = datetime.strptime(raw_date, "%Y-%m-%d")
+                data["date"] = parsed_date.strftime("%m/%d/%Y")
+            except ValueError:
+                data["date"] = raw_date  # fallback
+
         data["start_time"] = data.get("start_time") or None
         data["end_time"] = data.get("end_time") or None
-
-        # Обработка checkboxes
         data["clean_inspection"] = 'clean_inspection' in request.form
 
-        # Преобразуем violations
-        violations = []
-        for key in request.form:
-            if key.startswith("violations["):
-                parts = key.replace("violations[", "").replace("]", "").split("][")
-                index = int(parts[0])
-                field = parts[1]
-                while len(violations) <= index:
-                    violations.append({})
-                violations[index][field] = request.form[key]
-        data["violations"] = violations
+        # Нарушения
+        violations_json = request.form.get("violations_json", "[]")
+        data["violations"] = json.loads(violations_json)
 
-        # Обработка файла
+        # Загрузка файла в GridFS
         file = request.files.get("file")
         if file and file.filename:
-            filename = secure_filename(file.filename)
-            saved_path = os.path.join("uploads", "inspections", filename)
-            os.makedirs(os.path.dirname(saved_path), exist_ok=True)
-            file.save(saved_path)
-            data["file_path"] = saved_path
+            file_id = fs.put(file.stream, filename=file.filename, content_type=file.content_type)
+            data["file_id"] = str(file_id)
 
         db["inspections"].insert_one(data)
         return jsonify({"success": True})
