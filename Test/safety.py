@@ -1,6 +1,6 @@
 from datetime import datetime
 
-
+from bson import ObjectId
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 from Test.tools.db import db
@@ -71,5 +71,49 @@ def add_inspection():
 
         db["inspections"].insert_one(data)
         return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@safety_bp.route('/api/inspections_list')
+@login_required
+def inspections_list():
+    try:
+        company = current_user.company
+        inspections = list(db["inspections"].find({"company": company}).sort("created_at", -1))
+
+        # Собираем только валидные ObjectId
+        driver_ids = []
+        truck_ids = []
+
+        for i in inspections:
+            if i.get("driver") and ObjectId.is_valid(i["driver"]):
+                driver_ids.append(ObjectId(i["driver"]))
+            if i.get("truck") and ObjectId.is_valid(i["truck"]):
+                truck_ids.append(ObjectId(i["truck"]))
+
+        drivers_map = {
+            str(d["_id"]): d.get("name", "—")
+            for d in db["drivers"].find({"_id": {"$in": driver_ids}})
+        }
+
+        trucks_map = {
+            str(t["_id"]): t.get("unit_number", "—")
+            for t in db["trucks"].find({"_id": {"$in": truck_ids}})
+        }
+
+        result = []
+        for i in inspections:
+            result.append({
+                "_id": str(i["_id"]),
+                "driver": drivers_map.get(i.get("driver"), i.get("driver")),
+                "truck": trucks_map.get(i.get("truck"), i.get("truck")),
+                "date": i.get("date", ""),
+                "state": i.get("state", ""),
+                "address": i.get("address", ""),
+                "clean": i.get("clean_inspection", False),
+                "file_id": str(i.get("file_id")) if i.get("file_id") else None
+            })
+
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

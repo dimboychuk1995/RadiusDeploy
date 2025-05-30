@@ -12,6 +12,7 @@ function initSafety() {
 
   loadDriversAndTrucks();
   bindInspectionForm();
+  loadInspections();
 }
 
 function openInspectionModal() {
@@ -121,4 +122,30 @@ function bindInspectionForm() {
       alert("Произошла ошибка при сохранении");
     }
   });
+}
+
+async function loadInspections() {
+  const tbody = document.querySelector("#inspectionsTable tbody");
+  tbody.innerHTML = "";
+
+  try {
+    const res = await fetch("/api/inspections_list");
+    const inspections = await res.json();
+
+    inspections.forEach(ins => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${ins.date || ""}</td>
+        <td>${ins.driver || ""}</td>
+        <td>${ins.truck || ""}</td>
+        <td>${ins.state || ""}</td>
+        <td>${ins.address || ""}</td>
+        <td>${ins.clean ? "✅" : "❌"}</td>
+        <td>${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" target="_blank">📄</a>` : ""}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error("Ошибка загрузки инспекций:", e);
+  }
 }
