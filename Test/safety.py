@@ -134,3 +134,19 @@ def get_inspection_file(file_id):
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 404
+
+
+@safety_bp.route('/api/delete_inspection/<inspection_id>', methods=['DELETE'])
+@login_required
+def delete_inspection(inspection_id):
+    try:
+        result = db["inspections"].delete_one({
+            "_id": ObjectId(inspection_id),
+            "company": current_user.company
+        })
+        if result.deleted_count == 1:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"error": "Инспекция не найдена"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -141,11 +141,41 @@ async function loadInspections() {
         <td>${ins.state || ""}</td>
         <td>${ins.address || ""}</td>
         <td>${ins.clean ? "✅" : "❌"}</td>
-        <td>${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" download>📄</a>` : ""}</td>
+        <td>
+          ${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" download class="me-2">📄</a>` : ""}
+          <button class="btn btn-sm btn-info me-1" onclick="showInspectionDetails('${ins._id}')">🧾</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteInspection('${ins._id}')">🗑</button>
+        </td>
       `;
       tbody.appendChild(tr);
     });
   } catch (e) {
     console.error("Ошибка загрузки инспекций:", e);
+  }
+}
+
+function showInspectionDetails(id) {
+  alert("Показать детали инспекции: " + id);
+  // Можно открыть модалку или отобразить блок с подробностями
+}
+
+async function deleteInspection(id) {
+  if (!confirm("Удалить эту инспекцию?")) return;
+
+  try {
+    const res = await fetch(`/api/delete_inspection/${id}`, {
+      method: "DELETE"
+    });
+
+    const result = await res.json();
+    if (result.success) {
+      alert("Инспекция удалена");
+      loadInspections();
+    } else {
+      alert("Ошибка: " + result.error);
+    }
+  } catch (e) {
+    console.error("Ошибка при удалении:", e);
+    alert("Произошла ошибка при удалении");
   }
 }
