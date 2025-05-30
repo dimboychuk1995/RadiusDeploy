@@ -150,3 +150,26 @@ def delete_inspection(inspection_id):
             return jsonify({"error": "Инспекция не найдена"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@safety_bp.route('/fragment/inspection_details_fragment')
+@login_required
+def inspection_details_fragment():
+    inspection_id = request.args.get("id")
+
+    if not inspection_id or not ObjectId.is_valid(inspection_id):
+        return "Некорректный ID", 400
+
+    inspection = db["inspections"].find_one({"_id": ObjectId(inspection_id), "company": current_user.company})
+
+    if not inspection:
+        return "Инспекция не найдена", 404
+
+    # Получаем имена водителя и трака
+    driver = db["drivers"].find_one({"_id": ObjectId(inspection.get("driver"))}) if inspection.get("driver") else None
+    truck = db["trucks"].find_one({"_id": ObjectId(inspection.get("truck"))}) if inspection.get("truck") else None
+
+    inspection["driver_name"] = driver.get("name") if driver else "—"
+    inspection["truck_number"] = truck.get("unit_number") if truck else "—"
+
+    return render_template("fragments/inspection_details_fragment.html", inspection=inspection)
+

@@ -143,7 +143,7 @@ async function loadInspections() {
         <td>${ins.clean ? "✅" : "❌"}</td>
         <td>
           ${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" download class="me-2">📄</a>` : ""}
-          <button class="btn btn-sm btn-info me-1" onclick="showInspectionDetails('${ins._id}')">🧾</button>
+          <button class="btn btn-sm btn-info" onclick="showInspectionDetails('${ins._id}')">👁️</button>
           <button class="btn btn-sm btn-danger" onclick="deleteInspection('${ins._id}')">🗑</button>
         </td>
       `;
@@ -154,10 +154,26 @@ async function loadInspections() {
   }
 }
 
-function showInspectionDetails(id) {
-  alert("Показать детали инспекции: " + id);
-  // Можно открыть модалку или отобразить блок с подробностями
+async function showInspectionDetails(inspectionId) {
+  const container = document.querySelector('#mainContent') || document.querySelector('.content');
+  if (!container) {
+    console.error("Контейнер для загрузки фрагмента не найден");
+    return;
+  }
+
+  try {
+    const response = await fetch(`/fragment/inspection_details_fragment?id=${inspectionId}`);
+    const html = await response.text();
+    container.innerHTML = html;
+
+    if (typeof initInspectionDetails === "function") {
+      initInspectionDetails();
+    }
+  } catch (error) {
+    console.error("Ошибка при загрузке деталей инспекции:", error);
+  }
 }
+
 
 async function deleteInspection(id) {
   if (!confirm("Удалить эту инспекцию?")) return;
