@@ -119,6 +119,16 @@
             <div class="form-group"><label>Broker Phone Number</label><input type="text" class="form-control" name="broker_phone_number"></div>
 
             <div class="form-group">
+              <label>Компания, подписавшая Rate Con</label>
+              <select name="company_sign" class="form-control" required>
+                <option value="">-- Выбрать компанию --</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
               <label>Тип груза</label>
               <select name="type" class="form-control">
                 <option value="">-- Выбрать тип --</option>

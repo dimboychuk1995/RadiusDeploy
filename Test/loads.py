@@ -29,6 +29,7 @@ fs = gridfs.GridFS(db)
 
 loads_collection = db['loads']
 drivers_collection = db['drivers']
+companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
@@ -257,6 +258,7 @@ def add_load():
         # === Груз ===
         load_data = {
             "load_id": request.form.get("load_id"),
+            "company_sign": ObjectId(request.form.get("company_sign")) if request.form.get("company_sign") else None,
             "broker_load_id": partner_name,
             "broker_id": broker_id,
             "broker_customer_type": partner_type,
@@ -355,7 +357,7 @@ def loads_fragment():
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
-        return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads)
+        return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads, companies=companies)
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
