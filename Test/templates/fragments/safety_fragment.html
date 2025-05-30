@@ -36,15 +36,14 @@
       </table>
     </div>
 
-    <!-- Модалка -->
     <div class="custom-offcanvas custom-offcanvas-right" id="addInspectionModal">
       <div class="custom-offcanvas-content">
         <div class="custom-offcanvas-header">
           <h4 class="mb-0">Добавить инспекцию</h4>
           <button class="btn btn-sm btn-secondary" onclick="closeInspectionModal()">✖</button>
         </div>
-        <div class="custom-offcanvas-body">
-          <form id="addInspectionForm" enctype="multipart/form-data">
+        <div class="custom-offcanvas-body d-flex flex-column">
+          <form id="addInspectionForm" enctype="multipart/form-data" class="d-flex flex-column h-100">
             <div class="load-modal-content">
               <div class="load-modal-left">
                 <div class="form-group mb-3">
@@ -89,12 +88,14 @@
                   <label class="form-check-label" for="cleanInspection">Чистая инспекция</label>
                 </div>
               </div>
-              <div class="load-modal-right">
+
               <div class="load-modal-right">
                 <!-- Пусто пока -->
               </div>
             </div>
-            <div class="text mt-4">
+
+            <!-- Кнопка сохранить внизу слева -->
+            <div class="mt-auto pt-3 d-flex justify-content-start">
               <button type="submit" class="btn btn-success">💾 Сохранить</button>
             </div>
           </form>
@@ -104,6 +105,7 @@
 
     <!-- Затемнение -->
     <div class="custom-offcanvas-backdrop" onclick="closeInspectionModal()"></div>
+
   </div>
 
   <div id="safety-inspections-stats" class="safety-section" style="display: none;">

@@ -6,6 +6,8 @@ from flask_login import login_required, current_user
 from Test.tools.db import db
 import json
 from gridfs import GridFS
+from flask import send_file
+from io import BytesIO
 
 fs = GridFS(db)
 safety_bp = Blueprint('safety', __name__)
@@ -117,3 +119,18 @@ def inspections_list():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@safety_bp.route('/api/get_inspection_file/<file_id>')
+@login_required
+def get_inspection_file(file_id):
+    try:
+        file = fs.get(ObjectId(file_id))
+        return send_file(
+            BytesIO(file.read()),
+            download_name=file.filename,
+            mimetype=file.content_type,
+            as_attachment=True  # 👈 заставляет скачивать
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404

@@ -141,7 +141,7 @@ async function loadInspections() {
         <td>${ins.state || ""}</td>
         <td>${ins.address || ""}</td>
         <td>${ins.clean ? "✅" : "❌"}</td>
-        <td>${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" target="_blank">📄</a>` : ""}</td>
+        <td>${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" download>📄</a>` : ""}</td>
       `;
       tbody.appendChild(tr);
     });
