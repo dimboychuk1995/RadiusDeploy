@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", function () {
         'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' },
         'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' },
         'btn-fleet': { id: 'section-fleet', url: '/fragment/fleet_fragment' },
+        'btn-dispatchers-fragment': { id: 'section-dispatchers', url: '/fragment/dispatchers' },
     };
 
     function loadFragment(sectionId, url) {
