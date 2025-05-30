@@ -70,6 +70,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         loadFleetCharts?.();
                     } else if (url.includes('load_stats_fragment')) {
                         loadGeneralStats?.();
+                    } else if (url.includes('safety')) {
+                      initSafety?.();
                     }
                 });
         }
