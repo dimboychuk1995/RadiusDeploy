@@ -1,3 +1,8 @@
+<button class="btn btn-outline-secondary mb-3" onclick="loadSafetyFragment()">
+  ← Назад
+</button>
+
+
 <div class="p-4">
   <div class="row">
     <!-- Левая колонка: информация -->
@@ -27,8 +32,6 @@
       {% else %}
         <p>🚫 Нет нарушений</p>
       {% endif %}
-
-      <button class="btn btn-secondary mt-3" onclick="returnToInspections()">← Назад к списку</button>
     </div>
 
     <!-- Правая колонка: предпросмотр PDF -->

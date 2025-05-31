@@ -154,26 +154,6 @@ async function loadInspections() {
   }
 }
 
-async function showInspectionDetails(inspectionId) {
-  const container = document.querySelector('#mainContent') || document.querySelector('.content');
-  if (!container) {
-    console.error("Контейнер для загрузки фрагмента не найден");
-    return;
-  }
-
-  try {
-    const response = await fetch(`/fragment/inspection_details_fragment?id=${inspectionId}`);
-    const html = await response.text();
-    container.innerHTML = html;
-
-    if (typeof initInspectionDetails === "function") {
-      initInspectionDetails();
-    }
-  } catch (error) {
-    console.error("Ошибка при загрузке деталей инспекции:", error);
-  }
-}
-
 
 async function deleteInspection(id) {
   if (!confirm("Удалить эту инспекцию?")) return;
