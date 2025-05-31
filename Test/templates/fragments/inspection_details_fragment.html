@@ -1,37 +1,49 @@
 <div class="p-4">
-  <h4>Инспекция от {{ inspection.date or "—" }}</h4>
+  <div class="row">
+    <!-- Левая колонка: информация -->
+    <div class="col-md-6">
+      <h4>Инспекция от {{ inspection.date or "—" }}</h4>
 
-  <ul class="list-group mb-3">
-    <li class="list-group-item"><strong>Водитель:</strong> {{ inspection.driver_name }}</li>
-    <li class="list-group-item"><strong>Трак:</strong> {{ inspection.truck_number }}</li>
-    <li class="list-group-item"><strong>Штат:</strong> {{ inspection.state or "—" }}</li>
-    <li class="list-group-item"><strong>Адрес:</strong> {{ inspection.address or "—" }}</li>
-    <li class="list-group-item"><strong>Начало:</strong> {{ inspection.start_time or "—" }}</li>
-    <li class="list-group-item"><strong>Окончание:</strong> {{ inspection.end_time or "—" }}</li>
-    <li class="list-group-item"><strong>Чистая:</strong> {{ "Да" if inspection.clean_inspection else "Нет" }}</li>
-    <li class="list-group-item">
-      <strong>Файл:</strong>
-      {% if inspection.file_id %}
-        <a href="/api/get_inspection_file/{{ inspection.file_id }}" target="_blank">📄 Скачать</a>
+      <ul class="list-group mb-3">
+        <li class="list-group-item"><strong>Водитель:</strong> {{ inspection.driver_name }}</li>
+        <li class="list-group-item"><strong>Трак:</strong> {{ inspection.truck_number }}</li>
+        <li class="list-group-item"><strong>Штат:</strong> {{ inspection.state or "—" }}</li>
+        <li class="list-group-item"><strong>Адрес:</strong> {{ inspection.address or "—" }}</li>
+        <li class="list-group-item"><strong>Начало:</strong> {{ inspection.start_time or "—" }}</li>
+        <li class="list-group-item"><strong>Окончание:</strong> {{ inspection.end_time or "—" }}</li>
+        <li class="list-group-item"><strong>Чистая:</strong> {{ "Да" if inspection.clean_inspection else "Нет" }}</li>
+      </ul>
+
+      <h5>Нарушения:</h5>
+      {% if inspection.violations %}
+        <ul class="list-group mb-3">
+          {% for v in inspection.violations %}
+            <li class="list-group-item">
+              <strong>{{ v.title or v.code or "Нарушение" }}</strong><br>
+              <small>{{ v.description or "" }}</small>
+            </li>
+          {% endfor %}
+        </ul>
       {% else %}
-        —
+        <p>🚫 Нет нарушений</p>
       {% endif %}
-    </li>
-  </ul>
 
-  <h5>Нарушения:</h5>
-  {% if inspection.violations %}
-    <ul class="list-group">
-      {% for v in inspection.violations %}
-        <li class="list-group-item">
-          <strong>{{ v.title }}</strong><br>
-          <small>{{ v.description }}</small>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p>🚫 Нет нарушений</p>
-  {% endif %}
+      <button class="btn btn-secondary mt-3" onclick="returnToInspections()">← Назад к списку</button>
+    </div>
+
+    <!-- Правая колонка: предпросмотр PDF -->
+    <div class="col-md-6">
+      {% if inspection.file_id %}
+        <h5>Предпросмотр документа:</h5>
+        <iframe
+          src="/api/get_inspection_file/{{ inspection.file_id }}"
+          width="100%"
+          height="700px"
+          style="border: 1px solid #ccc; border-radius: 8px;"
+        ></iframe>
+      {% else %}
+        <p class="text-muted">Нет прикреплённого PDF-файла.</p>
+      {% endif %}
+    </div>
+  </div>
 </div>
-
-<button class="btn btn-secondary mb-3" onclick="returnToInspections()">← Назад к списку</button>

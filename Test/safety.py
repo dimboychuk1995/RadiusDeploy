@@ -130,7 +130,7 @@ def get_inspection_file(file_id):
             BytesIO(file.read()),
             download_name=file.filename,
             mimetype=file.content_type,
-            as_attachment=True  # 👈 заставляет скачивать
+            as_attachment=False  # 👈 вот это ключевое
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 404
