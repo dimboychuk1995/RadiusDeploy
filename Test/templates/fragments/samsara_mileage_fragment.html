@@ -1,4 +1,19 @@
 <div class="p-4">
-  <h4 class="mb-4"><i class="fas fa-road me-2"></i> Пробеги водителей (Samsara)</h4>
-  <!-- Пока пусто -->
+  <h4 class="mb-4"><i class="fas fa-road me-2"></i> Пробеги по Samsara</h4>
+
+  <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraMileage()">🔄 Обновить данные</button>
+
+  <div id="mileageTableContainer" class="table-responsive">
+    <table class="table table-bordered table-sm">
+      <thead>
+        <tr>
+          <th>Vehicle ID</th>
+          <th>Название</th>
+          <th>Пробег (mi)</th>
+          <th>Время</th>
+        </tr>
+      </thead>
+      <tbody id="mileageTableBody"></tbody>
+    </table>
+  </div>
 </div>
