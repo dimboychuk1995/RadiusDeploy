@@ -55,3 +55,8 @@ def get_samsara_vehicles():
         print("Ошибка при получении данных Samsara:", e)
 
     return jsonify(vehicles)
+
+@samsara_bp.route('/fragment/samsara_mileage_fragment')
+@login_required
+def samsara_mileage_fragment():
+    return render_template('fragments/samsara_mileage_fragment.html')

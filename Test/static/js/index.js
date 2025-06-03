@@ -1,19 +1,33 @@
 document.addEventListener("DOMContentLoaded", function () {
     const sections = {
         'btn-trucks': { id: 'section-trucks', url: '/fragment/trucks' },
+
         'btn-drivers': { id: 'section-drivers', url: '/fragment/drivers' },
+
         'btn-loads-fragment': { id: 'section-loads-fragment', url: '/fragment/loads_fragment' },
         'btn-loads-stats': { id: 'section-loads-stats', url: '/fragment/load_stats_fragment' },
+
         'btn-dispatch-fragment': { id: 'section-dispatch-fragment', url: '/fragment/dispatch_fragment' },
         'btn-brokers-fragment': { id: 'section-dispatch-brokers', url: '/fragment/dispatch_brokers' },
+
         'btn-accounting': { id: 'section-accounting', url: '/fragment/accounting_fragment' },
+
         'btn-statements': { id: 'section-statements', url: '/statement/fragment' },
+
         'btn-fuel-cards': { id: 'section-fuel-cards', url: '/fragment/fuel_cards' },
+
         'btn-samsara': { id: 'section-samsara', url: '/fragment/samsara_fragment' },
+        'btn-samsara-mileage': { id: 'section-samsara-mileage', url: '/fragment/samsara_mileage_fragment' },
+
         'btn-tolls': { id: 'section-tolls', url: '/fragment/tolls_fragment' },
+
         'btn-fleet': { id: 'section-fleet', url: '/fragment/fleet_fragment' },
+
         'btn-dispatchers-fragment': { id: 'section-dispatchers', url: '/fragment/dispatchers' },
+
         'btn-safety': { id: 'section-safety', url: '/fragment/safety' },
+
+
     };
 
     function loadFragment(sectionId, url) {
@@ -136,6 +150,18 @@ document.addEventListener("DOMContentLoaded", function () {
             const isVisible = submenu.style.display === "block";
             submenu.style.display = isVisible ? "none" : "block";
             loadsArrow.innerHTML = isVisible ? "&#9662;" : "&#9652;";
+        });
+    }
+
+    // Стрелка "Samsara"
+    const samsaraArrow = document.getElementById("samsaraDropdownArrow");
+    if (samsaraArrow) {
+        samsaraArrow.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const submenu = document.getElementById("samsaraSubmenu");
+            const isVisible = submenu.style.display === "block";
+            submenu.style.display = isVisible ? "none" : "block";
+            samsaraArrow.innerHTML = isVisible ? "&#9662;" : "&#9652;";
         });
     }
 
