@@ -12,7 +12,7 @@ import pytesseract
 
 from Test.auth import requires_role
 from Test.tools.db import db
-from Test.loads import get_openai_client
+from Test.tools.gpt_connection import get_openai_client
 
 logging.basicConfig(level=logging.ERROR)
 
