@@ -16,7 +16,7 @@ async function showInspectionDetails(inspectionId) {
   }
 
   try {
-    const res = await fetch(`/fragment/inspection_details_frfinaly agment?id=${inspectionId}`);
+    const res = await fetch(`/fragment/inspection_details_fragment?id=${inspectionId}`);
     const html = await res.text();
 
     // создаём или находим контейнер
