@@ -1,5 +1,7 @@
 console.log("🔧 driver_detail.js загружен");
 
+const perMileBlock = document.getElementById("perMileBlock");
+
 function initDriverDetailActions() {
     console.log("🔧 initDriverDetailActions вызвана");
 
@@ -65,12 +67,11 @@ function initDriverDetailActions() {
 
     if (schemeSelect && percentBlock && netBlock) {
         schemeSelect.addEventListener("change", () => {
-            if (schemeSelect.value === "percent") {
-                percentBlock.style.display = "block";
-                netBlock.style.display = "none";
-            } else {
-                percentBlock.style.display = "none";
-                netBlock.style.display = "block";
+            const selected = schemeSelect.value;
+            percentBlock.style.display = selected === "percent" ? "block" : "none";
+            netBlock.style.display = selected === "net_percent" ? "block" : "none";
+            if (perMileBlock) {
+                perMileBlock.style.display = selected === "per_mile" ? "block" : "none";
             }
         });
     }

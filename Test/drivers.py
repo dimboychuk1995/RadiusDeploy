@@ -157,7 +157,8 @@ def driver_details_fragment(driver_id):
             'scheme_type': driver.get('scheme_type'),
             'commission_table': driver.get('commission_table') or [],
             'net_commission_table': driver.get('net_commission_table') or [],
-            'additional_charges': driver.get('additional_charges') or []
+            'additional_charges': driver.get('additional_charges') or [],
+            'per_mile_rate': driver.get('per_mile_rate')
         }
 
         return render_template(
@@ -261,6 +262,15 @@ def set_salary_scheme(driver_id):
                 'scheme_type': 'net_percent',
                 'commission_table': None,
                 'net_commission_table': net_table
+            })
+
+        elif scheme_type == 'per_mile':
+            per_mile_rate = float(request.form.get('per_mile_rate', 0))
+            update_data.update({
+                'scheme_type': 'per_mile',
+                'per_mile_rate': per_mile_rate,
+                'commission_table': None,
+                'net_commission_table': None
             })
 
         else:
