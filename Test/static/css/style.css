@@ -356,3 +356,13 @@ table tr:first-child th:last-child {
   padding: 1rem;
   background-color: #fff;
 }
+
+.no-truck {
+  background-color: #fff9db !important;
+  border-left: 4px solid #f0ad4e;
+}
+
+.no-driver {
+  background-color: #fff3cd !important;
+  border-left: 4px solid #ffc107;
+}

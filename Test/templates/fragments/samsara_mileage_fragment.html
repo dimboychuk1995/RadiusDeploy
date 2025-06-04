@@ -4,8 +4,8 @@
   <!-- Центрированная навигация -->
   <div class="d-flex justify-content-center mb-3">
     <div class="btn-group" role="group">
-      <button class="btn btn-outline-primary mileage-tab active" data-target="#samsara_drivers">Текущие пробеги</button>
-      <button class="btn btn-outline-primary mileage-tab" data-target="#samsara_vehicles">История</button>
+      <button class="btn btn-outline-primary mileage-tab active" data-target="#samsara_drivers">Samsara Drivers</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#samsara_vehicles">Samsara Vehicles</button>
       <button class="btn btn-outline-primary mileage-tab" data-target="#mileage-stats">Статистика</button>
     </div>
   </div>
@@ -22,8 +22,9 @@
     </div>
 
   <div id="samsara_vehicles" class="mileage-section" style="display: none;">
-    <!-- История пробегов -->
-  </div>
+      <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraVehicles()">🔄 Обновить список траков</button>
+      <div id="vehiclesList" class="list-group"></div>
+    </div>
 
   <div id="mileage-stats" class="mileage-section" style="display: none;">
     <!-- Статистика пробегов -->

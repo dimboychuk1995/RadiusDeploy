@@ -77,3 +77,21 @@ def api_samsara_drivers():
     except Exception as e:
         print("Ошибка при получении водителей Samsara:", e)
         return jsonify({"error": str(e)}), 500
+
+
+@samsara_bp.route('/api/samsara/vehicles')
+@login_required
+def api_samsara_vehicles():
+    try:
+        headers = get_samsara_headers()
+        response = requests.get(f"{BASE_URL}/fleet/vehicles?limit=512", headers=headers)
+
+        if not response.ok:
+            return jsonify({"error": "Failed to fetch vehicles from Samsara"}), 500
+
+        data = response.json().get("data", [])
+        return jsonify(data)
+
+    except Exception as e:
+        print("Ошибка при получении траков из Samsara:", e)
+        return jsonify({"error": str(e)}), 500
