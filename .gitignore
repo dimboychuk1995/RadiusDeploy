@@ -1,8 +1,58 @@
-# Игнорировать всё
-*
+# 🐍 Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+*.log
 
-# Разрешить нужные файлы и папки
-!requirements.txt
-!run.py
-!test/
-!test/**
+# 📦 virtualenv / poetry
+venv/
+.venv/
+env/
+ENV/
+.Python
+poetry.lock
+pip-log.txt
+
+# 🔧 IDE
+.idea/
+.vscode/
+*.iml
+
+# 📂 Секреты и конфиги
+.env
+config.py
+instance/
+*.pem
+
+# 📜 Render и деплой
+*.sqlite3
+*.db
+.DS_Store
+*.zip
+
+# 🔄 Git
+.git/
+.gitignore
+
+# 🧪 Тесты
+tests/
+.coverage
+htmlcov/
+pytest_cache/
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.pyc
+
+# 🚫 Uploads / временные папки
+uploads/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.tiff
+
+# ⚠️ Игнорировать лишнюю вложенность, если была
+**/RadiusDeploy/
