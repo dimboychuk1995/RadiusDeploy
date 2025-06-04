@@ -1,79 +1,4 @@
 document.addEventListener("DOMContentLoaded", function () {
-    const toggleButton = document.getElementById("samsaraToggle");
-    const apiKeyInput = document.getElementById("samsaraApiKeyInput");
-    const saveApiKeyBtn = document.getElementById("saveApiKeyBtn");
-
-    let enabled = toggleButton.dataset.enabled === "true";
-
-    // === Обновление внешнего вида кнопки ===
-    function updateToggleButton() {
-        toggleButton.textContent = enabled ? "ON" : "OFF";
-        toggleButton.classList.toggle("btn-outline-success", enabled);
-        toggleButton.classList.toggle("btn-outline-danger", !enabled);
-    }
-
-    updateToggleButton();
-
-    // === Переключение статуса интеграции ===
-    toggleButton.addEventListener("click", () => {
-        enabled = !enabled;
-        updateToggleButton();
-
-        fetch("/api/integrations/samsara", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ enabled })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (!data.success) {
-                enabled = !enabled;
-                updateToggleButton();
-                alert("❌ Не удалось обновить статус интеграции");
-            }
-        })
-        .catch(err => {
-            enabled = !enabled;
-            updateToggleButton();
-            alert("⚠️ Ошибка сети при попытке обновить статус");
-            console.error(err);
-        });
-    });
-
-    // === Сохранение API ключа ===
-    saveApiKeyBtn.addEventListener("click", () => {
-        const apiKey = apiKeyInput.value.trim();
-
-        if (!apiKey) {
-            alert("⚠️ Пожалуйста, введите API ключ перед сохранением.");
-            return;
-        }
-
-        fetch("/api/integrations/samsara/key", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ api_key: apiKey })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert("✅ API ключ успешно сохранён");
-            } else {
-                alert("❌ Ошибка: " + (data.error || "неизвестная"));
-            }
-        })
-        .catch(err => {
-            alert("⚠️ Ошибка сети при сохранении ключа");
-            console.error(err);
-        });
-    });
-});
-
-
     // === Добавление новой интеграции ===
     const addBtn = document.getElementById("addIntegrationBtn");
     const container = document.getElementById("integrationsContainer");
@@ -149,3 +74,4 @@ document.addEventListener("DOMContentLoaded", function () {
             });
         });
     }
+});
