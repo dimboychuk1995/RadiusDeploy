@@ -1,22 +1,30 @@
+// Инициализация вкладок Samsara Mileage (Drivers / Vehicles / Stats)
 function initSamsaraMileage() {
   document.querySelectorAll('.mileage-tab').forEach(btn => {
+    // Обработчик клика по вкладке
     btn.addEventListener('click', () => {
+      // Удаляем active со всех и скрываем секции
       document.querySelectorAll('.mileage-tab').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.mileage-section').forEach(sec => sec.style.display = 'none');
 
+      // Активируем выбранную вкладку и показываем её контент
       btn.classList.add('active');
       const target = document.querySelector(btn.dataset.target);
       if (target) {
         target.style.display = 'block';
+        // Если выбрана вкладка "Stats", загружаем устройства
         if (btn.dataset.target === "#mileage-stats") {
           loadSamsaraDevices();
         }
       }
     });
   });
+
+  // Привязка формы создания водителя
   bindSamsaraDriverForm();
 }
 
+// Загрузка водителей из Samsara API
 function loadSamsaraDrivers() {
   fetch('/api/samsara/drivers')
     .then(res => res.json())
@@ -24,6 +32,7 @@ function loadSamsaraDrivers() {
       const container = document.getElementById('driversList');
       container.innerHTML = '';
 
+      // Создание карточек водителей
       drivers.forEach(d => {
         const tagNames = Array.isArray(d.tags) ? d.tags.map(t => t.name).join(', ') : '';
         const truck = d.staticAssignedVehicle?.name || '';
@@ -67,6 +76,7 @@ function loadSamsaraDrivers() {
     .catch(err => console.error("Ошибка при загрузке водителей:", err));
 }
 
+// Загрузка траков из Samsara API
 function loadSamsaraVehicles() {
   fetch('/api/samsara/vehicles')
     .then(res => res.json())
@@ -74,6 +84,7 @@ function loadSamsaraVehicles() {
       const container = document.getElementById('vehiclesList');
       container.innerHTML = '';
 
+      // Рендер карточек траков
       vehicles.forEach(v => {
         const hasDriver = !!v.staticAssignedDriver?.name;
         const tagNames = Array.isArray(v.tags) ? v.tags.map(t => t.name).join(', ') : '';
@@ -94,7 +105,6 @@ function loadSamsaraVehicles() {
               <h5 class="mb-0 fw-bold">${v.name || '(No name)'}</h5>
               <span class="badge bg-secondary">${regMode}</span>
             </div>
-
             <div class="mb-1"><strong>Make:</strong> ${make} ${model} ${year}</div>
             <div class="mb-1"><strong>VIN:</strong> ${vin}</div>
             <div class="mb-1"><strong>Plate:</strong> ${licensePlate}</div>
@@ -109,6 +119,7 @@ function loadSamsaraVehicles() {
     .catch(err => console.error("Ошибка при загрузке траков:", err));
 }
 
+// Загрузка информации об устройствах Samsara (Gateways)
 function loadSamsaraDevices() {
   fetch("/api/samsara/gateways")
     .then(res => res.json())
@@ -116,6 +127,7 @@ function loadSamsaraDevices() {
       const container = document.getElementById("mileage-stats");
       container.innerHTML = "";
 
+      // Генерация карточек устройств
       devices.forEach(device => {
         const serial = device.serial || "-";
         const model = device.model || "-";
@@ -142,17 +154,20 @@ function loadSamsaraDevices() {
     .catch(err => console.error("Ошибка при загрузке устройств:", err));
 }
 
+// Открытие модального окна добавления водителя
 function openAddSamsaraDriverModal() {
   document.getElementById("addSamsaraDriverModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
-  loadDriverOptions();
+  loadDriverOptions(); // Загружаем список водителей
 }
 
+// Закрытие модального окна
 function closeAddSamsaraDriverModal() {
   document.getElementById("addSamsaraDriverModal")?.classList.remove("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
 
+// Загрузка опций водителей для селекта и автозаполнение формы
 function loadDriverOptions() {
   const select = document.getElementById('driverSelect');
   const detailsBlock = document.getElementById('driverDetails');
@@ -185,6 +200,7 @@ function loadDriverOptions() {
         width: '100%'
       });
 
+      // При выборе водителя заполняем поля формы
       $(select).off('change').on('change', async function () {
         const driverId = this.value;
         if (!driverId) {
@@ -211,6 +227,7 @@ function loadDriverOptions() {
     });
 }
 
+// Обработка формы добавления водителя в Samsara
 function bindSamsaraDriverForm() {
   const form = document.getElementById('addSamsaraDriverForm');
   if (!form) return;
