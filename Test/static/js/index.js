@@ -63,6 +63,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         initFuelCards?.();
                     } else if (url.includes('samsara')) {
                         initSamsara?.();
+                        initSamsaraMileage();
                     } else if (url.includes('loads_fragment')) {
                         initLoadParser?.();
                         initLoads?.();

@@ -1,19 +1,31 @@
 <div class="p-4">
-  <h4 class="mb-4"><i class="fas fa-road me-2"></i> Пробеги по Samsara</h4>
+  <h4 class="mb-4"><i class="fas fa-road me-2"></i>Пробеги по Samsara</h4>
 
-  <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraMileage()">🔄 Обновить данные</button>
+  <!-- Центрированная навигация -->
+  <div class="d-flex justify-content-center mb-3">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-primary mileage-tab active" data-target="#samsara_drivers">Текущие пробеги</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#samsara_vehicles">История</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#mileage-stats">Статистика</button>
+    </div>
+  </div>
 
-  <div id="mileageTableContainer" class="table-responsive">
-    <table class="table table-bordered table-sm">
-      <thead>
-        <tr>
-          <th>Vehicle ID</th>
-          <th>Название</th>
-          <th>Пробег (mi)</th>
-          <th>Время</th>
-        </tr>
-      </thead>
-      <tbody id="mileageTableBody"></tbody>
-    </table>
+  <!-- Секции -->
+    <div id="samsara_drivers" class="mileage-section" style="display: block;">
+
+      <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraDrivers()">🔄 Обновить список водителей</button>
+
+      <div id="driversTableContainer">
+        <div id="driversList" class="list-group"></div>
+      </div>
+
+    </div>
+
+  <div id="samsara_vehicles" class="mileage-section" style="display: none;">
+    <!-- История пробегов -->
+  </div>
+
+  <div id="mileage-stats" class="mileage-section" style="display: none;">
+    <!-- Статистика пробегов -->
   </div>
 </div>

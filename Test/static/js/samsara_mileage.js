@@ -1,62 +1,68 @@
-async function loadSamsaraMileage() {
-  console.log("📥 Функция loadSamsaraMileage вызвана");
+function initSamsaraMileage() {
+  document.querySelectorAll('.mileage-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // Удаляем активные классы
+      document.querySelectorAll('.mileage-tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.mileage-section').forEach(sec => sec.style.display = 'none');
 
-  const tbody = document.getElementById("mileageTableBody");
-  if (!tbody) {
-    console.error("❌ tbody не найден в DOM");
-    return;
-  }
-
-  tbody.innerHTML = '<tr><td colspan="4">Загрузка...</td></tr>';
-
-  try {
-    const res = await fetch('/api/samsara/driver_mileage');
-
-    if (!res.ok) {
-      console.error("❌ Ошибка ответа сервера:", res.status);
-      tbody.innerHTML = `<tr><td colspan="4">Ошибка: ${res.status}</td></tr>`;
-      return;
-    }
-
-    const data = await res.json();
-    console.log("✅ Получены данные:", data);
-
-    if (!Array.isArray(data)) {
-      tbody.innerHTML = '<tr><td colspan="4">Ошибка: формат данных</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = "";
-
-    data.forEach(item => {
-      const row = `
-        <tr>
-          <td>${item.vehicle_id}</td>
-          <td>${item.vehicle_name}</td>
-          <td>${item.mileage}</td>
-          <td>${item.timestamp}</td>
-        </tr>
-      `;
-      tbody.insertAdjacentHTML("beforeend", row);
+      // Назначаем активную вкладку
+      btn.classList.add('active');
+      const target = document.querySelector(btn.dataset.target);
+      if (target) target.style.display = 'block';
     });
-
-    if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4">Нет данных</td></tr>';
-    }
-
-  } catch (error) {
-    console.error("💥 Ошибка при получении данных:", error);
-    tbody.innerHTML = '<tr><td colspan="4">Ошибка загрузки</td></tr>';
-  }
+  });
 }
 
-// Привязываем к кнопке по ID, когда DOM загрузится
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("refreshMileageBtn");
-  if (btn) {
-    btn.addEventListener("click", loadSamsaraMileage);
-    console.log("🔗 Кнопка обновления привязана");
-  } else {
-    console.warn("⚠️ Кнопка с id='refreshMileageBtn' не найдена");
-  }
-});
+function loadSamsaraDrivers() {
+  fetch('/api/samsara/drivers')
+    .then(res => res.json())
+    .then(drivers => {
+      const container = document.getElementById('driversList');
+      container.innerHTML = '';
+
+      drivers.forEach(d => {
+        const tagNames = Array.isArray(d.tags)
+          ? d.tags.map(t => t.name).join(', ')
+          : '';
+
+        const truck = d.staticAssignedVehicle?.name || '-';
+        const phone = d.phone || '-';
+        const email = d.email || '-';
+        const license = d.licenseNumber || '-';
+        const status = d.driverActivationStatus || '-';
+        const name = d.name || '';
+        const username = d.username || '';
+
+        const card = document.createElement('div');
+        card.className = 'list-group-item list-group-item-action';
+
+        card.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex align-items-center">
+              <div class="avatar bg-primary text-white rounded-circle me-3"
+                   style="width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                ${name.charAt(0)}
+              </div>
+              <div>
+                <div class="fw-bold fs-5">${name}</div>
+                <div class="text-muted small">${username}</div>
+              </div>
+            </div>
+            <span class="badge bg-success">${status}</span>
+          </div>
+
+          <div class="row px-3 pb-2 text-muted">
+            <div class="col-md-6 col-lg-4"><strong>Phone:</strong> ${phone}</div>
+            <div class="col-md-6 col-lg-4"><strong>Email:</strong> ${email}</div>
+            <div class="col-md-6 col-lg-4"><strong>Truck:</strong> ${truck}</div>
+            <div class="col-md-6 col-lg-4"><strong>License:</strong> ${license}</div>
+            <div class="col-md-6 col-lg-8"><strong>Tags:</strong> ${tagNames}</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    })
+    .catch(err => {
+      console.error("Ошибка при загрузке водителей:", err);
+    });
+}

@@ -61,36 +61,19 @@ def get_samsara_vehicles():
 def samsara_mileage_fragment():
     return render_template('fragments/samsara_mileage_fragment.html')
 
-
-@samsara_bp.route('/api/samsara/driver_mileage')
+@samsara_bp.route('/api/samsara/drivers')
 @login_required
-def api_driver_mileage():
+def api_samsara_drivers():
     try:
         headers = get_samsara_headers()
-        response = requests.get(
-            f"{BASE_URL}/fleet/vehicles/stats?types=obdOdometerMeters",
-            headers=headers
-        )
+        response = requests.get(f"{BASE_URL}/fleet/drivers", headers=headers)
 
         if not response.ok:
-            return jsonify({"error": "Samsara API error"}), 500
+            return jsonify({"error": "Failed to fetch drivers"}), 500
 
-        stats = response.json().get("data", [])
-        result = []
-
-        for vehicle in stats:
-            odometer = vehicle.get("obdOdometerMeters")
-            if isinstance(odometer, dict) and "value" in odometer:
-                mileage = round(odometer["value"] / 1609.34, 2)
-                result.append({
-                    "vehicle_id": vehicle.get("id"),
-                    "vehicle_name": vehicle.get("name", "Без названия"),
-                    "mileage": mileage,
-                    "timestamp": odometer.get("time", "")
-                })
-
-        return jsonify(result)
+        drivers = response.json().get("data", [])
+        return jsonify(drivers)
 
     except Exception as e:
-        print("Ошибка при получении пробега Samsara:", e)
+        print("Ошибка при получении водителей Samsara:", e)
         return jsonify({"error": str(e)}), 500
