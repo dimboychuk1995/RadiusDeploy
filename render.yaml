@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: radiusdeploy
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn main:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: MONGO_URI
+        value: mongodb+srv://dimboychuk1995:Mercedes8878@trucks.5egoxb8.mongodb.net/trucks_db
+      - key: SECRET_KEY
+        value: 75c077b164279fbd9e1ea2c70c85702547a4d08790c8e36d3660d5eadb8bfa51
