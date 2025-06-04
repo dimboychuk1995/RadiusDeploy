@@ -1,16 +1,20 @@
 function initSamsaraMileage() {
   document.querySelectorAll('.mileage-tab').forEach(btn => {
     btn.addEventListener('click', () => {
-      // Удаляем активные классы
       document.querySelectorAll('.mileage-tab').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.mileage-section').forEach(sec => sec.style.display = 'none');
 
-      // Назначаем активную вкладку
       btn.classList.add('active');
       const target = document.querySelector(btn.dataset.target);
-      if (target) target.style.display = 'block';
+      if (target) {
+        target.style.display = 'block';
+        if (btn.dataset.target === "#mileage-stats") {
+          loadSamsaraDevices();
+        }
+      }
     });
   });
+  bindSamsaraDriverForm();
 }
 
 function loadSamsaraDrivers() {
@@ -21,10 +25,7 @@ function loadSamsaraDrivers() {
       container.innerHTML = '';
 
       drivers.forEach(d => {
-        const tagNames = Array.isArray(d.tags)
-          ? d.tags.map(t => t.name).join(', ')
-          : '';
-
+        const tagNames = Array.isArray(d.tags) ? d.tags.map(t => t.name).join(', ') : '';
         const truck = d.staticAssignedVehicle?.name || '';
         const phone = d.phone || '-';
         const email = d.email || '-';
@@ -32,13 +33,11 @@ function loadSamsaraDrivers() {
         const status = d.driverActivationStatus || '-';
         const name = d.name || '';
         const username = d.username || '';
-
         const hasTruck = !!truck;
+
         const card = document.createElement('div');
         card.className = 'list-group-item list-group-item-action';
-        if (!hasTruck) {
-          card.classList.add('no-truck');
-        }
+        if (!hasTruck) card.classList.add('no-truck');
 
         card.innerHTML = `
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -54,7 +53,6 @@ function loadSamsaraDrivers() {
             </div>
             <span class="badge bg-success">${status}</span>
           </div>
-
           <div class="row px-3 pb-2 text-muted">
             <div class="col-md-6 col-lg-4"><strong>Phone:</strong> ${phone}</div>
             <div class="col-md-6 col-lg-4"><strong>Email:</strong> ${email}</div>
@@ -66,9 +64,7 @@ function loadSamsaraDrivers() {
         container.appendChild(card);
       });
     })
-    .catch(err => {
-      console.error("Ошибка при загрузке водителей:", err);
-    });
+    .catch(err => console.error("Ошибка при загрузке водителей:", err));
 }
 
 function loadSamsaraVehicles() {
@@ -110,7 +106,147 @@ function loadSamsaraVehicles() {
         container.appendChild(card);
       });
     })
-    .catch(err => {
-      console.error("Ошибка при загрузке траков:", err);
+    .catch(err => console.error("Ошибка при загрузке траков:", err));
+}
+
+function loadSamsaraDevices() {
+  fetch("/api/samsara/gateways")
+    .then(res => res.json())
+    .then(devices => {
+      const container = document.getElementById("mileage-stats");
+      container.innerHTML = "";
+
+      devices.forEach(device => {
+        const serial = device.serial || "-";
+        const model = device.model || "-";
+        const status = device.connectionStatus?.healthStatus || "Unknown";
+        const accessories = Array.isArray(device.accessoryDevices)
+          ? device.accessoryDevices.map(acc => `${acc.model} (${acc.serial})`).join(", ")
+          : "—";
+
+        const card = document.createElement("div");
+        card.className = "card shadow-sm mb-2";
+
+        card.innerHTML = `
+          <div class="card-body">
+            <h6 class="mb-2 fw-bold">📟 Serial: ${serial}</h6>
+            <div><strong>Model:</strong> ${model}</div>
+            <div><strong>Status:</strong> ${status}</div>
+            <div><strong>Accessory Devices:</strong> ${accessories}</div>
+          </div>
+        `;
+
+        container.appendChild(card);
+      });
+    })
+    .catch(err => console.error("Ошибка при загрузке устройств:", err));
+}
+
+function openAddSamsaraDriverModal() {
+  document.getElementById("addSamsaraDriverModal")?.classList.add("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+  loadDriverOptions();
+}
+
+function closeAddSamsaraDriverModal() {
+  document.getElementById("addSamsaraDriverModal")?.classList.remove("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+}
+
+function loadDriverOptions() {
+  const select = document.getElementById('driverSelect');
+  const detailsBlock = document.getElementById('driverDetails');
+
+  if (!select || !detailsBlock) return;
+
+  select.innerHTML = '<option value="">-- Выберите --</option>';
+  detailsBlock.style.display = 'none';
+  document.getElementById('driverName').value = '';
+  document.getElementById('driverPhone').value = '';
+  document.getElementById('driverLicense').value = '';
+
+  fetch('/api/drivers_dropdown')
+    .then(res => res.json())
+    .then(drivers => {
+      drivers.forEach(driver => {
+        const option = document.createElement('option');
+        option.value = driver._id;
+        option.textContent = driver.name;
+        select.appendChild(option);
+      });
+
+      if ($(select).hasClass("select2-hidden-accessible")) {
+        $(select).select2('destroy');
+      }
+
+      $(select).select2({
+        theme: 'bootstrap4',
+        placeholder: 'Выберите водителя',
+        width: '100%'
+      });
+
+      $(select).off('change').on('change', async function () {
+        const driverId = this.value;
+        if (!driverId) {
+          detailsBlock.style.display = 'none';
+          return;
+        }
+
+        try {
+          const res = await fetch(`/api/driver/${driverId}`);
+          const data = await res.json();
+          console.log("🔍 Driver details:", data);
+
+          document.getElementById('driverName').value = data.name || '';
+          document.getElementById('driverPhone').value = data.phone || data.contact_number || '';
+          document.getElementById('driverLicense').value = typeof data.license === 'string'
+            ? data.license
+            : (data.license?.number || '');
+          detailsBlock.style.display = 'block';
+        } catch (err) {
+          console.error('Ошибка при загрузке водителя:', err);
+          detailsBlock.style.display = 'none';
+        }
+      });
     });
+}
+
+function bindSamsaraDriverForm() {
+  const form = document.getElementById('addSamsaraDriverForm');
+  if (!form) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const data = {
+      driverId: formData.get('driverId'),
+      name: document.getElementById('driverName').value,
+      phone: document.getElementById('driverPhone').value,
+      license: document.getElementById('driverLicense').value,
+      username: formData.get('username'),
+      password: formData.get('password')
+    };
+
+    try {
+      const res = await fetch('/api/samsara/create_driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        alert('✅ Водитель успешно создан в Samsara');
+        closeAddSamsaraDriverModal();
+        loadSamsaraDrivers(); // Обновим список
+      } else {
+        console.error(result);
+        alert('❌ Ошибка: ' + (result.details || 'неизвестная ошибка'));
+      }
+    } catch (err) {
+      console.error("Ошибка при отправке формы:", err);
+      alert('❌ Ошибка сети');
+    }
+  });
 }

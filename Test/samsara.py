@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, jsonify, abort
-import requests
+from flask import Blueprint, render_template, abort
+import re
 from flask_login import login_required
 from Test.tools.db import db
 
@@ -95,3 +95,99 @@ def api_samsara_vehicles():
     except Exception as e:
         print("Ошибка при получении траков из Samsara:", e)
         return jsonify({"error": str(e)}), 500
+
+
+@samsara_bp.route("/api/samsara/gateways")
+@login_required
+def get_samsara_gateways():
+    try:
+        headers = get_samsara_headers()
+        response = requests.get(f"{BASE_URL}/gateways", headers=headers)
+        if response.ok:
+            return jsonify(response.json().get("data", []))
+        else:
+            return jsonify({"error": "Failed to fetch gateway data"}), 500
+    except Exception as e:
+        print("Ошибка при получении gateways:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@samsara_bp.route('/api/drivers_dropdown')
+@login_required
+def drivers_dropdown():
+    drivers = db["drivers"].find({"company": current_user.company})
+    return jsonify([{"_id": str(d["_id"]), "name": d["name"]} for d in drivers])
+
+
+@samsara_bp.route("/api/driver/<driver_id>")
+@login_required
+def get_driver_details(driver_id):
+    from bson import ObjectId
+    driver = db["drivers"].find_one({"_id": ObjectId(driver_id), "company": current_user.company})
+    if not driver:
+        return jsonify({"error": "Driver not found"}), 404
+
+    return jsonify({
+        "name": driver.get("name"),
+        "phone": driver.get("phone") or driver.get("contact_number"),
+        "license": driver.get("license", {}).get("number")
+    })
+
+from flask import request, jsonify
+from flask_login import login_required, current_user
+import requests
+
+@samsara_bp.route("/api/samsara/create_driver", methods=["POST"])
+@login_required
+def create_samsara_driver():
+    try:
+        data = request.json
+
+        # Получаем API-ключ
+        integration = integrations_collection.find_one({"name": "samsara"})
+        if not integration or not integration.get("api_key"):
+            return jsonify({"error": "Samsara API ключ не найден"}), 500
+
+        # Приводим номер телефона к 10 цифрам
+        raw_phone = data.get("phone", "")
+        cleaned_phone = re.sub(r"\D", "", raw_phone)  # удалить все кроме цифр
+
+        if len(cleaned_phone) == 11 and cleaned_phone.startswith("1"):
+            cleaned_phone = cleaned_phone[1:]  # удалить ведущую "1"
+        elif len(cleaned_phone) != 10:
+            return jsonify({
+                "error": "Неверный формат номера телефона",
+                "details": f"Номер должен содержать 10 цифр. Сейчас: {cleaned_phone}"
+            }), 400
+
+        # Формируем payload
+        payload = {
+            "hosSetting": { "heavyHaulExemptionToggleEnabled": False },
+            "usDriverRulesetOverride": {
+                "cycle": "USA Property (8/70)",
+                "restart": "34-hour Restart",
+                "restbreak": "Property (off-duty/sleeper)",
+                "usStateToOverride": ""
+            },
+            "licenseNumber": data.get("license"),
+            "name": data.get("name"),
+            "phone": cleaned_phone,
+            "password": data.get("password"),
+            "username": data.get("username")
+        }
+
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json",
+            "authorization": f"Bearer {integration['api_key']}"
+        }
+
+        response = requests.post("https://api.samsara.com/fleet/drivers", json=payload, headers=headers)
+
+        if response.status_code == 200:
+            return jsonify({"success": True, "message": "Водитель успешно создан в Samsara"})
+        else:
+            return jsonify({"error": "Ошибка Samsara", "details": response.json()}), response.status_code
+
+    except Exception as e:
+        return jsonify({"error": "Ошибка при создании водителя", "details": str(e)}), 500
