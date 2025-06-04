@@ -1,0 +1,270 @@
+<h3 style="margin-left: 30px;">📊 Статистика по грузам</h3>
+
+<div class="stats-scroll-container">
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>1️⃣ Общая статистика <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Сводка: количество, сумма, RPM.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>2️⃣ По водителям <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>По каждому водителю: сумма, RPM.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>3️⃣ По брокерам <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Сумма, RPM по брокерам.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>4️⃣ География <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Пикапы/деливери по штатам и городам.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>6️⃣ Топ грузы <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Самые дорогие или выгодные грузы.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>7️⃣ Аномалии <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Грузы с ошибками или низким RPM.</p>
+        </div>
+    </div>
+
+    <div class="stats-block" onclick="toggleStatsBlock(this)">
+        <h5>8️⃣ По статусу <span class="chevron">▶</span></h5>
+        <div class="stats-content">
+            <p>Delivered, Canceled и др.</p>
+        </div>
+    </div>
+</div>
+
+<div class="stats-details-container" id="generalStatsSection" style="display: none;">
+    <h4>Общая статистика по грузам</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="filterStart">Дата начала</label>
+            <input type="date" id="filterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="filterEnd">Дата окончания</label>
+            <input type="date" id="filterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="filterCompany">Компания</label>
+            <select id="filterCompany" class="form-control">
+                <option value="">Все</option>
+                <!-- будут загружены позже -->
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="filterTruckType">Тип трака</label>
+            <select id="filterTruckType" class="form-control">
+                <option value="">Все</option>
+                <!-- будут загружены позже -->
+            </select>
+        </div>
+    </div>
+
+    <ul id="generalStatsData">
+        <li>📦 Количество грузов: <span id="totalLoads">...</span></li>
+        <li>💵 Общая сумма: <span id="totalAmount">...</span></li>
+        <li>📏 Общие мили: <span id="totalMiles">...</span></li>
+        <li>⚖️ Средний RPM (миль / $): <span id="avgRPM">...</span></li>
+        <li>🚚 Среднее количество миль: <span id="avgMiles">...</span></li>
+        <li>💲 Средняя цена груза: <span id="avgPrice">...</span></li>
+    </ul>
+
+    <h5 class="mt-4">📈 Динамика по неделям</h5>
+    <canvas id="weeklyStatsChart" style="width: 100%; max-height: 600px;"></canvas>
+
+    <h5 class="mt-5">📊 Сравнение по диапазонам дат</h5>
+
+    <div id="rangeComparisonContainer" class="d-flex flex-column gap-2">
+        <div class="d-flex align-items-center gap-2 range-row">
+            <input type="date" class="form-control" style="max-width: 200px;">
+            <span>—</span>
+            <input type="date" class="form-control" style="max-width: 200px;">
+            <button class="btn btn-outline-danger" onclick="removeRangeRow(this)">✖</button>
+        </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-outline-secondary" onclick="addRangeRow()">➕ Добавить дапазон</button>
+        <button class="btn btn-primary" onclick="calculateRangeComparison()">📈 Сравнить</button>
+    </div>
+
+    <div class="table-responsive mt-4" id="rangeComparisonResult" style="display: none;">
+        <table class="table table-bordered table-sm">
+            <thead class="thead-light">
+                <tr>
+                    <th>Диапазон</th>
+                    <th>Грузы</th>
+                    <th>Сумма</th>
+                    <th>Мили</th>
+                    <th>RPM</th>
+                    <th>Средняя цена</th>
+                    <th>Средние мили</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <h5 style="margin-top: 30px;">Грузы, попавшие в статистику</h5>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm" id="statLoadsTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Broker</th>
+                        <th>Pickup</th>
+                        <th>Delivery</th>
+                        <th>Pickup Date</th>
+                        <th>Delivery Date</th>
+                        <th>Total Miles</th>
+                        <th>RPM</th>
+                        <th>Driver</th>
+                        <th>Dispatch</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+
+<div class="stats-details-container" id="driverStatsSection" style="display: none;">
+    <h4>📊 Статистика по водителям</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="driverFilterStart">Дата начала</label>
+            <input type="date" id="driverFilterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="driverFilterEnd">Дата окончания</label>
+            <input type="date" id="driverFilterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="driverFilterCompany">Компания</label>
+            <select id="driverFilterCompany" class="form-control">
+                <option value="">Все</option>
+                <!-- опции позже -->
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm" id="driverStatsTable">
+            <thead>
+                <tr>
+                    <th>Водитель</th>
+                    <th>Кол-во грузов</th>
+                    <th>Сумма</th>
+                    <th>RPM</th>
+                    <th>Средние мили</th>
+                    <th>Средняя цена</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="driverChartSection" style="display: none;">
+    <h5 class="mt-4">📈 График по водителю</h5>
+
+    <div class="mb-3" style="max-width: 300px;">
+        <label for="driverChartSelect" class="form-label">Выберите водителя:</label>
+        <select id="driverChartSelect" class="form-control">
+            <option value="">— Не выбран —</option>
+        </select>
+    </div>
+
+    <div style="height: 500px;">
+        <canvas id="driverStatsChart"></canvas>
+    </div>
+</div>
+
+<!-- Сравнение водителей -->
+<div id="driverComparisonSection" style="display: none;">
+    <h5>📊 Сравнение водителей</h5>
+    <div id="driverCompareContainer"></div>
+    <button class="btn btn-primary mt-2" onclick="addDriverCompare()">➕ Добавить водителя</button>
+    <button class="btn btn-success mt-2 ms-2" onclick="calculateDriverComparison()">🔍 Сравнить</button>
+
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th>Водитель</th>
+                <th>Кол-во грузов</th>
+                <th>Сумма</th>
+                <th>Мили</th>
+                <th>RPM</th>
+                <th>Средняя цена</th>
+                <th>Средние мили</th>
+            </tr>
+        </thead>
+        <tbody id="driverCompareTableBody"></tbody>
+    </table>
+</div>
+
+<div class="stats-details-container" id="brokerStatsSection" style="display: none;">
+    <h4>📊 Статистика по брокерам и кастомерам</h4>
+
+    <div class="filter-row">
+        <div class="filter-item">
+            <label for="brokerFilterStart">Дата начала</label>
+            <input type="date" id="brokerFilterStart" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="brokerFilterEnd">Дата окончания</label>
+            <input type="date" id="brokerFilterEnd" class="form-control">
+        </div>
+        <div class="filter-item">
+            <label for="brokerFilterCompany">Компания</label>
+            <select id="brokerFilterCompany" class="form-control">
+                <option value="">Все</option>
+            </select>
+        </div>
+        <div class="filter-item">
+            <label for="brokerCustomerType">Тип</label>
+            <select id="brokerCustomerType" class="form-control">
+                <option value="">Все</option>
+                <option value="broker">Брокеры</option>
+                <option value="customer">Кастомеры</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-sm" id="brokerStatsTable">
+            <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Кол-во грузов</th>
+                    <th>Сумма</th>
+                    <th>Общие мили</th>
+                    <th>Средние мили</th>
+                    <th>RPM</th>
+                    <th>Средняя цена</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>

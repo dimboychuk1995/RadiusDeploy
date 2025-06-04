@@ -1,0 +1,187 @@
+<h1>Детали водителя</h1>
+
+<!-- 🖙 Кнопка Назад -->
+<button type="button" class="btn btn-secondary mb-3" id="backToDriversBtn">
+    ← Назад к списку водителей
+</button>
+
+<!-- 👤 Основная информация -->
+<div class="card mb-4">
+  <div class="card-header">Основная информация</div>
+  <div class="card-body">
+    <p><strong>Имя:</strong> {{ driver.name }}</p>
+    <p><strong>Телефон:</strong> {{ driver.contact_number }}</p>
+    <p><strong>Адрес:</strong> {{ driver.address }}</p>
+    <p><strong>Email:</strong> {{ driver.email }}</p>
+    <p><strong>Дата рождения:</strong> {{ driver.dob }}</p>
+    <p><strong>Тип водителя:</strong> {{ driver.driver_type }}</p>
+      <p><strong>Статус:</strong> {{ driver.status or "—" }}</p>
+  </div>
+</div>
+
+<!-- 🗪 Лицензия -->
+<div class="card mb-4">
+  <div class="card-header">Информация о лицензии</div>
+  <div class="card-body">
+    <p><strong>Номер:</strong> {{ driver.license.number }}</p>
+    <p><strong>Класс:</strong> {{ driver.license.class }}</p>
+    <p><strong>Штат:</strong> {{ driver.license.state }}</p>
+    <p><strong>Адрес:</strong> {{ driver.license.address }}</p>
+    <p><strong>Дата выдачи:</strong> {{ driver.license.issued_date }}</p>
+    <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
+    <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
+    {% if driver.license.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 🏥 Медицинский сертификат -->
+<div class="card mb-4">
+  <div class="card-header">Медицинский сертификат</div>
+  <div class="card-body">
+    <p><strong>Дата выдачи:</strong> {{ driver.medical_card.issued_date }}</p>
+    <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
+    <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
+    {% if driver.medical_card.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 🤮 Драг тест -->
+<div class="card mb-4">
+  <div class="card-header">Драг тест</div>
+  <div class="card-body">
+    <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
+    {% if driver.drug_test.file %}
+    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 🚛 Трак и диспетчер -->
+<div class="card mb-4">
+  <div class="card-header">Привязки</div>
+  <div class="card-body">
+    <p><strong>Трак:</strong> {% if truck %}{{ truck.unit_number }} - {{ truck.make }} {{ truck.model }}{% else %}Нет{% endif %}</p>
+    <p><strong>Диспетчер:</strong> {% if dispatcher %}{{ dispatcher.username }}{% else %}Нет{% endif %}</p>
+  </div>
+</div>
+
+<!-- 💰 Кнопка модалки зарплаты -->
+<button type="button" class="btn btn-info mt-3" onclick="openSalaryModal()">💰 Схема зарплаты</button>
+
+<!-- 💼 Модалка зарплаты -->
+<div class="custom-offcanvas custom-offcanvas-right" id="salarySchemeModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Настройка схемы зарплаты</h5>
+      <button type="button" class="close" onclick="closeSalaryModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <form id="salarySchemeForm" data-driver-id="{{ driver._id }}">
+        <div class="form-group">
+          <label>Схема расчёта</label>
+          <select class="form-control" name="scheme_type" id="schemeTypeSelect">
+            <option value="percent" {% if scheme_data.scheme_type == 'percent' %}selected{% endif %}>Процент от суммы грузов</option>
+            <option value="net_percent" {% if scheme_data.scheme_type == 'net_percent' %}selected{% endif %}>Процент от чистой прибыли</option>
+            <option value="per_mile" {% if scheme_data.scheme_type == 'per_mile' %}selected{% endif %}>Фиксированная ставка за милю</option>
+          </select>
+        </div>
+
+        <div id="percentSchemeBlock" {% if scheme_data.scheme_type != 'percent' %}style="display: none;"{% endif %}>
+          <div class="form-group">
+            <label>Базовый процент от $0:</label>
+            <input type="number" step="0.01" name="base_percent" class="form-control"
+                   value="{{ scheme_data.commission_table[0].percent if scheme_data.commission_table and scheme_data.commission_table[0].from_sum == 0 else 30 }}">
+          </div>
+          <label>Дополнительные уровни:</label>
+          <div id="commissionTable">
+            {% for entry in scheme_data.commission_table[1:] %}
+            <div class="form-row mb-2">
+              <div class="col"><input type="number" step="0.01" class="form-control" name="gross_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)"></div>
+              <div class="col"><input type="number" step="0.01" class="form-control" name="gross_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)"></div>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addCommissionRow">+ Добавить строку</button>
+        </div>
+
+        <div id="perMileBlock" {% if scheme_data.scheme_type != 'per_mile' %}style="display: none;"{% endif %}>
+          <div class="form-group">
+            <label>Ставка за милю ($):</label>
+            <input type="number" step="0.01" name="per_mile_rate" class="form-control"
+                   value="{{ scheme_data.per_mile_rate or '' }}" placeholder="например: 0.65">
+          </div>
+        </div>
+
+        <div id="netPercentBlock" {% if scheme_data.scheme_type == 'percent' %}style="display: none;"{% endif %}>
+          <div class="form-group">
+            <label>Базовый процент от $0:</label>
+            <input type="number" step="0.01" name="base_percent" class="form-control"
+                   value="{{ scheme_data.net_commission_table[0].percent if scheme_data.net_commission_table and scheme_data.net_commission_table[0].from_sum == 0 else 30 }}">
+          </div>
+          <label>Дополнительные уровни:</label>
+          <div id="netCommissionTable">
+            {% for entry in scheme_data.net_commission_table[1:] %}
+            <div class="form-row mb-2">
+              <div class="col"><input type="number" step="0.01" class="form-control" name="net_from_sum[]" value="{{ entry.from_sum }}" placeholder="от суммы ($)"></div>
+              <div class="col"><input type="number" step="0.01" class="form-control" name="net_percent[]" value="{{ entry.percent }}" placeholder="Процент (%)"></div>
+            </div>
+            {% endfor %}
+          </div>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="addNetCommissionRow">+ Добавить строку</button>
+        </div>
+
+          <hr>
+            <h5>➕ Additional Charges</h5>
+            <div id="additionalChargesContainer">
+              {% for charge in scheme_data.additional_charges %}
+              <div class="border p-3 mb-3 rounded bg-light">
+                <div class="form-group">
+                  <label>Тип списания:</label>
+                  <input type="text" name="charge_type[]" class="form-control" value="{{ charge.type }}">
+                </div>
+
+                <div class="form-group">
+                  <label>Период:</label>
+                  <select name="charge_period[]" class="form-control period-select">
+                    <option value="statement" {% if charge.period == 'statement' %}selected{% endif %}>Каждый стейтмент</option>
+                    <option value="monthly" {% if charge.period == 'monthly' %}selected{% endif %}>Раз в месяц</option>
+                  </select>
+                </div>
+
+                <div class="form-group date-group {% if charge.period != 'monthly' %}d-none{% endif %}">
+                  <label>Число месяца:</label>
+                  <input type="number" name="charge_day_of_month[]" class="form-control" value="{{ charge.day_of_month or '' }}">
+                </div>
+
+                <div class="form-group">
+                  <label>Файл:</label>
+                  <input type="file" name="charge_file[]" class="form-control-file">
+                  {% if charge.file %}
+                  <small class="form-text text-muted">Загружено: {{ charge.file.filename }}</small>
+                  {% endif %}
+                </div>
+
+                <div class="form-group">
+                  <label>Сумма ($):</label>
+                  <input type="number" step="0.01" name="charge_amount[]" class="form-control" value="{{ charge.amount }}">
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="addChargeBtn">+ Добавить списание</button>
+
+        <div class="mt-4 d-flex justify-content-end">
+          <button type="button" class="btn btn-secondary mr-2" onclick="closeSalaryModal()">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить схему</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="custom-offcanvas-backdrop" onclick="closeSalaryModal()"></div>

@@ -1,0 +1,39 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/static">Radius App</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ml-auto">
+                {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/static">Главная</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/users">Пользователи</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/company_information">Companies Information</a>
+                    </li>
+                    {% if current_user.role == 'admin' %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/integrations">Интеграции</a>
+                        </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logout">Logout</a>
+                    </li>
+                    <li class="nav-item">
+                        <span class="nav-link">Welcome, {{ current_user.username }}</span>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">Login</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</nav>

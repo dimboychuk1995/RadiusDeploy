@@ -1,0 +1,65 @@
+<div class="card mt-4 shadow-sm">
+  <div class="card-body">
+    <h3 class="card-title mb-4">Детали сервиса</h3>
+
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">📅 Дата:</div>
+      <div class="col-sm-8">{{ service.date or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">📄 Инвойс №:</div>
+      <div class="col-sm-8">{{ service.invoice_no or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">🏢 Шоп:</div>
+      <div class="col-sm-8">{{ service.shop or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">📍 Адрес шопа:</div>
+      <div class="col-sm-8">{{ service.shop_address or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">📞 Телефон:</div>
+      <div class="col-sm-8">{{ service.phone_number or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">🔧 Тип:</div>
+      <div class="col-sm-8">{{ 'Сервис' if service.type == 'service' else 'Ремонт' }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">⛽ Пробег:</div>
+      <div class="col-sm-8">{{ service.mileage or "—" }}</div>
+    </div>
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">💵 Сумма:</div>
+      <div class="col-sm-8">${{ '%.2f'|format(service.amount) }}</div>
+    </div>
+
+    <div class="row mb-2">
+      <div class="col-sm-4 font-weight-bold">📝 Описание:</div>
+      <div class="col-sm-8">
+        <pre style="white-space: pre-wrap;">{{ service.description or "—" }}</pre>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-sm-4 font-weight-bold">📎 Файл:</div>
+      <div class="col-sm-8">
+        {% if service.file %}
+          <a href="{{ url_for('fleet.download_service_file', service_id=service._id) }}" target="_blank">Скачать 📄</a>
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-sm-4 font-weight-bold">🚚 Юнит:</div>
+      <div class="col-sm-8">{{ unit.unit_number if unit else '—' }}</div>
+    </div>
+
+    <div class="text-right">
+      <button class="btn btn-secondary" onclick="goBackToUnitDetails('{{ unit._id }}')">← Назад</button>
+    </div>
+  </div>
+</div>
