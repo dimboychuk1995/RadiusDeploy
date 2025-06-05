@@ -21,6 +21,9 @@
     <!-- иконки -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
+    <!-- CSS для календаря -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+
 </head>
 <body>
     {% include 'navbar.html' %}
@@ -56,6 +59,12 @@
     <!-- Статистика -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- jQuery и Moment -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <!-- Сам календарь -->
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
     <!-- Твои скрипты -->
     <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
     <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>
@@ -84,5 +93,6 @@
     <script src="{{ url_for('static', filename='js/safety.js') }}"></script>
     <script src="{{ url_for('static', filename='js/inspection_details.js') }}"></script>
     <script src="{{ url_for('static', filename='js/samsara_mileage.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/tools/calendar.js') }}"></script>
 </body>
 </html>

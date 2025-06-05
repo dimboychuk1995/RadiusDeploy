@@ -1,4 +1,3 @@
-// Инициализация вкладок Samsara Mileage (Drivers / Vehicles / Stats)
 function initSamsaraMileage() {
   document.querySelectorAll('.mileage-tab').forEach(btn => {
     // Обработчик клика по вкладке
@@ -12,9 +11,14 @@ function initSamsaraMileage() {
       const target = document.querySelector(btn.dataset.target);
       if (target) {
         target.style.display = 'block';
-        // Если выбрана вкладка "Stats", загружаем устройства
+
+        // Загрузка данных при активации определённых вкладок
         if (btn.dataset.target === "#mileage-stats") {
           loadSamsaraDevices();
+        }
+
+        if (btn.dataset.target === "#units-mileage") {
+          initUnitsMileage();
         }
       }
     });
@@ -23,6 +27,7 @@ function initSamsaraMileage() {
   // Привязка формы создания водителя
   bindSamsaraDriverForm();
 }
+
 
 // Загрузка водителей из Samsara API
 function loadSamsaraDrivers() {
