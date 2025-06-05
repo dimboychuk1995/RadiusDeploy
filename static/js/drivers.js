@@ -169,3 +169,36 @@ function highlightExpiringDrivers() {
     html: true
   });
 }
+
+function openAssignmentModal(driverId, event) {
+  if (event) event.stopPropagation();
+
+  const modal = document.getElementById("assignmentModal");
+  const backdrop = modal.nextElementSibling;
+
+  if (!modal || !backdrop) return;
+
+  modal.classList.remove("hidden"); // ← Убираем display: none
+  requestAnimationFrame(() => {
+    modal.classList.add("open"); // ← Сработает transition
+    backdrop.classList.add("show");
+  });
+
+  document.getElementById("assignmentDriverId").value = driverId;
+}
+
+
+function closeAssignmentModal() {
+  const modal = document.getElementById("assignmentModal");
+  const backdrop = modal.nextElementSibling;
+
+  if (!modal || !backdrop) return;
+
+  modal.classList.remove("open");
+  backdrop.classList.remove("show");
+
+  // Скрываем через timeout после завершения анимации
+  setTimeout(() => {
+    modal.classList.add("hidden");
+  }, 300); // должно совпадать с transition-duration в .custom-offcanvas
+}

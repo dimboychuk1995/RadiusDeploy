@@ -32,7 +32,10 @@
             <td class="truck-unit">{{ driver.truck_unit }}</td>
             <td class="dispatcher-name">{{ driver.dispatcher_name }}</td>
             <td>
-              <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteDriver('{{ driver._id }}')">Удалить</button>
+              <div class="btn-group">
+                  <button class="btn btn-primary btn-sm" onclick="openAssignmentModal('{{ driver._id }}', event)">Assignment</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteDriver('{{ driver._id }}')">Удалить</button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -152,3 +155,56 @@
 </div>
 
 <div class="custom-offcanvas-backdrop" onclick="closeDriverModal()"></div>
+
+
+<div class="custom-offcanvas custom-offcanvas-right" id="assignmentModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Assignment</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeAssignmentModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="assignmentForm">
+            <input type="hidden" name="driver_id" id="assignmentDriverId">
+
+            <!-- 🛠️ Здесь можно добавить любые поля -->
+            <div class="form-group">
+              <label>Назначить диспетчера:</label>
+              <select name="dispatcher" class="form-control">
+                <option value="">—</option>
+                {% for dispatcher in dispatchers %}
+                <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Назначить трак:</label>
+              <select name="truck" class="form-control">
+                <option value="">—</option>
+                {% for truck in trucks %}
+                <option value="{{ truck._id }}">{{ truck.unit_number }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Комментарий:</label>
+              <textarea name="note" class="form-control" placeholder="Дополнительная информация..."></textarea>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeAssignmentModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Фон -->
+<div class="custom-offcanvas-backdrop" onclick="closeAssignmentModal()"></div>
