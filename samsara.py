@@ -204,22 +204,23 @@ def get_vehicle_mileage():
             print("Samsara URL:", url)
             response = requests.get(url, headers=headers)
             if not response.ok:
-                raise ValueError(f"API error: {response.text}")
+                return None
 
-            response_json = response.json()
-            print("Samsara raw response:", response_json)
-            data = response_json.get("data", [])
+            data = response.json().get("data", [])
             if not data:
-                raise ValueError("No odometer data")
+                return None
 
-            odometer = data[0].get("obdOdometerMeters", {})
-            if "value" not in odometer:
-                raise ValueError("Missing value in odometer data")
+            odometer = data[0].get("obdOdometerMeters")
+            if not odometer or "value" not in odometer:
+                return None
 
             return odometer["value"]
 
         start_val = fetch_odometer(start)
         end_val = fetch_odometer(end)
+
+        if start_val is None or end_val is None:
+            return jsonify({"skip": True}), 204  # 👈 пустой ответ, клиент решает скрыть
 
         start_miles = start_val / 1609.34
         end_miles = end_val / 1609.34

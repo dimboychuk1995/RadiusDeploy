@@ -50,14 +50,31 @@ async function fetchMileage(startIso, endIso) {
 
     for (const vehicle of vehicles) {
       const url = `/api/samsara/vehicle_mileage?vehicle_id=${vehicle.id}&start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
-      const response = await fetch(url);
 
-      if (!response.ok) {
-        console.warn(`Ошибка запроса для ${vehicle.name || vehicle.id}`);
+      let data = null;
+      try {
+        const response = await fetch(url);
+
+        if (response.status === 204) {
+          console.warn(`Нет пробега для ${vehicle.name || vehicle.id}`);
+          continue;
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn(`Ошибка запроса для ${vehicle.name || vehicle.id}: ${errorText}`);
+          continue;
+        }
+
+        data = await response.json();
+        if (!data || typeof data.total_miles !== "number") {
+          console.warn(`Нет данных о пробеге для ${vehicle.name || vehicle.id}`);
+          continue;
+        }
+      } catch (e) {
+        console.error(`Ошибка при обработке ${vehicle.name || vehicle.id}:`, e);
         continue;
       }
-
-      const data = await response.json();
 
       const row = document.createElement("tr");
       row.innerHTML = `
