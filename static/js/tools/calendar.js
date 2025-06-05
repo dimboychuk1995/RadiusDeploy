@@ -1,20 +1,19 @@
 function initUnitsMileage() {
   const input = document.getElementById("dateRangePicker");
-  if (!input) {
-    console.warn("⛔ #dateRangePicker не найден");
-    return;
-  }
+  if (!input) return;
+
+  const lastWeekStart = moment().subtract(1, 'weeks').startOf('isoWeek');
+  const lastWeekEnd = moment().subtract(1, 'weeks').endOf('isoWeek');
 
   $(input).daterangepicker({
-    startDate: moment().subtract(6, 'days'),
-    endDate: moment(),
+    startDate: lastWeekStart,
+    endDate: lastWeekEnd,
     showDropdowns: true,
     autoApply: false,
     linkedCalendars: false,
-    opens: 'right',
-      drops: 'down',
-    showCustomRangeLabel: true,
     alwaysShowCalendars: true,
+    opens: 'center',
+    showCustomRangeLabel: true,
     locale: {
       format: 'MM / DD / YYYY',
       applyLabel: 'APPLY',
@@ -24,14 +23,52 @@ function initUnitsMileage() {
       firstDay: 1
     },
     ranges: {
-      'Today': [moment(), moment()],
-      'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-      'Three days': [moment().subtract(2, 'days'), moment()],
-      'One week': [moment().subtract(6, 'days'), moment()],
-      'Two weeks': [moment().subtract(13, 'days'), moment()],
-      'Month': [moment().startOf('month'), moment().endOf('month')],
-      'This Week & Next Week': [moment().startOf('isoWeek'), moment().add(13, 'days')],
+      'Last Week': [lastWeekStart, lastWeekEnd],
       'Reset': [moment(), moment()]
     }
+  }, function(start, end) {
+    // также можно вызывать запрос здесь (двойная гарантия)
+    fetchMileage(start, end);
   });
+
+  // 🔁 При нажатии Apply
+  $(input).on('apply.daterangepicker', function(ev, picker) {
+    const startIso = picker.startDate.toDate().toISOString();
+    const endIso = picker.endDate.toDate().toISOString();
+    fetchMileage(startIso, endIso);
+  });
+}
+
+
+async function fetchMileage(startIso, endIso) {
+  const tbody = document.getElementById("mileageResultsBody");
+  tbody.innerHTML = "";
+
+  try {
+    const vehicleResponse = await fetch("/api/samsara/vehicles");
+    const vehicles = await vehicleResponse.json();
+
+    for (const vehicle of vehicles) {
+      const url = `/api/samsara/vehicle_mileage?vehicle_id=${vehicle.id}&start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`;
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        console.warn(`Ошибка запроса для ${vehicle.name || vehicle.id}`);
+        continue;
+      }
+
+      const data = await response.json();
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${vehicle.name || vehicle.id}</td>
+        <td>${data.start_miles?.toFixed(2) || '-'}</td>
+        <td>${data.end_miles?.toFixed(2) || '-'}</td>
+        <td>${data.total_miles?.toFixed(2) || '-'}</td>
+      `;
+      tbody.appendChild(row);
+    }
+  } catch (error) {
+    console.error("Ошибка при получении пробега:", error);
+  }
 }

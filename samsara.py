@@ -1,6 +1,8 @@
-from flask import Blueprint, render_template, abort
+from flask import Blueprint, render_template, abort, request, jsonify
+import requests
 import re
-from flask_login import login_required
+from flask_login import login_required, current_user
+from bson import ObjectId
 from tools.db import db
 
 samsara_bp = Blueprint('samsara', __name__)
@@ -13,7 +15,8 @@ def get_samsara_headers():
     if not integration or not integration.get("api_key"):
         abort(500, description="Samsara API key not configured")
     return {
-        "Authorization": f"Bearer {integration['api_key']}"
+        "Authorization": f"Bearer {integration['api_key']}",
+        "accept": "application/json"
     }
 
 @samsara_bp.route("/fragment/samsara_fragment")
@@ -78,7 +81,6 @@ def api_samsara_drivers():
         print("Ошибка при получении водителей Samsara:", e)
         return jsonify({"error": str(e)}), 500
 
-
 @samsara_bp.route('/api/samsara/vehicles')
 @login_required
 def api_samsara_vehicles():
@@ -96,7 +98,6 @@ def api_samsara_vehicles():
         print("Ошибка при получении траков из Samsara:", e)
         return jsonify({"error": str(e)}), 500
 
-
 @samsara_bp.route("/api/samsara/gateways")
 @login_required
 def get_samsara_gateways():
@@ -111,18 +112,15 @@ def get_samsara_gateways():
         print("Ошибка при получении gateways:", e)
         return jsonify({"error": str(e)}), 500
 
-
-@samsara_bp.route('/api/drivers_dropdown')
+@samsara_bp.route("/api/drivers_dropdown")
 @login_required
 def drivers_dropdown():
     drivers = db["drivers"].find({"company": current_user.company})
     return jsonify([{"_id": str(d["_id"]), "name": d["name"]} for d in drivers])
 
-
 @samsara_bp.route("/api/driver/<driver_id>")
 @login_required
 def get_driver_details(driver_id):
-    from bson import ObjectId
     driver = db["drivers"].find_one({"_id": ObjectId(driver_id), "company": current_user.company})
     if not driver:
         return jsonify({"error": "Driver not found"}), 404
@@ -133,36 +131,29 @@ def get_driver_details(driver_id):
         "license": driver.get("license", {}).get("number")
     })
 
-from flask import request, jsonify
-from flask_login import login_required, current_user
-import requests
-
 @samsara_bp.route("/api/samsara/create_driver", methods=["POST"])
 @login_required
 def create_samsara_driver():
     try:
         data = request.json
 
-        # Получаем API-ключ
         integration = integrations_collection.find_one({"name": "samsara"})
         if not integration or not integration.get("api_key"):
             return jsonify({"error": "Samsara API ключ не найден"}), 500
 
-        # Приводим номер телефона к 10 цифрам
         raw_phone = data.get("phone", "")
-        cleaned_phone = re.sub(r"\D", "", raw_phone)  # удалить все кроме цифр
+        cleaned_phone = re.sub(r"\D", "", raw_phone)
 
         if len(cleaned_phone) == 11 and cleaned_phone.startswith("1"):
-            cleaned_phone = cleaned_phone[1:]  # удалить ведущую "1"
+            cleaned_phone = cleaned_phone[1:]
         elif len(cleaned_phone) != 10:
             return jsonify({
                 "error": "Неверный формат номера телефона",
                 "details": f"Номер должен содержать 10 цифр. Сейчас: {cleaned_phone}"
             }), 400
 
-        # Формируем payload
         payload = {
-            "hosSetting": { "heavyHaulExemptionToggleEnabled": False },
+            "hosSetting": {"heavyHaulExemptionToggleEnabled": False},
             "usDriverRulesetOverride": {
                 "cycle": "USA Property (8/70)",
                 "restart": "34-hour Restart",
@@ -191,3 +182,55 @@ def create_samsara_driver():
 
     except Exception as e:
         return jsonify({"error": "Ошибка при создании водителя", "details": str(e)}), 500
+
+@samsara_bp.route("/api/samsara/vehicle_mileage")
+@login_required
+def get_vehicle_mileage():
+    try:
+        vehicle_id = request.args.get("vehicle_id")
+        start = request.args.get("start")
+        end = request.args.get("end")
+
+        if not vehicle_id or not start or not end:
+            return jsonify({"error": "Missing parameters"}), 400
+
+        headers = get_samsara_headers()
+
+        def fetch_odometer(time_point):
+            url = (
+                f"https://api.samsara.com/fleet/vehicles/stats?"
+                f"time={time_point}&types=obdOdometerMeters&vehicleIds={vehicle_id}"
+            )
+            print("Samsara URL:", url)
+            response = requests.get(url, headers=headers)
+            if not response.ok:
+                raise ValueError(f"API error: {response.text}")
+
+            response_json = response.json()
+            print("Samsara raw response:", response_json)
+            data = response_json.get("data", [])
+            if not data:
+                raise ValueError("No odometer data")
+
+            odometer = data[0].get("obdOdometerMeters", {})
+            if "value" not in odometer:
+                raise ValueError("Missing value in odometer data")
+
+            return odometer["value"]
+
+        start_val = fetch_odometer(start)
+        end_val = fetch_odometer(end)
+
+        start_miles = start_val / 1609.34
+        end_miles = end_val / 1609.34
+        total_miles = end_miles - start_miles
+
+        return jsonify({
+            "start_miles": round(start_miles, 2),
+            "end_miles": round(end_miles, 2),
+            "total_miles": round(total_miles, 2)
+        })
+
+    except Exception as e:
+        print("Ошибка в /api/samsara/vehicle_mileage:", e)
+        return jsonify({"error": "Server error", "details": str(e)}), 500
