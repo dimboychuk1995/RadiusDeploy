@@ -138,6 +138,130 @@
           </div>
         </div>
       </div>
+
+      <!-- MVR -->
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i data-lucide="shield-check" class="me-2"></i>MVR</span>
+            <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapseMVR"
+                    aria-expanded="false"
+                    aria-controls="collapseMVR">
+              <i data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div id="collapseMVR" class="collapse">
+            <div class="card-body">
+              <p><strong>Дата окончания:</strong> {{ driver.mvr.expiration_date }}</p>
+              {% if driver.mvr.file %}
+                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/mvr" target="_blank">Скачать</a></p>
+                {% if 'pdf' in driver.mvr.file.content_type %}
+                  <iframe src="/download_file/{{ driver._id }}/mvr" width="100%" height="600px" class="border rounded mt-3"></iframe>
+                {% elif 'image' in driver.mvr.file.content_type %}
+                  <img src="/download_file/{{ driver._id }}/mvr" class="img-fluid border rounded mt-3">
+                {% else %}
+                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- PSP -->
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i data-lucide="file-text" class="me-2"></i>PSP</span>
+            <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapsePSP"
+                    aria-expanded="false"
+                    aria-controls="collapsePSP">
+              <i data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div id="collapsePSP" class="collapse">
+            <div class="card-body">
+              {% if driver.psp.file %}
+                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/psp" target="_blank">Скачать</a></p>
+                {% if 'pdf' in driver.psp.file.content_type %}
+                  <iframe src="/download_file/{{ driver._id }}/psp" width="100%" height="600px" class="border rounded mt-3"></iframe>
+                {% elif 'image' in driver.psp.file.content_type %}
+                  <img src="/download_file/{{ driver._id }}/psp" class="img-fluid border rounded mt-3">
+                {% else %}
+                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Clearing House -->
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i data-lucide="database" class="me-2"></i>Clearing House</span>
+            <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapseCH"
+                    aria-expanded="false"
+                    aria-controls="collapseCH">
+              <i data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div id="collapseCH" class="collapse">
+            <div class="card-body">
+              {% if driver.clearing_house.file %}
+                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/clearing_house" target="_blank">Скачать</a></p>
+                {% if 'pdf' in driver.clearing_house.file.content_type %}
+                  <iframe src="/download_file/{{ driver._id }}/clearing_house" width="100%" height="600px" class="border rounded mt-3"></iframe>
+                {% elif 'image' in driver.clearing_house.file.content_type %}
+                  <img src="/download_file/{{ driver._id }}/clearing_house" class="img-fluid border rounded mt-3">
+                {% else %}
+                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Agreement -->
+        <div class="card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i data-lucide="file-signature" class="me-2"></i>Agreement</span>
+            <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#collapseAgreement"
+                    aria-expanded="false"
+                    aria-controls="collapseAgreement">
+              <i data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div id="collapseAgreement" class="collapse">
+            <div class="card-body">
+              {% if driver.agreement.file %}
+                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/agreement" target="_blank">Скачать</a></p>
+                {% if 'pdf' in driver.agreement.file.content_type %}
+                  <iframe src="/download_file/{{ driver._id }}/agreement" width="100%" height="600px" class="border rounded mt-3"></iframe>
+                {% elif 'image' in driver.agreement.file.content_type %}
+                  <img src="/download_file/{{ driver._id }}/agreement" class="img-fluid border rounded mt-3">
+                {% else %}
+                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- SSN -->
+        <div class="card mb-3">
+          <div class="card-header"><strong><i data-lucide="hash" class="me-2"></i>SSN</strong></div>
+          <div class="card-body">
+            <p><strong>Номер:</strong> {{ driver.ssn or "—" }}</p>
+          </div>
+        </div>
+
+
+
     </div>
   </div>
 </div>

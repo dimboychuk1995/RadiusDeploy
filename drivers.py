@@ -111,7 +111,22 @@ def add_driver():
             'drug_test': {
                 'issued_date': to_mmddyyyy(request.form.get('drug_issued_date')),
                 'file': save_file('drug_file')
-            }
+            },
+            'mvr': {
+                'expiration_date': to_mmddyyyy(request.form.get('mvr_expiration_date')),
+                'file': save_file('mvr_file')
+            },
+            'psp': {
+                'file': save_file('psp_file')
+            },
+            'clearing_house': {
+                'file': save_file('clearing_house_file')
+            },
+            'agreement': {
+                'file': save_file('agreement_file')
+            },
+            'ssn': request.form.get('ssn')
+
         }
 
         drivers_collection.insert_one(driver_data)
