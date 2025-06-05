@@ -5,67 +5,109 @@
     ← Назад к списку водителей
 </button>
 
-<!-- 👤 Основная информация -->
-<div class="card mb-4">
-  <div class="card-header">Основная информация</div>
-  <div class="card-body">
-    <p><strong>Имя:</strong> {{ driver.name }}</p>
-    <p><strong>Телефон:</strong> {{ driver.contact_number }}</p>
-    <p><strong>Адрес:</strong> {{ driver.address }}</p>
-    <p><strong>Email:</strong> {{ driver.email }}</p>
-    <p><strong>Дата рождения:</strong> {{ driver.dob }}</p>
-    <p><strong>Тип водителя:</strong> {{ driver.driver_type }}</p>
-      <p><strong>Статус:</strong> {{ driver.status or "—" }}</p>
-  </div>
-</div>
+<!-- 📄 Контейнер с двумя колонками -->
+<div class="container-fluid">
+  <div class="row">
+    <!-- Левая колонка -->
+    <div class="col-md-6">
+      <!-- 👤 Основная информация -->
+      <div class="card mb-4">
+        <div class="card-header">Основная информация</div>
+        <div class="card-body">
+          <p><strong>Имя:</strong> {{ driver.name }}</p>
+          <p><strong>Телефон:</strong> {{ driver.contact_number }}</p>
+          <p><strong>Адрес:</strong> {{ driver.address }}</p>
+          <p><strong>Email:</strong> {{ driver.email }}</p>
+          <p><strong>Дата рождения:</strong> {{ driver.dob }}</p>
+          <p><strong>Тип водителя:</strong> {{ driver.driver_type }}</p>
+          <p><strong>Статус:</strong> {{ driver.status or "—" }}</p>
+        </div>
+      </div>
 
-<!-- 🗪 Лицензия -->
-<div class="card mb-4">
-  <div class="card-header">Информация о лицензии</div>
-  <div class="card-body">
-    <p><strong>Номер:</strong> {{ driver.license.number }}</p>
-    <p><strong>Класс:</strong> {{ driver.license.class }}</p>
-    <p><strong>Штат:</strong> {{ driver.license.state }}</p>
-    <p><strong>Адрес:</strong> {{ driver.license.address }}</p>
-    <p><strong>Дата выдачи:</strong> {{ driver.license.issued_date }}</p>
-    <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
-    <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
-    {% if driver.license.file %}
-    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
-    {% endif %}
-  </div>
-</div>
+      <!-- 🚛 Привязки -->
+      <div class="card mb-4">
+        <div class="card-header">Привязки</div>
+        <div class="card-body">
+          <p><strong>Трак:</strong> {% if truck %}{{ truck.unit_number }} - {{ truck.make }} {{ truck.model }}{% else %}Нет{% endif %}</p>
+          <p><strong>Диспетчер:</strong> {% if dispatcher %}{{ dispatcher.username }}{% else %}Нет{% endif %}</p>
+        </div>
+      </div>
+    </div>
 
-<!-- 🏥 Медицинский сертификат -->
-<div class="card mb-4">
-  <div class="card-header">Медицинский сертификат</div>
-  <div class="card-body">
-    <p><strong>Дата выдачи:</strong> {{ driver.medical_card.issued_date }}</p>
-    <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
-    <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
-    {% if driver.medical_card.file %}
-    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
-    {% endif %}
-  </div>
-</div>
+    <!-- Правая колонка -->
+    <div class="col-md-6">
+      <!-- Лицензия -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#collapseLicense" aria-expanded="false" aria-controls="collapseLicense">
+               Информация о лицензии
+            </button>
+          </h5>
+        </div>
+        <div id="collapseLicense" class="collapse">
+          <div class="card-body">
+            <p><strong>Номер:</strong> {{ driver.license.number }}</p>
+            <p><strong>Класс:</strong> {{ driver.license.class }}</p>
+            <p><strong>Штат:</strong> {{ driver.license.state }}</p>
+            <p><strong>Адрес:</strong> {{ driver.license.address }}</p>
+            <p><strong>Дата выдачи:</strong> {{ driver.license.issued_date }}</p>
+            <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
+            <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
+            {% if driver.license.file %}
+            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
 
-<!-- 🤮 Драг тест -->
-<div class="card mb-4">
-  <div class="card-header">Драг тест</div>
-  <div class="card-body">
-    <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
-    {% if driver.drug_test.file %}
-    <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
-    {% endif %}
-  </div>
-</div>
+      <!-- Медицинская справка -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#collapseMed" aria-expanded="false" aria-controls="collapseMed">
+              Медицинский сертификат
+            </button>
+          </h5>
+        </div>
+        <div id="collapseMed" class="collapse">
+          <div class="card-body">
+            <p><strong>Дата выдачи:</strong> {{ driver.medical_card.issued_date }}</p>
+            <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
+            <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
+            {% if driver.medical_card.file %}
+            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
 
-<!-- 🚛 Трак и диспетчер -->
-<div class="card mb-4">
-  <div class="card-header">Привязки</div>
-  <div class="card-body">
-    <p><strong>Трак:</strong> {% if truck %}{{ truck.unit_number }} - {{ truck.make }} {{ truck.model }}{% else %}Нет{% endif %}</p>
-    <p><strong>Диспетчер:</strong> {% if dispatcher %}{{ dispatcher.username }}{% else %}Нет{% endif %}</p>
+      <!-- Драг тест -->
+      <div class="card mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#collapseDrug" aria-expanded="false" aria-controls="collapseDrug">
+              Драг тест
+            </button>
+          </h5>
+        </div>
+        <div id="collapseDrug" class="collapse">
+          <div class="card-body">
+            <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
+            {% if driver.drug_test.file %}
+            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+
+
   </div>
 </div>
 
