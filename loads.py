@@ -2,8 +2,6 @@ import logging
 import json
 from datetime import datetime
 from email.mime.application import MIMEApplication
-
-
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from bson.objectid import ObjectId
 from flask_login import login_required, current_user
@@ -353,13 +351,39 @@ def customers_list():
 @login_required
 def loads_fragment():
     try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
+        # Получаем карту водителей (id -> name)
+        drivers = list(drivers_collection.find({'company': current_user.company}, {"_id": 1, "name": 1}))
         driver_map = {str(d['_id']): d['name'] for d in drivers}
-        loads = list(loads_collection.find({'company': current_user.company}))
+
+        # Вытягиваем только нужные поля из коллекции loads
+        loads = list(loads_collection.find(
+            {'company': current_user.company},
+            {
+                "load_id": 1,
+                "broker_load_id": 1,
+                "type": 1,
+                "assigned_driver": 1,
+                "pickup.address": 1,
+                "delivery.address": 1,
+                "price": 1,
+                "RPM": 1,
+                "status": 1,
+                "payment_status": 1
+            }
+        ))
+
+        # Преобразуем ID водителя в имя
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
-        return render_template("fragments/loads_fragment.html", drivers=drivers, loads=loads, companies=companies, dispatchers=dispatchers)
+
+        return render_template(
+            "fragments/loads_fragment.html",
+            drivers=drivers,
+            loads=loads,
+            companies=companies,
+            dispatchers=dispatchers
+        )
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
