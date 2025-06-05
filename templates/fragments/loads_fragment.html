@@ -18,6 +18,7 @@
       <th>RPM</th>
       <th>Статус</th>
       <th>Оплата</th>
+      <th>Дополнительные остановки</th>
     </tr>
   </thead>
   <tbody>
@@ -33,6 +34,7 @@
         <td>${{ load.RPM or '—' }}</td>
         <td>{{ load.status or '—' }}</td>
         <td>{{ load.payment_status or '—' }}</td>
+        <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
       </tr>
     {% endfor %}
   </tbody>

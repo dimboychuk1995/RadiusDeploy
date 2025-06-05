@@ -368,7 +368,8 @@ def loads_fragment():
                 "price": 1,
                 "RPM": 1,
                 "status": 1,
-                "payment_status": 1
+                "payment_status": 1,
+                "extra_stops": 1
             }
         ))
 
