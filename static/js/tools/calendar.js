@@ -41,8 +41,10 @@ function initUnitsMileage() {
 
 
 async function fetchMileage(startIso, endIso) {
+  const overlay = document.getElementById("mileageOverlay");
   const tbody = document.getElementById("mileageResultsBody");
   tbody.innerHTML = "";
+  overlay.style.display = "flex"; // Показать затемнение
 
   try {
     const vehicleResponse = await fetch("/api/samsara/vehicles");
@@ -55,24 +57,11 @@ async function fetchMileage(startIso, endIso) {
       try {
         const response = await fetch(url);
 
-        if (response.status === 204) {
-          console.warn(`Нет пробега для ${vehicle.name || vehicle.id}`);
-          continue;
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.warn(`Ошибка запроса для ${vehicle.name || vehicle.id}: ${errorText}`);
-          continue;
-        }
+        if (response.status === 204 || !response.ok) continue;
 
         data = await response.json();
-        if (!data || typeof data.total_miles !== "number") {
-          console.warn(`Нет данных о пробеге для ${vehicle.name || vehicle.id}`);
-          continue;
-        }
+        if (!data || typeof data.total_miles !== "number") continue;
       } catch (e) {
-        console.error(`Ошибка при обработке ${vehicle.name || vehicle.id}:`, e);
         continue;
       }
 
@@ -87,5 +76,7 @@ async function fetchMileage(startIso, endIso) {
     }
   } catch (error) {
     console.error("Ошибка при получении пробега:", error);
+  } finally {
+    overlay.style.display = "none"; // Скрыть затемнение
   }
 }
