@@ -38,13 +38,30 @@ def convert_to_str_id(data):
 @login_required
 def drivers_fragment():
     try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
+        # Вытягиваем только нужные поля из drivers
+        drivers = list(drivers_collection.find(
+            {'company': current_user.company},
+            {
+                "_id": 1,
+                "name": 1,
+                "contact_number": 1,
+                "email": 1,
+                "driver_type": 1,
+                "status": 1,
+                "truck": 1,
+                "dispatcher": 1
+            }
+        ))
 
+        # Только нужные поля из trucks и dispatchers
+        trucks = list(trucks_collection.find({'company': current_user.company}, {"_id": 1, "unit_number": 1}))
+        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}, {"_id": 1, "username": 1}))
+
+        # Сопоставления по ID
         truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
         dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
 
+        # Обогащаем данными
         for i in range(len(drivers)):
             drivers[i] = convert_to_str_id(drivers[i])
             drivers[i]['truck_unit'] = truck_units.get(str(drivers[i].get('truck')), 'Нет трака')
