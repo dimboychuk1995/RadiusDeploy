@@ -199,6 +199,11 @@ function initDriverDetailActions() {
                 });
         });
     }
+
+    // ✅ Инициализируем иконки Lucide
+    if (window.lucide) {
+        lucide.createIcons();
+    }
 }
 
 function openSalaryModal() {
@@ -210,3 +215,28 @@ function closeSalaryModal() {
     document.getElementById("salarySchemeModal")?.classList.remove("open");
     document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const toggleButtons = document.querySelectorAll(".toggle-btn");
+
+    toggleButtons.forEach(btn => {
+        const icon = btn.querySelector("i");
+
+        if (!icon) return;
+
+        const targetId = btn.getAttribute("data-bs-target");
+        const collapseEl = document.querySelector(targetId);
+
+        if (collapseEl) {
+            collapseEl.addEventListener("show.bs.collapse", () => {
+                icon.classList.remove("chevron-down");
+                icon.classList.add("chevron-up");
+            });
+
+            collapseEl.addEventListener("hide.bs.collapse", () => {
+                icon.classList.remove("chevron-up");
+                icon.classList.add("chevron-down");
+            });
+        }
+    });
+});

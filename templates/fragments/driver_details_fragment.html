@@ -1,16 +1,15 @@
 <h1>Детали водителя</h1>
 
-<!-- 🖙 Кнопка Назад -->
+<!-- Кнопка Назад -->
 <button type="button" class="btn btn-secondary mb-3" id="backToDriversBtn">
-    ← Назад к списку водителей
+  ← Назад к списку водителей
 </button>
 
-<!-- 📄 Контейнер с двумя колонками -->
 <div class="container-fluid">
   <div class="row">
     <!-- Левая колонка -->
     <div class="col-md-6">
-      <!-- 👤 Основная информация -->
+      <!-- Основная информация -->
       <div class="card mb-4">
         <div class="card-header">Основная информация</div>
         <div class="card-body">
@@ -24,7 +23,7 @@
         </div>
       </div>
 
-      <!-- 🚛 Привязки -->
+      <!-- Привязки -->
       <div class="card mb-4">
         <div class="card-header">Привязки</div>
         <div class="card-body">
@@ -38,13 +37,15 @@
     <div class="col-md-6">
       <!-- Лицензия -->
       <div class="card mb-3">
-        <div class="card-header">
-          <h5 class="mb-0">
-            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#collapseLicense" aria-expanded="false" aria-controls="collapseLicense">
-               Информация о лицензии
-            </button>
-          </h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold"><i data-lucide="id-card" class="me-2"></i>Информация о лицензии</span>
+          <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseLicense"
+                  aria-expanded="false"
+                  aria-controls="collapseLicense">
+            <i data-lucide="chevron-down"></i>
+          </button>
         </div>
         <div id="collapseLicense" class="collapse">
           <div class="card-body">
@@ -55,30 +56,52 @@
             <p><strong>Дата выдачи:</strong> {{ driver.license.issued_date }}</p>
             <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
             <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
+
             {% if driver.license.file %}
-            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
+              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
+              {% if 'pdf' in driver.license.file.content_type %}
+                <iframe src="/download_file/{{ driver._id }}/license" width="100%" height="600px"
+                        class="border rounded mt-3" style="display: block;"></iframe>
+              {% elif 'image' in driver.license.file.content_type %}
+                <img src="/download_file/{{ driver._id }}/license" alt="License Preview"
+                     class="img-fluid border rounded mt-3">
+              {% else %}
+                <p class="text-muted">Невозможно отобразить предпросмотр</p>
+              {% endif %}
             {% endif %}
           </div>
         </div>
       </div>
 
-      <!-- Медицинская справка -->
+      <!-- Медкарта -->
       <div class="card mb-3">
-        <div class="card-header">
-          <h5 class="mb-0">
-            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#collapseMed" aria-expanded="false" aria-controls="collapseMed">
-              Медицинский сертификат
-            </button>
-          </h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold"><i data-lucide="stethoscope" class="me-2"></i>Медицинский сертификат</span>
+          <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseMed"
+                  aria-expanded="false"
+                  aria-controls="collapseMed">
+            <i data-lucide="chevron-down"></i>
+          </button>
         </div>
         <div id="collapseMed" class="collapse">
           <div class="card-body">
             <p><strong>Дата выдачи:</strong> {{ driver.medical_card.issued_date }}</p>
             <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
             <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
+
             {% if driver.medical_card.file %}
-            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
+              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
+              {% if 'pdf' in driver.medical_card.file.content_type %}
+                <iframe src="/download_file/{{ driver._id }}/medical_card" width="100%" height="600px"
+                        class="border rounded mt-3" style="display: block;"></iframe>
+              {% elif 'image' in driver.medical_card.file.content_type %}
+                <img src="/download_file/{{ driver._id }}/medical_card" alt="Medical Preview"
+                     class="img-fluid border rounded mt-3">
+              {% else %}
+                <p class="text-muted">Невозможно отобразить предпросмотр</p>
+              {% endif %}
             {% endif %}
           </div>
         </div>
@@ -86,33 +109,44 @@
 
       <!-- Драг тест -->
       <div class="card mb-3">
-        <div class="card-header">
-          <h5 class="mb-0">
-            <button class="btn btn-link collapsed" type="button" data-bs-toggle="collapse"
-                    data-bs-target="#collapseDrug" aria-expanded="false" aria-controls="collapseDrug">
-              Драг тест
-            </button>
-          </h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold"><i data-lucide="flask-conical" class="me-2"></i>Драг тест</span>
+          <button class="btn btn-sm btn-outline-primary toggle-btn" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseDrug"
+                  aria-expanded="false"
+                  aria-controls="collapseDrug">
+            <i data-lucide="chevron-down"></i>
+          </button>
         </div>
         <div id="collapseDrug" class="collapse">
           <div class="card-body">
             <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
+
             {% if driver.drug_test.file %}
-            <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
+              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
+              {% if 'pdf' in driver.drug_test.file.content_type %}
+                <iframe src="/download_file/{{ driver._id }}/drug_test" width="100%" height="600px"
+                        class="border rounded mt-3" style="display: block;"></iframe>
+              {% elif 'image' in driver.drug_test.file.content_type %}
+                <img src="/download_file/{{ driver._id }}/drug_test" alt="Drug Test Preview"
+                     class="img-fluid border rounded mt-3">
+              {% else %}
+                <p class="text-muted">Невозможно отобразить предпросмотр</p>
+              {% endif %}
             {% endif %}
           </div>
         </div>
       </div>
     </div>
-
-
-
-
   </div>
 </div>
 
-<!-- 💰 Кнопка модалки зарплаты -->
+
+<!-- Кнопка схемы зарплаты -->
 <button type="button" class="btn btn-info mt-3" onclick="openSalaryModal()">💰 Схема зарплаты</button>
+
+
 
 <!-- 💼 Модалка зарплаты -->
 <div class="custom-offcanvas custom-offcanvas-right" id="salarySchemeModal">
