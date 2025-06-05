@@ -447,3 +447,35 @@ Document text:
     except Exception as e:
         logging.error(f"Error parsing driver file: {e}")
         return jsonify({'error': 'Failed to process the file'}), 500
+
+
+@drivers_bp.route("/api/driver/assign", methods=["POST"])
+@login_required
+def assign_driver():
+    try:
+        driver_id = request.form.get("driver_id")
+        dispatcher_id = request.form.get("dispatcher")
+        truck_id = request.form.get("truck")
+        note = request.form.get("note")
+
+        if not driver_id:
+            return jsonify({"success": False, "message": "Нет ID водителя"})
+
+        update_fields = {
+            "dispatcher": ObjectId(dispatcher_id) if dispatcher_id else None,
+            "truck": ObjectId(truck_id) if truck_id else None,
+        }
+
+        # Если надо сохранять note, добавь сюда
+        if note:
+            update_fields["note"] = note
+
+        drivers_collection.update_one(
+            {"_id": ObjectId(driver_id), "company": current_user.company},
+            {"$set": update_fields}
+        )
+
+        return jsonify({"success": True})
+    except Exception as e:
+        print("Ошибка при назначении водителю:", e)
+        return jsonify({"success": False, "message": "Ошибка сервера"})

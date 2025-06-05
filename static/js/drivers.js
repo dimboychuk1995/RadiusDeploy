@@ -202,3 +202,35 @@ function closeAssignmentModal() {
     modal.classList.add("hidden");
   }, 300); // должно совпадать с transition-duration в .custom-offcanvas
 }
+
+function bindAssignmentForm() {
+  const form = document.getElementById("assignmentForm");
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const data = {};
+
+    for (const [key, value] of formData.entries()) {
+      data[key] = value;
+    }
+
+    try {
+      const response = await fetch("/api/driver/assign", {
+          method: "POST",
+          body: formData,
+        });
+
+      if (response.ok) {
+        closeAssignmentModal();
+        location.reload(); // ⬅️ обновление страницы
+      } else {
+        alert("Ошибка при сохранении назначения");
+      }
+    } catch (error) {
+      console.error("Ошибка при отправке:", error);
+      alert("Ошибка при отправке формы");
+    }
+  });
+}
