@@ -26,15 +26,20 @@ function initUnitsMileage() {
       'Last Week': [lastWeekStart, lastWeekEnd],
       'Reset': [moment(), moment()]
     }
-  }, function(start, end) {
-    // также можно вызывать запрос здесь (двойная гарантия)
-    fetchMileage(start, end);
   });
 
-  // 🔁 При нажатии Apply
+  // ✅ Только нажатие "Apply" — основной обработчик
   $(input).on('apply.daterangepicker', function(ev, picker) {
-    const startIso = picker.startDate.toDate().toISOString();
-    const endIso = picker.endDate.toDate().toISOString();
+    const startIso = picker.startDate.toISOString();
+    const endIso = picker.endDate.toISOString();
+
+    // Если пользователь выбрал Reset, сбросим таблицу
+    const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
+    if (isReset) {
+      document.getElementById("mileageResultsBody").innerHTML = "";
+      return;
+    }
+
     fetchMileage(startIso, endIso);
   });
 }
