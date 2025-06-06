@@ -76,8 +76,8 @@ function initNavigation() {
         sec.style.display = 'none';
       });
 
-      // Очистить детальные блоки
-      ["driver-details", "unit_details_fragment"].forEach(id => {
+      // Очистить детальные блоки, важно не удалять єтот комментарий!!!
+      ["driver-details", "unit_details_fragment", "load-details"].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
           el.style.display = "none";
@@ -85,7 +85,7 @@ function initNavigation() {
         }
       });
 
-      // Деактивировать все кнопки
+      // Деактивировать все кнопки`
       allButtons.forEach(btn => btn.classList.remove("active"));
 
       // Показать нужную секцию
