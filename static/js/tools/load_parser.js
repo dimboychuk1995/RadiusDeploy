@@ -92,16 +92,16 @@ function autofillLoadForm(data) {
   if (pickups.length > 1) {
     const container = document.getElementById('extra-pickups-container');
     pickups.slice(1).forEach((p, index) => {
-      const idx = Date.now() + index;
       const html = `
-        <div class="extra-pickup-block mb-3" data-idx="${idx}">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${idx}][company]" value="${p["Company"] || ""}"></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${idx}][address]" value="${p["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${idx}][date]" value="${formatDateToInput(p["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${idx}][instructions]">${p["Instructions"] || ""}</textarea></div>
-          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${idx}][contact_person]" value="${p["Contact Person"] || ""}"></div>
-          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${idx}][contact_phone_number]" value="${p["Location Phone Number"] || ""}"></div>
-          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_pickup[${idx}][contact_email]" value="${p["Contact Email"] || ""}"></div>
+        <div class="border p-3 mb-2 bg-light rounded">
+          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${index}][company]" value="${p["Company"] || ""}"></div>
+          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${index}][address]" value="${p["Address"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${index}][date]" value="${formatDateToInput(p["Date"]) || ""}"></div>
+          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${index}][instructions]">${p["Instructions"] || ""}</textarea></div>
+          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_person]" value="${p["Contact Person"] || ""}"></div>
+          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_phone_number]" value="${p["Location Phone Number"] || ""}"></div>
+          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_pickup[${index}][contact_email]" value="${p["Contact Email"] || ""}"></div>
+          <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
         </div>`;
       container.insertAdjacentHTML("beforeend", html);
     });
@@ -122,21 +122,20 @@ function autofillLoadForm(data) {
   if (deliveries.length > 1) {
     const container = document.getElementById('extra-deliveries-container');
     deliveries.slice(1).forEach((d, index) => {
-      const idx = Date.now() + index;
       const html = `
-        <div class="extra-delivery-block mb-3" data-idx="${idx}">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${idx}][company]" value="${d["Company"] || ""}"></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${idx}][address]" value="${d["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${idx}][date]" value="${formatDateToInput(d["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${idx}][instructions]">${d["Instructions"] || ""}</textarea></div>
-          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${idx}][contact_person]" value="${d["Contact Person"] || ""}"></div>
-          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${idx}][contact_phone_number]" value="${d["Location Phone Number"] || ""}"></div>
-          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_delivery[${idx}][contact_email]" value="${d["Contact Email"] || ""}"></div>
+        <div class="border p-3 mb-2 bg-light rounded">
+          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${index}][company]" value="${d["Company"] || ""}"></div>
+          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${index}][address]" value="${d["Address"] || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${index}][date]" value="${formatDateToInput(d["Date"]) || ""}"></div>
+          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${index}][instructions]">${d["Instructions"] || ""}</textarea></div>
+          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_person]" value="${d["Contact Person"] || ""}"></div>
+          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_phone_number]" value="${d["Location Phone Number"] || ""}"></div>
+          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_delivery[${index}][contact_email]" value="${d["Contact Email"] || ""}"></div>
+          <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
         </div>`;
       container.insertAdjacentHTML("beforeend", html);
     });
   }
-
   // === Расчёт Rate Per Mile ===
   const pickupAddrs = (data["Pickup Locations"] || []).map(p => p["Address"]);
   const deliveryAddrs = (data["Delivery Locations"] || []).map(d => d["Address"]);
