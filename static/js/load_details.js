@@ -121,9 +121,15 @@ function initLoadDetails() {
 
         // Клик по карте → Google Maps (от первого до последнего адреса)
         document.getElementById('loadMap').addEventListener('click', () => {
-          const origin = encodeURIComponent(allStops[0].address);
-          const destination = encodeURIComponent(allStops[allStops.length - 1].address);
-          const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+          const addresses = allStops.map(s => encodeURIComponent(s.address));
+          if (addresses.length < 2) return;
+
+          const origin = addresses[0];
+          const destination = addresses[addresses.length - 1];
+          const waypoints = addresses.slice(1, -1).join('|'); // промежуточные точки
+
+          const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}`;
+
           window.open(gmapsUrl, '_blank');
         });
       });
