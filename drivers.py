@@ -153,30 +153,28 @@ def add_driver():
         return render_template('error.html', message="Failed to add driver")
 
 
-@drivers_bp.route('/download_file/<driver_id>/<doc_type>', methods=['GET'])
-@login_required
-def download_driver_file(driver_id, doc_type):
-    driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
-    if not driver:
-        return "Driver not found", 404
-
-    file_data = driver.get(doc_type, {}).get('file')
-    if not file_data:
-        return "File not found", 404
-
-    return Response(
-        file_data['content'],
-        mimetype=file_data['content_type']
-        # ⛔ Убираем Content-Disposition, чтобы не было принудительного скачивания
-    )
-
 @drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])
 @login_required
 def driver_details_fragment(driver_id):
     try:
-        driver = convert_to_str_id(drivers_collection.find_one({'_id': ObjectId(driver_id)}))
+        # Загружаем все поля, кроме тяжелых файлов
+        driver = drivers_collection.find_one(
+            {'_id': ObjectId(driver_id)},
+            {
+                'license.file': 0,
+                'medical_card.file': 0,
+                'drug_test.file': 0,
+                'mvr.file': 0,
+                'psp.file': 0,
+                'clearing_house.file': 0,
+                'agreement.file': 0
+            }
+        )
+
         if not driver:
             return render_template('error.html', message="Driver not found")
+
+        driver = convert_to_str_id(driver)
 
         truck = trucks_collection.find_one({'_id': ObjectId(driver.get('truck'))}) if driver.get('truck') else None
         dispatcher = users_collection.find_one({'_id': ObjectId(driver.get('dispatcher'))}) if driver.get('dispatcher') else None
@@ -206,6 +204,32 @@ def driver_details_fragment(driver_id):
     except Exception as e:
         logging.error(f"Error fetching driver details: {e}")
         return render_template('error.html', message="Failed to retrieve driver details")
+
+@drivers_bp.route('/download_file/<driver_id>/<doc_type>', methods=['GET'])
+@login_required
+def download_driver_file(driver_id, doc_type):
+    try:
+        driver = drivers_collection.find_one(
+            {'_id': ObjectId(driver_id)},
+            {f"{doc_type}.file": 1}
+        )
+
+        if not driver:
+            return "Driver not found", 404
+
+        # Пример: driver['license']['file'] или driver.get('license', {}).get('file')
+        file_data = driver.get(doc_type, {}).get('file')
+        if not file_data:
+            return "File not found", 404
+
+        return Response(
+            file_data['content'],
+            mimetype=file_data.get('content_type', 'application/octet-stream')
+        )
+
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке файла '{doc_type}' для водителя {driver_id}:", e)
+        return "Server error", 500
 
 @drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
 @login_required

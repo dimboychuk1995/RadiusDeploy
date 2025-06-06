@@ -240,3 +240,36 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+
+document.querySelectorAll('.collapse').forEach(collapse => {
+  collapse.addEventListener('show.bs.collapse', async function () {
+    const preview = this.querySelector('.collapse-loader');
+    if (!preview || preview.getAttribute('data-loaded') === 'true') return;
+
+    const driverId = preview.dataset.driverId;
+    const docType = preview.dataset.doc;
+    const container = preview.querySelector('.file-content');
+    const spinner = preview.querySelector('.spinner-border');
+    spinner.classList.remove('d-none');
+
+    try {
+      const res = await fetch(`/download_file/${driverId}/${docType}`);
+      const contentType = res.headers.get("Content-Type");
+
+      if (contentType.includes("pdf")) {
+        container.innerHTML = `<iframe src="/download_file/${driverId}/${docType}" width="100%" height="600px" class="border rounded"></iframe>`;
+      } else if (contentType.includes("image")) {
+        container.innerHTML = `<img src="/download_file/${driverId}/${docType}" class="img-fluid border rounded">`;
+      } else {
+        container.innerHTML = `<p class="text-muted">Невозможно отобразить предпросмотр</p>`;
+      }
+
+      preview.setAttribute('data-loaded', 'true');
+    } catch (err) {
+      container.innerHTML = `<p class="text-danger">Ошибка загрузки файла</p>`;
+    } finally {
+      spinner.classList.add('d-none');
+    }
+  });
+});

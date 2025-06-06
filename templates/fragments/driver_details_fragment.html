@@ -57,18 +57,13 @@
             <p><strong>Дата окончания:</strong> {{ driver.license.expiration_date }}</p>
             <p><strong>Ограничения:</strong> {{ driver.license.restrictions }}</p>
 
-            {% if driver.license.file %}
-              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/license" target="_blank">Скачать</a></p>
-              {% if 'pdf' in driver.license.file.content_type %}
-                <iframe src="/download_file/{{ driver._id }}/license" width="100%" height="600px"
-                        class="border rounded mt-3" style="display: block;"></iframe>
-              {% elif 'image' in driver.license.file.content_type %}
-                <img src="/download_file/{{ driver._id }}/license" alt="License Preview"
-                     class="img-fluid border rounded mt-3">
-              {% else %}
-                <p class="text-muted">Невозможно отобразить предпросмотр</p>
-              {% endif %}
-            {% endif %}
+            <div class="file-preview collapse-loader mt-3"
+                 data-driver-id="{{ driver._id }}"
+                 data-doc="license">
+              <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+              <div class="file-content mt-3"></div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -91,18 +86,13 @@
             <p><strong>Дата окончания:</strong> {{ driver.medical_card.expiration_date }}</p>
             <p><strong>Ограничения:</strong> {{ driver.medical_card.restrictions }}</p>
 
-            {% if driver.medical_card.file %}
-              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/medical_card" target="_blank">Скачать</a></p>
-              {% if 'pdf' in driver.medical_card.file.content_type %}
-                <iframe src="/download_file/{{ driver._id }}/medical_card" width="100%" height="600px"
-                        class="border rounded mt-3" style="display: block;"></iframe>
-              {% elif 'image' in driver.medical_card.file.content_type %}
-                <img src="/download_file/{{ driver._id }}/medical_card" alt="Medical Preview"
-                     class="img-fluid border rounded mt-3">
-              {% else %}
-                <p class="text-muted">Невозможно отобразить предпросмотр</p>
-              {% endif %}
-            {% endif %}
+            <div class="file-preview collapse-loader mt-3"
+                 data-driver-id="{{ driver._id }}"
+                 data-doc="medical_card">
+              <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+              <div class="file-content mt-3"></div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -123,18 +113,13 @@
           <div class="card-body">
             <p><strong>Дата теста:</strong> {{ driver.drug_test.issued_date }}</p>
 
-            {% if driver.drug_test.file %}
-              <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/drug_test" target="_blank">Скачать</a></p>
-              {% if 'pdf' in driver.drug_test.file.content_type %}
-                <iframe src="/download_file/{{ driver._id }}/drug_test" width="100%" height="600px"
-                        class="border rounded mt-3" style="display: block;"></iframe>
-              {% elif 'image' in driver.drug_test.file.content_type %}
-                <img src="/download_file/{{ driver._id }}/drug_test" alt="Drug Test Preview"
-                     class="img-fluid border rounded mt-3">
-              {% else %}
-                <p class="text-muted">Невозможно отобразить предпросмотр</p>
-              {% endif %}
-            {% endif %}
+            <div class="file-preview collapse-loader mt-3"
+                 data-driver-id="{{ driver._id }}"
+                 data-doc="drug_test">
+              <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+              <div class="file-content mt-3"></div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -154,16 +139,14 @@
           <div id="collapseMVR" class="collapse">
             <div class="card-body">
               <p><strong>Дата окончания:</strong> {{ driver.mvr.expiration_date }}</p>
-              {% if driver.mvr.file %}
-                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/mvr" target="_blank">Скачать</a></p>
-                {% if 'pdf' in driver.mvr.file.content_type %}
-                  <iframe src="/download_file/{{ driver._id }}/mvr" width="100%" height="600px" class="border rounded mt-3"></iframe>
-                {% elif 'image' in driver.mvr.file.content_type %}
-                  <img src="/download_file/{{ driver._id }}/mvr" class="img-fluid border rounded mt-3">
-                {% else %}
-                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
-                {% endif %}
-              {% endif %}
+
+                <div class="file-preview collapse-loader mt-3"
+                     data-driver-id="{{ driver._id }}"
+                     data-doc="mvr">
+                  <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+                  <div class="file-content mt-3"></div>
+                </div>
+
             </div>
           </div>
         </div>
@@ -182,16 +165,14 @@
           </div>
           <div id="collapsePSP" class="collapse">
             <div class="card-body">
-              {% if driver.psp.file %}
-                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/psp" target="_blank">Скачать</a></p>
-                {% if 'pdf' in driver.psp.file.content_type %}
-                  <iframe src="/download_file/{{ driver._id }}/psp" width="100%" height="600px" class="border rounded mt-3"></iframe>
-                {% elif 'image' in driver.psp.file.content_type %}
-                  <img src="/download_file/{{ driver._id }}/psp" class="img-fluid border rounded mt-3">
-                {% else %}
-                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
-                {% endif %}
-              {% endif %}
+
+                <div class="file-preview collapse-loader mt-3"
+                     data-driver-id="{{ driver._id }}"
+                     data-doc="psp">
+                  <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+                  <div class="file-content mt-3"></div>
+                </div>
+
             </div>
           </div>
         </div>
@@ -210,16 +191,14 @@
           </div>
           <div id="collapseCH" class="collapse">
             <div class="card-body">
-              {% if driver.clearing_house.file %}
-                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/clearing_house" target="_blank">Скачать</a></p>
-                {% if 'pdf' in driver.clearing_house.file.content_type %}
-                  <iframe src="/download_file/{{ driver._id }}/clearing_house" width="100%" height="600px" class="border rounded mt-3"></iframe>
-                {% elif 'image' in driver.clearing_house.file.content_type %}
-                  <img src="/download_file/{{ driver._id }}/clearing_house" class="img-fluid border rounded mt-3">
-                {% else %}
-                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
-                {% endif %}
-              {% endif %}
+
+                <div class="file-preview collapse-loader mt-3"
+                     data-driver-id="{{ driver._id }}"
+                     data-doc="clearing_house">
+                  <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+                  <div class="file-content mt-3"></div>
+                </div>
+
             </div>
           </div>
         </div>
@@ -238,16 +217,14 @@
           </div>
           <div id="collapseAgreement" class="collapse">
             <div class="card-body">
-              {% if driver.agreement.file %}
-                <p><strong>Файл:</strong> <a href="/download_file/{{ driver._id }}/agreement" target="_blank">Скачать</a></p>
-                {% if 'pdf' in driver.agreement.file.content_type %}
-                  <iframe src="/download_file/{{ driver._id }}/agreement" width="100%" height="600px" class="border rounded mt-3"></iframe>
-                {% elif 'image' in driver.agreement.file.content_type %}
-                  <img src="/download_file/{{ driver._id }}/agreement" class="img-fluid border rounded mt-3">
-                {% else %}
-                  <p class="text-muted">Невозможно отобразить предпросмотр</p>
-                {% endif %}
-              {% endif %}
+
+                <div class="file-preview collapse-loader mt-3"
+                     data-driver-id="{{ driver._id }}"
+                     data-doc="agreement">
+                  <div class="spinner-border text-primary small-spinner d-none" role="status"></div>
+                  <div class="file-content mt-3"></div>
+                </div>
+
             </div>
           </div>
         </div>
