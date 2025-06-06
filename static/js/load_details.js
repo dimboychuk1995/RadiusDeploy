@@ -36,7 +36,6 @@ function returnToLoads() {
   }
 }
 
-
 function initLoadDetails() {
   const wrapper = document.getElementById("loadMapWrapper");
   const token = wrapper?.dataset?.mapboxToken;
@@ -48,33 +47,48 @@ function initLoadDetails() {
     return;
   }
 
+  const extraPickups = JSON.parse(wrapper.dataset.extraPickups || '[]');
+  const extraDeliveries = JSON.parse(wrapper.dataset.extraDeliveries || '[]');
+
+  const allStops = [
+    { address: pickup, type: 'pickup' },
+    ...extraPickups.map(p => ({ address: p.address, type: 'extra_pickup' })),
+    { address: delivery, type: 'delivery' },
+    ...extraDeliveries.map(d => ({ address: d.address, type: 'extra_delivery' }))
+  ];
+
   mapboxgl.accessToken = token;
 
   const map = new mapboxgl.Map({
     container: 'loadMap',
-    style: 'mapbox://styles/mapbox/light-v11', // ✅ серый плоский стиль
-    center: [-98, 38], // центр США
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [-98, 38],
     zoom: 4
   });
 
   map.addControl(new mapboxgl.NavigationControl());
 
-  Promise.all([
-    geocodeAddress(pickup, token),
-    geocodeAddress(delivery, token)
-  ]).then(([pickupCoords, deliveryCoords]) => {
-    if (!pickupCoords || !deliveryCoords) {
-      console.warn("Ошибка геокодирования");
+  Promise.all(
+    allStops.map(stop => geocodeAddress(stop.address, token))
+  ).then(coordsList => {
+    const validCoords = coordsList.filter(Boolean);
+
+    if (validCoords.length < 2) {
+      console.warn("Недостаточно координат для построения маршрута");
       return;
     }
 
-    fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${pickupCoords.join(',')};${deliveryCoords.join(',')}?geometries=geojson&access_token=${token}`)
+    const coordPairs = validCoords.map(coord => coord.join(',')).join(';');
+
+    fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${coordPairs}?geometries=geojson&access_token=${token}`)
       .then(res => res.json())
       .then(routeData => {
         const route = routeData.routes[0]?.geometry;
         if (!route) return;
 
-        map.fitBounds([pickupCoords, deliveryCoords], { padding: 50 });
+        const bounds = new mapboxgl.LngLatBounds();
+        validCoords.forEach(c => bounds.extend(c));
+        map.fitBounds(bounds, { padding: 50 });
 
         map.addSource('route', {
           type: 'geojson',
@@ -99,19 +113,23 @@ function initLoadDetails() {
           }
         });
 
-        new mapboxgl.Marker({ color: 'green' }).setLngLat(pickupCoords).addTo(map);
-        new mapboxgl.Marker({ color: 'red' }).setLngLat(deliveryCoords).addTo(map);
+        validCoords.forEach((coord, i) => {
+          new mapboxgl.Marker({ color: i === 0 ? 'green' : (i === validCoords.length - 1 ? 'red' : 'blue') })
+            .setLngLat(coord)
+            .addTo(map);
+        });
 
-        // ✅ Клик по карте → Google Maps
+        // Клик по карте → Google Maps (от первого до последнего адреса)
         document.getElementById('loadMap').addEventListener('click', () => {
-          const origin = encodeURIComponent(pickup);
-          const destination = encodeURIComponent(delivery);
+          const origin = encodeURIComponent(allStops[0].address);
+          const destination = encodeURIComponent(allStops[allStops.length - 1].address);
           const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
           window.open(gmapsUrl, '_blank');
         });
       });
   });
 }
+
 
 function geocodeAddress(address, token) {
   return fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${token}`)

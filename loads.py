@@ -570,15 +570,22 @@ def load_details_fragment():
         if not load:
             return "Load not found", 404
 
-        driver = drivers_collection.find_one({"_id": load.get("assigned_driver")}) if load.get("assigned_driver") else None
+        # Приведение потенциально отсутствующих полей к пустым спискам
+        load["extra_pickups"] = load.get("extra_pickups") or []
+        load["extra_deliveries"] = load.get("extra_deliveries") or []
+
+        driver = None
+        if load.get("assigned_driver"):
+            driver = drivers_collection.find_one({"_id": load.get("assigned_driver")})
 
         mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
+
         return render_template(
             "fragments/load_details_fragment.html",
             load=load,
             driver=driver,
             mapbox_token=mapbox_token,
-            load_id=str(load["_id"])  # ← ДОБАВЬ ЭТО
+            load_id=str(load["_id"])
         )
 
     except Exception as e:
