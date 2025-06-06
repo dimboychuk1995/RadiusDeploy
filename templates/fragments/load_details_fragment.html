@@ -56,6 +56,21 @@
           <p><strong>Телефон:</strong> {{ load.delivery.contact_phone_number or "—" }}</p>
         </div>
       </div>
+
+      <div id="loadMapWrapper"
+             data-mapbox-token="{{ mapbox_token }}"
+             data-pickup-address="{{ load.pickup.address | escape }}"
+             data-delivery-address="{{ load.delivery.address | escape }}">
+
+          <div class="card mb-4">
+            <div class="card-header">Маршрут груза</div>
+            <div class="card-body">
+              <div id="loadMap" style="height: 400px; border-radius: 8px;"></div>
+            </div>
+          </div>
+
+      </div>
+
     </div>
   </div>
 </div>

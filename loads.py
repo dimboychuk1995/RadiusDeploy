@@ -539,7 +539,10 @@ def load_details_fragment():
 
         driver = drivers_collection.find_one({"_id": load.get("assigned_driver")}) if load.get("assigned_driver") else None
 
-        return render_template("fragments/load_details_fragment.html", load=load, driver=driver)
+        mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
+        return render_template("fragments/load_details_fragment.html", load=load, driver=driver,
+                               mapbox_token=mapbox_token)
+
     except Exception as e:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
         return "Server error", 500
