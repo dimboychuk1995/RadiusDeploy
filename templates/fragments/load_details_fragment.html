@@ -1,0 +1,61 @@
+<h1>Детали груза</h1>
+
+<!-- Кнопка Назад -->
+<button class="btn btn-secondary mb-3" onclick="returnToLoads()">← Назад к списку грузов</button>
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Левая колонка -->
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">Общая информация</div>
+        <div class="card-body">
+          <p><strong>Load ID:</strong> {{ load.load_id }}</p>
+          <p><strong>Тип:</strong> {{ load.type or "—" }}</p>
+          <p><strong>Описание:</strong> {{ load.load_description or "—" }}</p>
+          <p><strong>Вес:</strong> {{ load.weight or "—" }}</p>
+          <p><strong>Мили:</strong> {{ load.total_miles or "—" }}</p>
+          <p><strong>Цена:</strong> ${{ load.price or "—" }}</p>
+          <p><strong>RPM:</strong> ${{ load.RPM or "—" }}</p>
+          <p><strong>Статус груза:</strong> {{ load.status or "—" }}</p>
+          <p><strong>Оплата:</strong> {{ load.payment_status or "—" }}</p>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header">Информация о брокере</div>
+        <div class="card-body">
+          <p><strong>Название:</strong> {{ load.broker_load_id or "—" }}</p>
+          <p><strong>Email:</strong> {{ load.broker_email or "—" }}</p>
+          <p><strong>Телефон:</strong> {{ load.broker_phone_number or "—" }}</p>
+          <p><strong>Тип:</strong> {{ load.broker_customer_type or "—" }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Правая колонка -->
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">Pickup</div>
+        <div class="card-body">
+          <p><strong>Компания:</strong> {{ load.pickup.company or "—" }}</p>
+          <p><strong>Адрес:</strong> {{ load.pickup.address or "—" }}</p>
+          <p><strong>Дата:</strong> {{ load.pickup.date or "—" }}</p>
+          <p><strong>Инструкции:</strong> {{ load.pickup.instructions or "—" }}</p>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header">Delivery</div>
+        <div class="card-body">
+          <p><strong>Компания:</strong> {{ load.delivery.company or "—" }}</p>
+          <p><strong>Адрес:</strong> {{ load.delivery.address or "—" }}</p>
+          <p><strong>Дата:</strong> {{ load.delivery.date or "—" }}</p>
+          <p><strong>Инструкции:</strong> {{ load.delivery.instructions or "—" }}</p>
+          <p><strong>Контактное лицо:</strong> {{ load.delivery.contact_person or "—" }}</p>
+          <p><strong>Телефон:</strong> {{ load.delivery.contact_phone_number or "—" }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

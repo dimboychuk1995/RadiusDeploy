@@ -37,7 +37,7 @@
           <td>{{ load.payment_status or '—' }}</td>
           <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
           <td>
-            <button class="btn btn-sm btn-info">Детали</button>
+            <button class="btn btn-sm btn-info" onclick="showLoadDetails('{{ load._id }}')">Детали</button>
             <button class="btn btn-sm btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
           </td>
         </tr>

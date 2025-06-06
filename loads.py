@@ -524,3 +524,22 @@ def delete_load(load_id):
     except Exception as e:
         logging.exception("Ошибка при удалении груза")
         return jsonify({"success": False, "message": "Ошибка сервера"}), 500
+
+@loads_bp.route('/fragment/load_details_fragment')
+@login_required
+def load_details_fragment():
+    try:
+        load_id = request.args.get("id")
+        if not load_id:
+            return "Missing load ID", 400
+
+        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        if not load:
+            return "Load not found", 404
+
+        driver = drivers_collection.find_one({"_id": load.get("assigned_driver")}) if load.get("assigned_driver") else None
+
+        return render_template("fragments/load_details_fragment.html", load=load, driver=driver)
+    except Exception as e:
+        logging.exception("Ошибка при загрузке фрагмента деталей груза")
+        return "Server error", 500

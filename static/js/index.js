@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+function initNavigation() {
   const allButtons = document.querySelectorAll("button[data-section][data-url]");
 
   const fragmentInitializers = {
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
-      bindAssignmentForm();
+      bindAssignmentForm?.();
     },
     'dispatch_fragment': () => initDispatcherCalendars?.(),
     'dispatch_brokers': () => initBrokerCustomerSection?.(),
@@ -60,7 +60,6 @@ document.addEventListener("DOMContentLoaded", function () {
         .then(html => {
           section.innerHTML = html;
           section.dataset.loaded = "true";
-
           fragmentInitializers[sectionKey]?.();
         });
     }
@@ -125,4 +124,6 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
   });
-});
+}
+
+document.addEventListener("DOMContentLoaded", initNavigation);
