@@ -6,97 +6,85 @@
   <div class="row">
     <!-- Левая колонка -->
     <div class="col-md-6">
+      <!-- Общая информация -->
       <div class="card mb-4">
         <div class="card-header">Общая информация</div>
         <div class="card-body">
-          <p><strong>Load ID:</strong> {{ load.load_id }}</p>
-          <p><strong>Тип:</strong> {{ load.type or "—" }}</p>
+          <p><strong>Load ID:</strong> {{ load.load_id or "—" }}</p>
           <p><strong>Описание:</strong> {{ load.load_description or "—" }}</p>
+          <p><strong>Тип:</strong> {{ load.type or "—" }}</p>
           <p><strong>Вес:</strong> {{ load.weight or "—" }}</p>
-          <p><strong>Мили:</strong> {{ load.total_miles or "—" }}</p>
+          <p><strong>Общие мили:</strong> {{ load.total_miles or "—" }}</p>
           <p><strong>Цена:</strong> ${{ load.price or "—" }}</p>
           <p><strong>RPM:</strong> ${{ load.RPM or "—" }}</p>
-          <p><strong>Статус груза:</strong> {{ load.status or "—" }}</p>
+          <p><strong>Статус:</strong> {{ load.status or "—" }}</p>
           <p><strong>Оплата:</strong> {{ load.payment_status or "—" }}</p>
+          <p><strong>Был добавлен в стейтмент:</strong> {{ "Да" if load.was_added_to_statement else "Нет" }}</p>
         </div>
       </div>
 
+      <!-- Информация о брокере -->
       <div class="card mb-4">
-        <div class="card-header">Информация о брокере</div>
+        <div class="card-header">Брокер</div>
         <div class="card-body">
           <p><strong>Название:</strong> {{ load.broker_load_id or "—" }}</p>
+          <p><strong>Тип:</strong> {{ load.broker_customer_type or "—" }}</p>
           <p><strong>Email:</strong> {{ load.broker_email or "—" }}</p>
           <p><strong>Телефон:</strong> {{ load.broker_phone_number or "—" }}</p>
-          <p><strong>Тип:</strong> {{ load.broker_customer_type or "—" }}</p>
+        </div>
+      </div>
+
+      <!-- Документы -->
+      <div class="card mb-4">
+        <div class="card-header">Документы</div>
+        <div class="card-body">
+          <p><strong>Rate Con:</strong> {{ "Загружен" if load.rate_con else "—" }}</p>
+          <p><strong>BOL:</strong> {{ "Загружен" if load.bol else "—" }}</p>
         </div>
       </div>
     </div>
 
     <!-- Правая колонка -->
     <div class="col-md-6">
+      {% set pickups = [load.pickup] + (load.extra_pickup or []) %}
+      {% set deliveries = [load.delivery] + (load.extra_delivery or []) %}
+
+      {% for p in pickups %}
       <div class="card mb-4">
-        <div class="card-header">Pickup</div>
+        <div class="card-header">Pickup {{ loop.index }}</div>
         <div class="card-body">
-          <p><strong>Компания:</strong> {{ load.pickup.company or "—" }}</p>
-          <p><strong>Адрес:</strong> {{ load.pickup.address or "—" }}</p>
-          <p><strong>Дата:</strong> {{ load.pickup.date or "—" }}</p>
-          <p><strong>Инструкции:</strong> {{ load.pickup.instructions or "—" }}</p>
+          <p><strong>Компания:</strong> {{ p.company or "—" }}</p>
+          <p><strong>Адрес:</strong> {{ p.address or "—" }}</p>
+          <p><strong>Дата:</strong> {{ p.date or "—" }}</p>
+          <p><strong>Инструкции:</strong> {{ p.instructions or "—" }}</p>
+          <p><strong>Контакт:</strong> {{ p.contact_person or "—" }} / {{ p.contact_phone_number or "—" }}</p>
         </div>
       </div>
+      {% endfor %}
 
-      {% if load.extra_pickups %}
+      {% for d in deliveries %}
       <div class="card mb-4">
-        <div class="card-header">Дополнительные Pickup</div>
+        <div class="card-header">Delivery {{ loop.index }}</div>
         <div class="card-body">
-          {% for p in load.extra_pickups %}
-            <hr>
-            <p><strong>Компания:</strong> {{ p.company or "—" }}</p>
-            <p><strong>Адрес:</strong> {{ p.address or "—" }}</p>
-            <p><strong>Дата:</strong> {{ p.date or "—" }}</p>
-            <p><strong>Инструкции:</strong> {{ p.instructions or "—" }}</p>
-            <p><strong>Контакт:</strong> {{ p.contact_person or "—" }} / {{ p.contact_phone_number or "—" }}</p>
-          {% endfor %}
+          <p><strong>Компания:</strong> {{ d.company or "—" }}</p>
+          <p><strong>Адрес:</strong> {{ d.address or "—" }}</p>
+          <p><strong>Дата:</strong> {{ d.date or "—" }}</p>
+          <p><strong>Инструкции:</strong> {{ d.instructions or "—" }}</p>
+          <p><strong>Контакт:</strong> {{ d.contact_person or "—" }} / {{ d.contact_phone_number or "—" }}</p>
         </div>
       </div>
-      {% endif %}
+      {% endfor %}
 
-      <div class="card mb-4">
-        <div class="card-header">Delivery</div>
-        <div class="card-body">
-          <p><strong>Компания:</strong> {{ load.delivery.company or "—" }}</p>
-          <p><strong>Адрес:</strong> {{ load.delivery.address or "—" }}</p>
-          <p><strong>Дата:</strong> {{ load.delivery.date or "—" }}</p>
-          <p><strong>Инструкции:</strong> {{ load.delivery.instructions or "—" }}</p>
-          <p><strong>Контактное лицо:</strong> {{ load.delivery.contact_person or "—" }}</p>
-          <p><strong>Телефон:</strong> {{ load.delivery.contact_phone_number or "—" }}</p>
-        </div>
-      </div>
-
-      {% if load.extra_deliveries %}
-      <div class="card mb-4">
-        <div class="card-header">Дополнительные Delivery</div>
-        <div class="card-body">
-          {% for d in load.extra_deliveries %}
-            <hr>
-            <p><strong>Компания:</strong> {{ d.company or "—" }}</p>
-            <p><strong>Адрес:</strong> {{ d.address or "—" }}</p>
-            <p><strong>Дата:</strong> {{ d.date or "—" }}</p>
-            <p><strong>Инструкции:</strong> {{ d.instructions or "—" }}</p>
-            <p><strong>Контакт:</strong> {{ d.contact_person or "—" }} / {{ d.contact_phone_number or "—" }}</p>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
+      <!-- Карта -->
       <div id="loadMapWrapper"
-         data-mapbox-token="{{ mapbox_token }}"
-         data-pickup-address="{{ load.pickup.address | escape }}"
-         data-delivery-address="{{ load.delivery.address | escape }}"
-         data-extra-pickups='{{ (load.extra_pickup or []) | tojson | safe }}'
-         data-extra-deliveries='{{ (load.extra_delivery or []) | tojson | safe }}'>
+           data-mapbox-token="{{ mapbox_token }}"
+           data-pickup-address="{{ load.pickup.address | escape }}"
+           data-delivery-address="{{ load.delivery.address | escape }}"
+           data-extra-pickups='{{ (load.extra_pickup or []) | tojson | safe }}'
+           data-extra-deliveries='{{ (load.extra_delivery or []) | tojson | safe }}'>
 
         <div class="card mb-4">
-          <div class="card-header">Маршрут груза</div>
+          <div class="card-header">Маршрут</div>
           <div class="card-body">
             <div id="loadMap" style="height: 400px; border-radius: 8px;"></div>
           </div>
