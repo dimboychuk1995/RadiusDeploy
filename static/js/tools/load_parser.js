@@ -205,3 +205,4 @@ async function calculateTotalMiles(addresses) {
   return Math.round(totalMiles);
 }
 
+window.initLoadParser = initLoadParser;
