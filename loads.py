@@ -389,39 +389,60 @@ def loads_fragment():
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
 
-@loads_bp.route('/api/get_mileage', methods=['POST'])
+@loads_bp.route("/api/get_mileage", methods=["POST"])
 @login_required
 def get_mileage():
+    data = request.get_json()
+    origin = data.get("origin")
+    destination = data.get("destination")
+
+    if not origin or not destination:
+        return jsonify({"error": "Missing origin or destination"}), 400
+
     try:
-        data = request.get_json()
-        origin = data.get("origin")
-        destination = data.get("destination")
+        print("📌 origin:", origin)
+        print("📌 destination:", destination)
 
-        if not origin or not destination:
-            return jsonify({"error": "Missing origin or destination"}), 400
+        integration = db["integrations_settings"].find_one({"name": "Google Maps API"})
+        print("🔑 integration object:", integration)
 
-        setting = db['integrations_settings'].find_one({
-            'name': "Google Maps API",
-        })
-        api_key = setting.get('api_key') if setting else None
-        if not api_key:
-            return jsonify({"error": "API key not found"}), 400
+        if not integration or not integration.get("api_key"):
+            return jsonify({"error": "Google Maps API key not found"}), 500
 
-        url = f"https://maps.googleapis.com/maps/api/directions/json?origin={origin}&destination={destination}&key={api_key}"
-        resp = requests.get(url)
-        data = resp.json()
+        api_key = integration["api_key"]
+        print("🔐 Using API key:", api_key[:5] + "..." + api_key[-5:])
 
-        if data["status"] != "OK":
-            return jsonify({"error": "Google Maps API error", "details": data}), 400
+        params = {
+            "origins": origin,
+            "destinations": destination,
+            "key": api_key
+        }
 
-        meters = sum(leg["distance"]["value"] for leg in data["routes"][0]["legs"])
-        miles = meters / 1609.34
+        print("🚀 Sending request to Google Maps...")
+        res = requests.get("https://maps.googleapis.com/maps/api/distancematrix/json", params=params)
+        res.raise_for_status()
 
+        result = res.json()
+        print("🌍 Google Maps API response:", result)
+
+        rows = result.get("rows", [])
+        if not rows or not rows[0].get("elements"):
+            return jsonify({"error": "Invalid response from Google Maps"}), 500
+
+        distance_data = rows[0]["elements"][0]
+
+        if distance_data.get("status") != "OK":
+            return jsonify({"error": f"Google Maps error: {distance_data.get('status')}"}), 400
+
+        miles = distance_data["distance"]["value"] / 1609.34
         return jsonify({"miles": round(miles)})
 
     except Exception as e:
-        logging.exception("Mileage fetch error")
-        return jsonify({"error": str(e)}), 500
+        import traceback
+        print("❌ Ошибка при расчёте расстояния:", e)
+        traceback.print_exc()  # ← это покажет точную строку ошибки
+        return jsonify({"error": "Server error"}), 500
+
 
 
 def send_load_email_to_driver(company_email, company_password, driver_email, driver_name, load_info):
@@ -540,8 +561,13 @@ def load_details_fragment():
         driver = drivers_collection.find_one({"_id": load.get("assigned_driver")}) if load.get("assigned_driver") else None
 
         mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
-        return render_template("fragments/load_details_fragment.html", load=load, driver=driver,
-                               mapbox_token=mapbox_token)
+        return render_template(
+            "fragments/load_details_fragment.html",
+            load=load,
+            driver=driver,
+            mapbox_token=mapbox_token,
+            load_id=str(load["_id"])  # ← ДОБАВЬ ЭТО
+        )
 
     except Exception as e:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
