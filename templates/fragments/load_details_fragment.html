@@ -50,27 +50,35 @@
       {% set deliveries = [load.delivery] + (load.extra_delivery or []) %}
 
       {% for p in pickups %}
-      <div class="card mb-4">
-        <div class="card-header">Pickup {{ loop.index }}</div>
-        <div class="card-body">
-          <p><strong>Компания:</strong> {{ p.company or "—" }}</p>
-          <p><strong>Адрес:</strong> {{ p.address or "—" }}</p>
-          <p><strong>Дата:</strong> {{ p.date or "—" }}</p>
-          <p><strong>Инструкции:</strong> {{ p.instructions or "—" }}</p>
-          <p><strong>Контакт:</strong> {{ p.contact_person or "—" }} / {{ p.contact_phone_number or "—" }}</p>
+      <div class="card mb-2">
+        <div class="card-header" data-bs-toggle="collapse" href="#pickupCollapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="pickupCollapse{{ loop.index }}">
+          Pickup {{ loop.index }} — {{ p.company or "—" }}, {{ p.address or "—" }}
+        </div>
+        <div id="pickupCollapse{{ loop.index }}" class="collapse">
+          <div class="card-body">
+            <p><strong>Компания:</strong> {{ p.company or "—" }}</p>
+            <p><strong>Адрес:</strong> {{ p.address or "—" }}</p>
+            <p><strong>Дата:</strong> {{ p.date or "—" }}</p>
+            <p><strong>Инструкции:</strong> {{ p.instructions or "—" }}</p>
+            <p><strong>Контакт:</strong> {{ p.contact_person or "—" }} / {{ p.contact_phone_number or "—" }}</p>
+          </div>
         </div>
       </div>
       {% endfor %}
 
       {% for d in deliveries %}
-      <div class="card mb-4">
-        <div class="card-header">Delivery {{ loop.index }}</div>
-        <div class="card-body">
-          <p><strong>Компания:</strong> {{ d.company or "—" }}</p>
-          <p><strong>Адрес:</strong> {{ d.address or "—" }}</p>
-          <p><strong>Дата:</strong> {{ d.date or "—" }}</p>
-          <p><strong>Инструкции:</strong> {{ d.instructions or "—" }}</p>
-          <p><strong>Контакт:</strong> {{ d.contact_person or "—" }} / {{ d.contact_phone_number or "—" }}</p>
+      <div class="card mb-2">
+        <div class="card-header" data-bs-toggle="collapse" href="#deliveryCollapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="deliveryCollapse{{ loop.index }}">
+          Delivery {{ loop.index }} — {{ d.company or "—" }}, {{ d.address or "—" }}
+        </div>
+        <div id="deliveryCollapse{{ loop.index }}" class="collapse">
+          <div class="card-body">
+            <p><strong>Компания:</strong> {{ d.company or "—" }}</p>
+            <p><strong>Адрес:</strong> {{ d.address or "—" }}</p>
+            <p><strong>Дата:</strong> {{ d.date or "—" }}</p>
+            <p><strong>Инструкции:</strong> {{ d.instructions or "—" }}</p>
+            <p><strong>Контакт:</strong> {{ d.contact_person or "—" }} / {{ d.contact_phone_number or "—" }}</p>
+          </div>
         </div>
       </div>
       {% endfor %}
@@ -84,12 +92,17 @@
            data-extra-deliveries='{{ (load.extra_delivery or []) | tojson | safe }}'>
 
         <div class="card mb-4">
-          <div class="card-header">Маршрут</div>
-          <div class="card-body">
-            <div id="loadMap" style="height: 400px; border-radius: 8px;"></div>
+          <div class="card-header" data-bs-toggle="collapse" href="#mapCollapse" role="button" aria-expanded="true" aria-controls="mapCollapse">
+            Маршрут
+          </div>
+          <div id="mapCollapse" class="collapse show">
+            <div class="card-body">
+              <div id="loadMap" style="height: 400px; border-radius: 8px;"></div>
+            </div>
           </div>
         </div>
       </div>
+
     </div>
   </div>
 </div>
