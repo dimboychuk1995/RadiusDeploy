@@ -36,10 +36,10 @@ function returnToLoads() {
   }
 }
 
+
 function initLoadDetails() {
   const wrapper = document.getElementById("loadMapWrapper");
   const token = wrapper?.dataset?.mapboxToken;
-
   const pickup = wrapper?.dataset?.pickupAddress;
   const delivery = wrapper?.dataset?.deliveryAddress;
 
@@ -49,16 +49,16 @@ function initLoadDetails() {
   }
 
   mapboxgl.accessToken = token;
+
   const map = new mapboxgl.Map({
     container: 'loadMap',
-    style: 'mapbox://styles/mapbox/streets-v12',
+    style: 'mapbox://styles/mapbox/light-v11', // ✅ серый плоский стиль
     center: [-98, 38], // центр США
     zoom: 4
   });
 
   map.addControl(new mapboxgl.NavigationControl());
 
-  // Геокодируем адреса
   Promise.all([
     geocodeAddress(pickup, token),
     geocodeAddress(delivery, token)
@@ -101,6 +101,14 @@ function initLoadDetails() {
 
         new mapboxgl.Marker({ color: 'green' }).setLngLat(pickupCoords).addTo(map);
         new mapboxgl.Marker({ color: 'red' }).setLngLat(deliveryCoords).addTo(map);
+
+        // ✅ Клик по карте → Google Maps
+        document.getElementById('loadMap').addEventListener('click', () => {
+          const origin = encodeURIComponent(pickup);
+          const destination = encodeURIComponent(delivery);
+          const gmapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
+          window.open(gmapsUrl, '_blank');
+        });
       });
   });
 }
@@ -114,3 +122,4 @@ function geocodeAddress(address, token) {
       return null;
     });
 }
+
