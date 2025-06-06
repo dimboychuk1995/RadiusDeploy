@@ -20,6 +20,7 @@ from email.mime.multipart import MIMEMultipart
 from xhtml2pdf import pisa
 from io import BytesIO
 from jinja2 import Template
+from flask import send_file
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -557,6 +558,34 @@ def delete_load(load_id):
     except Exception as e:
         logging.exception("Ошибка при удалении груза")
         return jsonify({"success": False, "message": "Ошибка сервера"}), 500
+
+@loads_bp.route("/api/load/<load_id>/ratecon")
+@login_required
+def download_ratecon(load_id):
+    try:
+        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        if not load or not load.get("rate_con"):
+            return "Rate Con not found", 404
+
+        file = fs.get(load["rate_con"])
+        return send_file(BytesIO(file.read()), download_name="RateCon.pdf", mimetype='application/pdf')
+    except Exception as e:
+        logging.exception("Ошибка при загрузке Rate Con")
+        return "Server error", 500
+
+@loads_bp.route("/api/load/<load_id>/bol")
+@login_required
+def download_bol(load_id):
+    try:
+        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        if not load or not load.get("bol"):
+            return "BOL not found", 404
+
+        file = fs.get(load["bol"])
+        return send_file(BytesIO(file.read()), download_name="BOL.pdf", mimetype='application/pdf')
+    except Exception as e:
+        logging.exception("Ошибка при загрузке BOL")
+        return "Server error", 500
 
 @loads_bp.route('/fragment/load_details_fragment')
 @login_required

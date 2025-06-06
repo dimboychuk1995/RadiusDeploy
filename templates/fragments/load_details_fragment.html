@@ -34,14 +34,37 @@
         </div>
       </div>
 
-      <!-- Документы -->
-      <div class="card mb-4">
-        <div class="card-header">Документы</div>
-        <div class="card-body">
-          <p><strong>Rate Con:</strong> {{ "Загружен" if load.rate_con else "—" }}</p>
-          <p><strong>BOL:</strong> {{ "Загружен" if load.bol else "—" }}</p>
-        </div>
-      </div>
+      <!-- Документы с предпросмотром -->
+      <div class="card mb-2">
+            <div class="card-header" data-bs-toggle="collapse" href="#rateConCollapse" role="button" aria-expanded="false" aria-controls="rateConCollapse">
+              📄 Rate Con
+            </div>
+            <div id="rateConCollapse" class="collapse">
+              <div class="card-body">
+                {% if load.rate_con %}
+                  <iframe src="/api/load/{{ load._id }}/ratecon" width="100%" height="1000px" style="border-radius: 8px; border: 1px solid #ccc;"></iframe>
+                {% else %}
+                  <p>Rate Con не загружен</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-2">
+            <div class="card-header" data-bs-toggle="collapse" href="#bolCollapse" role="button" aria-expanded="false" aria-controls="bolCollapse">
+              📄 BOL
+            </div>
+            <div id="bolCollapse" class="collapse">
+              <div class="card-body">
+                {% if load.bol %}
+                  <iframe src="/api/load/{{ load._id }}/bol" width="100%" height="1000px" style="border-radius: 8px; border: 1px solid #ccc;"></iframe>
+                {% else %}
+                  <p>BOL не загружен</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
     </div>
 
     <!-- Правая колонка -->
