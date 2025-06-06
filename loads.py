@@ -48,73 +48,97 @@ def ask_gpt(content):
     client = get_openai_client()
 
     prompt = f"""
-    Analyze the following Rate Con or BOL text and fill in the JSON structure as accurately as possible.
+You are a logistics assistant. Parse the following document (Rate Confirmation or BOL) into strict JSON format.
 
-    🟡 RULES:
-    - Return ONLY valid JSON (no comments, no explanations).
-    - Leave fields blank if missing.
-    - Return dates in format: MM/DD/YYYY.
-    - Return price as: ####.## (2 decimals).
-    - Do NOT include extra Pickup or Delivery entries if they are not in the document.
-    - If there is only one pickup or delivery, include only one object in the array.
+📌 RULES:
+- Return **ONLY valid JSON**, without markdown or explanation.
+- Use date format: MM/DD/YYYY.
+- Use price format: ####.## (two decimals).
+- Use empty strings for missing values.
+- Include only real pickups/deliveries.
+- Do NOT invent data — if something is missing, leave it blank.
 
-    🔁 JSON FORMAT:
+🔁 OUTPUT FORMAT EXAMPLE:
+{{
+  "Load Number": "123456",
+  "Broker Name": "ABC Logistics",
+  "Type Of Load": "Dry Van",
+  "Broker Phone Number": "555-123-4567",
+  "Broker Email": "abc@logistics.com",
+  "Price": "1500.00",
+  "Weight": "42000",
+  "Load Description": "Frozen food",
+  "Pickup Locations": [
     {{
-        "Load Number": "",
-        "Broker Name": "",
-        "Type Of Load": "",
-        "Broker Phone Number": "",
-        "Broker Email": "",
-        "Price": "",
-        "Weight": "",
-        "Load Description": "",
-        "Pickup Locations": [
-            {{
-                "Company": "",
-                "Address": "",
-                "Date": "",
-                "Time": "",
-                "Instructions": "",
-                "Location Phone Number": "",
-                "Contact Person": "",
-                "Contact Email": ""
-            }}
-        ],
-        "Delivery Locations": [
-            {{
-                "Company": "",
-                "Address": "",
-                "Date": "",
-                "Time": "",
-                "Instructions": "",
-                "Location Phone Number": "",
-                "Contact Person": "",
-                "Contact Email": ""
-            }}
-        ]
+      "Company": "Walmart",
+      "Address": "123 Main St, Dallas, TX",
+      "Date": "06/01/2025",
+      "Time": "08:00 AM",
+      "Instructions": "Go to dock 5",
+      "Location Phone Number": "555-999-8888",
+      "Contact Person": "John Doe",
+      "Contact Email": "john@example.com"
     }}
+  ],
+  "Delivery Locations": [
+    {{
+      "Company": "Kroger",
+      "Address": "789 Oak Rd, Atlanta, GA",
+      "Date": "06/03/2025",
+      "Time": "02:00 PM",
+      "Instructions": "Call before arrival",
+      "Location Phone Number": "555-888-7777",
+      "Contact Person": "Jane Smith",
+      "Contact Email": "jane@example.com"
+    }}
+  ]
+}}
 
-    Document:
-    -----
-    {content}
-    """
+Document:
+-----
+{content}
+"""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
         message = response.choices[0].message.content.strip()
+
+        # Очистка от markdown
         if message.startswith("```json"):
             message = message[len("```json"):].strip()
         if message.startswith("```"):
             message = message[len("```"):].strip()
         if message.endswith("```"):
             message = message[:-len("```")].strip()
-        return json.loads(message)
+
+        result = json.loads(message)
+
+        # 🧹 Минимальная валидация и доп. очистка
+        expected_keys = [
+            "Load Number", "Broker Name", "Type Of Load", "Broker Phone Number",
+            "Broker Email", "Price", "Weight", "Load Description",
+            "Pickup Locations", "Delivery Locations"
+        ]
+
+        for key in expected_keys:
+            if key not in result:
+                result[key] = "" if "Locations" not in key else []
+
+        # Удаление пустых pickup/delivery
+        def clean_stops(stops):
+            return [s for s in stops if s.get("Address", "").strip()]
+
+        result["Pickup Locations"] = clean_stops(result["Pickup Locations"])
+        result["Delivery Locations"] = clean_stops(result["Delivery Locations"])
+
+        return result
+
     except Exception as e:
-        raise Exception(f"OpenAI error: {str(e)}")
+        raise Exception(f"❌ OpenAI error: {str(e)}")
 
 @loads_bp.route('/api/parse_load_pdf', methods=['POST'])
 def parse_load_pdf():
@@ -122,54 +146,51 @@ def parse_load_pdf():
     if not file or not allowed_file(file.filename):
         return jsonify({'error': 'Допустим только PDF'}), 400
 
-    def remove_empty_stops(stops):
-        return [stop for stop in stops if stop.get("Address", "").strip()]
-
     try:
         pdf_bytes = file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-        merged_result = {
-            "Load Number": "",
-            "Broker Name": "",
-            "Type Of Load": "",
-            "Broker Phone Number": "",
-            "Broker Email": "",
-            "Price": "",
-            "Total Miles": "",
-            "Rate per Mile": "",
-            "Weight": "",
-            "Load Description": "",
-            "Pickup Locations": [],
-            "Delivery Locations": []
-        }
-
+        # Собираем весь текст сразу
+        full_text = ""
         for i in range(len(doc)):
             try:
                 page_text = doc[i].get_text().strip()
-
                 if not page_text:
                     pix = doc[i].get_pixmap(dpi=300)
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     page_text = pytesseract.image_to_string(img)
 
-                if not page_text.strip():
-                    continue
-
-                result = ask_gpt(page_text)
-
-                for key in merged_result:
-                    if key in ["Pickup Locations", "Delivery Locations"]:
-                        merged_result[key].extend(result.get(key, []))
-                    else:
-                        if not merged_result[key]:
-                            merged_result[key] = result.get(key, "")
+                if page_text.strip():
+                    full_text += page_text + "\n\n"
             except Exception as e:
                 logging.warning(f"❌ Ошибка при обработке страницы {i + 1}: {str(e)}")
 
-        # Удаляем пустые pickup/delivery объекты
+        # Один вызов GPT на весь текст
+        result = ask_gpt(full_text)
+
+        # Добавим обязательные поля (если GPT их пропустил)
+        merged_result = {
+            "Load Number": result.get("Load Number", ""),
+            "Broker Name": result.get("Broker Name", ""),
+            "Type Of Load": result.get("Type Of Load", ""),
+            "Broker Phone Number": result.get("Broker Phone Number", ""),
+            "Broker Email": result.get("Broker Email", ""),
+            "Price": result.get("Price", ""),
+            "Total Miles": "",
+            "Rate per Mile": "",
+            "Weight": result.get("Weight", ""),
+            "Load Description": result.get("Load Description", ""),
+            "Pickup Locations": result.get("Pickup Locations", []),
+            "Delivery Locations": result.get("Delivery Locations", [])
+        }
+
+        def remove_empty_stops(stops):
+            return [stop for stop in stops if stop.get("Address", "").strip()]
+
         merged_result["Pickup Locations"] = remove_empty_stops(merged_result["Pickup Locations"])
         merged_result["Delivery Locations"] = remove_empty_stops(merged_result["Delivery Locations"])
+
+        print("🧾 GPT Answer:", json.dumps(merged_result, indent=2))
 
         return jsonify(merged_result)
 
@@ -311,7 +332,6 @@ def add_load():
 
             if driver and driver.get("email") and company and company.get("email") and company.get("password"):
                 try:
-                    print("📨 Попытка отправить email водителю")
                     send_load_email_to_driver(
                         company_email=company["email"],
                         company_password=company["password"],
@@ -400,17 +420,12 @@ def get_mileage():
         return jsonify({"error": "Missing origin or destination"}), 400
 
     try:
-        print("📌 origin:", origin)
-        print("📌 destination:", destination)
-
         integration = db["integrations_settings"].find_one({"name": "Google Maps API"})
-        print("🔑 integration object:", integration)
 
         if not integration or not integration.get("api_key"):
             return jsonify({"error": "Google Maps API key not found"}), 500
 
         api_key = integration["api_key"]
-        print("🔐 Using API key:", api_key[:5] + "..." + api_key[-5:])
 
         params = {
             "origins": origin,
@@ -418,12 +433,10 @@ def get_mileage():
             "key": api_key
         }
 
-        print("🚀 Sending request to Google Maps...")
         res = requests.get("https://maps.googleapis.com/maps/api/distancematrix/json", params=params)
         res.raise_for_status()
 
         result = res.json()
-        print("🌍 Google Maps API response:", result)
 
         rows = result.get("rows", [])
         if not rows or not rows[0].get("elements"):
@@ -439,7 +452,6 @@ def get_mileage():
 
     except Exception as e:
         import traceback
-        print("❌ Ошибка при расчёте расстояния:", e)
         traceback.print_exc()  # ← это покажет точную строку ошибки
         return jsonify({"error": "Server error"}), 500
 
