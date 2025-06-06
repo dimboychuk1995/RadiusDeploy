@@ -503,3 +503,24 @@ def generate_load_pdf(load_info):
 
     pdf_io.seek(0)
     return pdf_io
+
+
+@loads_bp.route('/api/delete_load/<load_id>', methods=['DELETE'])
+@login_required
+def delete_load(load_id):
+    try:
+        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        if not load:
+            return jsonify({"success": False, "message": "Груз не найден"}), 404
+
+        # Удаление вложенных файлов, если нужно
+        if load.get("rate_con"):
+            fs.delete(load["rate_con"])
+        if load.get("bol"):
+            fs.delete(load["bol"])
+
+        loads_collection.delete_one({"_id": ObjectId(load_id)})
+        return jsonify({"success": True})
+    except Exception as e:
+        logging.exception("Ошибка при удалении груза")
+        return jsonify({"success": False, "message": "Ошибка сервера"}), 500

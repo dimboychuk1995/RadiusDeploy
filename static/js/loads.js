@@ -158,3 +158,25 @@ function initBrokerCustomerSelect() {
   }
 }
 
+function deleteLoad(loadId) {
+  if (!confirm("Вы уверены, что хотите удалить этот груз?")) return;
+
+  fetch(`/api/delete_load/${loadId}`, {
+    method: 'DELETE'
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        alert("Груз удалён");
+        location.reload();
+      } else {
+        alert("Ошибка: " + data.message);
+      }
+    })
+    .catch(err => {
+      console.error("Ошибка при удалении:", err);
+      alert("Произошла ошибка при удалении груза");
+    });
+}
+
+

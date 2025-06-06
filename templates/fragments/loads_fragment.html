@@ -19,25 +19,30 @@
       <th>Статус</th>
       <th>Оплата</th>
       <th>Дополнительные остановки</th>
+      <th>Действия</th>
     </tr>
   </thead>
   <tbody>
-    {% for load in loads %}
-      <tr>
-        <td>{{ load.load_id or '—' }}</td>
-        <td>{{ load.broker_load_id or '—' }}</td>
-        <td>{{ load.type or '—' }}</td>
-        <td>{{ load.driver_name or '—' }}</td>
-        <td>{{ load.pickup.address if load.pickup else '—' }}</td>
-        <td>{{ load.delivery.address if load.delivery else '—' }}</td>
-        <td>${{ load.price or '—' }}</td>
-        <td>${{ load.RPM or '—' }}</td>
-        <td>{{ load.status or '—' }}</td>
-        <td>{{ load.payment_status or '—' }}</td>
-        <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
-      </tr>
-    {% endfor %}
-  </tbody>
+      {% for load in loads %}
+        <tr>
+          <td>{{ load.load_id or '—' }}</td>
+          <td>{{ load.broker_load_id or '—' }}</td>
+          <td>{{ load.type or '—' }}</td>
+          <td>{{ load.driver_name or '—' }}</td>
+          <td>{{ load.pickup.address if load.pickup else '—' }}</td>
+          <td>{{ load.delivery.address if load.delivery else '—' }}</td>
+          <td>${{ load.price or '—' }}</td>
+          <td>${{ load.RPM or '—' }}</td>
+          <td>{{ load.status or '—' }}</td>
+          <td>{{ load.payment_status or '—' }}</td>
+          <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
+          <td>
+            <button class="btn btn-sm btn-info">Детали</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
 </table>
 
 <!-- Выезжающее модальное окно -->
