@@ -28,6 +28,7 @@ fs = gridfs.GridFS(db)
 
 loads_collection = db['loads']
 drivers_collection = db['drivers']
+users_collection = db['users']
 
 companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 dispatchers = list(db["users"].find({"role": "dispatch"}, {"_id": 1, "username": 1}))
@@ -376,6 +377,11 @@ def loads_fragment():
         drivers = list(drivers_collection.find({'company': current_user.company}, {"_id": 1, "name": 1}))
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
+        dispatchers = list(users_collection.find(
+            {'company': current_user.company, 'role': 'dispatch'},
+            {"_id": 1, "username": 1}
+        ))
+
         # Вытягиваем только нужные поля из коллекции loads
         loads = list(loads_collection.find(
             {'company': current_user.company},
@@ -404,8 +410,11 @@ def loads_fragment():
             drivers=drivers,
             loads=loads,
             companies=companies,
-            dispatchers=dispatchers
+            dispatchers=dispatchers,
+            current_user=current_user,
+            current_user_id=current_user.get_id()  # ✅ безопасно и работает всегда
         )
+
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 

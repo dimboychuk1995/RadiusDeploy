@@ -129,7 +129,10 @@
               <select name="assigned_dispatch" class="form-control">
                 <option value="">-- Выбрать диспетчера --</option>
                 {% for dispatcher in dispatchers %}
-                  <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
+                  <option value="{{ dispatcher._id }}"
+                      {% if current_user.role == 'dispatch' and current_user_id == dispatcher._id|string %}selected{% endif %}>
+                      {{ dispatcher.username }}
+                  </option>
                 {% endfor %}
               </select>
             </div>
