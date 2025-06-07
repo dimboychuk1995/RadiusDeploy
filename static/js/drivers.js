@@ -176,9 +176,24 @@ function openAssignmentModal(driverId, event) {
     backdrop.classList.add("show");
   });
 
+  // Устанавливаем ID водителя в скрытое поле
   document.getElementById("assignmentDriverId").value = driverId;
 
-  // ✅ Перенесли сюда, потому что форма уже в DOM
+  // 🔍 Найдём строку водителя
+  const row = document.getElementById(`driver-${driverId}`);
+  if (!row) return;
+
+  const truckId = row.getAttribute("data-truck-id");
+  const dispatcherId = row.getAttribute("data-dispatcher-id");
+
+  // Устанавливаем значения в селекты
+  const truckSelect = modal.querySelector("select[name='truck']");
+  const dispatcherSelect = modal.querySelector("select[name='dispatcher']");
+
+  if (truckSelect) truckSelect.value = truckId || "";
+  if (dispatcherSelect) dispatcherSelect.value = dispatcherId || "";
+
+  // Обязательно привязать сабмит после вставки
   bindAssignmentForm();
 }
 
