@@ -20,8 +20,7 @@
         </thead>
         <tbody>
           {% for driver in drivers %}
-          <tr id="driver-{{ driver._id }}" class="clickable-row"
-              data-href="{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}"
+          <tr id="driver-{{ driver._id }}"
               data-truck-id="{{ driver.truck }}"
               data-dispatcher-id="{{ driver.dispatcher }}">
             <td class="driver-name">{{ driver.name }}</td>
@@ -33,8 +32,9 @@
             <td class="dispatcher-name">{{ driver.dispatcher_name }}</td>
             <td>
               <div class="btn-group">
-                  <button class="btn btn-primary btn-sm" onclick="openAssignmentModal('{{ driver._id }}', event)">Assignment</button>
-                  <button class="btn btn-danger btn-sm" onclick="deleteDriver('{{ driver._id }}')">Удалить</button>
+                    <button class="btn btn-info btn-sm" onclick="showDriverDetails('{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}')">Детали</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAssignmentModal('{{ driver._id }}', event)">Assignment</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteDriver('{{ driver._id }}')">Удалить</button>
               </div>
             </td>
           </tr>
@@ -55,6 +55,15 @@
         <!-- Левая часть -->
         <div class="load-modal-left">
           <form id="driverForm" method="POST" action="/add_driver" enctype="multipart/form-data">
+            <div class="form-group">
+              <label>Hiring Company:</label>
+              <select name="hiring_company" class="form-control">
+                <option value="">—</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
             <div class="form-group"><label>Имя:</label><input type="text" name="name" class="form-control" required></div>
             <div class="form-group"><label>Телефон:</label><input type="text" name="contact_number" class="form-control" required></div>
             <div class="form-group"><label>Адрес:</label><input type="text" name="address" class="form-control"></div>

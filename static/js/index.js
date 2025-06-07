@@ -9,7 +9,6 @@ function initNavigation() {
     },
     'drivers': () => {
       initDriverFilter?.();
-      initClickableRows?.();
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();

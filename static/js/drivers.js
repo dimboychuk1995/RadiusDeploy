@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     initDriverFilter();
-    initClickableRows();
     initDriverModalActions();
+    bindAssignmentForm(); // ← ЭТОГО НЕ ХВАТАЕТ
 });
 
 function initDriverFilter() {
@@ -30,17 +30,6 @@ function initDriverFilter() {
     nameInput.addEventListener("input", filterDrivers);
     unitInput.addEventListener("input", filterDrivers);
     dispatcherSelect.addEventListener("change", filterDrivers);
-}
-
-function initClickableRows() {
-    document.querySelectorAll(".clickable-row").forEach(row => {
-        const href = row.getAttribute("data-href");
-        if (href) {
-            row.addEventListener("click", () => {
-                loadDriverDetailsFragment(href);
-            });
-        }
-    });
 }
 
 function initDriverModalActions() {
@@ -117,57 +106,60 @@ function loadDriverDetailsFragment(href) {
         });
 }
 
+window.showDriverDetails = function(href) {
+    loadDriverDetailsFragment(href);
+};
+
 function highlightExpiringDrivers() {
-  const rows = document.querySelectorAll('#driversTable tbody tr');
-  const today = new Date();
+    const rows = document.querySelectorAll('#driversTable tbody tr');
+    const today = new Date();
 
-  rows.forEach(row => {
-    const status = row.children[6]?.innerText.trim();
-    if (status !== 'Active') return;
+    rows.forEach(row => {
+        const status = row.children[6]?.innerText.trim();
+        if (status !== 'Active') return;
 
-    const warnings = [];
-    let rowClass = '';
+        const warnings = [];
+        let rowClass = '';
 
-    const checks = [
-      { label: 'Driver License', index: 12 },
-      { label: 'Medical Card', index: 15 },
-      { label: 'Drug Test', index: 17 }
-    ];
+        const checks = [
+            { label: 'Driver License', index: 12 },
+            { label: 'Medical Card', index: 15 },
+            { label: 'Drug Test', index: 17 }
+        ];
 
-    for (const check of checks) {
-      const dateStr = row.children[check.index]?.innerText.trim();
-      if (!dateStr) continue;
+        for (const check of checks) {
+            const dateStr = row.children[check.index]?.innerText.trim();
+            if (!dateStr) continue;
 
-      const [month, day, year] = dateStr.split('/');
-      if (!month || !day || !year) continue;
+            const [month, day, year] = dateStr.split('/');
+            if (!month || !day || !year) continue;
 
-      const expDate = new Date(`${year}-${month}-${day}`);
-      const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
+            const expDate = new Date(`${year}-${month}-${day}`);
+            const diffDays = Math.ceil((expDate - today) / (1000 * 60 * 60 * 24));
 
-      if (diffDays < 0) {
-        rowClass = 'table-danger';
-        warnings.push(`❌ ${check.label} Expired`);
-      } else if (diffDays <= 30) {
-        if (rowClass !== 'table-danger') rowClass = 'table-warning';
-        warnings.push(`⚠️ ${check.label} Expiring Soon`);
-      }
-    }
+            if (diffDays < 0) {
+                rowClass = 'table-danger';
+                warnings.push(`❌ ${check.label} Expired`);
+            } else if (diffDays <= 30) {
+                if (rowClass !== 'table-danger') rowClass = 'table-warning';
+                warnings.push(`⚠️ ${check.label} Expiring Soon`);
+            }
+        }
 
-    if (rowClass) {
-      row.classList.add(rowClass);
-      row.setAttribute('data-toggle', 'tooltip');
-      row.setAttribute('data-html', 'true');
-      row.setAttribute('title', warnings.join('<br>'));
-    }
-  });
+        if (rowClass) {
+            row.classList.add(rowClass);
+            row.setAttribute('data-toggle', 'tooltip');
+            row.setAttribute('data-html', 'true');
+            row.setAttribute('title', warnings.join('<br>'));
+        }
+    });
 
-  // Инициализация Bootstrap tooltips с html-разметкой
-  $('[data-toggle="tooltip"]').tooltip({
-    trigger: 'hover',
-    placement: 'top',
-    container: 'body',
-    html: true
-  });
+    $('[data-toggle="tooltip"]').tooltip({
+        trigger: 'hover',
+        placement: 'top',
+        container: 'body',
+        html: true
+    });
 }
 
 function openAssignmentModal(driverId, event) {
@@ -178,59 +170,65 @@ function openAssignmentModal(driverId, event) {
 
   if (!modal || !backdrop) return;
 
-  modal.classList.remove("hidden"); // ← Убираем display: none
+  modal.classList.remove("hidden");
   requestAnimationFrame(() => {
-    modal.classList.add("open"); // ← Сработает transition
+    modal.classList.add("open");
     backdrop.classList.add("show");
   });
 
   document.getElementById("assignmentDriverId").value = driverId;
+
+  // ✅ Перенесли сюда, потому что форма уже в DOM
+  bindAssignmentForm();
 }
 
 
 function closeAssignmentModal() {
-  const modal = document.getElementById("assignmentModal");
-  const backdrop = modal.nextElementSibling;
+    const modal = document.getElementById("assignmentModal");
+    const backdrop = modal.nextElementSibling;
 
-  if (!modal || !backdrop) return;
+    if (!modal || !backdrop) return;
 
-  modal.classList.remove("open");
-  backdrop.classList.remove("show");
+    modal.classList.remove("open");
+    backdrop.classList.remove("show");
 
-  // Скрываем через timeout после завершения анимации
-  setTimeout(() => {
-    modal.classList.add("hidden");
-  }, 300); // должно совпадать с transition-duration в .custom-offcanvas
+    setTimeout(() => {
+        modal.classList.add("hidden");
+    }, 300);
 }
 
 function bindAssignmentForm() {
-  const form = document.getElementById("assignmentForm");
+    const form = document.getElementById("assignmentForm");
 
-  form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-
-    const formData = new FormData(form);
-    const data = {};
-
-    for (const [key, value] of formData.entries()) {
-      data[key] = value;
+    if (!form) {
+        console.warn("⚠️ assignmentForm not found in DOM.");
+        return; // ❌ форма ещё не загружена — ничего не делаем
     }
 
-    try {
-      const response = await fetch("/api/driver/assign", {
-          method: "POST",
-          body: formData,
-        });
+    // Защита от двойного навешивания
+    if (form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
 
-      if (response.ok) {
-        closeAssignmentModal();
-        location.reload(); // ⬅️ обновление страницы
-      } else {
-        alert("Ошибка при сохранении назначения");
-      }
-    } catch (error) {
-      console.error("Ошибка при отправке:", error);
-      alert("Ошибка при отправке формы");
-    }
-  });
+    form.addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch("/api/driver/assign", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (response.ok) {
+                closeAssignmentModal();
+                location.reload();
+            } else {
+                alert("Ошибка при сохранении назначения");
+            }
+        } catch (error) {
+            console.error("Ошибка при отправке:", error);
+            alert("Ошибка при отправке формы");
+        }
+    });
 }

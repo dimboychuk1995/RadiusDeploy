@@ -56,6 +56,7 @@ def drivers_fragment():
         # Только нужные поля из trucks и dispatchers
         trucks = list(trucks_collection.find({'company': current_user.company}, {"_id": 1, "unit_number": 1}))
         dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}, {"_id": 1, "username": 1}))
+        companies = list(db['companies'].find({}, {"_id": 1, "name": 1}))
 
         # Сопоставления по ID
         truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
@@ -67,7 +68,7 @@ def drivers_fragment():
             drivers[i]['truck_unit'] = truck_units.get(str(drivers[i].get('truck')), 'Нет трака')
             drivers[i]['dispatcher_name'] = dispatcher_map.get(str(drivers[i].get('dispatcher')), 'Нет диспетчера')
 
-        return render_template('fragments/drivers_fragment.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers)
+        return render_template('fragments/drivers_fragment.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers, companies=companies)
     except Exception as e:
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
@@ -109,6 +110,7 @@ def add_driver():
             'truck': ObjectId(request.form.get('truck')) if request.form.get('truck') else None,
             'dispatcher': ObjectId(request.form.get('dispatcher')) if request.form.get('dispatcher') else None,
             'company': current_user.company,
+            'hiring_company': ObjectId(request.form.get('hiring_company')) if request.form.get('hiring_company') else None,
             'license': {
                 'number': request.form.get('license_number'),
                 'class': request.form.get('license_class'),
