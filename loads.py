@@ -29,6 +29,7 @@ fs = gridfs.GridFS(db)
 loads_collection = db['loads']
 drivers_collection = db['drivers']
 users_collection = db['users']
+companies_collection = db["companies"]
 
 companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 dispatchers = list(db["users"].find({"role": "dispatch"}, {"_id": 1, "username": 1}))
@@ -373,16 +374,34 @@ def customers_list():
 @login_required
 def loads_fragment():
     try:
-        # Получаем карту водителей (id -> name)
-        drivers = list(drivers_collection.find({'company': current_user.company}, {"_id": 1, "name": 1}))
+        # Получаем все компании (если используется переменная companies в шаблоне)
+        companies = list(companies_collection.find({'owner': current_user.company}))
+
+        # Получаем всех водителей компании
+        all_drivers = list(drivers_collection.find(
+            {'company': current_user.company},
+            {"_id": 1, "name": 1, "dispatcher": 1}
+        ))
+
+        # Разделяем на "моих" и "остальных", если это диспетчер
+        if hasattr(current_user, 'role') and current_user.role == 'dispatch':
+            dispatcher_id = ObjectId(current_user.get_id())
+            own_drivers = [d for d in all_drivers if d.get('dispatcher') == dispatcher_id]
+            other_drivers = [d for d in all_drivers if d.get('dispatcher') != dispatcher_id]
+            drivers = own_drivers + other_drivers
+        else:
+            drivers = all_drivers
+
+        # Карта ID -> name
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
+        # Получаем список диспетчеров
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
             {"_id": 1, "username": 1}
         ))
 
-        # Вытягиваем только нужные поля из коллекции loads
+        # Получаем список грузов
         loads = list(loads_collection.find(
             {'company': current_user.company},
             {
@@ -412,10 +431,11 @@ def loads_fragment():
             companies=companies,
             dispatchers=dispatchers,
             current_user=current_user,
-            current_user_id=current_user.get_id()  # ✅ безопасно и работает всегда
+            current_user_id=str(current_user.get_id())  # безопасно как строка
         )
 
     except Exception as e:
+        print("Ошибка в loads_fragment:", e)
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
 

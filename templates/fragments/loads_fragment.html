@@ -118,9 +118,22 @@
             <div class="form-group">
               <label>Водитель</label>
               <select name="assigned_driver" class="form-control">
-                {% for driver in drivers %}
-                <option value="{{ driver._id }}">{{ driver.name }}</option>
-                {% endfor %}
+                {% if current_user.role == 'dispatch' %}
+                  <optgroup label="Мои водители">
+                    {% for driver in drivers if driver.dispatcher|string == current_user_id %}
+                      <option value="{{ driver._id }}">{{ driver.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                  <optgroup label="Другие водители">
+                    {% for driver in drivers if driver.dispatcher|string != current_user_id %}
+                      <option value="{{ driver._id }}">{{ driver.name }}</option>
+                    {% endfor %}
+                  </optgroup>
+                {% else %}
+                  {% for driver in drivers %}
+                    <option value="{{ driver._id }}">{{ driver.name }}</option>
+                  {% endfor %}
+                {% endif %}
               </select>
             </div>
 
