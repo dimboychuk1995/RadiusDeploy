@@ -39,8 +39,7 @@
           <td>
             <button class="btn btn-sm btn-info" onclick="showLoadDetails('{{ load._id }}')">Детали</button>
             <button class="btn btn-sm btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
-            <button class="btn btn-sm btn-warning" onclick="openAssignDriverModal('{{ load._id }}')">Назначить</button>
-
+            <button class="btn btn-sm btn-warning" onclick="openAssignDriverModal('{{ load._id }}', '{{ load.assigned_driver }}')">Назначить</button>
           </td>
         </tr>
       {% endfor %}
@@ -244,11 +243,25 @@
         <div class="form-group mb-3">
           <label for="assign-driver-select">Выберите водителя</label>
           <select name="driver_id" id="assign-driver-select" class="form-control" required>
-            <option value="">-- Не выбран --</option>
-            {% for driver in drivers %}
-              <option value="{{ driver._id }}">{{ driver.name }}</option>
-            {% endfor %}
-          </select>
+              <option value="">-- Не выбран --</option>
+
+              {% if current_user.role == 'dispatch' %}
+                <optgroup label="Мои водители">
+                  {% for driver in drivers if driver.dispatcher|string == current_user_id %}
+                    <option value="{{ driver._id }}">{{ driver.name }}</option>
+                  {% endfor %}
+                </optgroup>
+                <optgroup label="Другие водители">
+                  {% for driver in drivers if driver.dispatcher|string != current_user_id %}
+                    <option value="{{ driver._id }}">{{ driver.name }}</option>
+                  {% endfor %}
+                </optgroup>
+              {% else %}
+                {% for driver in drivers %}
+                  <option value="{{ driver._id }}">{{ driver.name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
         </div>
 
         <div class="d-flex justify-content-end mt-4">

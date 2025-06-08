@@ -175,55 +175,37 @@ function deleteLoad(loadId) {
     });
 }
 
-function openAssignDriverModal(loadId) {
-  document.getElementById("assign-load-id").value = loadId;
-  document.getElementById("assignDriverModal").classList.add("open");
-  document.getElementById("assignDriverBackdrop").classList.add("show");
+document.addEventListener("DOMContentLoaded", () => {
+  initLoads();
+});
+
+// === Назначение водителя ===
+function openAssignDriverModal(loadId, currentDriverId = null) {
+  const modal = document.getElementById("assignDriverModal");
+  const backdrop = document.getElementById("assignDriverBackdrop");
+  const input = document.getElementById("assign-load-id");
+  const select = document.getElementById("assign-driver-select");
+
+  if (input) input.value = loadId;
+
+  // Установить выбранного водителя, если он есть
+  if (select && currentDriverId) {
+    select.value = currentDriverId;
+  } else if (select) {
+    select.value = "";
+  }
+
+  modal.classList.add("open");
+  backdrop.classList.add("show");
 }
 
 function closeAssignDriverModal() {
-  document.getElementById("assignDriverModal").classList.remove("open");
-  document.getElementById("assignDriverBackdrop").classList.remove("show");
+  const modal = document.getElementById("assignDriverModal");
+  const backdrop = document.getElementById("assignDriverBackdrop");
+
+  modal.classList.remove("open");
+  backdrop.classList.remove("show");
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  // === Loads init ===
-  initLoads();
-
-  // === Assign Driver Submit ===
-  const form = document.getElementById("assignDriverForm");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-
-      const loadId = document.getElementById("assign-load-id").value;
-      const driverId = document.getElementById("assign-driver-select").value;
-
-      fetch(`/api/assign_driver`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ load_id: loadId, driver_id: driverId })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            alert("Водитель назначен");
-            closeAssignDriverModal();
-            location.reload(); // или обновить таблицу
-          } else {
-            alert("Ошибка: " + data.message);
-          }
-        })
-        .catch(err => {
-          console.error("Ошибка при назначении:", err);
-          alert("Произошла ошибка");
-        });
-    });
-  }
-});
-
 
 function submitAssignDriver() {
   const loadId = document.getElementById("assign-load-id").value;
@@ -241,7 +223,7 @@ function submitAssignDriver() {
       if (data.success) {
         alert("Водитель назначен");
         closeAssignDriverModal();
-        location.reload();
+        location.reload(); // можно заменить на обновление только строки
       } else {
         alert("Ошибка: " + data.message);
       }
@@ -251,4 +233,5 @@ function submitAssignDriver() {
       alert("Произошла ошибка");
     });
 }
+
 
