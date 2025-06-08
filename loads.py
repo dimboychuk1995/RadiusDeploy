@@ -279,6 +279,18 @@ def add_load():
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
 
+        # === Водитель и Power Unit ===
+        assigned_driver_id = request.form.get("assigned_driver")
+        assigned_power_unit = None
+
+        if assigned_driver_id:
+            driver = drivers_collection.find_one({
+                "_id": ObjectId(assigned_driver_id),
+                "company": current_user.company
+            })
+            if driver and driver.get("truck"):
+                assigned_power_unit = driver["truck"]
+
         # === Груз ===
         load_data = {
             "load_id": request.form.get("load_id"),
@@ -295,8 +307,9 @@ def add_load():
             "total_miles": request.form.get("total_miles"),
             "load_description": request.form.get("load_description"),
             "vehicles": vehicles if vehicles else None,
-            "assigned_driver": ObjectId(request.form.get("assigned_driver")) if request.form.get("assigned_driver") else None,
+            "assigned_driver": ObjectId(assigned_driver_id) if assigned_driver_id else None,
             "assigned_dispatch": ObjectId(request.form.get("assigned_dispatch")) if request.form.get("assigned_dispatch") else None,
+            "assigned_power_unit": assigned_power_unit,
             "pickup": {
                 "company": request.form.get("pickup_company"),
                 "address": request.form.get("pickup_address"),
@@ -374,34 +387,40 @@ def customers_list():
 @login_required
 def loads_fragment():
     try:
-        # Получаем все компании (если используется переменная companies в шаблоне)
-        companies = list(companies_collection.find({'owner': current_user.company}))
+        # Получаем все компании (если используется в шаблоне)
+        companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 
-        # Получаем всех водителей компании
+        # Получаем всех водителей компании с нужными полями
         all_drivers = list(drivers_collection.find(
             {'company': current_user.company},
-            {"_id": 1, "name": 1, "dispatcher": 1}
+            {"_id": 1, "name": 1, "dispatcher": 1, "status": 1, "truck": 1}
         ))
 
-        # Разделяем на "моих" и "остальных", если это диспетчер
+        # Фильтруем: только активные и у которых есть трак
+        filtered_drivers = [
+            d for d in all_drivers
+            if d.get('status') == 'Active' and d.get('truck')
+        ]
+
+        # Если диспетчер — свои водители вверх
         if hasattr(current_user, 'role') and current_user.role == 'dispatch':
             dispatcher_id = ObjectId(current_user.get_id())
-            own_drivers = [d for d in all_drivers if d.get('dispatcher') == dispatcher_id]
-            other_drivers = [d for d in all_drivers if d.get('dispatcher') != dispatcher_id]
+            own_drivers = [d for d in filtered_drivers if d.get('dispatcher') == dispatcher_id]
+            other_drivers = [d for d in filtered_drivers if d.get('dispatcher') != dispatcher_id]
             drivers = own_drivers + other_drivers
         else:
-            drivers = all_drivers
+            drivers = filtered_drivers
 
-        # Карта ID -> name
+        # Карта ID -> имя
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
-        # Получаем список диспетчеров
+        # Получаем всех диспетчеров
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
             {"_id": 1, "username": 1}
         ))
 
-        # Получаем список грузов
+        # Получаем грузы
         loads = list(loads_collection.find(
             {'company': current_user.company},
             {
@@ -419,7 +438,7 @@ def loads_fragment():
             }
         ))
 
-        # Преобразуем ID водителя в имя
+        # Преобразуем assigned_driver в имя
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
@@ -431,7 +450,7 @@ def loads_fragment():
             companies=companies,
             dispatchers=dispatchers,
             current_user=current_user,
-            current_user_id=str(current_user.get_id())  # безопасно как строка
+            current_user_id=str(current_user.get_id())
         )
 
     except Exception as e:
