@@ -62,12 +62,26 @@ function showUnitDetails(truckId) {
     });
 }
 
-function openAssignmentModal(truckId) {
+function openAssignmentModal(truckId, driverId = "", companyId = "") {
   document.getElementById("assignmentTruckId").value = truckId;
-  document.getElementById("assignmentModal").classList.add("show");
-  document.getElementById("assignmentBackdrop").classList.add("show");
 
-  // Позже добавим загрузку водителей и логику назначения
+  const driverSelect = document.getElementById("assignmentDriver");
+  const companySelect = document.getElementById("assignmentCompany");
+
+  if (driverSelect) {
+    Array.from(driverSelect.options).forEach(option => {
+      option.selected = option.value === driverId;
+    });
+  }
+
+  if (companySelect) {
+    Array.from(companySelect.options).forEach(option => {
+      option.selected = option.value === companyId;
+    });
+  }
+
+  document.getElementById("assignmentModal").classList.add("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
 }
 
 function closeAssignmentModal() {

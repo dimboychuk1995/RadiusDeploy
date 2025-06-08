@@ -27,7 +27,9 @@
       <td>
         <button class="btn btn-info btn-sm" onclick="showUnitDetails('{{ truck.id }}'); event.stopPropagation();">Детали</button>
         <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck.id }}'); event.stopPropagation();">Удалить</button>
-        <button class="btn btn-warning btn-sm" onclick="openAssignmentModal('{{ truck.id }}'); event.stopPropagation();">Assignment</button>
+        <button class="btn btn-warning btn-sm" onclick="openAssignmentModal(
+            '{{ truck.id }}','{{ truck.assigned_driver_id or '' }}','{{ truck.owning_company_id or '' }}'); event.stopPropagation();">Assignment</button>
+
       </td>
     </tr>
     {% endfor %}
@@ -126,7 +128,6 @@
 
 
 <!-- Модалка назначения -->
-<!-- Модалка назначения -->
 <div class="custom-offcanvas custom-offcanvas-right" id="assignmentModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -143,9 +144,11 @@
             <div class="form-group">
               <label>Назначить водителя:</label>
               <select name="driver_id" class="form-control" id="assignmentDriver">
-                <option value="">—</option>
-                <!-- Список будет подгружен динамически -->
-              </select>
+                  <option value="">—</option>
+                  {% for driver in drivers %}
+                    <option value="{{ driver._id }}">{{ driver.name }}</option>
+                  {% endfor %}
+                </select>
             </div>
 
             <div class="form-group">

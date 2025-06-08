@@ -30,7 +30,6 @@ def allowed_file(filename):
 @login_required
 def trucks_fragment():
     try:
-        # Коллекции
         companies_collection = db['companies']
         drivers_collection = db['drivers']
 
@@ -38,13 +37,17 @@ def trucks_fragment():
         company_map = {
             str(c['_id']): c.get('name', '—') for c in companies_collection.find({}, {"_id": 1, "name": 1})
         }
+        companies = list(companies_collection.find({}, {"_id": 1, "name": 1}))
 
-        # Загрузка водителей и формирование соответствия: truck_id → driver_name
-        driver_map = {}
-        for driver in drivers_collection.find({'company': current_user.company}, {'truck': 1, 'name': 1}):
+        # Загрузка водителей
+        driver_id_map = {}
+        driver_name_map = {}
+        drivers = list(drivers_collection.find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))
+        for driver in drivers:
             truck_id = str(driver.get('truck'))
             if truck_id:
-                driver_map[truck_id] = driver['name']
+                driver_id_map[truck_id] = str(driver['_id'])        # для подстановки в селект
+                driver_name_map[truck_id] = driver.get('name', '—')  # для отображения
 
         # Загрузка траков
         raw_trucks = trucks_collection.find({'company': current_user.company})
@@ -59,13 +62,17 @@ def trucks_fragment():
                 'unit_number': truck.get('unit_number', '—'),
                 'description': f"{truck.get('year', '')} {truck.get('make', '')} {truck.get('model', '')}".strip(),
                 'type': truck.get('unit_type', '—'),
+                'assigned_driver': driver_name_map.get(truck_id_str, '—'),
+                'assigned_driver_id': driver_id_map.get(truck_id_str, ''),  # <== для подстановки
                 'company_owner': company_map.get(owning_company_id, '—'),
-                'assigned_driver': driver_map.get(truck_id_str, '—'),
+                'owning_company_id': owning_company_id or ''
             })
 
         return render_template(
             'fragments/trucks_fragment.html',
-            trucks=trucks
+            trucks=trucks,
+            companies=companies,
+            drivers=drivers
         )
 
     except Exception as e:
