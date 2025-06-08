@@ -1,49 +1,12 @@
 document.addEventListener("DOMContentLoaded", function () {
   initTruckModalActions();
-  initTruckSearch();
 });
 
-// === ПОИСК ===
-function initTruckSearch() {
-  const searchInput = document.getElementById("search-unit-number");
-  const truckTable = document.getElementById("trucks-table");
-
-  if (searchInput && truckTable) {
-    searchInput.addEventListener("input", function () {
-      const filter = searchInput.value.toLowerCase();
-      const rows = truckTable.getElementsByTagName("tr");
-
-      Array.from(rows).forEach(row => {
-        const unitCell = row.querySelector(".truck-unit");
-        if (unitCell) {
-          const text = unitCell.textContent.toLowerCase();
-          row.style.display = text.includes(filter) ? "" : "none";
-        }
-      });
-    });
-  }
-}
 
 // === МОДАЛКА ===
 function initTruckModalActions() {
   const truckForm = document.getElementById("truckForm");
   const truckModalTitle = document.getElementById("truckModalTitle");
-
-  window.openEditTruckModal = function (truckId) {
-    const row = document.getElementById(`truck-${truckId}`);
-    if (!row || !truckForm) return;
-
-    truckForm.unit_number.value = row.querySelector(".truck-unit")?.textContent.trim() || "";
-    truckForm.year.value = row.querySelector(".truck-year")?.textContent.trim() || "";
-    truckForm.make.value = row.querySelector(".truck-make")?.textContent.trim() || "";
-    truckForm.model.value = row.querySelector(".truck-model")?.textContent.trim() || "";
-    truckForm.mileage.value = row.querySelector(".truck-mileage")?.textContent.trim() || "";
-    truckForm.vin.value = row.querySelector(".truck-vin")?.textContent.trim() || "";
-
-    truckForm.action = `/edit_truck/${truckId}`;
-    truckModalTitle.textContent = "Редактировать грузовик";
-    openTruckModal();
-  };
 
   window.deleteTruck = function (truckId) {
     if (confirm("Вы уверены, что хотите удалить этот грузовик?")) {
@@ -71,10 +34,30 @@ function initTruckModalActions() {
 function openTruckModal() {
   document.getElementById("truckModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
-  initTruckParser(); // 👈 Добавь сюда
+  initTruckParser?.();
 }
 
 function closeTruckModal() {
   document.getElementById("truckModal")?.classList.remove("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+}
+
+// === Показать детали юнита ===
+function showUnitDetails(truckId) {
+  fetch(`/fragment/unit_details/${truckId}`)
+    .then(response => response.text())
+    .then(html => {
+      const section = document.getElementById("section-trucks");
+      const details = document.getElementById("unit_details_fragment");
+
+      if (section && details) {
+        section.style.display = "none";
+        details.innerHTML = html;
+        details.style.display = "block";
+      }
+    })
+    .catch(err => {
+      console.error("Ошибка загрузки деталей юнита:", err);
+      alert("Не удалось загрузить детали.");
+    });
 }

@@ -30,15 +30,47 @@ def allowed_file(filename):
 @login_required
 def trucks_fragment():
     try:
-        trucks = list(trucks_collection.find({'company': current_user.company}))
+        # Коллекции
+        companies_collection = db['companies']
+        drivers_collection = db['drivers']
+
+        # Загрузка компаний
+        company_map = {
+            str(c['_id']): c.get('name', '—') for c in companies_collection.find({}, {"_id": 1, "name": 1})
+        }
+
+        # Загрузка водителей и формирование соответствия: truck_id → driver_name
+        driver_map = {}
+        for driver in drivers_collection.find({'company': current_user.company}, {'truck': 1, 'name': 1}):
+            truck_id = str(driver.get('truck'))
+            if truck_id:
+                driver_map[truck_id] = driver['name']
+
+        # Загрузка траков
+        raw_trucks = trucks_collection.find({'company': current_user.company})
+        trucks = []
+
+        for truck in raw_trucks:
+            truck_id_str = str(truck['_id'])
+            owning_company_id = str(truck.get('owning_company')) if truck.get('owning_company') else None
+
+            trucks.append({
+                'id': truck_id_str,
+                'unit_number': truck.get('unit_number', '—'),
+                'description': f"{truck.get('year', '')} {truck.get('make', '')} {truck.get('model', '')}".strip(),
+                'type': truck.get('unit_type', '—'),
+                'company_owner': company_map.get(owning_company_id, '—'),
+                'assigned_driver': driver_map.get(truck_id_str, '—'),
+            })
+
         return render_template(
             'fragments/trucks_fragment.html',
-            trucks=trucks,
-            truck_types=TRUCK_TYPES,
-            truck_subtypes=TRUCK_SUBTYPES
+            trucks=trucks
         )
+
     except Exception as e:
         logging.error(f"Error loading trucks fragment: {e}")
+        logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to load trucks fragment")
 
 @trucks_bp.route('/add_truck', methods=['POST'])
@@ -66,6 +98,7 @@ def add_truck():
             "subtype": request.form.get("subtype"),
             "company": current_user.company,
             "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get("assigned_driver_id") else None,
+            "owning_company": ObjectId(request.form.get("owning_company")) if request.form.get("owning_company") else None,
 
             "registration": {
                 "license_plate": request.form.get("registration_plate"),

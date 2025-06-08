@@ -9,28 +9,24 @@
   <thead>
     <tr>
       <th>Unit Number</th>
-      <th>Год</th>
-      <th>Производитель</th>
-      <th>Модель</th>
-      <th>Пробег</th>
-      <th>VIN</th>
+      <th>Описание</th>
       <th>Тип</th>
+      <th>Компания-владелец</th>
+      <th>Назначенный водитель</th>
       <th>Действия</th>
     </tr>
   </thead>
   <tbody>
     {% for truck in trucks %}
-    <tr class="clickable-row" data-id="{{ truck._id }}" id="truck-{{ truck._id }}" style="cursor: pointer;">
-      <td class="truck-unit">{{ truck.unit_number }}</td>
-      <td class="truck-year">{{ truck.year }}</td>
-      <td class="truck-make">{{ truck.make }}</td>
-      <td class="truck-model">{{ truck.model }}</td>
-      <td class="truck-mileage">{{ truck.mileage }}</td>
-      <td class="truck-vin">{{ truck.vin }}</td>
-      <td class="truck-type">{{ truck.unit_type }}</td>
+    <tr id="truck-{{ truck.id }}">
+      <td>{{ truck.unit_number }}</td>
+      <td>{{ truck.description }}</td>
+      <td>{{ truck.type }}</td>
+      <td>{{ truck.company_owner }}</td>
+      <td>{{ truck.assigned_driver }}</td>
       <td>
-        <button class="btn btn-primary btn-sm edit-btn" onclick="openEditTruckModal('{{ truck._id }}'); event.stopPropagation();">Редактировать</button>
-        <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck._id }}'); event.stopPropagation();">Удалить</button>
+        <button class="btn btn-info btn-sm" onclick="showUnitDetails('{{ truck.id }}'); event.stopPropagation();">Детали</button>
+        <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck.id }}'); event.stopPropagation();">Удалить</button>
       </td>
     </tr>
     {% endfor %}
@@ -50,14 +46,40 @@
         <!-- Левая часть -->
         <div class="load-modal-left">
           <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+
+            <!-- Новое поле: Компания-владелец -->
+            <div class="form-group">
+              <label>Компания-владелец:</label>
+              <select class="form-control" name="owning_company">
+                <option value="">— Не указано —</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
             <div class="form-group"><label>Unit Number:</label><input type="text" class="form-control" name="unit_number" required></div>
             <div class="form-group"><label>Make:</label><input type="text" class="form-control" name="make" required></div>
             <div class="form-group"><label>Model:</label><input type="text" class="form-control" name="model" required></div>
             <div class="form-group"><label>Year:</label><input type="text" class="form-control" name="year" required></div>
             <div class="form-group"><label>Mileage:</label><input type="text" class="form-control" name="mileage" required></div>
             <div class="form-group"><label>VIN:</label><input type="text" class="form-control" name="vin" required></div>
-            <div class="form-group"><label>Unit Type:</label><select class="form-control" name="unit_type" required>{% for t in truck_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Subtype:</label><select class="form-control" name="subtype" required>{% for st in truck_subtypes %}<option value="{{ st }}">{{ st }}</option>{% endfor %}</select></div>
+            <div class="form-group">
+              <label>Unit Type:</label>
+              <select class="form-control" name="unit_type" required>
+                {% for t in truck_types %}
+                  <option value="{{ t }}">{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Subtype:</label>
+              <select class="form-control" name="subtype" required>
+                {% for st in truck_subtypes %}
+                  <option value="{{ st }}">{{ st }}</option>
+                {% endfor %}
+              </select>
+            </div>
 
             <hr><h5>Registration</h5>
             <div class="form-group"><label>License Plate:</label><input type="text" class="form-control" name="registration_plate"></div>
@@ -83,6 +105,7 @@
             </div>
           </form>
         </div>
+
 
         <!-- Правая часть -->
         <div class="load-modal-right">

@@ -4,7 +4,6 @@ function initNavigation() {
   const fragmentInitializers = {
     'trucks': () => {
       initTruckModalActions?.();
-      initTruckSearch?.();
       initTruckDetailsClick?.();
     },
     'drivers': () => {
