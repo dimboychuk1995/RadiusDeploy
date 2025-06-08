@@ -27,6 +27,7 @@
       <td>
         <button class="btn btn-info btn-sm" onclick="showUnitDetails('{{ truck.id }}'); event.stopPropagation();">Детали</button>
         <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck.id }}'); event.stopPropagation();">Удалить</button>
+        <button class="btn btn-warning btn-sm" onclick="openAssignmentModal('{{ truck.id }}'); event.stopPropagation();">Assignment</button>
       </td>
     </tr>
     {% endfor %}
@@ -122,3 +123,56 @@
 </div>
 
 <div class="custom-offcanvas-backdrop" onclick="closeTruckModal()"></div>
+
+
+<!-- Модалка назначения -->
+<!-- Модалка назначения -->
+<div class="custom-offcanvas custom-offcanvas-right" id="assignmentModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Assignment</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeAssignmentModal()">✖</button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="assignmentForm">
+            <input type="hidden" name="truck_id" id="assignmentTruckId">
+
+            <div class="form-group">
+              <label>Назначить водителя:</label>
+              <select name="driver_id" class="form-control" id="assignmentDriver">
+                <option value="">—</option>
+                <!-- Список будет подгружен динамически -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Назначить компанию-владельца:</label>
+              <select name="owning_company" class="form-control" id="assignmentCompany">
+                <option value="">—</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Комментарий:</label>
+              <textarea name="note" class="form-control" placeholder="Дополнительная информация..."></textarea>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeAssignmentModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Фон -->
+<div class="custom-offcanvas-backdrop" onclick="closeAssignmentModal()"></div>

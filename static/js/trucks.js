@@ -61,3 +61,16 @@ function showUnitDetails(truckId) {
       alert("Не удалось загрузить детали.");
     });
 }
+
+function openAssignmentModal(truckId) {
+  document.getElementById("assignmentTruckId").value = truckId;
+  document.getElementById("assignmentModal").classList.add("show");
+  document.getElementById("assignmentBackdrop").classList.add("show");
+
+  // Позже добавим загрузку водителей и логику назначения
+}
+
+function closeAssignmentModal() {
+  document.getElementById("assignmentModal").classList.remove("show");
+  document.getElementById("assignmentBackdrop").classList.remove("show");
+}
