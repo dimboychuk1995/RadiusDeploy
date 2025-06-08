@@ -29,6 +29,9 @@ function initLoads() {
     });
     observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
   }
+
+  expandAllCompanySections();
+
 }
 
 // === Extra Pickup ===
@@ -234,4 +237,27 @@ function submitAssignDriver() {
     });
 }
 
+function toggleCompanySection(companyId) {
+  const section = document.getElementById(`section-${companyId}`);
+  const icon = document.getElementById(`icon-${companyId}`);
+
+  const isVisible = section.style.display !== "none";
+
+  if (isVisible) {
+    section.style.display = "none";
+    icon.innerHTML = "&#9654;"; // ▶
+  } else {
+    section.style.display = "block";
+    icon.innerHTML = "&#9660;"; // ▼
+  }
+}
+
+function expandAllCompanySections() {
+  document.querySelectorAll(".company-section").forEach(section => {
+    section.style.display = "block";
+  });
+  document.querySelectorAll(".toggle-icon").forEach(icon => {
+    icon.innerHTML = "&#9660;"; // ▼
+  });
+}
 

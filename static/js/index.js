@@ -59,8 +59,10 @@ function initNavigation() {
         .then(html => {
           section.innerHTML = html;
           section.dataset.loaded = "true";
-          fragmentInitializers[sectionKey]?.();
+          fragmentInitializers[sectionKey]?.();  // вызываем после загрузки
         });
+    } else {
+      fragmentInitializers[sectionKey]?.();  // ⬅ вызываем даже если уже загружено
     }
   }
 

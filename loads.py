@@ -291,10 +291,14 @@ def add_load():
             if driver and driver.get("truck"):
                 assigned_power_unit = driver["truck"]
 
+        # ✅ Преобразуем company_sign в ObjectId
+        company_sign_raw = request.form.get("company_sign")
+        company_sign = ObjectId(company_sign_raw) if company_sign_raw and ObjectId.is_valid(company_sign_raw) else None
+
         # === Груз ===
         load_data = {
             "load_id": request.form.get("load_id"),
-            "company_sign": ObjectId(request.form.get("company_sign")) if request.form.get("company_sign") else None,
+            "company_sign": company_sign,
             "broker_load_id": partner_name,
             "broker_id": broker_id,
             "broker_customer_type": partner_type,
@@ -341,7 +345,7 @@ def add_load():
 
         loads_collection.insert_one(load_data)
 
-        # === Отправка email водителю ===
+        # === Email водителю ===
         if load_data.get("assigned_driver"):
             driver = drivers_collection.find_one({"_id": load_data["assigned_driver"]})
             company = db["companies"].find_one({"name": "UWC"})
@@ -434,14 +438,18 @@ def loads_fragment():
                 "RPM": 1,
                 "status": 1,
                 "payment_status": 1,
-                "extra_stops": 1
+                "extra_stops": 1,
+                "company_sign": 1  # ✅ добавлено поле
             }
         ))
 
-        # Преобразуем assigned_driver в имя
+        # Преобразуем assigned_driver и company_sign
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
+
+            if load.get("company_sign"):
+                load["company_sign"] = str(load["company_sign"])
 
         return render_template(
             "fragments/loads_fragment.html",
