@@ -243,3 +243,52 @@ Document:
     except Exception as e:
         logging.exception("❌ Ошибка при анализе PDF для трака")
         return jsonify({'error': f'Ошибка при анализе: {str(e)}'}), 500
+
+
+@trucks_bp.route("/api/driver/assign", methods=["POST"])
+@login_required
+def assign_truck():
+    try:
+        driver_id = request.form.get("driver_id")
+        truck_id = request.form.get("truck_id")
+        owning_company = request.form.get("owning_company")
+        note = request.form.get("note")
+
+        if not truck_id:
+            return jsonify({"success": False, "message": "Не передан ID трака"})
+
+        # Очистить у всех водителей поле truck, где стоит этот трак
+        drivers_collection = db['drivers']
+        drivers_collection.update_many(
+            {"truck": ObjectId(truck_id)},
+            {"$unset": {"truck": ""}}
+        )
+
+        # Назначить новому водителю, если указан
+        if driver_id:
+            drivers_collection.update_one(
+                {"_id": ObjectId(driver_id)},
+                {"$set": {"truck": ObjectId(truck_id)}}
+            )
+
+        # Обновить owning_company в траке, если указано
+        update_fields = {}
+        if owning_company:
+            update_fields["owning_company"] = ObjectId(owning_company)
+        else:
+            update_fields["owning_company"] = None
+
+        if note:
+            update_fields["assignment_note"] = note
+
+        if update_fields:
+            trucks_collection.update_one(
+                {"_id": ObjectId(truck_id), "company": current_user.company},
+                {"$set": update_fields}
+            )
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        logging.error(f"Ошибка при назначении трака: {e}")
+        return jsonify({"success": False, "message": "Ошибка сервера"})

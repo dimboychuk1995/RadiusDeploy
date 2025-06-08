@@ -2,8 +2,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initTruckModalActions();
 });
 
-
-// === МОДАЛКА ===
+// === МОДАЛКА ДОБАВЛЕНИЯ ГРУЗОВИКА ===
 function initTruckModalActions() {
   const truckForm = document.getElementById("truckForm");
   const truckModalTitle = document.getElementById("truckModalTitle");
@@ -29,12 +28,37 @@ function initTruckModalActions() {
       openTruckModal();
     }
   });
+
+  document.getElementById("assignmentForm")?.addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    fetch("/api/driver/assign", {
+      method: "POST",
+      body: formData
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          closeAssignmentModal();
+          location.reload(); // Или обновить только строку — если нужно, скажи
+        } else {
+          alert("Ошибка при сохранении назначения");
+        }
+      })
+      .catch(err => {
+        console.error("Ошибка при назначении:", err);
+        alert("Ошибка сети");
+      });
+  });
 }
 
+// === ОТКРЫТЬ/ЗАКРЫТЬ truckModal ===
 function openTruckModal() {
   document.getElementById("truckModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
-  initTruckParser?.();
+  initTruckParser?.(); // если используешь парсинг
 }
 
 function closeTruckModal() {
@@ -62,6 +86,7 @@ function showUnitDetails(truckId) {
     });
 }
 
+// === Модалка назначения ===
 function openAssignmentModal(truckId, driverId = "", companyId = "") {
   document.getElementById("assignmentTruckId").value = truckId;
 
@@ -80,11 +105,11 @@ function openAssignmentModal(truckId, driverId = "", companyId = "") {
     });
   }
 
-  document.getElementById("assignmentModal").classList.add("show");
+  document.getElementById("assignmentModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
 }
 
 function closeAssignmentModal() {
-  document.getElementById("assignmentModal").classList.remove("show");
-  document.getElementById("assignmentBackdrop").classList.remove("show");
+  document.getElementById("assignmentModal")?.classList.remove("show");
+  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
