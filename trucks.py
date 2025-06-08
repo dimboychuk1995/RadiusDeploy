@@ -21,7 +21,8 @@ trucks_collection = db['trucks']
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 TRUCK_TYPES = ["Truck", "Trailer"]
-TRUCK_SUBTYPES = ["Flatbed", "Dry Van", "Reefer", "Step Deck", "Lowboy", "Tanker"]
+TRUCK_SUBTYPES = ["Pick Up", "SEMI"]
+TRAILER_SUBTYPE = ["Dry Van","Flat Bed","Flat Bed Conestoga","Step Deck","Reefer","Hot Shot","3 Car Hauler","4 Car Hauler","5 Car Hauler","7 Car Hauler","8 Car Hauler"]
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -72,7 +73,10 @@ def trucks_fragment():
             'fragments/trucks_fragment.html',
             trucks=trucks,
             companies=companies,
-            drivers=drivers
+            drivers=drivers,
+            truck_types=TRUCK_TYPES,
+            truck_subtypes=TRUCK_SUBTYPES,
+            trailer_subtypes=TRAILER_SUBTYPE
         )
 
     except Exception as e:

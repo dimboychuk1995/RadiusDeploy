@@ -42,7 +42,7 @@ function initTruckModalActions() {
       .then(data => {
         if (data.success) {
           closeAssignmentModal();
-          location.reload(); // Или обновить только строку — если нужно, скажи
+          location.reload();
         } else {
           alert("Ошибка при сохранении назначения");
         }
@@ -54,11 +54,46 @@ function initTruckModalActions() {
   });
 }
 
+
 // === ОТКРЫТЬ/ЗАКРЫТЬ truckModal ===
 function openTruckModal() {
   document.getElementById("truckModal")?.classList.add("show");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
-  initTruckParser?.(); // если используешь парсинг
+
+  const unitTypeSelect = document.getElementById("unitTypeSelect");
+  const subtypeSelect = document.getElementById("subtypeSelect");
+
+  const subtypeDataDiv = document.getElementById("subtypes-data");
+  const truckSubtypes = JSON.parse(subtypeDataDiv.dataset.truckSubtypes || "[]");
+  const trailerSubtypes = JSON.parse(subtypeDataDiv.dataset.trailerSubtypes || "[]");
+
+  if (unitTypeSelect && subtypeSelect) {
+    const updateSubtypeOptions = () => {
+      const selectedType = unitTypeSelect.value.trim();
+      let options = [];
+
+      if (selectedType === "Truck") {
+        options = truckSubtypes;
+      } else if (selectedType === "Trailer") {
+        options = trailerSubtypes;
+      }
+
+      subtypeSelect.innerHTML = "";
+
+      options.forEach(subtype => {
+        const opt = document.createElement("option");
+        opt.value = subtype;
+        opt.textContent = subtype;
+        subtypeSelect.appendChild(opt);
+      });
+    };
+
+    unitTypeSelect.removeEventListener("change", updateSubtypeOptions);
+    unitTypeSelect.addEventListener("change", updateSubtypeOptions);
+    updateSubtypeOptions();
+  }
+
+  initTruckParser?.();
 }
 
 function closeTruckModal() {
