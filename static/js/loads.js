@@ -211,31 +211,30 @@ function closeAssignDriverModal() {
 }
 
 function submitAssignDriver() {
+  closeAssignDriverModal(); // 👉 СРАЗУ закрываем
   const loadId = document.getElementById("assign-load-id").value;
   const driverId = document.getElementById("assign-driver-select").value;
 
   fetch(`/api/assign_driver`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ load_id: loadId, driver_id: driverId })
   })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        alert("Водитель назначен");
-        closeAssignDriverModal();
-        location.reload(); // можно заменить на обновление только строки
-      } else {
-        alert("Ошибка: " + data.message);
-      }
-    })
-    .catch(err => {
-      console.error("Ошибка при назначении:", err);
-      alert("Произошла ошибка");
-    });
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert("Водитель назначен");
+      location.reload();
+    } else {
+      alert("Ошибка: " + data.message);
+    }
+  })
+  .catch(err => {
+    console.error("Ошибка при назначении:", err);
+    alert("Произошла ошибка");
+  });
 }
+
 
 function toggleCompanySection(companyId) {
   const section = document.getElementById(`section-${companyId}`);

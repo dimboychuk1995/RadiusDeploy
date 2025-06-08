@@ -678,6 +678,8 @@ def load_details_fragment():
         return "Server error", 500
 
 
+import threading
+
 @loads_bp.route('/api/assign_driver', methods=['POST'])
 @login_required
 def assign_driver_to_load():
@@ -689,36 +691,42 @@ def assign_driver_to_load():
         if not load_id or not driver_id:
             return jsonify({"success": False, "message": "ID груза и водителя обязательны"}), 400
 
-        load = loads_collection.find_one({
-            "_id": ObjectId(load_id),
-            "company": current_user.company
-        })
-
+        load = loads_collection.find_one({"_id": ObjectId(load_id)})
         if not load:
             return jsonify({"success": False, "message": "Груз не найден"}), 404
 
-        driver = drivers_collection.find_one({
-            "_id": ObjectId(driver_id),
-            "company": current_user.company
-        })
-
+        driver = drivers_collection.find_one({"_id": ObjectId(driver_id)})
         if not driver:
             return jsonify({"success": False, "message": "Водитель не найден"}), 404
 
         update_fields = {
             "assigned_driver": ObjectId(driver_id)
         }
-
-        # Если у водителя есть трак — назначим и его
         if driver.get("truck"):
             update_fields["assigned_power_unit"] = driver["truck"]
 
-        loads_collection.update_one(
-            {"_id": ObjectId(load_id)},
-            {"$set": update_fields}
-        )
+        loads_collection.update_one({"_id": ObjectId(load_id)}, {"$set": update_fields})
+
+        # === EMAIL отправляем асинхронно ===
+        if driver.get("email"):
+            company = db["companies"].find_one({"name": driver.get("company")})
+            if company and company.get("email") and company.get("password"):
+                def send_email():
+                    try:
+                        send_load_email_to_driver(
+                            company_email=company["email"],
+                            company_password=company["password"],
+                            driver_email=driver["email"],
+                            driver_name=driver["name"],
+                            load_info=load
+                        )
+                    except Exception as e:
+                        import logging
+                        logging.warning(f"❌ Ошибка при отправке email: {e}")
+                threading.Thread(target=send_email).start()
 
         return jsonify({"success": True})
+
     except Exception as e:
         import traceback
         traceback.print_exc()
