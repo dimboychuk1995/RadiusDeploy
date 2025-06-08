@@ -39,6 +39,8 @@
           <td>
             <button class="btn btn-sm btn-info" onclick="showLoadDetails('{{ load._id }}')">Детали</button>
             <button class="btn btn-sm btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
+            <button class="btn btn-sm btn-warning" onclick="openAssignDriverModal('{{ load._id }}')">Назначить</button>
+
           </td>
         </tr>
       {% endfor %}
@@ -223,3 +225,41 @@
 
 <!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" onclick="closeLoadModal()"></div>
+
+
+<!-- Модалка назначения водителя -->
+<div class="custom-offcanvas custom-offcanvas-right" id="assignDriverModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Назначить водителя</h5>
+      <button type="button" class="close" onclick="closeAssignDriverModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body p-4">
+      <form id="assignDriverForm">
+        <input type="hidden" name="load_id" id="assign-load-id">
+
+        <div class="form-group mb-3">
+          <label for="assign-driver-select">Выберите водителя</label>
+          <select name="driver_id" id="assign-driver-select" class="form-control" required>
+            <option value="">-- Не выбран --</option>
+            {% for driver in drivers %}
+              <option value="{{ driver._id }}">{{ driver.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="d-flex justify-content-end mt-4">
+          <button type="button" class="btn btn-secondary mr-2" onclick="closeAssignDriverModal()">Отмена</button>
+          <!-- 👇 замени кнопку на type="button" -->
+            <button type="button" class="btn btn-primary" onclick="submitAssignDriver()">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Затемнение -->
+<div class="custom-offcanvas-backdrop" id="assignDriverBackdrop" onclick="closeAssignDriverModal()"></div>

@@ -668,3 +668,50 @@ def load_details_fragment():
     except Exception as e:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
         return "Server error", 500
+
+
+@loads_bp.route('/api/assign_driver', methods=['POST'])
+@login_required
+def assign_driver_to_load():
+    try:
+        data = request.get_json()
+        load_id = data.get("load_id")
+        driver_id = data.get("driver_id")
+
+        if not load_id or not driver_id:
+            return jsonify({"success": False, "message": "ID груза и водителя обязательны"}), 400
+
+        load = loads_collection.find_one({
+            "_id": ObjectId(load_id),
+            "company": current_user.company
+        })
+
+        if not load:
+            return jsonify({"success": False, "message": "Груз не найден"}), 404
+
+        driver = drivers_collection.find_one({
+            "_id": ObjectId(driver_id),
+            "company": current_user.company
+        })
+
+        if not driver:
+            return jsonify({"success": False, "message": "Водитель не найден"}), 404
+
+        update_fields = {
+            "assigned_driver": ObjectId(driver_id)
+        }
+
+        # Если у водителя есть трак — назначим и его
+        if driver.get("truck"):
+            update_fields["assigned_power_unit"] = driver["truck"]
+
+        loads_collection.update_one(
+            {"_id": ObjectId(load_id)},
+            {"$set": update_fields}
+        )
+
+        return jsonify({"success": True})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": "Ошибка сервера"}), 500
