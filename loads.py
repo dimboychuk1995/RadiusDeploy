@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import gridfs
-import fitz  # PyMuPDF
+import fitz
 from PIL import Image
 import pytesseract
 import requests

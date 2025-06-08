@@ -118,6 +118,7 @@
             <div class="form-group">
               <label>Водитель</label>
               <select name="assigned_driver" class="form-control">
+                <option value="">-- Не выбран --</option>
                 {% if current_user.role == 'dispatch' %}
                   <optgroup label="Мои водители">
                     {% for driver in drivers if driver.dispatcher|string == current_user_id %}
@@ -135,7 +136,9 @@
                   {% endfor %}
                 {% endif %}
               </select>
+              <small class="form-text text-muted">Вы можете назначить водителя позже</small>
             </div>
+
 
             <div class="form-group">
               <label>Диспетчер</label>
