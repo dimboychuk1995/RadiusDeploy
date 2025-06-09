@@ -2,13 +2,18 @@ let selectedDriverData = null;
 let selectedLoads = [];
 
 function initStatementEvents() {
+    console.log("🟢 initStatementEvents запущен");
+
     const select = $('#driverSelect');
     const createBtn = document.getElementById("createStatementBtn");
     const detailsBlock = document.getElementById("statementDetails");
     const loadsBlock = document.getElementById("driverLoadsBlock");
     const loadsContent = document.getElementById("driverLoadsContent");
 
-    if (!select.length || !createBtn || !detailsBlock || !loadsBlock || !loadsContent) return;
+    if (!select.length || !createBtn || !detailsBlock || !loadsBlock || !loadsContent) {
+        console.warn("❌ Один из элементов не найден. Прерываем init.");
+        return;
+    }
 
     select.select2({
         dropdownParent: $('#createStatementModal'),
@@ -19,13 +24,22 @@ function initStatementEvents() {
 
     select.on('change', function () {
         const driverId = this.value;
+        console.log("➡ Водитель выбран:", driverId);
+
         if (!driverId) {
             createBtn.disabled = true;
             delete createBtn.dataset.driverId;
             detailsBlock.style.display = 'none';
             loadsBlock.style.display = 'none';
-            document.getElementById("driverFuelBlock") && (document.getElementById("driverFuelBlock").style.display = "none");
-            document.getElementById("driverTollsBlock") && (document.getElementById("driverTollsBlock").style.display = "none");
+            const fuelBlock = document.getElementById("driverFuelBlock");
+            if (fuelBlock) fuelBlock.style.display = "none";
+
+            const tollBlock = document.getElementById("driverTollsBlock");
+            if (tollBlock) tollBlock.style.display = "none";
+
+            const chargeBlock = document.getElementById("driverChargesBlock");
+            if (chargeBlock) chargeBlock.style.display = "none";
+
             selectedDriverData = null;
             selectedLoads = [];
             return;
@@ -36,14 +50,22 @@ function initStatementEvents() {
         detailsBlock.style.display = 'block';
 
         populateWeekSelect('#weekSelect');
+        console.log("📅 Календарь инициализирован");
 
         fetch(`/statement/driver_loads/${driverId}`)
-            .then(res => res.text())
+            .then(res => {
+                console.log("🌐 Ответ от /statement/driver_loads/", res.status);
+                if (!res.ok) throw new Error("❌ Ошибка загрузки грузов");
+                return res.text();
+            })
             .then(html => {
+                console.log("📦 HTML грузов (обрезка):", html.slice(0, 150) + '...');
                 loadsBlock.style.display = 'block';
                 loadsContent.innerHTML = html;
 
                 selectedDriverData = getDriverDataById(driverId);
+                console.log("👤 selectedDriverData:", selectedDriverData);
+
                 selectedLoads = parseLoadsFromHTML(html);
 
                 const weekValue = document.getElementById("weekSelect")?.value;
@@ -55,7 +77,7 @@ function initStatementEvents() {
                     const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
                     rows.forEach(row => {
                         const checkbox = row.querySelector('.load-checkbox');
-                        const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+                        const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate?.trim();
                         if (!checkbox || !deliveryStr) return;
 
                         checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
@@ -65,20 +87,22 @@ function initStatementEvents() {
                     calculateAndDisplaySalary();
                     loadFuelTransactions(driverId, weekValue);
                     loadTollTransactions(driverId, weekValue);
-                    loadDriverCharges(selectedDriverData, weekValue); // ✅
+                    loadDriverCharges(selectedDriverData, weekValue);
                 }
 
                 document.getElementById("fuelInput")?.addEventListener('input', calculateAndDisplaySalary);
                 document.getElementById("tollsInput")?.addEventListener('input', calculateAndDisplaySalary);
             })
             .catch(err => {
-                console.error("Ошибка загрузки:", err);
+                console.error("🚨 Ошибка загрузки грузов:", err);
                 loadsContent.innerHTML = '<p class="text-danger">Ошибка загрузки грузов</p>';
             });
     });
 
     document.getElementById("weekSelect")?.addEventListener("change", function () {
         const weekValue = this.value;
+        console.log("📅 Выбрана неделя:", weekValue);
+
         if (weekValue) {
             const [startStr, endStr] = weekValue.split(' - ');
             filterLoadsByDateRange(startStr, endStr);
@@ -87,7 +111,7 @@ function initStatementEvents() {
             const rows = document.querySelectorAll('#driverLoadsContent tbody tr');
             rows.forEach(row => {
                 const checkbox = row.querySelector('.load-checkbox');
-                const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate.trim();
+                const deliveryStr = row.querySelector('[data-delivery-date]')?.dataset.deliveryDate?.trim();
                 if (!checkbox || !deliveryStr) return;
 
                 checkbox.checked = deliveryStr >= startStr && deliveryStr <= endStr;
@@ -99,7 +123,7 @@ function initStatementEvents() {
             if (selectedDriverData?._id) {
                 loadFuelTransactions(selectedDriverData._id, weekValue);
                 loadTollTransactions(selectedDriverData._id, weekValue);
-                loadDriverCharges(selectedDriverData, weekValue); // ✅
+                loadDriverCharges(selectedDriverData, weekValue);
             }
         }
     });
@@ -127,23 +151,23 @@ function initStatementEvents() {
         }
 
         const manualAdjustments = [];
-            document.querySelectorAll("#manualAdjustmentsContainer > [data-idx]").forEach(block => {
-              const type = block.querySelector(".adjustment-type")?.value || "deduction";
-              const target = block.querySelector(".adjustment-target")?.value || "salary";
-              const reason = block.querySelector(".adjustment-reason")?.value || "";
-              const amount = parseFloat(block.querySelector(".adjustment-amount")?.value || 0) || 0;
-              const fileInput = block.querySelector(".adjustment-file");
-              const file = fileInput?.files?.[0] || null;
+        document.querySelectorAll("#manualAdjustmentsContainer > [data-idx]").forEach(block => {
+            const type = block.querySelector(".adjustment-type")?.value || "deduction";
+            const target = block.querySelector(".adjustment-target")?.value || "salary";
+            const reason = block.querySelector(".adjustment-reason")?.value || "";
+            const amount = parseFloat(block.querySelector(".adjustment-amount")?.value || 0) || 0;
+            const fileInput = block.querySelector(".adjustment-file");
+            const file = fileInput?.files?.[0] || null;
 
-              manualAdjustments.push({
+            manualAdjustments.push({
                 type,
                 target,
                 reason,
                 amount,
-                file: null, // пока не отправляем сами файлы
+                file: null,
                 filename: file ? file.name : null
-              });
             });
+        });
 
         fetch("/statement/create", {
             method: "POST",

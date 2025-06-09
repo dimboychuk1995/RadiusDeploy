@@ -15,7 +15,7 @@ function initNavigation() {
     'dispatch_fragment': () => initDispatcherCalendars?.(),
     'dispatch_brokers': () => initBrokerCustomerSection?.(),
     'accounting': () => initAccountingButtons?.(),
-    'statement': () => {
+    'statements': () => {
       initStatementEvents?.();
       initStatementFilter?.();
       initStatementRowClicks?.();
