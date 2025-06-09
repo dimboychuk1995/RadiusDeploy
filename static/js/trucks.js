@@ -41,7 +41,7 @@ function initTruckModalActions() {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          closeAssignmentModal();
+          closeUnitAssignment();
           location.reload();
         } else {
           alert("Ошибка при сохранении назначения");
@@ -54,11 +54,10 @@ function initTruckModalActions() {
   });
 }
 
-
 // === ОТКРЫТЬ/ЗАКРЫТЬ truckModal ===
 function openTruckModal() {
   document.getElementById("truckModal")?.classList.add("show");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+  document.querySelector("#truckModal + .custom-offcanvas-backdrop")?.classList.add("show");
 
   const unitTypeSelect = document.getElementById("unitTypeSelect");
   const subtypeSelect = document.getElementById("subtypeSelect");
@@ -98,7 +97,7 @@ function openTruckModal() {
 
 function closeTruckModal() {
   document.getElementById("truckModal")?.classList.remove("show");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+  document.querySelector("#truckModal + .custom-offcanvas-backdrop")?.classList.remove("show");
 }
 
 // === Показать детали юнита ===
@@ -121,8 +120,8 @@ function showUnitDetails(truckId) {
     });
 }
 
-// === Модалка назначения ===
-function openAssignmentModal(truckId, driverId = "", companyId = "") {
+// === МОДАЛКА НАЗНАЧЕНИЯ ЮНИТА ===
+function openUnitAssignment(truckId, driverId = "", companyId = "") {
   document.getElementById("assignmentTruckId").value = truckId;
 
   const driverSelect = document.getElementById("assignmentDriver");
@@ -140,11 +139,11 @@ function openAssignmentModal(truckId, driverId = "", companyId = "") {
     });
   }
 
-  document.getElementById("assignmentModal")?.classList.add("show");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+  document.getElementById("unitAssignment")?.classList.add("show");
+  document.querySelector("#unitAssignment + .custom-offcanvas-backdrop")?.classList.add("show");
 }
 
-function closeAssignmentModal() {
-  document.getElementById("assignmentModal")?.classList.remove("show");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
+function closeUnitAssignment() {
+  document.getElementById("unitAssignment")?.classList.remove("show");
+  document.querySelector("#unitAssignment + .custom-offcanvas-backdrop")?.classList.remove("show");
 }
