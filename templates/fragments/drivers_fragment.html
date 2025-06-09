@@ -29,7 +29,17 @@
             <td class="driver-type">{{ driver.driver_type }}</td>
             <td>{{ driver.status or "—" }}</td>
             <td class="truck-unit">{{ driver.truck_unit }}</td>
-            <td class="dispatcher-name">{{ driver.dispatcher_name }}</td>
+            <td>
+              <select class="form-control dispatcher-select" data-driver-id="{{ driver._id }}">
+                <option value="">—</option>
+                {% for dispatcher in dispatchers %}
+                  <option value="{{ dispatcher._id }}"
+                    {% if dispatcher._id == driver.dispatcher %}selected{% endif %}>
+                    {{ dispatcher.username }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
             <td>
               <div class="btn-group">
                     <button class="btn btn-info btn-sm" onclick="showDriverDetails('{{ url_for('drivers.driver_details_fragment', driver_id=driver._id) }}')">Детали</button>

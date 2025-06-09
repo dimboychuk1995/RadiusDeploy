@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
     initDriverFilter();
     initDriverModalActions();
+    initDispatcherAssignment();
 });
 
 function initDriverFilter() {
@@ -160,6 +161,31 @@ function highlightExpiringDrivers() {
         html: true
     });
 }
+
+function initDispatcherAssignment() {
+    document.addEventListener("change", (e) => {
+        if (e.target.matches(".dispatcher-select")) {
+            const select = e.target;
+            const driverId = select.dataset.driverId;
+            const dispatcherId = select.value;
+
+            console.log('🟢 Выбран новый диспетчер:', dispatcherId, 'для водителя:', driverId);
+
+            fetch("/api/edit_driver_dispatch/" + driverId, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ dispatcher: dispatcherId })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error("Ошибка при обновлении диспетчера");
+            })
+            .catch(err => {
+                alert("Ошибка при сохранении диспетчера: " + err.message);
+            });
+        }
+    });
+}
+
 
 
 

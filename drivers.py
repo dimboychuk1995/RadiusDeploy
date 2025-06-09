@@ -475,3 +475,27 @@ Document text:
         return jsonify({'error': 'Failed to process the file'}), 500
 
 
+@drivers_bp.route('/api/edit_driver_dispatch/<driver_id>', methods=['POST'])
+@login_required
+def edit_driver_dispatch(driver_id):
+    try:
+        dispatcher_id = request.form.get('dispatcher')
+
+        update_fields = {}
+        if dispatcher_id:
+            update_fields['dispatcher'] = ObjectId(dispatcher_id)
+        else:
+            update_fields['dispatcher'] = None  # очистка, если выбран "—"
+
+        result = drivers_collection.update_one(
+            {'_id': ObjectId(driver_id)},
+            {'$set': update_fields}
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'success': False, 'message': 'Не удалось обновить диспетчера'}), 400
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Ошибка при обновлении диспетчера для водителя {driver_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
