@@ -225,7 +225,17 @@ function initCsvUpload() {
 
         if (res.ok) {
             const result = await res.json();
-            alert(`Импорт завершён:\n✅ Добавлено: ${result.inserted}\n🔁 Обновлено: ${result.updated}\n⏩ Пропущено: ${result.skipped}`);
+            Swal.fire({
+              icon: 'success',
+              title: 'Импорт завершён ✅',
+              html: `
+                <b>Добавлено:</b> ${result.inserted}<br>
+                <b>Обновлено:</b> ${result.updated}<br>
+                <b>Пропущено:</b> ${result.skipped}
+              `,
+              timer: 4000,
+              showConfirmButton: false
+            });
             loadTransponders();
         } else {
             alert('Ошибка при импорте');
@@ -266,7 +276,13 @@ function initTollForm() {
         if (res.ok) {
             form.reset();
             closeTollModal();
-            alert("Toll успешно добавлен");
+            Swal.fire({
+              icon: 'success',
+              title: 'Готово!',
+              text: 'Toll успешно добавлен ✅',
+              timer: 2000,
+              showConfirmButton: false
+            });
             // TODO: loadAllTolls(); если будет отображение
         } else {
             alert("Ошибка при добавлении Toll");
@@ -357,7 +373,11 @@ function initTollCsvUpload() {
 
         const rows = text.split('\n').map(r => r.trim()).filter(Boolean);
         if (rows.length < 2) {
-            alert("Файл пуст или содержит только заголовки");
+            Swal.fire({
+              icon: 'warning',
+              title: 'Пустой файл',
+              text: 'Файл пуст или содержит только заголовки'
+            });
             return;
         }
 
@@ -393,10 +413,7 @@ function initTollCsvUpload() {
             h.trim().replace(/^"(.*)"$/, '$1')
         );
 
-        console.log("🔎 Заголовки из CSV:", originalHeaders);
-
         const mappedHeaders = originalHeaders.map(h => headerMap[h] || null);
-        console.log("🗺️ Маппинг:", mappedHeaders);
 
         const tolls = [];
 
@@ -423,28 +440,60 @@ function initTollCsvUpload() {
             }
         }
 
-        console.log("📊 Финальный список Toll'ов:", tolls);
-
         if (!tolls.length) {
-            alert("Нет валидных строк для импорта.");
+            Swal.fire({
+              icon: 'warning',
+              title: 'Нет данных',
+              text: 'Нет валидных строк для импорта.'
+            });
             return;
         }
 
-        const res = await fetch('/api/tolls/bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: tolls })
+        Swal.fire({
+          title: 'Импортируется...',
+          html: 'Пожалуйста, подождите',
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
         });
 
-        if (res.ok) {
-            const result = await res.json();
-            alert(`Импорт завершён:
-            ✅ Добавлено: ${result.inserted}
-            🔁 Обновлено: ${result.updated}
-            ⏩ Пропущено: ${result.skipped}`);
-            loadAllTolls();
-        } else {
-            alert("Ошибка при импорте Toll'ов");
+        try {
+            const res = await fetch('/api/tolls/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items: tolls })
+            });
+
+            if (res.ok) {
+                const result = await res.json();
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Импорт завершён ✅',
+                  html: `
+                    <b>Добавлено:</b> ${result.inserted}<br>
+                    <b>Обновлено:</b> ${result.updated}<br>
+                    <b>Пропущено:</b> ${result.skipped}
+                  `,
+                  timer: 4000,
+                  showConfirmButton: false
+                });
+                loadAllTolls();
+            } else {
+                Swal.fire({
+                  icon: 'error',
+                  title: 'Ошибка',
+                  text: 'Не удалось импортировать Toll\'ы.'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+              icon: 'error',
+              title: 'Ошибка сети',
+              text: 'Сервер не отвечает или произошла ошибка запроса.'
+            });
+            console.error("Ошибка при импорте:", error);
         }
     };
 }

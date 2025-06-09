@@ -3,6 +3,8 @@ from flask_login import login_required, current_user
 from flask import current_app
 from tools.db import db  # централизованное подключение к базе
 from bson.objectid import ObjectId, InvalidId
+from collections import defaultdict
+from datetime import datetime
 
 tolls_bp = Blueprint('tolls', __name__)
 transponders_collection = db['transponders']
@@ -206,7 +208,7 @@ def bulk_import_tolls():
     }), 200
 
 
-from datetime import datetime
+
 
 @tolls_bp.route('/api/tolls_summary', methods=['GET'])
 @login_required
@@ -223,14 +225,20 @@ def tolls_summary():
             start_dt = datetime.strptime(start_date_str, "%m/%d/%Y")
             end_dt = datetime.strptime(end_date_str, "%m/%d/%Y")
         except ValueError:
-            pass  # неверный формат — игнорируем
+            pass
 
+    # Группируем транспондеры по serial_number
     transponders = list(db['transponders'].find({'company': company}))
-    summary = []
-
+    grouped = defaultdict(list)
     for t in transponders:
         serial = t.get('serial_number')
-        vehicle_id = t.get('vehicle')
+        if serial:
+            grouped[serial].append(t)
+
+    summary = []
+
+    for serial, items in grouped.items():
+        vehicle_id = items[0].get('vehicle')  # Берём vehicle первого транспондера
 
         unit_info = {
             'unit_number': '',
@@ -254,12 +262,10 @@ def tolls_summary():
                     'year': truck.get('year', '')
                 })
 
-                # Найти водителя по этому траку
                 driver = db['drivers'].find_one({
                     'truck': truck['_id'],
                     'company': company
                 })
-
                 if driver:
                     unit_info['driver_name'] = driver.get('name', '')
 
@@ -271,8 +277,6 @@ def tolls_summary():
             }
 
         matches = list(db['all_tolls'].find(query))
-
-        count = len(matches)
         total = sum(
             float(toll.get('amount', 0)) for toll in matches
             if isinstance(toll.get('amount'), (int, float)) or str(toll.get('amount')).replace('$', '').replace(',', '').replace('-', '').replace('.', '').isdigit()
@@ -280,7 +284,7 @@ def tolls_summary():
 
         summary.append({
             'serial_number': serial,
-            'count': count,
+            'count': len(matches),
             'total': round(total, 2),
             **unit_info
         })

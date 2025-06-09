@@ -38,7 +38,6 @@ function initNavigation() {
       loadAllTolls?.(0, limitPerPage);
       initTollCsvUpload?.();
       populateTollSummaryWeeks?.();
-      loadTollsSummary?.();
     },
     'fleet': () => {
       initFleet?.();
