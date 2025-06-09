@@ -565,8 +565,6 @@ function populateTollSummaryWeeks() {
     const today = new Date();
     const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    let defaultValue = '';
-
     for (let i = 0; i < 12; i++) {
         const range = getWeekRange(new Date(base.getFullYear(), base.getMonth(), base.getDate() - i * 7));
         const value = `${range.start}|${range.end}`;
@@ -575,11 +573,6 @@ function populateTollSummaryWeeks() {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = label;
-
-        if (i === 1) {
-            option.selected = true;
-            defaultValue = value;
-        }
 
         select.appendChild(option);
     }
@@ -590,14 +583,9 @@ function populateTollSummaryWeeks() {
             const [start, end] = val.split('|');
             loadTollsSummary(start, end);
         } else {
-            loadTollsSummary();
+            // Если выбрано "— Все недели —"
+            document.getElementById('tollsSummaryTableBody').innerHTML = '';
         }
     });
-
-    // 🚀 Автоматически загрузим прошлую неделю
-    if (defaultValue) {
-        const [start, end] = defaultValue.split('|');
-        loadTollsSummary(start, end);
-    }
 }
 
