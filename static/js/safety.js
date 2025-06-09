@@ -110,10 +110,20 @@ function bindInspectionForm() {
 
       const result = await res.json();
       if (result.success) {
-        alert("Инспекция сохранена!");
-        form.reset();
-        document.getElementById("violations-container").innerHTML = "";
-        closeInspectionModal();
+          Swal.fire({
+              title: 'Успех!',
+              text: 'Инспекция успешно сохранена',
+              icon: 'success',
+              confirmButtonText: 'OK',
+              timer: 2000,
+              timerProgressBar: true
+          }).then(() => {
+              loadInspections(); // 🆕 обновим список
+          });
+
+          form.reset();
+          document.getElementById("violations-container").innerHTML = "";
+          closeInspectionModal();
       } else {
         alert("Ошибка: " + result.error);
       }
