@@ -28,7 +28,17 @@
             <td class="driver-email">{{ driver.email }}</td>
             <td class="driver-type">{{ driver.driver_type }}</td>
             <td>{{ driver.status or "—" }}</td>
-            <td class="truck-unit">{{ driver.truck_unit }}</td>
+            <td>
+              <select class="form-control truck-select" data-driver-id="{{ driver._id }}">
+                <option value="">—</option>
+                {% for truck in trucks %}
+                  <option value="{{ truck._id }}"
+                    {% if truck._id == driver.truck %}selected{% endif %}>
+                    {{ truck.unit_number }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
             <td>
               <select class="form-control dispatcher-select" data-driver-id="{{ driver._id }}">
                 <option value="">—</option>

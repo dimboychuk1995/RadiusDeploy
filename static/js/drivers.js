@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initDriverFilter();
     initDriverModalActions();
     initDispatcherAssignment();
+    initTruckAssignment();
 });
 
 function initDriverFilter() {
@@ -199,6 +200,42 @@ function initDispatcherAssignment() {
     });
 }
 
+function initTruckAssignment() {
+    document.addEventListener("change", (e) => {
+        if (e.target.matches(".truck-select")) {
+            const select = e.target;
+            const driverId = select.dataset.driverId;
+            const truckId = select.value;
+            const truckName = select.options[select.selectedIndex].text;
+
+            Swal.fire({
+                title: 'Подтвердите действие',
+                text: `Назначить трак "${truckName}" этому водителю?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Да, назначить',
+                cancelButtonText: 'Отмена'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch("/api/edit_driver_truck/" + driverId, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({ truck: truckId })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error("Ошибка при обновлении трака");
+                    })
+                    .catch(err => {
+                        Swal.fire("Ошибка", "Не удалось сохранить трак", "error");
+                    });
+                } else {
+                    // ⛔ Вернуть предыдущее значение
+                    select.selectedIndex = [...select.options].findIndex(opt => opt.defaultSelected);
+                }
+            });
+        }
+    });
+}
 
 
 

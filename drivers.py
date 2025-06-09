@@ -499,3 +499,26 @@ def edit_driver_dispatch(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при обновлении диспетчера для водителя {driver_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@drivers_bp.route('/api/edit_driver_truck/<driver_id>', methods=['POST'])
+@login_required
+def edit_driver_truck(driver_id):
+    try:
+        truck_id = request.form.get('truck')
+
+        update_fields = {
+            'truck': ObjectId(truck_id) if truck_id else None
+        }
+
+        result = drivers_collection.update_one(
+            {'_id': ObjectId(driver_id)},
+            {'$set': update_fields}
+        )
+
+        if result.modified_count == 0:
+            return jsonify({'success': False, 'message': 'Не удалось обновить трак'}), 400
+
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Ошибка при обновлении трака для водителя {driver_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
