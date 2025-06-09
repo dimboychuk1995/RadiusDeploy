@@ -17,14 +17,13 @@
           <td>
             <input type="checkbox"
                    class="load-checkbox"
-                   data-load-id="{{ load._id }}"
-                   data-delivery-date="{{ load.delivery.date }}">
+                   data-load-id="{{ load._id }}">
           </td>
           <td>{{ load.pickup.address or '—' }}</td>
           <td>{{ load.delivery.address or '—' }}</td>
           <td>{{ load.pickup.date or '—' }}</td>
           <td data-delivery-date="{{ load.delivery.date or '' }}">{{ load.delivery.date or '—' }}</td>
-          <td>{{ load.price or '$0.00' }}</td>
+          <td>${{ load.price or '0.00' }}</td>
           <td>{{ load.status or '—' }}</td>
         </tr>
       {% endfor %}
