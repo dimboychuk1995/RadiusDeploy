@@ -154,13 +154,24 @@ def delete_truck(truck_id):
 @login_required
 def get_file(truck_id):
     try:
+        doc_type = request.args.get("type")
+        if not doc_type:
+            return "Тип документа не указан", 400
+
         truck = trucks_collection.find_one({'_id': ObjectId(truck_id)})
-        if truck and truck.get('file_data'):
-            return send_file(BytesIO(truck['file_data']),
-                             download_name=truck.get('file_name', 'file'),
-                             mimetype=truck.get('file_mimetype', 'application/octet-stream'),
-                             as_attachment=True)
-        return "Файл не найден", 404
+        if not truck:
+            return "Юнит не найден", 404
+
+        doc = truck.get(doc_type)
+        if not doc or not doc.get('file_data'):
+            return "Файл не найден", 404
+
+        return send_file(
+            BytesIO(doc['file_data']),
+            download_name=doc.get('file_name', 'file.pdf'),
+            mimetype=doc.get('file_mimetype', 'application/pdf'),
+            as_attachment=False
+        )
     except Exception as e:
         logging.error(f"Error getting file: {e}")
         return "Ошибка при получении файла", 500

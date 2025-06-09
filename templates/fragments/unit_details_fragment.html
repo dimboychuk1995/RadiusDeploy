@@ -36,14 +36,8 @@
       <!-- 💼 Регистрация -->
       <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-bold">
-            <i class="fa-solid fa-id-card me-2"></i>Регистрация
-          </span>
-          <button class="btn btn-sm btn-outline-primary" type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#collapseRegistration"
-                  aria-expanded="false"
-                  aria-controls="collapseRegistration">
+          <span class="fw-bold"><i class="fa-solid fa-id-card me-2"></i>Регистрация</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseRegistration">
             <i class="fa-solid fa-chevron-down collapse-icon"></i>
           </button>
         </div>
@@ -51,13 +45,12 @@
           <div class="card-body">
             <p><strong>Номер:</strong> {{ truck.registration.license_plate }}</p>
             <p><strong>Срок действия:</strong> {{ truck.registration.expiration_date }}</p>
-            <p><strong>Файл:</strong>
-              {% if truck.registration.file_data %}
-                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.registration.file_name or 'Файл' }}</a>
-              {% else %}
-                Нет файла
-              {% endif %}
-            </p>
+            {% if truck.registration.file_data %}
+              <p><strong>Файл:</strong> {{ truck.registration.file_name or 'Файл' }}</p>
+              <iframe src="{{ url_for('trucks.get_file', truck_id=truck._id) }}?type=registration" width="100%" height="800px" style="border:1px solid #ccc;"></iframe>
+            {% else %}
+              <p><strong>Файл:</strong> Нет файла</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -65,27 +58,20 @@
       <!-- 🔍 Годовая инспекция -->
       <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-bold">
-            <i class="fa-solid fa-clipboard-check me-2"></i>Годовая инспекция
-          </span>
-          <button class="btn btn-sm btn-outline-primary" type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#collapseInspection"
-                  aria-expanded="false"
-                  aria-controls="collapseInspection">
+          <span class="fw-bold"><i class="fa-solid fa-clipboard-check me-2"></i>Годовая инспекция</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInspection">
             <i class="fa-solid fa-chevron-down collapse-icon"></i>
           </button>
         </div>
         <div id="collapseInspection" class="collapse">
           <div class="card-body">
             <p><strong>Срок действия:</strong> {{ truck.annual_inspection.expiration_date }}</p>
-            <p><strong>Файл:</strong>
-              {% if truck.annual_inspection.file_data %}
-                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.annual_inspection.file_name or 'Файл' }}</a>
-              {% else %}
-                Нет файла
-              {% endif %}
-            </p>
+            {% if truck.annual_inspection.file_data %}
+              <p><strong>Файл:</strong> {{ truck.annual_inspection.file_name or 'Файл' }}</p>
+              <iframe src="{{ url_for('trucks.get_file', truck_id=truck._id) }}?type=annual_inspection" width="100%" height="800px" style="border:1px solid #ccc;"></iframe>
+            {% else %}
+              <p><strong>Файл:</strong> Нет файла</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -93,26 +79,19 @@
       <!-- ✍️ Power of Attorney -->
       <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-bold">
-            <i class="fa-solid fa-file-signature me-2"></i>Power of Attorney
-          </span>
-          <button class="btn btn-sm btn-outline-primary" type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#collapsePOA"
-                  aria-expanded="false"
-                  aria-controls="collapsePOA">
+          <span class="fw-bold"><i class="fa-solid fa-file-signature me-2"></i>Power of Attorney</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePOA">
             <i class="fa-solid fa-chevron-down collapse-icon"></i>
           </button>
         </div>
         <div id="collapsePOA" class="collapse">
           <div class="card-body">
-            <p><strong>Файл:</strong>
-              {% if truck.power_of_attorney.file_data %}
-                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.power_of_attorney.file_name or 'Файл' }}</a>
-              {% else %}
-                Нет файла
-              {% endif %}
-            </p>
+            {% if truck.power_of_attorney.file_data %}
+              <p><strong>Файл:</strong> {{ truck.power_of_attorney.file_name or 'Файл' }}</p>
+              <iframe src="{{ url_for('trucks.get_file', truck_id=truck._id) }}?type=power_of_attorney" width="100%" height="800px" style="border:1px solid #ccc;"></iframe>
+            {% else %}
+              <p><strong>Файл:</strong> Нет файла</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -120,14 +99,8 @@
       <!-- 🛡️ Страховка -->
       <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <span class="fw-bold">
-            <i class="fa-solid fa-shield-halved me-2"></i>Liability Insurance
-          </span>
-          <button class="btn btn-sm btn-outline-primary" type="button"
-                  data-bs-toggle="collapse"
-                  data-bs-target="#collapseInsurance"
-                  aria-expanded="false"
-                  aria-controls="collapseInsurance">
+          <span class="fw-bold"><i class="fa-solid fa-shield-halved me-2"></i>Liability Insurance</span>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInsurance">
             <i class="fa-solid fa-chevron-down collapse-icon"></i>
           </button>
         </div>
@@ -136,13 +109,12 @@
             <p><strong>Провайдер:</strong> {{ truck.liability_insurance.provider }}</p>
             <p><strong>Номер полиса:</strong> {{ truck.liability_insurance.policy_number }}</p>
             <p><strong>Срок действия:</strong> {{ truck.liability_insurance.expiration_date }}</p>
-            <p><strong>Файл:</strong>
-              {% if truck.liability_insurance.file_data %}
-                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.liability_insurance.file_name or 'Файл' }}</a>
-              {% else %}
-                Нет файла
-              {% endif %}
-            </p>
+            {% if truck.liability_insurance.file_data %}
+              <p><strong>Файл:</strong> {{ truck.liability_insurance.file_name or 'Файл' }}</p>
+              <iframe src="{{ url_for('trucks.get_file', truck_id=truck._id) }}?type=liability_insurance" width="100%" height="800px" style="border:1px solid #ccc;"></iframe>
+            {% else %}
+              <p><strong>Файл:</strong> Нет файла</p>
+            {% endif %}
           </div>
         </div>
       </div>
