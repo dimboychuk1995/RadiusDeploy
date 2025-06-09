@@ -168,19 +168,32 @@ function initDispatcherAssignment() {
             const select = e.target;
             const driverId = select.dataset.driverId;
             const dispatcherId = select.value;
+            const dispatcherName = select.options[select.selectedIndex].text;
 
-            console.log('🟢 Выбран новый диспетчер:', dispatcherId, 'для водителя:', driverId);
-
-            fetch("/api/edit_driver_dispatch/" + driverId, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({ dispatcher: dispatcherId })
-            })
-            .then(res => {
-                if (!res.ok) throw new Error("Ошибка при обновлении диспетчера");
-            })
-            .catch(err => {
-                alert("Ошибка при сохранении диспетчера: " + err.message);
+            Swal.fire({
+                title: 'Подтвердите действие',
+                text: `Назначить диспетчера "${dispatcherName}" этому водителю?`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Да, назначить',
+                cancelButtonText: 'Отмена'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch("/api/edit_driver_dispatch/" + driverId, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({ dispatcher: dispatcherId })
+                    })
+                    .then(res => {
+                        if (!res.ok) throw new Error("Ошибка при обновлении диспетчера");
+                    })
+                    .catch(err => {
+                        Swal.fire("Ошибка", "Не удалось сохранить диспетчера", "error");
+                    });
+                } else {
+                    // Сбросим обратно, если пользователь отменил
+                    select.selectedIndex = [...select.options].findIndex(opt => opt.defaultSelected);
+                }
             });
         }
     });
