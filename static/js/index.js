@@ -11,7 +11,6 @@ function initNavigation() {
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
-      bindAssignmentForm?.();
     },
     'dispatch_fragment': () => initDispatcherCalendars?.(),
     'dispatch_brokers': () => initBrokerCustomerSection?.(),

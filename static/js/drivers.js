@@ -1,7 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
     initDriverFilter();
     initDriverModalActions();
-    bindAssignmentForm(); // ← ЭТОГО НЕ ХВАТАЕТ
 });
 
 function initDriverFilter() {
@@ -162,88 +161,7 @@ function highlightExpiringDrivers() {
     });
 }
 
-function openAssignmentModal(driverId, event) {
-  if (event) event.stopPropagation();
-
-  const modal = document.getElementById("assignmentModal");
-  const backdrop = modal.nextElementSibling;
-
-  if (!modal || !backdrop) return;
-
-  modal.classList.remove("hidden");
-  requestAnimationFrame(() => {
-    modal.classList.add("open");
-    backdrop.classList.add("show");
-  });
-
-  // Устанавливаем ID водителя в скрытое поле
-  document.getElementById("assignmentDriverId").value = driverId;
-
-  // 🔍 Найдём строку водителя
-  const row = document.getElementById(`driver-${driverId}`);
-  if (!row) return;
-
-  const truckId = row.getAttribute("data-truck-id");
-  const dispatcherId = row.getAttribute("data-dispatcher-id");
-
-  // Устанавливаем значения в селекты
-  const truckSelect = modal.querySelector("select[name='truck']");
-  const dispatcherSelect = modal.querySelector("select[name='dispatcher']");
-
-  if (truckSelect) truckSelect.value = truckId || "";
-  if (dispatcherSelect) dispatcherSelect.value = dispatcherId || "";
-
-  // Обязательно привязать сабмит после вставки
-  bindAssignmentForm();
-}
 
 
-function closeAssignmentModal() {
-    const modal = document.getElementById("assignmentModal");
-    const backdrop = modal.nextElementSibling;
 
-    if (!modal || !backdrop) return;
 
-    modal.classList.remove("open");
-    backdrop.classList.remove("show");
-
-    setTimeout(() => {
-        modal.classList.add("hidden");
-    }, 300);
-}
-
-function bindAssignmentForm() {
-    const form = document.getElementById("assignmentForm");
-
-    if (!form) {
-        console.warn("⚠️ assignmentForm not found in DOM.");
-        return; // ❌ форма ещё не загружена — ничего не делаем
-    }
-
-    // Защита от двойного навешивания
-    if (form.dataset.bound === "true") return;
-    form.dataset.bound = "true";
-
-    form.addEventListener("submit", async function (e) {
-        e.preventDefault();
-
-        const formData = new FormData(form);
-
-        try {
-            const response = await fetch("/api/driver/assign", {
-                method: "POST",
-                body: formData,
-            });
-
-            if (response.ok) {
-                closeAssignmentModal();
-                location.reload();
-            } else {
-                alert("Ошибка при сохранении назначения");
-            }
-        } catch (error) {
-            console.error("Ошибка при отправке:", error);
-            alert("Ошибка при отправке формы");
-        }
-    });
-}
