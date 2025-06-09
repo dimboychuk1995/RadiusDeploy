@@ -1,44 +1,64 @@
 document.addEventListener("DOMContentLoaded", function () {
-    initTruckDetailsClick();  // Инициализация кликов на строки
+    initTruckDetailsClick();  // Инициализация кликов по строкам
 });
 
-// Функция для обработки кликов по строкам таблицы
 function initTruckDetailsClick() {
     document.querySelectorAll('.clickable-row').forEach(row => {
         row.addEventListener('click', () => {
             const truckId = row.getAttribute('data-id');
 
-            // Скрываем секцию со списком юнитов
-            document.getElementById('section-trucks').style.display = 'none';
+            const section = document.getElementById('section-trucks');
+            const container = document.getElementById('unit_details_fragment');
 
-            // Показываем секцию с деталями юнита
-            document.getElementById('unit_details_fragment').style.display = 'block';
+            section.style.display = 'none';
+            container.style.display = 'block';
 
-            // Загружаем фрагмент с деталями
             fetch(`/fragment/unit_details/${truckId}`)
                 .then(response => response.text())
                 .then(html => {
-                    document.getElementById('unit_details_fragment').innerHTML = html;
+                    container.innerHTML = html;
+
+                    // 🔄 Инициализация иконок lucide, если используется
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+
+                    // ✅ Поворот стрелок collapse
+                    container.querySelectorAll('[data-bs-toggle="collapse"]').forEach(button => {
+                        const icon = button.querySelector('.collapse-icon');
+                        const targetSelector = button.getAttribute('data-bs-target');
+                        const target = container.querySelector(targetSelector);
+                        if (!target) return;
+
+                        // Навешиваем поведение
+                        button.addEventListener('click', () => {
+                            const instance = bootstrap.Collapse.getOrCreateInstance(target);
+                            instance.toggle();
+
+                            // Вращаем стрелку
+                            if (icon) {
+                                icon.classList.toggle('rotated');
+                            }
+                        });
+                    });
                 });
         });
     });
 }
 
-//кнопка назад
+// Кнопка "Назад"
 function loadTrucksFragment() {
-    // Скрываем детали
-    document.getElementById('unit_details_fragment').style.display = 'none';
+    const section = document.getElementById('section-trucks');
+    const details = document.getElementById('unit_details_fragment');
 
-    // Показываем список юнитов
-    document.getElementById('section-trucks').style.display = 'block';
+    details.style.display = 'none';
+    section.style.display = 'block';
 
-    // Загружаем список грузовиков
     fetch('/fragment/trucks')
         .then(response => response.text())
         .then(html => {
-            document.getElementById('section-trucks').innerHTML = html;
+            section.innerHTML = html;
 
-            // Повторная инициализация кликов и поиска
             initTruckDetailsClick();
             initTruckSearch();
         });

@@ -172,11 +172,32 @@ def unit_details_fragment(truck_id):
         truck = trucks_collection.find_one({'_id': ObjectId(truck_id)})
         if not truck:
             return render_template('error.html', message="Юнит не найден")
-        return render_template('fragments/unit_details_fragment.html', truck=truck)
+
+        # Назначенный водитель — ищем по полю 'truck'
+        assigned_driver_name = "—"
+        driver = db['drivers'].find_one({"truck": truck['_id']})
+        if driver:
+            assigned_driver_name = driver.get("name", "—")
+
+        # Компания-владелец
+        owning_company_name = "—"
+        if truck.get("owning_company"):
+            company = db['companies'].find_one({"_id": truck["owning_company"]})
+            if company:
+                owning_company_name = company.get("name", "—")
+
+        return render_template(
+            'fragments/unit_details_fragment.html',
+            truck=truck,
+            assigned_driver_name=assigned_driver_name,
+            owning_company_name=owning_company_name
+        )
+
     except Exception as e:
         logging.error(f"Error loading unit details: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Ошибка при загрузке данных юнита")
+
 
 @trucks_bp.route('/api/parse_unit_pdf', methods=['POST'])
 def parse_unit_pdf():

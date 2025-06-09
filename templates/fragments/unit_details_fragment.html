@@ -1,51 +1,157 @@
 <h3>Детали юнита</h3>
 
-<form>
-  <div class="form-group">
-    <label>Год</label>
-    <input type="text" class="form-control" value="{{ truck.year }}" disabled>
+<div class="container-fluid">
+  <div class="row">
+
+    <!-- Левая колонка -->
+    <div class="col-md-6">
+      <!-- 🔧 Основная информация -->
+      <div class="card mb-4">
+        <div class="card-header"><i class="fa-solid fa-truck me-2"></i>Основная информация</div>
+        <div class="card-body">
+          <p><strong>Unit Number:</strong> {{ truck.unit_number }}</p>
+          <p><strong>Тип:</strong> {{ truck.unit_type }}</p>
+          <p><strong>Подтип:</strong> {{ truck.subtype }}</p>
+          <p><strong>Производитель:</strong> {{ truck.make }}</p>
+          <p><strong>Модель:</strong> {{ truck.model }}</p>
+          <p><strong>Год:</strong> {{ truck.year }}</p>
+          <p><strong>Пробег:</strong> {{ truck.mileage }}</p>
+          <p><strong>VIN:</strong> {{ truck.vin }}</p>
+        </div>
+      </div>
+
+      <!-- 🧑‍✈️ Назначения -->
+      <div class="card mb-4">
+        <div class="card-header"><i class="fa-solid fa-user me-2"></i>Назначения</div>
+        <div class="card-body">
+          <p><strong>Водитель:</strong> {{ assigned_driver_name or '—' }}</p>
+          <p><strong>Компания-владелец:</strong> {{ owning_company_name or '—' }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Правая колонка -->
+    <div class="col-md-6">
+
+      <!-- 💼 Регистрация -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">
+            <i class="fa-solid fa-id-card me-2"></i>Регистрация
+          </span>
+          <button class="btn btn-sm btn-outline-primary" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseRegistration"
+                  aria-expanded="false"
+                  aria-controls="collapseRegistration">
+            <i class="fa-solid fa-chevron-down collapse-icon"></i>
+          </button>
+        </div>
+        <div id="collapseRegistration" class="collapse">
+          <div class="card-body">
+            <p><strong>Номер:</strong> {{ truck.registration.license_plate }}</p>
+            <p><strong>Срок действия:</strong> {{ truck.registration.expiration_date }}</p>
+            <p><strong>Файл:</strong>
+              {% if truck.registration.file_data %}
+                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.registration.file_name or 'Файл' }}</a>
+              {% else %}
+                Нет файла
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🔍 Годовая инспекция -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">
+            <i class="fa-solid fa-clipboard-check me-2"></i>Годовая инспекция
+          </span>
+          <button class="btn btn-sm btn-outline-primary" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseInspection"
+                  aria-expanded="false"
+                  aria-controls="collapseInspection">
+            <i class="fa-solid fa-chevron-down collapse-icon"></i>
+          </button>
+        </div>
+        <div id="collapseInspection" class="collapse">
+          <div class="card-body">
+            <p><strong>Срок действия:</strong> {{ truck.annual_inspection.expiration_date }}</p>
+            <p><strong>Файл:</strong>
+              {% if truck.annual_inspection.file_data %}
+                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.annual_inspection.file_name or 'Файл' }}</a>
+              {% else %}
+                Нет файла
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ✍️ Power of Attorney -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">
+            <i class="fa-solid fa-file-signature me-2"></i>Power of Attorney
+          </span>
+          <button class="btn btn-sm btn-outline-primary" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapsePOA"
+                  aria-expanded="false"
+                  aria-controls="collapsePOA">
+            <i class="fa-solid fa-chevron-down collapse-icon"></i>
+          </button>
+        </div>
+        <div id="collapsePOA" class="collapse">
+          <div class="card-body">
+            <p><strong>Файл:</strong>
+              {% if truck.power_of_attorney.file_data %}
+                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.power_of_attorney.file_name or 'Файл' }}</a>
+              {% else %}
+                Нет файла
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🛡️ Страховка -->
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-bold">
+            <i class="fa-solid fa-shield-halved me-2"></i>Liability Insurance
+          </span>
+          <button class="btn btn-sm btn-outline-primary" type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#collapseInsurance"
+                  aria-expanded="false"
+                  aria-controls="collapseInsurance">
+            <i class="fa-solid fa-chevron-down collapse-icon"></i>
+          </button>
+        </div>
+        <div id="collapseInsurance" class="collapse">
+          <div class="card-body">
+            <p><strong>Провайдер:</strong> {{ truck.liability_insurance.provider }}</p>
+            <p><strong>Номер полиса:</strong> {{ truck.liability_insurance.policy_number }}</p>
+            <p><strong>Срок действия:</strong> {{ truck.liability_insurance.expiration_date }}</p>
+            <p><strong>Файл:</strong>
+              {% if truck.liability_insurance.file_data %}
+                <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">{{ truck.liability_insurance.file_name or 'Файл' }}</a>
+              {% else %}
+                Нет файла
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 
-  <div class="form-group">
-    <label>Производитель</label>
-    <input type="text" class="form-control" value="{{ truck.make }}" disabled>
+  <!-- ← Кнопка Назад -->
+  <div class="mt-3">
+    <button type="button" class="btn btn-secondary" onclick="loadTrucksFragment()">&larr; Назад</button>
   </div>
-
-  <div class="form-group">
-    <label>Модель</label>
-    <input type="text" class="form-control" value="{{ truck.model }}" disabled>
-  </div>
-
-  <div class="form-group">
-    <label>Пробег</label>
-    <input type="text" class="form-control" value="{{ truck.mileage }}" disabled>
-  </div>
-
-  <div class="form-group">
-    <label>VIN</label>
-    <input type="text" class="form-control" value="{{ truck.vin }}" disabled>
-  </div>
-
-  <div class="form-group">
-    <label>Тип</label>
-    <input type="text" class="form-control" value="{{ truck.type }}" disabled>
-  </div>
-
-  <div class="form-group">
-    <label>Unit Number</label>
-    <input type="text" class="form-control" value="{{ truck.unit_number }}" disabled>
-  </div>
-
-  <div class="form-group">
-    <label>Файл</label><br>
-    {% if truck.file_data %}
-      <a href="{{ url_for('trucks.get_file', truck_id=truck._id) }}" target="_blank">
-        {{ truck.file_name or 'Файл' }}
-      </a>
-    {% else %}
-      <p class="form-control-plaintext">Нет файла</p>
-    {% endif %}
-  </div>
-
-  <button type="button" class="btn btn-secondary" onclick="loadTrucksFragment()">Назад</button>
-</form>
+</div>
