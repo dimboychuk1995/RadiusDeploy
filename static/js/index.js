@@ -45,7 +45,8 @@ function initNavigation() {
       loadFleetCharts?.();
     },
     'load_stats_fragment': () => loadGeneralStats?.(),
-    'safety': () => initSafety?.()
+    'safety': () => initSafety?.(),
+    'chat': () => initChat?.(),
   };
 
   function loadFragment(sectionId, url, sectionKey) {

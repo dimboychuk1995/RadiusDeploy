@@ -1,7 +1,13 @@
-from flask import Flask, render_template, redirect, url_for
 import logging
-from flask_login import current_user
+import eventlet
+eventlet.monkey_patch()
 
+from flask import Flask, render_template, redirect, url_for
+from flask_login import current_user
+from tools.socketio_instance import socketio  # <-- здесь уже готовый экземпляр
+
+# Импорт блюпринтов
+from chat import chat_bp
 from samsara import samsara_bp
 from auth import auth_bp, login_manager
 from trucks import trucks_bp
@@ -20,11 +26,17 @@ from load_stats_api import load_stats_api
 from dispatchers import dispatchers_bp
 from safety import safety_bp
 
+# Инициализация Flask
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
 
+# Инициализация Flask-Login
+login_manager.init_app(app)
 
-# Регистрируем все blueprints
+# Инициализация SocketIO на приложении
+socketio.init_app(app, async_mode='eventlet')  # <-- ПРАВИЛЬНО: инициализируем здесь
+
+# Регистрация всех блюпринтов
 app.register_blueprint(auth_bp)
 app.register_blueprint(trucks_bp)
 app.register_blueprint(drivers_bp)
@@ -42,15 +54,7 @@ app.register_blueprint(company_bp)
 app.register_blueprint(load_stats_api)
 app.register_blueprint(dispatchers_bp)
 app.register_blueprint(safety_bp)
-
-# Настройка логина
-login_manager.init_app(app)
-
-# Ошибка 500
-@app.errorhandler(500)
-def internal_server_error(e):
-    logging.error(f"Internal Server Error: {e}")
-    return render_template('error.html', message="Internal Server Error"), 500
+app.register_blueprint(chat_bp)
 
 # Главная страница
 @app.route('/')
@@ -60,6 +64,12 @@ def index():
     else:
         return redirect(url_for('auth.login'))
 
-# 🔥 Локальный запуск (НЕ используется на Render)
+# Обработка 500 ошибки
+@app.errorhandler(500)
+def internal_server_error(e):
+    logging.error(f"Internal Server Error: {e}")
+    return render_template('error.html', message="Internal Server Error"), 500
+
+# Запуск
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, host='127.0.0.1', port=5000, debug=True)

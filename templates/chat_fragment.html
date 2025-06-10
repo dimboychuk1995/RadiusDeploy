@@ -1,0 +1,19 @@
+<div class="container mt-3">
+  <h4>Общий чат</h4>
+
+  <!-- 👇 Здесь передаём данные -->
+  <div id="chat-meta"
+       data-user-id="{{ current_user_id }}"
+       data-user-name="{{ current_user_name }}">
+  </div>
+
+  <div id="chat-box" class="border p-3 mb-3" style="height: 400px; overflow-y: auto; background-color: #f9f9f9;">
+    <!-- Сообщения -->
+  </div>
+
+  <div class="d-flex">
+    <input id="chat-input" class="form-control me-2" placeholder="Напишите сообщение...">
+    <button id="chat-send-btn" class="btn btn-primary">Отправить</button>
+  </div>
+</div>
+
