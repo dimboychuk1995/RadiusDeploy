@@ -30,11 +30,12 @@
 <body>
     {% include 'navbar.html' %}
 
-    <div class="app-container d-flex" style="height: calc(100vh - 56px); overflow: hidden;">
+    <div class="app-container">
         {% block sidebar %}{% endblock %}
-        <div class="main-content" style="overflow-y: auto; width: 100%;">
-            <!-- ✅ FLASH-СООБЩЕНИЯ С ОТСТУПОМ -->
-            <div class="mt-3">
+
+        <div class="main-content">
+            <!-- ✅ FLASH-СООБЩЕНИЯ -->
+            <div class="mt-3 px-3">
               {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                   {% for category, message in messages %}
@@ -47,7 +48,11 @@
                 {% endif %}
               {% endwith %}
             </div>
-            {% block content %}{% endblock %}
+
+            <!-- ✅ ОСНОВНОЙ КОНТЕНТ -->
+            <div class="flex-grow-1 d-flex flex-column px-3">
+              {% block content %}{% endblock %}
+            </div>
         </div>
     </div>
 
@@ -62,6 +67,7 @@
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.3/dist/sweetalert2.all.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
     <!-- Пользовательские скрипты -->
     <script src="{{ url_for('static', filename='js/dispatch.js') }}"></script>
     <script src="{{ url_for('static', filename='js/drivers.js') }}"></script>

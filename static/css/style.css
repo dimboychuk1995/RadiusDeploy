@@ -482,7 +482,8 @@ html, body {
 }
 
 .app-container {
-  height: 100vh;
+  height: calc(100vh - 56px); /* учитываем высоту navbar */
+  margin-top: 56px;            /* сдвигаем вниз, чтобы не лез под navbar */
   overflow: hidden;
 }
 
