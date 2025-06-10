@@ -2,10 +2,15 @@ from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from datetime import datetime
 from tools.db import db
-from flask_socketio import emit
 from tools.socketio_instance import socketio  # ✅ вместо from main
+from werkzeug.utils import secure_filename
+import os
 
 chat_bp = Blueprint('chat_bp', __name__)
+
+UPLOAD_FOLDER = 'static/CHAT_FILES'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @socketio.on('send_message')
 @login_required
@@ -26,7 +31,7 @@ def handle_send_message(data):
             'content': message['content'],
             'timestamp': message['timestamp']
         }
-        emit('new_message', safe_message, broadcast=True)
+        socketio.emit('new_message', safe_message, broadcast=True, namespace='/')
 
 
 @chat_bp.route('/fragment/chat')
@@ -38,6 +43,7 @@ def chat_fragment():
         current_user_name=current_user.username
     )
 
+
 @chat_bp.route('/api/chat/messages', methods=['GET'])
 @login_required
 def get_messages():
@@ -46,18 +52,41 @@ def get_messages():
         msg['_id'] = str(msg['_id'])
     return jsonify(messages)
 
+
 @chat_bp.route('/api/chat/send', methods=['POST'])
 @login_required
 def send_message():
-    data = request.json
+    content = request.form.get('content', '').strip()
+    file = request.files.get('file')
+
+    if not content and not file:
+        return jsonify({'status': 'error', 'error': 'Empty message'}), 400
+
+    file_url = None
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        file_url = f'/static/CHAT_FILES/{filename}'
+
     message = {
         'sender_id': str(current_user.id),
         'sender_name': current_user.username,
-        'content': data.get('content', '').strip(),
+        'content': content,
+        'file_url': file_url,
         'timestamp': datetime.utcnow()
     }
-    if not message['content']:
-        return jsonify({'status': 'error', 'error': 'Empty message'}), 400
 
     db.chat_messages.insert_one(message)
+
+    # 🔥 WebSocket-рассылка
+    safe_message = {
+        'sender_id': message['sender_id'],
+        'sender_name': message['sender_name'],
+        'content': message['content'],
+        'file_url': message['file_url'],
+        'timestamp': message['timestamp'].isoformat()
+    }
+    socketio.emit('new_message', safe_message, to=None, skip_sid=None, namespace='/')
+
     return jsonify({'status': 'ok'})

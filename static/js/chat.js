@@ -8,6 +8,7 @@ function initChat() {
   const chatBox = document.getElementById("chat-box");
   const input = document.getElementById("chat-input");
   const sendBtn = document.getElementById("chat-send-btn");
+  const fileInput = document.getElementById("chat-file");
 
   function formatMessage(msg) {
     const div = document.createElement("div");
@@ -22,8 +23,17 @@ function initChat() {
 
     div.innerHTML = `
       <div><strong>${msg.sender_name}</strong> <small>${time}</small></div>
-      <div>${msg.content}</div>
+      <div>${msg.content || ''}</div>
     `;
+
+    if (msg.file_url) {
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
+      const fileBlock = isImage
+        ? `<div><img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" class="mt-1"/></div>`
+        : `<div><a href="${msg.file_url}" target="_blank">📎 Скачать файл</a></div>`;
+      div.innerHTML += fileBlock;
+    }
+
     return div;
   }
 
@@ -34,9 +44,31 @@ function initChat() {
 
   sendBtn.addEventListener("click", () => {
     const content = input.value.trim();
-    if (!content) return;
-    socket.emit("send_message", { content });
-    input.value = '';
+    const file = fileInput.files[0];
+
+    if (!content && !file) return;
+
+    const formData = new FormData();
+    formData.append("content", content);
+    if (file) formData.append("file", file);
+
+    fetch("/api/chat/send", {
+      method: "POST",
+      body: formData
+    }).then(res => res.json())
+      .then(resp => {
+        if (resp.status === 'ok') {
+          input.value = '';
+          fileInput.value = '';
+          // Подгружаем последние сообщения заново
+          fetch('/api/chat/messages')
+            .then(res => res.json())
+            .then(messages => {
+              chatBox.innerHTML = '';
+              messages.forEach(addMessage);
+            });
+        }
+      });
   });
 
   input.addEventListener("keypress", (e) => {
