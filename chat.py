@@ -51,27 +51,26 @@ def get_messages():
 @login_required
 def send_message():
     content = request.form.get('content', '').strip()
-    file = request.files.get('file')
+    files = request.files.getlist('files')
 
-    if not content and not file:
+    if not content and not files:
         return jsonify({'status': 'error', 'error': 'Empty message'}), 400
 
-    file_url = None
-    file_name = None
-    file_size = None
+    file_infos = []
+    for file in files:
+        if file.filename:
+            original_filename = secure_filename(file.filename)
+            unique_prefix = uuid4().hex
+            unique_filename = f"{unique_prefix}_{original_filename}"
+            filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+            file.save(filepath)
 
-    if file:
-        original_filename = secure_filename(file.filename)
-        unique_prefix = uuid4().hex
-        unique_filename = f"{unique_prefix}_{original_filename}"
-        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
-        file.save(filepath)
+            file_infos.append({
+                'file_url': f'/static/CHAT_FILES/{unique_filename}',
+                'file_name': original_filename,
+                'file_size': os.path.getsize(filepath)
+            })
 
-        file_url = f'/static/CHAT_FILES/{unique_filename}'
-        file_name = original_filename
-        file_size = os.path.getsize(filepath)
-
-    # Обработка reply_to — просто разбираем и сохраняем
     reply_to_raw = request.form.get('reply_to')
     reply_to = None
     if reply_to_raw:
@@ -84,10 +83,8 @@ def send_message():
         'sender_id': str(current_user.id),
         'sender_name': current_user.username,
         'content': content,
-        'file_url': file_url,
-        'file_name': file_name,
-        'file_size': file_size,
-        'reply_to': reply_to,  # 💡 reply_to уже содержит message_id
+        'files': file_infos,
+        'reply_to': reply_to,
         'timestamp': datetime.utcnow()
     }
 
@@ -99,9 +96,7 @@ def send_message():
         'sender_id': message['sender_id'],
         'sender_name': message['sender_name'],
         'content': message['content'],
-        'file_url': message['file_url'],
-        'file_name': message['file_name'],
-        'file_size': message['file_size'],
+        'files': message['files'],
         'reply_to': message['reply_to'],
         'timestamp': message['timestamp'].isoformat()
     }

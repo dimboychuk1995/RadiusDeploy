@@ -67,20 +67,23 @@ function initChat() {
       if (reply.content) {
         replyText.innerText = reply.content.slice(0, 300);
       }
-      if (reply.file_url) {
-        const fileName = reply.file_name || "Файл";
-        const fileSize = reply.file_size
-          ? (reply.file_size >= 1024 * 1024
-              ? (reply.file_size / (1024 * 1024)).toFixed(1) + " MB"
-              : (reply.file_size / 1024).toFixed(1) + " KB")
-          : "";
-        const fileLink = document.createElement("a");
-        fileLink.href = reply.file_url;
-        fileLink.target = "_blank";
-        fileLink.classList.add("text-decoration-underline");
-        fileLink.innerHTML = `📎 ${fileName} <span class="text-muted small">(${fileSize})</span>`;
-        replyText.appendChild(fileLink);
+      if (reply.files && Array.isArray(reply.files)) {
+        reply.files.forEach(file => {
+          const fileName = file.file_name || "Файл";
+          const fileSize = file.file_size
+            ? (file.file_size >= 1024 * 1024
+                ? (file.file_size / (1024 * 1024)).toFixed(1) + " MB"
+                : (file.file_size / 1024).toFixed(1) + " KB")
+            : "";
+          const fileLink = document.createElement("a");
+          fileLink.href = file.file_url;
+          fileLink.target = "_blank";
+          fileLink.classList.add("text-decoration-underline");
+          fileLink.innerHTML = `📎 ${fileName} <span class="text-muted small">(${fileSize})</span>`;
+          replyText.appendChild(fileLink);
+        });
       }
+
 
       replyBubble.appendChild(replyHeader);
       replyBubble.appendChild(replyText);
@@ -106,47 +109,33 @@ function initChat() {
       bubble.appendChild(textDiv);
     }
 
-    if (msg.file_url) {
-      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
-      const fileBlock = document.createElement("div");
-      fileBlock.classList.add("mt-2");
+    // ✅ Множественные файлы
+    if (msg.files && Array.isArray(msg.files)) {
+      msg.files.forEach(file => {
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.file_url);
+        const fileBlock = document.createElement("div");
+        fileBlock.classList.add("mt-2");
 
-      if (isImage) {
-        fileBlock.innerHTML = `<img src="${msg.file_url}" style="max-width: 600px; max-height: 600px;" />`;
-      } else {
-        const fileName = msg.file_name || "Файл";
-        const fileSize = msg.file_size
-          ? (msg.file_size >= 1024 * 1024
-              ? (msg.file_size / (1024 * 1024)).toFixed(1) + " MB"
-              : (msg.file_size / 1024).toFixed(1) + " KB")
-          : "";
-
-        fileBlock.innerHTML = `
-          <div class="d-flex flex-column gap-1">
-            <a href="${msg.file_url}" target="_blank" class="text-decoration-underline">
-              📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
-            </a>
-          </div>
-        `;
-
-        const isPreviewable = /\.(pdf|csv|xlsx?|xls)$/i.test(msg.file_url);
-        if (isPreviewable) {
-          const preview = document.createElement("div");
-          preview.classList.add("mt-2", "border", "rounded", "p-2", "bg-white");
-          preview.style.maxWidth = "300px";
-          preview.style.maxHeight = "250px";
-          preview.style.overflow = "hidden";
-
-          if (/\.pdf$/i.test(msg.file_url)) {
-            preview.innerHTML = `<iframe src="${msg.file_url}" width="100%" height="200px" style="border: none;"></iframe>`;
-          } else {
-            preview.innerHTML = `<div class="text-muted small">📄 Предпросмотр недоступен — откройте файл</div>`;
-          }
-
-          fileBlock.appendChild(preview);
+        if (isImage) {
+          fileBlock.innerHTML = `<img src="${file.file_url}" style="max-width: 600px; max-height: 600px;" />`;
+        } else {
+          const fileName = file.file_name || "Файл";
+          const fileSize = file.file_size
+            ? (file.file_size >= 1024 * 1024
+                ? (file.file_size / (1024 * 1024)).toFixed(1) + " MB"
+                : (file.file_size / 1024).toFixed(1) + " KB")
+            : "";
+          fileBlock.innerHTML = `
+            <div class="d-flex flex-column gap-1">
+              <a href="${file.file_url}" target="_blank" class="text-decoration-underline">
+                📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
+              </a>
+            </div>
+          `;
         }
-      }
-      bubble.appendChild(fileBlock);
+
+        bubble.appendChild(fileBlock);
+      });
     }
 
     wrapper.addEventListener("dblclick", () => {
@@ -183,19 +172,20 @@ function initChat() {
 
   sendBtn.addEventListener("click", () => {
     const content = input.value.trim();
-    const file = fileInput.files[0];
-    if (!content && !file) return;
+    const files = Array.from(fileInput.files);
+    if (!content && files.length === 0) return;
 
     const formData = new FormData();
     formData.append("content", content);
-    if (file) formData.append("file", file);
+    files.forEach(file => {
+      formData.append("files", file);
+    });
+
     if (replyTo) {
       formData.append("reply_to", JSON.stringify({
         sender_name: replyTo.sender_name,
         content: replyTo.content,
-        file_url: replyTo.file_url,
-        file_name: replyTo.file_name,
-        file_size: replyTo.file_size,
+        files: replyTo.files || [],
         timestamp: replyTo.timestamp,
         message_id: replyTo._id
       }));
@@ -242,6 +232,11 @@ function initChat() {
       .then(messages => {
         chatBox.innerHTML = '';
         messages.forEach(addMessage);
+
+        // ⬇️ Прокрутка в самый низ после полной загрузки
+        setTimeout(() => {
+          chatBox.scrollTop = chatBox.scrollHeight;
+        }, 100);
       });
   });
 
