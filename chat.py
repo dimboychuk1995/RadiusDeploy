@@ -57,6 +57,8 @@ def get_messages():
 @chat_bp.route('/api/chat/send', methods=['POST'])
 @login_required
 def send_message():
+    import json
+
     content = request.form.get('content', '').strip()
     file = request.files.get('file')
 
@@ -66,17 +68,26 @@ def send_message():
     file_url = None
     if file:
         original_filename = secure_filename(file.filename)
-        unique_prefix = uuid4().hex  # 32-символьный уникальный ID
+        unique_prefix = uuid4().hex
         unique_filename = f"{unique_prefix}_{original_filename}"
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         file.save(filepath)
         file_url = f'/static/CHAT_FILES/{unique_filename}'
+
+    reply_data = request.form.get('reply_to')
+    reply_to = None
+    if reply_data:
+        try:
+            reply_to = json.loads(reply_data)
+        except Exception:
+            pass
 
     message = {
         'sender_id': str(current_user.id),
         'sender_name': current_user.username,
         'content': content,
         'file_url': file_url,
+        'reply_to': reply_to,
         'timestamp': datetime.utcnow()
     }
 
@@ -87,6 +98,7 @@ def send_message():
         'sender_name': message['sender_name'],
         'content': message['content'],
         'file_url': message['file_url'],
+        'reply_to': message['reply_to'],
         'timestamp': message['timestamp'].isoformat()
     }
 
