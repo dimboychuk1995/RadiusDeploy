@@ -13,48 +13,92 @@ function initChat() {
   let replyTo = null;
   let replyIndicator = null;
 
+  function formatTime(timestamp) {
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  }
+
   function formatMessage(msg) {
     const wrapper = document.createElement("div");
-    const time = new Date(msg.timestamp).toLocaleString();
-
-    const header = document.createElement("div");
-    header.classList.add("mb-1");
-    header.innerHTML = `<strong>${msg.sender_name}</strong> <small class="text-muted ms-1">${time}</small>`;
-
-    const body = document.createElement("div");
-    body.classList.add("p-2", "rounded", "d-inline-block", "mt-1");
-
-    if (msg.sender_id === CURRENT_USER_ID) {
-      body.style.backgroundColor = "#d1ecf1";
-      body.style.color = "#0c5460";
-      wrapper.classList.add("text-end");
-    } else {
-      body.style.backgroundColor = "#e0e0e0";
-      body.style.color = "#212529";
-    }
-
-    if (msg.reply_to) {
-      const reply = document.createElement("div");
-      reply.classList.add("border-start", "ps-2", "mb-1", "text-muted", "small");
-      const replyText = msg.reply_to.content?.slice(0, 100) || '📎 файл';
-      reply.innerHTML = `<strong>${msg.reply_to.sender_name}:</strong> ${replyText}`;
-      body.appendChild(reply);
-    }
-
-    body.innerHTML += msg.content || '';
-
-    if (msg.file_url) {
-      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
-      const fileBlock = isImage
-        ? `<div class="mt-2"><img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" /></div>`
-        : `<div class="mt-2"><a href="${msg.file_url}" target="_blank" class="text-decoration-underline">📎 Скачать файл</a></div>`;
-      body.innerHTML += fileBlock;
-    }
+    const time = formatTime(msg.timestamp);
 
     wrapper.classList.add("mb-3");
-    wrapper.appendChild(header);
-    wrapper.appendChild(body);
 
+    const bubble = document.createElement("div");
+    bubble.classList.add("p-2", "rounded", "d-inline-block", "mt-1");
+    bubble.style.maxWidth = "80%";
+    bubble.style.wordBreak = "break-word";
+
+    const isCurrentUser = msg.sender_id === CURRENT_USER_ID;
+    if (isCurrentUser) {
+      bubble.style.backgroundColor = "#d1ecf1";
+      bubble.style.color = "#0c5460";
+      wrapper.classList.add("text-end");
+    } else {
+      bubble.style.backgroundColor = "#e0e0e0";
+      bubble.style.color = "#212529";
+    }
+
+    // Заголовок: имя + дата
+    const header = document.createElement("div");
+    header.classList.add("mb-1");
+    header.innerHTML = `
+      <strong>${msg.sender_name}</strong>
+      <small class="text-muted ms-2">${time}</small>
+    `;
+    bubble.appendChild(header);
+
+    // Вложенный ответ (если есть)
+    if (msg.reply_to) {
+      const replyBubble = document.createElement("div");
+      replyBubble.classList.add("p-2", "rounded", "mb-2");
+      replyBubble.style.backgroundColor = "#f8f9fa";
+      replyBubble.style.borderLeft = "4px solid #adb5bd";
+      replyBubble.style.fontSize = "0.875em";
+      replyBubble.style.wordBreak = "break-word";
+
+      const replyHeader = document.createElement("div");
+      replyHeader.innerHTML = `
+        <strong>${msg.reply_to.sender_name}</strong>
+        <small class="text-muted ms-2">
+          ${msg.reply_to.timestamp ? formatTime(msg.reply_to.timestamp) : ''}
+        </small>
+      `;
+
+      const replyText = document.createElement("div");
+      replyText.classList.add("mt-1");
+      replyText.innerText = msg.reply_to.content?.slice(0, 300) || '📎 файл';
+
+      replyBubble.appendChild(replyHeader);
+      replyBubble.appendChild(replyText);
+      bubble.appendChild(replyBubble);
+    }
+
+    // Текст сообщения
+    if (msg.content) {
+      const textDiv = document.createElement("div");
+      textDiv.innerText = msg.content;
+      bubble.appendChild(textDiv);
+    }
+
+    // Вложение (если есть)
+    if (msg.file_url) {
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
+      const fileBlock = document.createElement("div");
+      fileBlock.classList.add("mt-2");
+      fileBlock.innerHTML = isImage
+        ? `<img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" />`
+        : `<a href="${msg.file_url}" target="_blank" class="text-decoration-underline">📎 Скачать файл</a>`;
+      bubble.appendChild(fileBlock);
+    }
+
+    // Слушатель для ответа
     wrapper.addEventListener("dblclick", () => {
       replyTo = msg;
 
@@ -79,6 +123,7 @@ function initChat() {
       chatBox.scrollTop = chatBox.scrollHeight;
     });
 
+    wrapper.appendChild(bubble);
     return wrapper;
   }
 
@@ -99,7 +144,8 @@ function initChat() {
       formData.append("reply_to", JSON.stringify({
         sender_name: replyTo.sender_name,
         content: replyTo.content,
-        file_url: replyTo.file_url
+        file_url: replyTo.file_url,
+        timestamp: replyTo.timestamp
       }));
     }
 
@@ -111,6 +157,7 @@ function initChat() {
         if (resp.status === 'ok') {
           input.value = '';
           fileInput.value = '';
+          input.style.height = "38px";
           replyTo = null;
           if (replyIndicator) {
             replyIndicator.remove();
@@ -120,10 +167,22 @@ function initChat() {
       });
   });
 
-  input.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
       sendBtn.click();
+    } else if (e.key === "Enter" && (e.ctrlKey || e.shiftKey)) {
+      const pos = input.selectionStart;
+      const val = input.value;
+      input.value = val.slice(0, pos) + "\n" + val.slice(pos);
+      input.selectionStart = input.selectionEnd = pos + 1;
+      e.preventDefault();
     }
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
   });
 
   socket.on("connect", () => {

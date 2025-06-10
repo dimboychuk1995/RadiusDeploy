@@ -513,3 +513,7 @@ html, body {
   flex-direction: column;
   overflow: hidden;
 }
+
+#chat-box {
+    overflow-x: hidden;
+}
