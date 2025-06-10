@@ -112,7 +112,7 @@ function initChat() {
       fileBlock.classList.add("mt-2");
 
       if (isImage) {
-        fileBlock.innerHTML = `<img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" />`;
+        fileBlock.innerHTML = `<img src="${msg.file_url}" style="max-width: 600px; max-height: 600px;" />`;
       } else {
         const fileName = msg.file_name || "Файл";
         const fileSize = msg.file_size
@@ -122,10 +122,29 @@ function initChat() {
           : "";
 
         fileBlock.innerHTML = `
-          <a href="${msg.file_url}" target="_blank" class="text-decoration-underline">
-            📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
-          </a>
+          <div class="d-flex flex-column gap-1">
+            <a href="${msg.file_url}" target="_blank" class="text-decoration-underline">
+              📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
+            </a>
+          </div>
         `;
+
+        const isPreviewable = /\.(pdf|csv|xlsx?|xls)$/i.test(msg.file_url);
+        if (isPreviewable) {
+          const preview = document.createElement("div");
+          preview.classList.add("mt-2", "border", "rounded", "p-2", "bg-white");
+          preview.style.maxWidth = "300px";
+          preview.style.maxHeight = "250px";
+          preview.style.overflow = "hidden";
+
+          if (/\.pdf$/i.test(msg.file_url)) {
+            preview.innerHTML = `<iframe src="${msg.file_url}" width="100%" height="200px" style="border: none;"></iframe>`;
+          } else {
+            preview.innerHTML = `<div class="text-muted small">📄 Предпросмотр недоступен — откройте файл</div>`;
+          }
+
+          fileBlock.appendChild(preview);
+        }
       }
       bubble.appendChild(fileBlock);
     }
