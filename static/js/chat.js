@@ -11,30 +11,42 @@ function initChat() {
   const fileInput = document.getElementById("chat-file");
 
   function formatMessage(msg) {
-    const div = document.createElement("div");
+    const wrapper = document.createElement("div");
     const time = new Date(msg.timestamp).toLocaleString();
-    div.classList.add("mb-2", "p-2", "rounded");
+
+    // Заголовок: имя + время
+    const header = document.createElement("div");
+    header.classList.add("mb-1");
+    header.innerHTML = `<strong>${msg.sender_name}</strong> <small class="text-muted ms-1">${time}</small>`;
+
+    // Тело сообщения
+    const body = document.createElement("div");
+    body.classList.add("p-2", "rounded", "d-inline-block", "mt-1");
 
     if (msg.sender_id === CURRENT_USER_ID) {
-      div.classList.add("bg-primary", "text-white", "text-end");
+      body.style.backgroundColor = "#d1ecf1"; // светло-голубой
+      body.style.color = "#0c5460";
+      wrapper.classList.add("text-end");
     } else {
-      div.classList.add("bg-light", "text-start");
+      body.style.backgroundColor = "#e0e0e0"; // грязно-серый
+      body.style.color = "#212529";
     }
 
-    div.innerHTML = `
-      <div><strong>${msg.sender_name}</strong> <small>${time}</small></div>
-      <div>${msg.content || ''}</div>
-    `;
+    body.innerHTML = msg.content || '';
 
     if (msg.file_url) {
       const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
       const fileBlock = isImage
-        ? `<div><img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" class="mt-1"/></div>`
-        : `<div><a href="${msg.file_url}" target="_blank">📎 Скачать файл</a></div>`;
-      div.innerHTML += fileBlock;
+        ? `<div class="mt-2"><img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" /></div>`
+        : `<div class="mt-2"><a href="${msg.file_url}" target="_blank" class="text-decoration-underline">📎 Скачать файл</a></div>`;
+      body.innerHTML += fileBlock;
     }
 
-    return div;
+    wrapper.classList.add("mb-3");
+    wrapper.appendChild(header);
+    wrapper.appendChild(body);
+
+    return wrapper;
   }
 
   function addMessage(msg) {
@@ -60,13 +72,7 @@ function initChat() {
         if (resp.status === 'ok') {
           input.value = '';
           fileInput.value = '';
-          // Подгружаем последние сообщения заново
-          fetch('/api/chat/messages')
-            .then(res => res.json())
-            .then(messages => {
-              chatBox.innerHTML = '';
-              messages.forEach(addMessage);
-            });
+          // ❌ Убрали лишний fetch — теперь только через сокет
         }
       });
   });
@@ -78,6 +84,7 @@ function initChat() {
   });
 
   socket.on("connect", () => {
+    // Загрузим историю при подключении
     fetch('/api/chat/messages')
       .then(res => res.json())
       .then(messages => {
