@@ -5,6 +5,7 @@ from tools.db import db
 from tools.socketio_instance import socketio  # ✅ вместо from main
 from werkzeug.utils import secure_filename
 import os
+from uuid import uuid4
 
 chat_bp = Blueprint('chat_bp', __name__)
 
@@ -64,10 +65,12 @@ def send_message():
 
     file_url = None
     if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        original_filename = secure_filename(file.filename)
+        unique_prefix = uuid4().hex  # 32-символьный уникальный ID
+        unique_filename = f"{unique_prefix}_{original_filename}"
+        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         file.save(filepath)
-        file_url = f'/static/CHAT_FILES/{filename}'
+        file_url = f'/static/CHAT_FILES/{unique_filename}'
 
     message = {
         'sender_id': str(current_user.id),
@@ -79,7 +82,6 @@ def send_message():
 
     db.chat_messages.insert_one(message)
 
-    # 🔥 WebSocket-рассылка
     safe_message = {
         'sender_id': message['sender_id'],
         'sender_name': message['sender_name'],
@@ -87,6 +89,7 @@ def send_message():
         'file_url': message['file_url'],
         'timestamp': message['timestamp'].isoformat()
     }
-    socketio.emit('new_message', safe_message, to=None, skip_sid=None, namespace='/')
+
+    socketio.emit('new_message', safe_message, namespace='/')
 
     return jsonify({'status': 'ok'})
