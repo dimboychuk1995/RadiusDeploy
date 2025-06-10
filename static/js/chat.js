@@ -10,6 +10,12 @@ function initChat() {
   const sendBtn = document.getElementById("chat-send-btn");
   const fileInput = document.getElementById("chat-file");
 
+  const attachBtn = document.getElementById("chat-attach-btn");
+
+  attachBtn.addEventListener("click", () => {
+    fileInput.click();
+  });
+
   let replyTo = null;
   let replyIndicator = null;
 
@@ -24,108 +30,148 @@ function initChat() {
     });
   }
 
+
   function formatMessage(msg) {
-    const wrapper = document.createElement("div");
-    const time = formatTime(msg.timestamp);
+  const wrapper = document.createElement("div");
+  const time = formatTime(msg.timestamp);
 
-    wrapper.classList.add("mb-3");
+  wrapper.classList.add("mb-3");
 
-    const bubble = document.createElement("div");
-    bubble.classList.add("p-2", "rounded", "d-inline-block", "mt-1");
-    bubble.style.maxWidth = "80%";
-    bubble.style.wordBreak = "break-word";
+  const bubble = document.createElement("div");
+  bubble.classList.add("p-2", "rounded", "d-inline-block", "mt-1");
+  bubble.style.maxWidth = "80%";
+  bubble.style.wordBreak = "break-word";
 
-    const isCurrentUser = msg.sender_id === CURRENT_USER_ID;
-    if (isCurrentUser) {
-      bubble.style.backgroundColor = "#d1ecf1";
-      bubble.style.color = "#0c5460";
-      wrapper.classList.add("text-end");
-    } else {
-      bubble.style.backgroundColor = "#e0e0e0";
-      bubble.style.color = "#212529";
-    }
+  const isCurrentUser = msg.sender_id === CURRENT_USER_ID;
+  if (isCurrentUser) {
+    bubble.style.backgroundColor = "#d1ecf1";
+    bubble.style.color = "#0c5460";
+    wrapper.classList.add("text-end");
+  } else {
+    bubble.style.backgroundColor = "#e0e0e0";
+    bubble.style.color = "#212529";
+  }
 
-    // Заголовок: имя + дата
-    const header = document.createElement("div");
-    header.classList.add("mb-1");
-    header.innerHTML = `
-      <strong>${msg.sender_name}</strong>
-      <small class="text-muted ms-2">${time}</small>
+  // Заголовок: имя + дата
+  const header = document.createElement("div");
+  header.classList.add("mb-1");
+  header.innerHTML = `
+    <strong>${msg.sender_name}</strong>
+    <small class="text-muted ms-2">${time}</small>
+  `;
+  bubble.appendChild(header);
+
+  // Вложенный ответ (если есть)
+  if (msg.reply_to) {
+    const replyBubble = document.createElement("div");
+    replyBubble.classList.add("p-2", "rounded", "mb-2");
+    replyBubble.style.backgroundColor = "#f8f9fa";
+    replyBubble.style.borderLeft = "4px solid #adb5bd";
+    replyBubble.style.fontSize = "0.875em";
+    replyBubble.style.wordBreak = "break-word";
+
+    const replyHeader = document.createElement("div");
+    replyHeader.innerHTML = `
+      <strong>${msg.reply_to.sender_name}</strong>
+      <small class="text-muted ms-2">
+        ${msg.reply_to.timestamp ? formatTime(msg.reply_to.timestamp) : ''}
+      </small>
     `;
-    bubble.appendChild(header);
 
-    // Вложенный ответ (если есть)
-    if (msg.reply_to) {
-      const replyBubble = document.createElement("div");
-      replyBubble.classList.add("p-2", "rounded", "mb-2");
-      replyBubble.style.backgroundColor = "#f8f9fa";
-      replyBubble.style.borderLeft = "4px solid #adb5bd";
-      replyBubble.style.fontSize = "0.875em";
-      replyBubble.style.wordBreak = "break-word";
+    const replyText = document.createElement("div");
+    replyText.classList.add("mt-1");
 
-      const replyHeader = document.createElement("div");
-      replyHeader.innerHTML = `
-        <strong>${msg.reply_to.sender_name}</strong>
-        <small class="text-muted ms-2">
-          ${msg.reply_to.timestamp ? formatTime(msg.reply_to.timestamp) : ''}
-        </small>
+    // ➕ Текст
+    if (msg.reply_to.content) {
+      const textPart = document.createElement("div");
+      textPart.innerText = msg.reply_to.content.slice(0, 300);
+      replyText.appendChild(textPart);
+    }
+
+    // ➕ Файл
+    if (msg.reply_to.file_url) {
+      const fileName = msg.reply_to.file_name || "Файл";
+      const fileSize = msg.reply_to.file_size
+        ? (msg.reply_to.file_size >= 1024 * 1024
+            ? (msg.reply_to.file_size / (1024 * 1024)).toFixed(1) + " MB"
+            : (msg.reply_to.file_size / 1024).toFixed(1) + " KB")
+        : "";
+
+      const fileLink = document.createElement("a");
+      fileLink.href = msg.reply_to.file_url;
+      fileLink.target = "_blank";
+      fileLink.classList.add("text-decoration-underline");
+      fileLink.innerHTML = `📎 ${fileName} <span class="text-muted small">(${fileSize})</span>`;
+
+      replyText.appendChild(fileLink);
+    }
+
+    replyBubble.appendChild(replyHeader);
+    replyBubble.appendChild(replyText);
+    bubble.appendChild(replyBubble);
+  }
+
+  // Основной текст
+  if (msg.content) {
+    const textDiv = document.createElement("div");
+    textDiv.innerText = msg.content;
+    bubble.appendChild(textDiv);
+  }
+
+  // Вложение (если есть)
+  if (msg.file_url) {
+    const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
+    const fileBlock = document.createElement("div");
+    fileBlock.classList.add("mt-2");
+
+    if (isImage) {
+      fileBlock.innerHTML = `<img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" />`;
+    } else {
+      const fileName = msg.file_name || "Файл";
+      const fileSize = msg.file_size
+        ? (msg.file_size >= 1024 * 1024
+            ? (msg.file_size / (1024 * 1024)).toFixed(1) + " MB"
+            : (msg.file_size / 1024).toFixed(1) + " KB")
+        : "";
+
+      fileBlock.innerHTML = `
+        <a href="${msg.file_url}" target="_blank" class="text-decoration-underline">
+          📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
+        </a>
       `;
-
-      const replyText = document.createElement("div");
-      replyText.classList.add("mt-1");
-      replyText.innerText = msg.reply_to.content?.slice(0, 300) || '📎 файл';
-
-      replyBubble.appendChild(replyHeader);
-      replyBubble.appendChild(replyText);
-      bubble.appendChild(replyBubble);
     }
 
-    // Текст сообщения
-    if (msg.content) {
-      const textDiv = document.createElement("div");
-      textDiv.innerText = msg.content;
-      bubble.appendChild(textDiv);
-    }
+    bubble.appendChild(fileBlock);
+  }
 
-    // Вложение (если есть)
-    if (msg.file_url) {
-      const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url);
-      const fileBlock = document.createElement("div");
-      fileBlock.classList.add("mt-2");
-      fileBlock.innerHTML = isImage
-        ? `<img src="${msg.file_url}" style="max-width: 200px; max-height: 200px;" />`
-        : `<a href="${msg.file_url}" target="_blank" class="text-decoration-underline">📎 Скачать файл</a>`;
-      bubble.appendChild(fileBlock);
-    }
+  // Двойной клик → ответ
+  wrapper.addEventListener("dblclick", () => {
+    replyTo = msg;
 
-    // Слушатель для ответа
-    wrapper.addEventListener("dblclick", () => {
-      replyTo = msg;
+    if (replyIndicator) replyIndicator.remove();
 
-      if (replyIndicator) replyIndicator.remove();
+    replyIndicator = document.createElement("div");
+    replyIndicator.className = "mb-2 p-2 border rounded bg-light";
+    replyIndicator.innerHTML = `
+      <div class="text-muted small">
+        🡒 Ответ на: <strong>${msg.sender_name}</strong>: ${msg.content?.slice(0, 100) || '📎 файл'}
+        <button type="button" class="btn-close float-end" style="font-size: 0.8em;" aria-label="Close"></button>
+      </div>
+    `;
 
-      replyIndicator = document.createElement("div");
-      replyIndicator.className = "mb-2 p-2 border rounded bg-light";
-      replyIndicator.innerHTML = `
-        <div class="text-muted small">
-          🡒 Ответ на: <strong>${msg.sender_name}</strong>: ${msg.content?.slice(0, 100) || '📎 файл'}
-          <button type="button" class="btn-close float-end" style="font-size: 0.8em;" aria-label="Close"></button>
-        </div>
-      `;
-
-      replyIndicator.querySelector(".btn-close").addEventListener("click", () => {
-        replyTo = null;
-        replyIndicator.remove();
-        replyIndicator = null;
-      });
-
-      chatBox.appendChild(replyIndicator);
-      chatBox.scrollTop = chatBox.scrollHeight;
+    replyIndicator.querySelector(".btn-close").addEventListener("click", () => {
+      replyTo = null;
+      replyIndicator.remove();
+      replyIndicator = null;
     });
 
-    wrapper.appendChild(bubble);
-    return wrapper;
-  }
+    chatBox.appendChild(replyIndicator);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  });
+
+  wrapper.appendChild(bubble);
+  return wrapper;
+}
 
   function addMessage(msg) {
     chatBox.appendChild(formatMessage(msg));
@@ -145,6 +191,8 @@ function initChat() {
         sender_name: replyTo.sender_name,
         content: replyTo.content,
         file_url: replyTo.file_url,
+        file_name: replyTo.file_name,
+        file_size: replyTo.file_size,
         timestamp: replyTo.timestamp
       }));
     }

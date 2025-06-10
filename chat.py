@@ -66,6 +66,9 @@ def send_message():
         return jsonify({'status': 'error', 'error': 'Empty message'}), 400
 
     file_url = None
+    file_name = None
+    file_size = None
+
     if file:
         original_filename = secure_filename(file.filename)
         unique_prefix = uuid4().hex
@@ -73,6 +76,8 @@ def send_message():
         filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
         file.save(filepath)
         file_url = f'/static/CHAT_FILES/{unique_filename}'
+        file_name = original_filename
+        file_size = os.path.getsize(filepath)
 
     reply_data = request.form.get('reply_to')
     reply_to = None
@@ -87,6 +92,8 @@ def send_message():
         'sender_name': current_user.username,
         'content': content,
         'file_url': file_url,
+        'file_name': file_name,
+        'file_size': file_size,
         'reply_to': reply_to,
         'timestamp': datetime.utcnow()
     }
@@ -98,6 +105,8 @@ def send_message():
         'sender_name': message['sender_name'],
         'content': message['content'],
         'file_url': message['file_url'],
+        'file_name': message['file_name'],
+        'file_size': message['file_size'],
         'reply_to': message['reply_to'],
         'timestamp': message['timestamp'].isoformat()
     }
