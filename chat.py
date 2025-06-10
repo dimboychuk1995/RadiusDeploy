@@ -33,7 +33,7 @@ def handle_send_message(data):
 @login_required
 def chat_fragment():
     return render_template(
-        'chat_fragment.html',
+        'fragments/chat_fragment.html',
         current_user_id=str(current_user.id),
         current_user_name=current_user.username
     )
