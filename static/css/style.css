@@ -516,4 +516,6 @@ html, body {
 
 #chat-box {
     overflow-x: hidden;
+    display: flex;
+    flex-direction: column-reverse;
 }

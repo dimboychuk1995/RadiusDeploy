@@ -1,35 +1,95 @@
 function initChat() {
+  const socket = io();
+  console.log("⏳ Connecting to Socket.IO...");
 
-  const selectedFiles = document.getElementById("selected-files");
-  const fileInput = document.getElementById("chat-file");
-
-  fileInput.addEventListener("change", () => {
-    const files = Array.from(fileInput.files);
-    if (files.length === 0) {
-      selectedFiles.innerHTML = "";
-      return;
-    }
-
-    selectedFiles.innerHTML = files.map(file =>
-      `<div>📎 ${file.name} <span class="text-muted small">(${(file.size / 1024).toFixed(1)} KB)</span></div>`
-    ).join("");
+  socket.on("connect", () => {
+    console.log("✅ Socket connected!", socket.id);
   });
 
-  const socket = io();
+  socket.on("connect_error", (err) => {
+    console.error("❌ Socket.IO connection error:", err);
+  });
 
   const meta = document.getElementById("chat-meta");
   const CURRENT_USER_ID = meta.dataset.userId;
 
+  const roomList = document.getElementById("room-list");
+  const createRoomBtn = document.getElementById("create-room-btn");
   const chatBox = document.getElementById("chat-box");
   const input = document.getElementById("chat-input");
   const sendBtn = document.getElementById("chat-send-btn");
-
+  const fileInput = document.getElementById("chat-file");
   const attachBtn = document.getElementById("chat-attach-btn");
+  const selectedFiles = document.getElementById("selected-files");
+
+  chatBox.style.display = "flex";
+  chatBox.style.flexDirection = "column-reverse";
+
+  let currentRoomId = null;
+  let replyTo = null;
+  let replyIndicator = null;
 
   attachBtn.addEventListener("click", () => fileInput.click());
 
-  let replyTo = null;
-  let replyIndicator = null;
+  fileInput.addEventListener("change", () => {
+    const files = Array.from(fileInput.files);
+    selectedFiles.innerHTML = files.length === 0 ? "" : files.map(file =>
+      `<div>📎 ${file.name} <span class="text-muted small">(${(file.size / 1024).toFixed(1)} KB)</span></div>`
+    ).join("");
+  });
+
+  createRoomBtn.addEventListener("click", () => {
+    const name = prompt("Введите имя чата:");
+    if (name) {
+      fetch('/api/chat/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      }).then(res => res.json()).then(loadRooms);
+    }
+  });
+
+  function loadRooms() {
+    fetch('/api/chat/rooms')
+      .then(res => res.json())
+      .then(rooms => {
+        roomList.innerHTML = '';
+        rooms.forEach(room => {
+          const item = document.createElement("li");
+          item.className = "list-group-item list-group-item-action";
+          item.textContent = room.name;
+          item.dataset.roomId = room._id;
+          item.addEventListener("click", () => switchRoom(room._id));
+          roomList.appendChild(item);
+        });
+
+        if (rooms.length === 0) {
+          chatBox.innerHTML = '<div class="text-muted">Нет доступных чатов. Нажмите + чтобы создать.</div>';
+        }
+
+        if (rooms.length > 0 && !currentRoomId) {
+          switchRoom(rooms[0]._id);
+        }
+      });
+  }
+
+  function switchRoom(roomId) {
+    if (currentRoomId === roomId) return;
+    currentRoomId = roomId;
+
+    Array.from(roomList.children).forEach(item => {
+      item.classList.toggle("active", item.dataset.roomId === roomId);
+    });
+
+    socket.emit("join", { room_id: roomId });
+
+    fetch(`/api/chat/messages/${roomId}`)
+      .then(res => res.json())
+      .then(messages => {
+        chatBox.innerHTML = '';
+        messages.reverse().forEach(addMessage); // важный момент
+      });
+  }
 
   function formatTime(timestamp) {
     return new Date(timestamp).toLocaleString('en-US', {
@@ -79,18 +139,12 @@ function initChat() {
 
       const replyText = document.createElement("div");
       replyText.classList.add("mt-1");
+      if (reply.content) replyText.innerText = reply.content.slice(0, 300);
 
-      if (reply.content) {
-        replyText.innerText = reply.content.slice(0, 300);
-      }
       if (reply.files && Array.isArray(reply.files)) {
         reply.files.forEach(file => {
           const fileName = file.file_name || "Файл";
-          const fileSize = file.file_size
-            ? (file.file_size >= 1024 * 1024
-                ? (file.file_size / (1024 * 1024)).toFixed(1) + " MB"
-                : (file.file_size / 1024).toFixed(1) + " KB")
-            : "";
+          const fileSize = file.file_size ? (file.file_size / 1024).toFixed(1) + " KB" : "";
           const fileLink = document.createElement("a");
           fileLink.href = file.file_url;
           fileLink.target = "_blank";
@@ -99,7 +153,6 @@ function initChat() {
           replyText.appendChild(fileLink);
         });
       }
-
 
       replyBubble.appendChild(replyHeader);
       replyBubble.appendChild(replyText);
@@ -125,7 +178,6 @@ function initChat() {
       bubble.appendChild(textDiv);
     }
 
-    // ✅ Множественные файлы
     if (msg.files && Array.isArray(msg.files)) {
       msg.files.forEach(file => {
         const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(file.file_url);
@@ -133,21 +185,19 @@ function initChat() {
         fileBlock.classList.add("mt-2");
 
         if (isImage) {
-          fileBlock.innerHTML = `<img src="${file.file_url}" style="max-width: 600px; max-height: 600px;" />`;
+          const link = document.createElement("a");
+          link.href = file.file_url;
+          link.target = "_blank";
+          const img = document.createElement("img");
+          img.src = file.file_url;
+          img.style.maxWidth = "600px";
+          img.style.maxHeight = "600px";
+          link.appendChild(img);
+          fileBlock.appendChild(link);
         } else {
           const fileName = file.file_name || "Файл";
-          const fileSize = file.file_size
-            ? (file.file_size >= 1024 * 1024
-                ? (file.file_size / (1024 * 1024)).toFixed(1) + " MB"
-                : (file.file_size / 1024).toFixed(1) + " KB")
-            : "";
-          fileBlock.innerHTML = `
-            <div class="d-flex flex-column gap-1">
-              <a href="${file.file_url}" target="_blank" class="text-decoration-underline">
-                📎 ${fileName} <span class="text-muted small">(${fileSize})</span>
-              </a>
-            </div>
-          `;
+          const fileSize = file.file_size ? (file.file_size / 1024).toFixed(1) + " KB" : "";
+          fileBlock.innerHTML = `<a href="${file.file_url}" target="_blank" class="text-decoration-underline">📎 ${fileName} <span class="text-muted small">(${fileSize})</span></a>`;
         }
 
         bubble.appendChild(fileBlock);
@@ -156,23 +206,19 @@ function initChat() {
 
     wrapper.addEventListener("dblclick", () => {
       replyTo = msg;
-
       if (replyIndicator) replyIndicator.remove();
-
       replyIndicator = document.createElement("div");
       replyIndicator.className = "mb-2 p-2 border rounded bg-light";
       replyIndicator.innerHTML = `
         <div class="text-muted small">
           🡒 Ответ на: <strong>${msg.sender_name}</strong>: ${msg.content?.slice(0, 100) || '📎 файл'}
           <button type="button" class="btn-close float-end" style="font-size: 0.8em;" aria-label="Close"></button>
-        </div>
-      `;
+        </div>`;
       replyIndicator.querySelector(".btn-close").addEventListener("click", () => {
         replyTo = null;
         replyIndicator.remove();
         replyIndicator = null;
       });
-
       chatBox.appendChild(replyIndicator);
       chatBox.scrollTop = chatBox.scrollHeight;
     });
@@ -182,20 +228,18 @@ function initChat() {
   }
 
   function addMessage(msg) {
-    chatBox.appendChild(formatMessage(msg));
-    chatBox.scrollTop = chatBox.scrollHeight;
+    chatBox.prepend(formatMessage(msg)); // prepend вместо append
   }
 
   sendBtn.addEventListener("click", () => {
     const content = input.value.trim();
     const files = Array.from(fileInput.files);
     if (!content && files.length === 0) return;
+    if (!currentRoomId) return alert("Выберите чат");
 
     const formData = new FormData();
     formData.append("content", content);
-    files.forEach(file => {
-      formData.append("files", file);
-    });
+    files.forEach(file => formData.append("files", file));
 
     if (replyTo) {
       formData.append("reply_to", JSON.stringify({
@@ -207,7 +251,7 @@ function initChat() {
       }));
     }
 
-    fetch("/api/chat/send", {
+    fetch(`/api/chat/send/${currentRoomId}`, {
       method: "POST",
       body: formData
     }).then(res => res.json())
@@ -243,21 +287,11 @@ function initChat() {
     input.style.height = input.scrollHeight + "px";
   });
 
-  socket.on("connect", () => {
-    fetch('/api/chat/messages')
-      .then(res => res.json())
-      .then(messages => {
-        chatBox.innerHTML = '';
-        messages.forEach(addMessage);
-
-        // ⬇️ Прокрутка в самый низ после полной загрузки
-        setTimeout(() => {
-          chatBox.scrollTop = chatBox.scrollHeight;
-        }, 100);
-      });
-  });
-
   socket.on("new_message", (msg) => {
-    addMessage(msg);
+    if (msg.room_id === currentRoomId || msg.room_id === String(currentRoomId)) {
+      addMessage(msg);
+    }
   });
+
+  loadRooms();
 }

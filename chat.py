@@ -4,30 +4,47 @@ from datetime import datetime
 from tools.db import db
 from tools.socketio_instance import socketio
 from werkzeug.utils import secure_filename
+from bson import ObjectId
 import os
 import json
 from uuid import uuid4
+import sys
 
 chat_bp = Blueprint('chat_bp', __name__)
 
 UPLOAD_FOLDER = 'static/CHAT_FILES'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ====== SOCKET ======
 @socketio.on('send_message')
 @login_required
 def handle_send_message(data):
+    print("🔵 SOCKET: send_message received:", data)
+    room_id = data.get('room_id')
+    if not room_id:
+        return
+
     message = {
+        'room_id': ObjectId(room_id),
         'sender_id': str(current_user.id),
         'sender_name': current_user.username,
         'content': data.get('content', '').strip(),
         'timestamp': datetime.utcnow().isoformat()
     }
 
-    if message['content']:
-        db.chat_messages.insert_one(message)
-        socketio.emit('new_message', message, broadcast=True, namespace='/')
+    db.chat_messages.insert_one(message)
+    socketio.emit('new_message', message, room=room_id)
 
 
+@socketio.on('join')
+@login_required
+def handle_join(data):
+    room_id = data.get('room_id')
+    if room_id:
+        from flask_socketio import join_room
+        join_room(room_id)
+
+# ====== CHAT UI ======
 @chat_bp.route('/fragment/chat')
 @login_required
 def chat_fragment():
@@ -37,19 +54,73 @@ def chat_fragment():
         current_user_name=current_user.username
     )
 
-
-@chat_bp.route('/api/chat/messages', methods=['GET'])
+# ====== ROOMS ======
+@chat_bp.route('/api/chat/rooms', methods=['GET'])
 @login_required
-def get_messages():
-    messages = list(db.chat_messages.find().sort('timestamp', 1))
+def get_rooms():
+    rooms = list(db.chat_rooms.find())
+    for room in rooms:
+        room['_id'] = str(room['_id'])
+    return jsonify(rooms)
+
+
+@chat_bp.route('/api/chat/rooms', methods=['POST'])
+@login_required
+def create_room():
+    name = request.json.get('name', '').strip()
+    if not name:
+        return jsonify({'status': 'error', 'error': 'Missing name'}), 400
+
+    room = {
+        'name': name,
+        'created_by': str(current_user.id),
+        'created_at': datetime.utcnow()
+    }
+
+    inserted = db.chat_rooms.insert_one(room)
+    room['_id'] = str(inserted.inserted_id)
+
+    return jsonify({'status': 'ok', 'room': room})
+
+
+@chat_bp.route('/api/chat/rooms/<room_id>', methods=['DELETE'])
+@login_required
+def delete_room(room_id):
+    room = db.chat_rooms.find_one({'_id': ObjectId(room_id)})
+    if not room:
+        return jsonify({'status': 'error', 'error': 'Room not found'}), 404
+
+    if room.get('created_by') != str(current_user.id):
+        return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
+
+    db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
+    db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
+
+    return jsonify({'status': 'ok'})
+
+# ====== MESSAGES ======
+@chat_bp.route('/api/chat/messages/<room_id>', methods=['GET'])
+@login_required
+def get_messages(room_id):
+    try:
+        room_oid = ObjectId(room_id)
+    except Exception:
+        return jsonify({'status': 'error', 'error': 'Invalid room ID'}), 400
+
+    messages = list(db.chat_messages.find({'room_id': room_oid}).sort('timestamp', 1))
+
     for msg in messages:
         msg['_id'] = str(msg['_id'])
+        msg['room_id'] = str(msg['room_id'])  # ⬅️ ЭТО НУЖНО!
+        if msg.get('reply_to') and msg['reply_to'].get('message_id'):
+            msg['reply_to']['message_id'] = str(msg['reply_to']['message_id'])
+
     return jsonify(messages)
 
 
-@chat_bp.route('/api/chat/send', methods=['POST'])
+@chat_bp.route('/api/chat/send/<room_id>', methods=['POST'])
 @login_required
-def send_message():
+def send_message(room_id):
     content = request.form.get('content', '').strip()
     files = request.files.getlist('files')
 
@@ -80,6 +151,7 @@ def send_message():
             reply_to = None
 
     message = {
+        'room_id': ObjectId(room_id),
         'sender_id': str(current_user.id),
         'sender_name': current_user.username,
         'content': content,
@@ -93,6 +165,7 @@ def send_message():
 
     safe_message = {
         '_id': str(message['_id']),
+        'room_id': room_id,
         'sender_id': message['sender_id'],
         'sender_name': message['sender_name'],
         'content': message['content'],
@@ -101,6 +174,6 @@ def send_message():
         'timestamp': message['timestamp'].isoformat()
     }
 
-    socketio.emit('new_message', safe_message, namespace='/')
+    socketio.emit('new_message', safe_message, room=room_id)
 
     return jsonify({'status': 'ok'})
