@@ -50,29 +50,107 @@ function initChat() {
     }
   });
 
-  function loadRooms() {
-    fetch('/api/chat/rooms')
-      .then(res => res.json())
-      .then(rooms => {
-        roomList.innerHTML = '';
-        rooms.forEach(room => {
-          const item = document.createElement("li");
-          item.className = "list-group-item list-group-item-action";
-          item.textContent = room.name;
-          item.dataset.roomId = room._id;
-          item.addEventListener("click", () => switchRoom(room._id));
-          roomList.appendChild(item);
+function loadRooms() {
+  fetch('/api/chat/rooms')
+    .then(res => res.json())
+    .then(rooms => {
+      roomList.innerHTML = '';
+
+      rooms.forEach(room => {
+        const item = document.createElement("li");
+        item.className = "list-group-item list-group-item-action d-flex justify-content-between align-items-center";
+        item.dataset.roomId = room._id;
+
+        const roomName = document.createElement("span");
+        roomName.textContent = room.name;
+        roomName.classList.add("flex-grow-1");
+        roomName.style.cursor = "pointer";
+        roomName.addEventListener("click", () => switchRoom(room._id));
+
+        const dropdown = document.createElement("div");
+        dropdown.className = "dropdown";
+
+        const toggleBtn = document.createElement("button");
+        toggleBtn.className = "btn btn-sm text-muted";
+        toggleBtn.type = "button";
+        toggleBtn.setAttribute("data-bs-toggle", "dropdown");
+        toggleBtn.setAttribute("aria-expanded", "false");
+        toggleBtn.style.fontSize = "1.2em";
+        toggleBtn.innerText = "⋯";
+
+        const menu = document.createElement("ul");
+        menu.className = "dropdown-menu dropdown-menu-end";
+
+        const renameLi = document.createElement("li");
+        const renameA = document.createElement("a");
+        renameA.className = "dropdown-item";
+        renameA.href = "#";
+        renameA.textContent = "Переименовать";
+        renameA.addEventListener("click", (e) => {
+          e.preventDefault();
+          const newName = prompt("Введите новое имя чата:", room.name);
+          if (newName && newName.trim()) {
+            fetch(`/api/chat/rooms/${room._id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: newName.trim() })
+            })
+            .then(res => {
+              if (!res.ok) return res.json().then(err => { throw err; });
+              loadRooms();
+            })
+            .catch(err => {
+              alert(err.error || "Ошибка при переименовании чата");
+            });
+          }
         });
+        renameLi.appendChild(renameA);
 
-        if (rooms.length === 0) {
-          chatBox.innerHTML = '<div class="text-muted">Нет доступных чатов. Нажмите + чтобы создать.</div>';
-        }
+        const deleteLi = document.createElement("li");
+        const deleteA = document.createElement("a");
+        deleteA.className = "dropdown-item text-danger";
+        deleteA.href = "#";
+        deleteA.textContent = "Удалить";
+        deleteA.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (confirm("Вы уверены, что хотите удалить этот чат?")) {
+            fetch(`/api/chat/rooms/${room._id}`, { method: 'DELETE' })
+              .then(res => {
+                if (!res.ok) return res.json().then(err => { throw err; });
+                if (room._id === currentRoomId) {
+                  currentRoomId = null;
+                  chatBox.innerHTML = '';
+                }
+                loadRooms();
+              })
+              .catch(err => {
+                alert(err.error || "Ошибка при удалении чата");
+              });
+          }
+        });
+        deleteLi.appendChild(deleteA);
 
-        if (rooms.length > 0 && !currentRoomId) {
-          switchRoom(rooms[0]._id);
-        }
+        menu.appendChild(renameLi);
+        menu.appendChild(deleteLi);
+
+        dropdown.appendChild(toggleBtn);
+        dropdown.appendChild(menu);
+
+        item.appendChild(roomName);
+        item.appendChild(dropdown);
+        roomList.appendChild(item);
       });
-  }
+
+      if (rooms.length === 0) {
+        chatBox.innerHTML = '<div class="text-muted">Нет доступных чатов. Нажмите + чтобы создать.</div>';
+      }
+
+      if (rooms.length > 0 && !currentRoomId) {
+        switchRoom(rooms[0]._id);
+      }
+    });
+}
+
 
   function switchRoom(roomId) {
     if (currentRoomId === roomId) return;

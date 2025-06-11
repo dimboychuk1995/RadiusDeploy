@@ -91,22 +91,6 @@ def create_room():
 
     return jsonify({'status': 'ok', 'room': room})
 
-
-@chat_bp.route('/api/chat/rooms/<room_id>', methods=['DELETE'])
-@login_required
-def delete_room(room_id):
-    room = db.chat_rooms.find_one({'_id': ObjectId(room_id)})
-    if not room:
-        return jsonify({'status': 'error', 'error': 'Room not found'}), 404
-
-    if room.get('created_by') != str(current_user.id):
-        return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
-
-    db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
-    db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
-
-    return jsonify({'status': 'ok'})
-
 # ====== MESSAGES ======
 @chat_bp.route('/api/chat/messages/<room_id>', methods=['GET'])
 @login_required
@@ -184,5 +168,39 @@ def send_message(room_id):
     }
 
     socketio.emit('new_message', safe_message, room=room_id)
+
+    return jsonify({'status': 'ok'})
+
+@chat_bp.route('/api/chat/rooms/<room_id>', methods=['PUT'])
+@login_required
+def rename_room(room_id):
+    data = request.json
+    new_name = data.get('name', '').strip()
+
+    if not new_name:
+        return jsonify({'status': 'error', 'error': 'Missing new name'}), 400
+
+    room = db.chat_rooms.find_one({'_id': ObjectId(room_id)})
+    if not room:
+        return jsonify({'status': 'error', 'error': 'Room not found'}), 404
+
+    if room.get('created_by') != str(current_user.id):
+        return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
+
+    db.chat_rooms.update_one({'_id': ObjectId(room_id)}, {'$set': {'name': new_name}})
+    return jsonify({'status': 'ok'})
+
+@chat_bp.route('/api/chat/rooms/<room_id>', methods=['DELETE'])
+@login_required
+def delete_room(room_id):
+    room = db.chat_rooms.find_one({'_id': ObjectId(room_id)})
+    if not room:
+        return jsonify({'status': 'error', 'error': 'Room not found'}), 404
+
+    if room.get('created_by') != str(current_user.id):
+        return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
+
+    db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
+    db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
 
     return jsonify({'status': 'ok'})
