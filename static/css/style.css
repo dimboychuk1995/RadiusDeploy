@@ -515,7 +515,8 @@ html, body {
 }
 
 #chat-box {
-    overflow-x: hidden;
-    display: flex;
-    flex-direction: column-reverse;
+  display: flex;
+  flex-direction: column-reverse;  /* снизу вверх */
+  overflow-y: auto;
+  height: calc(100vh - 300px); /* подгони под свой layout */
 }

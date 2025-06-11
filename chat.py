@@ -17,8 +17,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # ====== SOCKET ======
 @socketio.on('send_message')
-@login_required
 def handle_send_message(data):
+    from flask_login import current_user
+    if not current_user.is_authenticated:
+        print("❌ SOCKET: User not authenticated")
+        return
+
     print("🔵 SOCKET: send_message received:", data)
     room_id = data.get('room_id')
     if not room_id:
@@ -37,12 +41,17 @@ def handle_send_message(data):
 
 
 @socketio.on('join')
-@login_required
 def handle_join(data):
+    from flask_login import current_user
+    if not current_user.is_authenticated:
+        print("❌ SOCKET: User not authenticated (join)")
+        return
+
     room_id = data.get('room_id')
     if room_id:
         from flask_socketio import join_room
         join_room(room_id)
+        print(f"🟢 SOCKET: User {current_user.username} joined room {room_id}")
 
 # ====== CHAT UI ======
 @chat_bp.route('/fragment/chat')

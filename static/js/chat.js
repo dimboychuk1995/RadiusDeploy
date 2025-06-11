@@ -1,3 +1,5 @@
+// Полный файл initChat.js
+
 function initChat() {
   const socket = io();
   console.log("⏳ Connecting to Socket.IO...");
@@ -23,7 +25,6 @@ function initChat() {
   const selectedFiles = document.getElementById("selected-files");
 
   chatBox.style.display = "flex";
-  chatBox.style.flexDirection = "column-reverse";
 
   let currentRoomId = null;
   let replyTo = null;
@@ -87,7 +88,7 @@ function initChat() {
       .then(res => res.json())
       .then(messages => {
         chatBox.innerHTML = '';
-        messages.reverse().forEach(addMessage); // важный момент
+        messages.forEach(addMessage);  // старые сверху, новые снизу (в DOM: вниз = вверх)
       });
   }
 
@@ -219,7 +220,7 @@ function initChat() {
         replyIndicator.remove();
         replyIndicator = null;
       });
-      chatBox.appendChild(replyIndicator);
+      chatBox.insertBefore(replyIndicator, chatBox.firstChild);
       chatBox.scrollTop = chatBox.scrollHeight;
     });
 
@@ -228,7 +229,8 @@ function initChat() {
   }
 
   function addMessage(msg) {
-    chatBox.prepend(formatMessage(msg)); // prepend вместо append
+    const el = formatMessage(msg);
+    chatBox.insertBefore(el, chatBox.firstChild);  // ⬅️ вставить "вниз", то есть в DOM-вверх
   }
 
   sendBtn.addEventListener("click", () => {
@@ -288,7 +290,8 @@ function initChat() {
   });
 
   socket.on("new_message", (msg) => {
-    if (msg.room_id === currentRoomId || msg.room_id === String(currentRoomId)) {
+    console.log("📥 new_message received:", msg, "Current room:", currentRoomId);
+    if (msg.room_id == currentRoomId) {
       addMessage(msg);
     }
   });
