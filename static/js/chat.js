@@ -81,6 +81,20 @@ function loadRooms() {
         const menu = document.createElement("ul");
         menu.className = "dropdown-menu dropdown-menu-end";
 
+        // === 🔹 ДОБАВИТЬ УЧАСТНИКА ===
+        const addUserLi = document.createElement("li");
+        const addUserA = document.createElement("a");
+        addUserA.className = "dropdown-item";
+        addUserA.href = "#";
+        addUserA.textContent = "Добавить участника";
+        addUserA.addEventListener("click", (e) => {
+          e.preventDefault();
+          openAddUserDialog(room._id);
+        });
+        addUserLi.appendChild(addUserA);
+        menu.appendChild(addUserLi);
+
+        // === ✏️ Переименовать ===
         const renameLi = document.createElement("li");
         const renameA = document.createElement("a");
         renameA.className = "dropdown-item";
@@ -106,6 +120,7 @@ function loadRooms() {
         });
         renameLi.appendChild(renameA);
 
+        // === 🗑 Удалить ===
         const deleteLi = document.createElement("li");
         const deleteA = document.createElement("a");
         deleteA.className = "dropdown-item text-danger";
@@ -151,6 +166,38 @@ function loadRooms() {
     });
 }
 
+function openAddUserDialog(roomId) {
+  fetch("/api/users")
+    .then(res => res.json())
+    .then(users => {
+      const options = users.map(u => `<option value="${u._id}">${u.username}</option>`).join("");
+      const html = `
+        <label>Выберите пользователя:</label>
+        <select id="user-select" class="form-select mt-2">${options}</select>
+      `;
+      Swal.fire({
+        title: 'Добавить участника',
+        html: html,
+        showCancelButton: true,
+        confirmButtonText: 'Добавить',
+        preConfirm: () => {
+          const selectedId = document.getElementById("user-select").value;
+          return fetch(`/api/chat/rooms/${roomId}/add_user`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ user_id: selectedId })
+          })
+          .then(res => res.json())
+          .then(resp => {
+            if (resp.status !== "ok") throw new Error(resp.error || "Ошибка");
+          })
+          .catch(err => {
+            Swal.showValidationMessage(err.message);
+          });
+        }
+      });
+    });
+}
 
   function switchRoom(roomId) {
     if (currentRoomId === roomId) return;

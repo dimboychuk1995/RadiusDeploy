@@ -67,7 +67,7 @@ def chat_fragment():
 @chat_bp.route('/api/chat/rooms', methods=['GET'])
 @login_required
 def get_rooms():
-    rooms = list(db.chat_rooms.find())
+    rooms = list(db.chat_rooms.find({'participants': str(current_user.id)}))
     for room in rooms:
         room['_id'] = str(room['_id'])
     return jsonify(rooms)
@@ -83,6 +83,7 @@ def create_room():
     room = {
         'name': name,
         'created_by': str(current_user.id),
+        'participants': [str(current_user.id)],  # 👈 вот тут
         'created_at': datetime.utcnow()
     }
 
@@ -204,3 +205,34 @@ def delete_room(room_id):
     db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
 
     return jsonify({'status': 'ok'})
+
+@chat_bp.route('/api/chat/rooms/<room_id>/add_user', methods=['POST'])
+@login_required
+def add_user_to_room(room_id):
+    data = request.json
+    user_id_to_add = data.get('user_id')
+
+    if not user_id_to_add:
+        return jsonify({'status': 'error', 'error': 'Missing user_id'}), 400
+
+    room = db.chat_rooms.find_one({'_id': ObjectId(room_id)})
+    if not room:
+        return jsonify({'status': 'error', 'error': 'Room not found'}), 404
+
+    if room['created_by'] != str(current_user.id):
+        return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
+
+    db.chat_rooms.update_one(
+        {'_id': ObjectId(room_id)},
+        {'$addToSet': {'participants': user_id_to_add}}
+    )
+
+    return jsonify({'status': 'ok'})
+
+@chat_bp.route('/api/users')
+@login_required
+def list_users():
+    users = list(db.users.find({}, {'_id': 1, 'username': 1}))  # или адаптируй под ORM
+    for u in users:
+        u['_id'] = str(u['_id'])
+    return jsonify(users)
