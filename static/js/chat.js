@@ -1,4 +1,20 @@
 function initChat() {
+
+  const selectedFiles = document.getElementById("selected-files");
+  const fileInput = document.getElementById("chat-file");
+
+  fileInput.addEventListener("change", () => {
+    const files = Array.from(fileInput.files);
+    if (files.length === 0) {
+      selectedFiles.innerHTML = "";
+      return;
+    }
+
+    selectedFiles.innerHTML = files.map(file =>
+      `<div>📎 ${file.name} <span class="text-muted small">(${(file.size / 1024).toFixed(1)} KB)</span></div>`
+    ).join("");
+  });
+
   const socket = io();
 
   const meta = document.getElementById("chat-meta");
@@ -7,7 +23,7 @@ function initChat() {
   const chatBox = document.getElementById("chat-box");
   const input = document.getElementById("chat-input");
   const sendBtn = document.getElementById("chat-send-btn");
-  const fileInput = document.getElementById("chat-file");
+
   const attachBtn = document.getElementById("chat-attach-btn");
 
   attachBtn.addEventListener("click", () => fileInput.click());
@@ -199,6 +215,7 @@ function initChat() {
         if (resp.status === 'ok') {
           input.value = '';
           fileInput.value = '';
+          selectedFiles.innerHTML = '';
           input.style.height = "38px";
           replyTo = null;
           if (replyIndicator) {

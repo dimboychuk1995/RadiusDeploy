@@ -11,15 +11,17 @@
     <!-- Сообщения -->
   </div>
 
-  <div class="d-flex align-items-end border rounded px-2 py-1" style="gap: 8px;">
+  <div class="d-flex flex-column border rounded px-2 py-1">
+    <div class="d-flex align-items-end gap-2">
       <button id="chat-attach-btn" class="btn btn-sm p-1" style="background: none; border: none;" title="Прикрепить файл">
         <i class="fas fa-paperclip fa-lg text-secondary"></i>
       </button>
-      <textarea id="chat-input" class="form-control border-0" rows="1"
+      <textarea id="chat-input" class="form-control border-0" rows="2"
                 placeholder="Напишите сообщение..."
-                style="resize: none; overflow-y: hidden; height: 38px;"></textarea>
+                style="resize: none; overflow-y: hidden; min-height: 48px; max-height: 120px;"></textarea>
       <input type="file" id="chat-file" class="d-none" multiple>
       <button id="chat-send-btn" class="btn btn-primary">Отправить</button>
     </div>
-
+    <div id="selected-files" class="small text-muted mt-1 ps-1" style="max-height: 80px; overflow-y: auto;"></div>
+  </div>
 </div>
