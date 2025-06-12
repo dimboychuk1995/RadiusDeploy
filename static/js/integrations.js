@@ -75,3 +75,48 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 });
+
+// === Обработчики для уже существующих интеграций ===
+document.querySelectorAll("[data-save-for]").forEach(saveBtn => {
+    saveBtn.addEventListener("click", () => {
+        const name = saveBtn.dataset.saveFor;
+        const apiKeyInput = document.querySelector(`[data-api-key-for="${name}"]`);
+        const toggleBtn = document.querySelector(`[data-name="${name}"]`);
+        const enabled = toggleBtn.dataset.enabled === "true";
+        const apiKey = apiKeyInput.value.trim();
+
+        if (!apiKey) {
+            alert("⚠️ Укажите API ключ");
+            return;
+        }
+
+        fetch(`/api/integrations/${name}/save`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled, api_key: apiKey })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(`✅ Интеграция "${name}" обновлена`);
+            } else {
+                alert("❌ Ошибка: " + (data.error || "неизвестная"));
+            }
+        })
+        .catch(err => {
+            alert("⚠️ Ошибка сети");
+            console.error(err);
+        });
+    });
+});
+
+document.querySelectorAll("[data-name]").forEach(toggleBtn => {
+    toggleBtn.addEventListener("click", () => {
+        const isEnabled = toggleBtn.dataset.enabled === "true";
+        const newStatus = !isEnabled;
+        toggleBtn.dataset.enabled = String(newStatus);
+        toggleBtn.textContent = newStatus ? "ON" : "OFF";
+        toggleBtn.classList.toggle("btn-outline-success", newStatus);
+        toggleBtn.classList.toggle("btn-outline-danger", !newStatus);
+    });
+});
