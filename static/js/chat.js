@@ -227,6 +227,7 @@ function switchRoom(roomId) {
   if (currentRoomId === roomId) return;
   currentRoomId = roomId;
 
+  // Подсветка выбранного чата
   Array.from(roomList.children).forEach(item => {
     item.classList.toggle("active", item.dataset.roomId === roomId);
   });
@@ -236,12 +237,18 @@ function switchRoom(roomId) {
   if (room) {
     const roomName = room.querySelector(".room-name")?.textContent || "";
     const preview = room.querySelector(".room-preview")?.textContent || "";
-    document.getElementById("chat-room-name").textContent = roomName;
-    document.getElementById("chat-room-preview").textContent = preview;
+
+    const headerName = document.getElementById("chat-room-name");
+    const headerPreview = document.getElementById("chat-room-preview");
+
+    if (headerName) headerName.textContent = roomName;
+    if (headerPreview) headerPreview.textContent = preview;
   }
 
+  // Подключиться к комнате
   socket.emit("join", { room_id: roomId });
 
+  // Загрузить историю сообщений
   fetch(`/api/chat/messages/${roomId}`)
     .then(res => res.json())
     .then(messages => {
@@ -449,11 +456,26 @@ function switchRoom(roomId) {
   });
 
   socket.on("new_message", (msg) => {
-    console.log("📥 new_message received:", msg, "Current room:", currentRoomId);
-    if (msg.room_id == currentRoomId) {
-      addMessage(msg);
+  console.log("📥 new_message received:", msg, "Current room:", currentRoomId);
+
+  // Обновление превью в списке слева
+  const roomItem = Array.from(roomList.children).find(item => item.dataset.roomId === msg.room_id);
+  if (roomItem) {
+    const preview = roomItem.querySelector(".room-preview");
+    if (preview) {
+      let content = msg.content?.trim();
+      if (!content && msg.files && msg.files.length > 0) {
+        content = "📎 файл";
+      }
+      preview.textContent = `${msg.sender_name}: ${content?.slice(0, 40) || ''}`;
     }
-  });
+  }
+
+  // Добавить сообщение в активный чат
+  if (msg.room_id == currentRoomId) {
+    addMessage(msg);
+  }
+});
 
   loadRooms();
 }
