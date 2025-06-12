@@ -70,6 +70,21 @@ def get_rooms():
     rooms = list(db.chat_rooms.find({'participants': str(current_user.id)}))
     for room in rooms:
         room['_id'] = str(room['_id'])
+        room_id_obj = ObjectId(room['_id'])
+
+        last_msg = db.chat_messages.find({'room_id': room_id_obj}).sort('timestamp', -1).limit(1)
+        last_msg = list(last_msg)
+        if last_msg:
+            m = last_msg[0]
+            room['last_message'] = {
+                'sender_name': m.get('sender_name'),
+                'content': m.get('content', ''),
+                'has_files': bool(m.get('files')),
+                'timestamp': m.get('timestamp').isoformat() if m.get('timestamp') else ''
+            }
+        else:
+            room['last_message'] = None
+
     return jsonify(rooms)
 
 

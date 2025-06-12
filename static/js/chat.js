@@ -61,12 +61,35 @@ function loadRooms() {
         item.className = "list-group-item list-group-item-action d-flex justify-content-between align-items-center";
         item.dataset.roomId = room._id;
 
-        const roomName = document.createElement("span");
-        roomName.textContent = room.name;
-        roomName.classList.add("flex-grow-1");
-        roomName.style.cursor = "pointer";
-        roomName.addEventListener("click", () => switchRoom(room._id));
+        // 👈 Левая часть: название и превью
+        const textContainer = document.createElement("div");
+        textContainer.classList.add("flex-grow-1", "pe-2");
+        textContainer.style.cursor = "pointer";
 
+        const roomName = document.createElement("div");
+        roomName.className = "room-name fw-bold";
+        roomName.textContent = room.name;
+
+        const preview = document.createElement("div");
+        preview.className = "room-preview text-muted small";
+
+        if (room.last_message) {
+          const sender = room.last_message.sender_name || "Неизвестно";
+          let content = room.last_message.content?.trim();
+          if (!content && room.last_message.has_files) {
+            content = "📎 файл";
+          }
+          preview.textContent = `${sender}: ${content?.slice(0, 40) || ''}`;
+        } else {
+          preview.textContent = "Нет сообщений";
+        }
+
+        textContainer.appendChild(roomName);
+        textContainer.appendChild(preview);
+        textContainer.addEventListener("click", () => switchRoom(room._id));
+        item.appendChild(textContainer);
+
+        // 👉 Правая часть: кнопка ⋯
         const dropdown = document.createElement("div");
         dropdown.className = "dropdown";
 
@@ -81,7 +104,7 @@ function loadRooms() {
         const menu = document.createElement("ul");
         menu.className = "dropdown-menu dropdown-menu-end";
 
-        // === 🔹 ДОБАВИТЬ УЧАСТНИКА ===
+        // 🔹 Добавить участника
         const addUserLi = document.createElement("li");
         const addUserA = document.createElement("a");
         addUserA.className = "dropdown-item";
@@ -94,7 +117,7 @@ function loadRooms() {
         addUserLi.appendChild(addUserA);
         menu.appendChild(addUserLi);
 
-        // === ✏️ Переименовать ===
+        // ✏️ Переименовать
         const renameLi = document.createElement("li");
         const renameA = document.createElement("a");
         renameA.className = "dropdown-item";
@@ -109,18 +132,19 @@ function loadRooms() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: newName.trim() })
             })
-            .then(res => {
-              if (!res.ok) return res.json().then(err => { throw err; });
-              loadRooms();
-            })
-            .catch(err => {
-              alert(err.error || "Ошибка при переименовании чата");
-            });
+              .then(res => {
+                if (!res.ok) return res.json().then(err => { throw err; });
+                loadRooms();
+              })
+              .catch(err => {
+                alert(err.error || "Ошибка при переименовании чата");
+              });
           }
         });
         renameLi.appendChild(renameA);
+        menu.appendChild(renameLi);
 
-        // === 🗑 Удалить ===
+        // 🗑 Удалить
         const deleteLi = document.createElement("li");
         const deleteA = document.createElement("a");
         deleteA.className = "dropdown-item text-danger";
@@ -135,6 +159,8 @@ function loadRooms() {
                 if (room._id === currentRoomId) {
                   currentRoomId = null;
                   chatBox.innerHTML = '';
+                  document.getElementById("chat-room-name").textContent = '';
+                  document.getElementById("chat-room-preview").textContent = '';
                 }
                 loadRooms();
               })
@@ -144,14 +170,11 @@ function loadRooms() {
           }
         });
         deleteLi.appendChild(deleteA);
-
-        menu.appendChild(renameLi);
         menu.appendChild(deleteLi);
 
         dropdown.appendChild(toggleBtn);
         dropdown.appendChild(menu);
 
-        item.appendChild(roomName);
         item.appendChild(dropdown);
         roomList.appendChild(item);
       });
@@ -165,6 +188,7 @@ function loadRooms() {
       }
     });
 }
+
 
 function openAddUserDialog(roomId) {
   fetch("/api/users")
@@ -199,23 +223,33 @@ function openAddUserDialog(roomId) {
     });
 }
 
-  function switchRoom(roomId) {
-    if (currentRoomId === roomId) return;
-    currentRoomId = roomId;
+function switchRoom(roomId) {
+  if (currentRoomId === roomId) return;
+  currentRoomId = roomId;
 
-    Array.from(roomList.children).forEach(item => {
-      item.classList.toggle("active", item.dataset.roomId === roomId);
-    });
+  Array.from(roomList.children).forEach(item => {
+    item.classList.toggle("active", item.dataset.roomId === roomId);
+  });
 
-    socket.emit("join", { room_id: roomId });
-
-    fetch(`/api/chat/messages/${roomId}`)
-      .then(res => res.json())
-      .then(messages => {
-        chatBox.innerHTML = '';
-        messages.forEach(addMessage);  // старые сверху, новые снизу (в DOM: вниз = вверх)
-      });
+  // Заголовок и подзаголовок
+  const room = Array.from(roomList.children).find(item => item.dataset.roomId === roomId);
+  if (room) {
+    const roomName = room.querySelector(".room-name")?.textContent || "";
+    const preview = room.querySelector(".room-preview")?.textContent || "";
+    document.getElementById("chat-room-name").textContent = roomName;
+    document.getElementById("chat-room-preview").textContent = preview;
   }
+
+  socket.emit("join", { room_id: roomId });
+
+  fetch(`/api/chat/messages/${roomId}`)
+    .then(res => res.json())
+    .then(messages => {
+      chatBox.innerHTML = '';
+      messages.forEach(addMessage);
+    });
+}
+
 
   function formatTime(timestamp) {
     return new Date(timestamp).toLocaleString('en-US', {
