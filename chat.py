@@ -201,8 +201,21 @@ def delete_room(room_id):
     if room.get('created_by') != str(current_user.id):
         return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
 
-    db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
+    # 🧹 Удаление всех файлов
+    messages = db.chat_messages.find({'room_id': ObjectId(room_id)})
+    for msg in messages:
+        files = msg.get('files', [])
+        for f in files:
+            file_path = f.get('file_url', '').lstrip('/')
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f"⚠️ Не удалось удалить файл {file_path}: {e}", file=sys.stderr)
+
+    # 🗑 Удаление сообщений и комнаты
     db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
+    db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
 
     return jsonify({'status': 'ok'})
 
