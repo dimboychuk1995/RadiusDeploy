@@ -28,6 +28,7 @@ function initNavigation() {
       initLoads?.();
       initBrokerCustomerSelect?.();
     },
+    'logbook': () => initLogbook?.(),
     'tolls': () => {
       initTolls?.();
       initTransponderForm?.();
