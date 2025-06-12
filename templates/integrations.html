@@ -4,42 +4,76 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Интеграции</h2>
-
-    <!-- Кнопка добавления новой интеграции -->
-    <div class="mb-3">
-        <button class="btn btn-success" id="addIntegrationBtn">➕ Добавить интеграцию</button>
+    <!-- Заголовок + Кнопка запроса -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Integrations Marketplace</h2>
+        <button class="btn btn-primary">+ Request Integration</button>
     </div>
 
-    <!-- Вывод всех интеграций -->
-    {% for integration in integrations %}
-    <div class="card mb-3">
-        <div class="card-body">
-            <div class="d-flex flex-wrap align-items-center gap-3">
-                <h5 class="mb-0">{{ integration.name }}</h5>
+    <!-- Фильтры -->
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-secondary">All Categories</button>
+        <button class="btn btn-outline-secondary">Fuel</button>
+        <button class="btn btn-outline-secondary">ELD</button>
+        <button class="btn btn-outline-secondary">GPS</button>
+        <button class="btn btn-outline-secondary">Accounting</button>
+        <button class="btn btn-outline-secondary">Loadboard</button>
+        <button class="btn btn-outline-secondary">Brokers</button>
+        <button class="btn btn-outline-secondary">Customs</button>
+    </div>
 
-                <button class="btn
-                    {% if integration.enabled %}btn-outline-success{% else %}btn-outline-danger{% endif %}"
-                    data-name="{{ integration.name }}"
-                    data-enabled="{{ 'true' if integration.enabled else 'false' }}">
-                    {{ 'ON' if integration.enabled else 'OFF' }}
-                </button>
+    <!-- Поиск -->
+    <div class="mb-4">
+        <input type="search" class="form-control" placeholder="Search integrations...">
+    </div>
 
-                <input type="text" class="form-control"
-                       value="{{ integration.api_key or '' }}"
-                       placeholder="Введите API ключ"
-                       style="min-width: 300px; max-width: 500px;"
-                       data-api-key-for="{{ integration.name }}">
+    <!-- Сетка интеграций -->
+    <div class="row">
+        {% for integration in integrations %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <!-- Логотип -->
+                    <div class="mb-2">
+                        <img src="{{ integration.logo_url or '/static/img/default-logo.png' }}"
+                             alt="Provider Logo" style="height: 40px;">
+                    </div>
 
-                <button class="btn btn-primary" data-save-for="{{ integration.name }}">
-                    Сохранить
-                </button>
+                    <!-- Название -->
+                    <h5 class="card-title">{{ integration.name }}</h5>
+
+                    <!-- Описание -->
+                    <p class="card-text small text-muted">
+                        {{ integration.description or "Описание недоступно." }}
+                    </p>
+
+                    <!-- Статус и API ключ -->
+                    <div class="form-group mt-2">
+                        <input type="text" class="form-control"
+                               value="{{ integration.api_key or '' }}"
+                               placeholder="API Key"
+                               data-api-key-for="{{ integration.name }}">
+                    </div>
+
+                    <!-- Кнопки -->
+                    <div class="mt-auto d-flex flex-column gap-2">
+                        {% if integration.enabled %}
+                        <button class="btn btn-outline-primary" data-save-for="{{ integration.name }}">
+                            Manage
+                        </button>
+                        {% else %}
+                        <button class="btn btn-outline-secondary" data-save-for="{{ integration.name }}">
+                            Connect
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
         </div>
+        {% endfor %}
     </div>
-    {% endfor %}
 
-    <!-- Контейнер для новых интеграций -->
+    <!-- Контейнер для динамически добавленных интеграций -->
     <div id="integrationsContainer"></div>
 </div>
 {% endblock %}
