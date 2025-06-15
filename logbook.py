@@ -15,10 +15,10 @@ def fragment_logbook():
         return render_template("fragments/logbook_fragment.html", trucks=[], error="API ключ не найден")
 
     token = integration["api_key"]
-    url = f"https://alfaeld.com/extapi/asset/trucks?token={token}"
+    url = f"https://alfaeld.com/extapi/hos-status/?by=truck&ids=3428&token={token}"
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url)
         response.raise_for_status()
         trucks = response.json()
     except Exception as e:
