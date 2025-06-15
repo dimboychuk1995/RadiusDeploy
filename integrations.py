@@ -25,6 +25,8 @@ def integrations():
     catalog_integrations = list(catalog_collection.find())
 
     # Удалим ObjectId из каждого объекта
+    for doc in all_integrations:
+        doc.pop('_id', None)
     for doc in catalog_integrations:
         doc.pop('_id', None)
 

@@ -4,13 +4,11 @@
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Заголовок + Кнопка запроса -->
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>Integrations Marketplace</h2>
         <button class="btn btn-primary">+ Request Integration</button>
     </div>
 
-    <!-- Фильтры -->
     <div class="mb-3 d-flex flex-wrap gap-2">
         <button class="btn btn-outline-secondary">All Categories</button>
         <button class="btn btn-outline-secondary">Fuel</button>
@@ -22,12 +20,10 @@
         <button class="btn btn-outline-secondary">Customs</button>
     </div>
 
-    <!-- Поиск -->
     <div class="mb-4">
         <input type="search" class="form-control" placeholder="Search integrations...">
     </div>
 
-    <!-- Подключённые интеграции -->
     <h4 class="mt-4">Connected Integrations</h4>
     <div class="row">
         {% for integration in integrations %}
@@ -54,10 +50,8 @@
         {% endfor %}
     </div>
 
-    <!-- Контейнер для динамически добавленных интеграций -->
     <div id="integrationsContainer"></div>
 
-    <!-- Каталог интеграций -->
     <h4 class="mt-5">Available Integrations Catalog</h4>
     <div class="row">
         {% for item in catalog %}
@@ -83,8 +77,7 @@
     </div>
 </div>
 
-
-<!-- 🟦 Модалка для управления интеграцией -->
+<!-- Modal -->
 <div class="custom-offcanvas custom-offcanvas-right" id="manageIntegrationModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -92,17 +85,45 @@
       <button class="btn btn-sm btn-secondary" onclick="closeIntegrationModal()">✖</button>
     </div>
     <div class="custom-offcanvas-body">
-      <div class="load-modal-content">
-        <p class="text-muted">Настройки появятся позже...</p>
-      </div>
+      <form id="integrationForm" class="d-flex flex-column gap-3">
+        <div>
+          <label class="form-label">Name</label>
+          <input type="text" id="integrationNameInput" class="form-control" readonly>
+        </div>
+        <div>
+          <label class="form-label">Enabled</label>
+          <select id="integrationEnabledSelect" class="form-select">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">API Key</label>
+          <input type="text" id="integrationApiKeyInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Login</label>
+          <input type="text" id="integrationLoginInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Password</label>
+          <input type="password" id="integrationPasswordInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Parent Integration</label>
+          <select id="integrationParentSelect" class="form-select"></select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Save</button>
+      </form>
     </div>
   </div>
 </div>
-
 <div class="custom-offcanvas-backdrop" id="manageIntegrationBackdrop" onclick="closeIntegrationModal()"></div>
 
-
+<script>
+  window.integrations = {{ integrations | tojson | safe }};
+  window.catalog = {{ catalog | tojson | safe }};
+</script>
 
 {% endblock %}
-
 
