@@ -58,7 +58,6 @@ uploads/
 **/RadiusDeploy/
 
 # 🚫 Uploads / временные файлы и документы
-uploads/
 *.pdf
 *.png
 *.jpg
