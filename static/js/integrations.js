@@ -10,25 +10,26 @@ document.addEventListener("DOMContentLoaded", function () {
             modal.classList.add("show");
             backdrop.classList.add("show");
 
-            // ==== Данные из window ====
             const integration = window.integrations.find(i => i.name === name) || {};
             const catalog = window.catalog || [];
 
-            // Заполнение полей
             document.getElementById("integrationNameInput").value = integration.name || name;
             document.getElementById("integrationApiKeyInput").value = integration.api_key || "";
             document.getElementById("integrationLoginInput").value = integration.login || "";
             document.getElementById("integrationPasswordInput").value = integration.password || "";
             document.getElementById("integrationEnabledSelect").value = integration.enabled ? "true" : "false";
 
-            // Селект родителя
             const parentSelect = document.getElementById("integrationParentSelect");
             parentSelect.innerHTML = "<option value=''>-- Не выбрано --</option>";
+
+            const integrationParentId = integration.parentId?.$oid || integration.parentId;
+
             catalog.forEach(item => {
+                const oid = item._id?.$oid || item._id;
                 const option = document.createElement("option");
-                option.value = item.name;  // или item._id, если в future свяжем
+                option.value = oid;
                 option.textContent = item.name;
-                if (integration.parentId && integration.parentId === item.name) {
+                if (integrationParentId === oid) {
                     option.selected = true;
                 }
                 parentSelect.appendChild(option);
@@ -41,3 +42,35 @@ function closeIntegrationModal() {
     document.getElementById("manageIntegrationModal").classList.remove("show");
     document.getElementById("manageIntegrationBackdrop").classList.remove("show");
 }
+
+document.getElementById("integrationForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+
+    const name = document.getElementById("integrationNameInput").value;
+    const enabled = document.getElementById("integrationEnabledSelect").value === "true";
+    const api_key = document.getElementById("integrationApiKeyInput").value.trim();
+    const login = document.getElementById("integrationLoginInput").value.trim();
+    const password = document.getElementById("integrationPasswordInput").value.trim();
+    const parentId = document.getElementById("integrationParentSelect").value || null;
+
+    console.log("Отправка данных:", { name, enabled, api_key, login, password, parentId });
+
+    try {
+        const res = await fetch(`/api/integrations/${name}/update`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled, api_key, login, password, parentId })
+        });
+
+        const result = await res.json();
+        if (result.success) {
+            alert("✅ Интеграция обновлена");
+            closeIntegrationModal();
+        } else {
+            alert("❌ Ошибка: " + (result.error || "Неизвестная"));
+        }
+    } catch (err) {
+        console.error("Ошибка сохранения:", err);
+        alert("⚠️ Ошибка сети");
+    }
+});

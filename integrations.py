@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import current_user
 from functools import wraps
+from bson import ObjectId
 
 from tools.db import db, integrations_db
 
@@ -24,11 +25,13 @@ def integrations():
     all_integrations = list(integrations_collection.find())
     catalog_integrations = list(catalog_collection.find())
 
-    # Удалим ObjectId из каждого объекта
     for doc in all_integrations:
         doc.pop('_id', None)
+        if "parentId" in doc and isinstance(doc["parentId"], ObjectId):
+            doc["parentId"] = str(doc["parentId"])  # ✅ сериализация
+
     for doc in catalog_integrations:
-        doc.pop('_id', None)
+        doc['_id'] = str(doc['_id'])  # ✅ оставляем _id, но в строку
 
     return render_template(
         "integrations.html",
@@ -36,51 +39,31 @@ def integrations():
         catalog=catalog_integrations
     )
 
-# API для обновления статуса Samsara
-@integrations_bp.route("/api/integrations/samsara", methods=["POST"])
+
+@integrations_bp.route("/api/integrations/<name>/update", methods=["POST"])
 @requires_admin
-def update_samsara_status():
+def update_integration(name):
     data = request.get_json()
-    status = data.get("enabled", True)
+    parent_id_raw = data.get("parentId")
 
-    integrations_collection.update_one(
-        {"name": "samsara"},
-        {"$set": {"enabled": status}},
-        upsert=True
-    )
-    return jsonify({"success": True, "enabled": status})
+    parent_id = None
+    if parent_id_raw and isinstance(parent_id_raw, str):
+        try:
+            parent_id = ObjectId(parent_id_raw)
+        except Exception:
+            print("⚠️ Invalid ObjectId format:", parent_id_raw)
 
-# API для сохранения API-ключа Samsara
-@integrations_bp.route("/api/integrations/samsara/key", methods=["POST"])
-@requires_admin
-def update_samsara_key():
-    data = request.get_json()
-    api_key = data.get("api_key")
-
-    if not api_key:
-        return jsonify({"success": False, "error": "API key is required"}), 400
-
-    integrations_collection.update_one(
-        {"name": "samsara"},
-        {"$set": {"api_key": api_key}},
-        upsert=True
-    )
-    return jsonify({"success": True})
-
-# API для сохранения любой интеграции
-@integrations_bp.route("/api/integrations/<name>/save", methods=["POST"])
-@requires_admin
-def save_generic_integration(name):
-    data = request.get_json()
-    enabled = data.get("enabled", False)
-    api_key = data.get("api_key", "")
-
-    if not api_key:
-        return jsonify({"success": False, "error": "API ключ не указан"}), 400
+    update_data = {
+        "enabled": data.get("enabled", False),
+        "api_key": data.get("api_key", ""),
+        "login": data.get("login", ""),
+        "password": data.get("password", ""),
+        "parentId": parent_id
+    }
 
     integrations_collection.update_one(
         {"name": name},
-        {"$set": {"enabled": enabled, "api_key": api_key}},
+        {"$set": update_data},
         upsert=True
     )
     return jsonify({"success": True})
