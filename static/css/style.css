@@ -482,15 +482,16 @@ html, body {
 }
 
 .app-container {
-  height: calc(100vh - 56px); /* учитываем высоту navbar */
-  margin-top: 56px;            /* сдвигаем вниз, чтобы не лез под navbar */
-  overflow: hidden;
+  height: auto; /* пусть контейнер растягивается */
+  margin-top: 56px;
+  overflow-x: hidden; /* можно оставить горизонтальную защиту */
+  overflow-y: auto;   /* ← вот она, прокрутка */
 }
 
 .main-content {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible; /* или auto — главное, не hidden */
 }
 
 .content {

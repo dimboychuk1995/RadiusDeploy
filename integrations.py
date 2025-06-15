@@ -2,10 +2,11 @@ from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import current_user
 from functools import wraps
 
-from tools.db import db
+from tools.db import db, integrations_db
 
 integrations_bp = Blueprint('integrations', __name__)
 integrations_collection = db['integrations_settings']
+catalog_collection = integrations_db['integrations_catalog']
 
 # Декоратор для админа
 def requires_admin(f):
@@ -21,7 +22,17 @@ def requires_admin(f):
 @requires_admin
 def integrations():
     all_integrations = list(integrations_collection.find())
-    return render_template("integrations.html", integrations=all_integrations)
+    catalog_integrations = list(catalog_collection.find())
+
+    # Удалим ObjectId из каждого объекта
+    for doc in catalog_integrations:
+        doc.pop('_id', None)
+
+    return render_template(
+        "integrations.html",
+        integrations=all_integrations,
+        catalog=catalog_integrations
+    )
 
 # API для обновления статуса Samsara
 @integrations_bp.route("/api/integrations/samsara", methods=["POST"])
