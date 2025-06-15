@@ -44,9 +44,9 @@
                            value="{{ integration.api_key or '' }}"
                            placeholder="API Key"
                            data-api-key-for="{{ integration.name }}">
-                    <button class="btn {% if integration.enabled %}btn-outline-primary{% else %}btn-outline-secondary{% endif %}"
-                            data-save-for="{{ integration.name }}">
-                        {% if integration.enabled %}Manage{% else %}Connect{% endif %}
+                    <button class="btn btn-outline-primary open-integration-modal"
+                            data-integration-name="{{ integration.name }}">
+                      Manage
                     </button>
                 </div>
             </div>
@@ -82,4 +82,27 @@
         {% endfor %}
     </div>
 </div>
+
+
+<!-- 🟦 Модалка для управления интеграцией -->
+<div class="custom-offcanvas custom-offcanvas-right" id="manageIntegrationModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4 id="manageIntegrationModalTitle">Интеграция</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeIntegrationModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <p class="text-muted">Настройки появятся позже...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="manageIntegrationBackdrop" onclick="closeIntegrationModal()"></div>
+
+
+
 {% endblock %}
+
+
