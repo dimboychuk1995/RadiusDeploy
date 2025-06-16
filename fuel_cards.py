@@ -12,10 +12,11 @@ from tools.db import db
 fuel_cards_bp = Blueprint('fuel_cards', __name__)
 logging.basicConfig(level=logging.ERROR)
 
-# Коллекции из централизованного подключения
+# Коллекции
 drivers_collection = db['drivers']
 fuel_cards_collection = db['fuel_cards']
 fuel_cards_transactions_collection = db['fuel_cards_transactions']
+trucks_collection = db['trucks']
 
 
 def format_week_range(billing_date):
@@ -97,7 +98,6 @@ def parse_pdf_transactions(file_storage):
 
     return transactions
 
-
 @fuel_cards_bp.route('/fragment/fuel_cards')
 @login_required
 def fuel_cards_fragment():
@@ -176,6 +176,16 @@ def upload_transactions():
         for tx in transactions:
             tx['company'] = current_user.company
 
+            driver = drivers_collection.find_one({
+                'company': current_user.company,
+                'name': tx.get('driver_name')
+            })
+
+            if driver and driver.get('truck'):
+                truck = trucks_collection.find_one({'_id': driver['truck']})
+                if truck and truck.get('unit_number'):
+                    tx['unit_number'] = truck['unit_number']
+
         if not transactions:
             return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
 
@@ -208,7 +218,6 @@ def upload_transactions():
     except Exception as e:
         logging.error(f"Ошибка при загрузке транзакций: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 @fuel_cards_bp.route('/fuel_cards/transactions')
 @login_required
