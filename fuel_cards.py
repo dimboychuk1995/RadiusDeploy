@@ -256,3 +256,34 @@ def fuel_cards_summary_fragment():
 @login_required
 def fuel_cards_transactions_fragment():
     return render_template('fragments/fuel_cards_transactions_fragment.html')
+
+
+@fuel_cards_bp.route('/fuel_cards/summary_by_driver')
+@login_required
+def summary_by_driver():
+    try:
+        transactions = list(fuel_cards_transactions_collection.find({'company': current_user.company}))
+
+        summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "unit_number": ""})
+
+        for tx in transactions:
+            driver_name = tx.get("driver_name", "—")
+            summary[driver_name]["qty"] += tx.get("qty", 0)
+            summary[driver_name]["retail"] += tx.get("retail_price", 0)
+            summary[driver_name]["invoice"] += tx.get("invoice_total", 0)
+            summary[driver_name]["unit_number"] = tx.get("unit_number", "")
+
+        result = []
+        for name, values in summary.items():
+            result.append({
+                "driver_name": name,
+                "unit_number": values["unit_number"],
+                "qty": round(values["qty"], 2),
+                "retail": round(values["retail"], 2),
+                "invoice": round(values["invoice"], 2)
+            })
+
+        return jsonify(result)
+    except Exception as e:
+        logging.error(f"Ошибка при построении summary: {e}")
+        return jsonify([]), 500

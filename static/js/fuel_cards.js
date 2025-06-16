@@ -295,6 +295,8 @@ function initFuelCardsDateRange(context) {
       target.innerHTML = `<div class="text-muted">Loading ${context} from ${startIso} to ${endIso}...</div>`;
     }
 
+    fetchFuelSummaryData(startIso, endIso);
+
     // Пока просто выводим в консоль
     console.log(`📅 Selected range for ${context}:`, startIso, endIso);
   });
@@ -306,4 +308,50 @@ function initFuelCardsSummary() {
 
 function initFuelCardTransactions() {
   initFuelCardsDateRange('transactions');
+}
+
+function fetchFuelSummaryData(startIso, endIso) {
+  fetch('/fuel_cards/summary_by_driver')
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("summaryResultsBody");
+      if (!container) return;
+
+      if (!data.length) {
+        container.innerHTML = `<div class="alert alert-warning">Нет данных</div>`;
+        return;
+      }
+
+      let html = `
+        <table class="table table-bordered">
+          <thead>
+            <tr>
+              <th>Водитель</th>
+              <th>Трак</th>
+              <th>Qty</th>
+              <th>Retail $</th>
+              <th>Invoice $</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      data.forEach(row => {
+        html += `
+          <tr>
+            <td>${row.driver_name}</td>
+            <td>${row.unit_number || '-'}</td>
+            <td>${row.qty}</td>
+            <td>$${row.retail}</td>
+            <td>$${row.invoice}</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      container.innerHTML = html;
+    })
+    .catch(err => {
+      console.error("Ошибка при получении summary:", err);
+    });
 }
