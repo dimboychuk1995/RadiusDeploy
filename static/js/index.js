@@ -21,6 +21,8 @@ function initNavigation() {
       initStatementRowClicks?.();
     },
     'fuel_cards': () => initFuelCards?.(),
+    'fuel_cards_summary': () => initFuelCardsSummary?.(),
+    'fuel_cards_transactions': () => initFuelCardTransactions?.(),
     'samsara': () => initSamsara?.(),
     'samsara_mileage': () => initSamsaraMileage?.(),
     'loads_fragment': () => {
@@ -113,8 +115,10 @@ function initNavigation() {
     { arrowId: "dispatcherDropdownArrow", submenuId: "dispatcherSubmenu" },
     { arrowId: "loadsDropdownArrow", submenuId: "loadsSubmenu" },
     { arrowId: "samsaraDropdownArrow", submenuId: "samsaraSubmenu" },
-    { arrowId: "safetyDropdownArrow", submenuId: "safetySubmenu" }
-  ].forEach(({ arrowId, submenuId }) => {
+    { arrowId: "safetyDropdownArrow", submenuId: "safetySubmenu" },
+    { arrowId: "fuelCardsDropdownArrow", submenuId: "fuelCardsSubmenu" }  // <-- добавлено
+  ]
+      .forEach(({ arrowId, submenuId }) => {
     const arrow = document.getElementById(arrowId);
     const submenu = document.getElementById(submenuId);
     if (arrow && submenu) {
