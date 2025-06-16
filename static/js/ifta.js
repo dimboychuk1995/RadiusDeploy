@@ -21,13 +21,34 @@ function initIFTA() {
           <td>${item.name}</td>
           <td>${item.parent_name}</td>
           <td>
-            <button class="btn btn-sm btn-primary" data-name="${item.name}">Действие</button>
+            <button class="btn btn-sm btn-primary" data-name="${item.name}">Посчитать ifta</button>
           </td>
         `;
+
+        const btn = row.querySelector("button");
+        btn.addEventListener("click", () => {
+          openIftaModal();
+          // Тут можно пробросить item.name / item.api_key в модалку
+        });
+
         tbody.appendChild(row);
       });
     })
     .catch(err => {
       console.error("❌ Ошибка загрузки IFTA интеграций:", err);
     });
+}
+
+function openIftaModal() {
+  const modal = document.getElementById("calculateIftaModal");
+  if (modal) {
+    modal.classList.add("show");  // или "active", "open" — в зависимости от твоих CSS
+  }
+}
+
+function closeIftaModal() {
+  const modal = document.getElementById("calculateIftaModal");
+  if (modal) {
+    modal.classList.remove("show");  // тот же класс, что и в open
+  }
 }
