@@ -67,6 +67,8 @@ function openIftaModal(item) {
 
       const rows = trucks.map(truck => `
         <tr>
+          <td><input type="checkbox" class="form-check-input truck-checkbox" data-truck-id="${truck.truckId}"></td>
+          <td>${truck.truckId || "—"}</td>
           <td>${truck.truckNumber || "—"}</td>
           <td>${truck.make || "—"}</td>
           <td>${truck.model || "—"}</td>
@@ -77,9 +79,14 @@ function openIftaModal(item) {
       `).join('');
 
       container.innerHTML = `
+        <div class="d-flex justify-content-end mb-2">
+          <button id="selectAllBtn" class="btn btn-sm btn-outline-primary">Выбрать все</button>
+        </div>
         <table class="table table-bordered table-sm">
           <thead class="table-light">
             <tr>
+              <th></th>
+              <th>ID #</th>
               <th>Truck #</th>
               <th>Make</th>
               <th>Model</th>
@@ -91,6 +98,17 @@ function openIftaModal(item) {
           <tbody>${rows}</tbody>
         </table>
       `;
+
+      // Обработчик кнопки "Выбрать все"
+      const selectAllBtn = document.getElementById("selectAllBtn");
+      let allSelected = false;
+
+      selectAllBtn.addEventListener("click", () => {
+        const checkboxes = container.querySelectorAll(".truck-checkbox");
+        allSelected = !allSelected;
+        checkboxes.forEach(cb => cb.checked = allSelected);
+        selectAllBtn.textContent = allSelected ? "Снять выделение" : "Выбрать все";
+      });
     })
     .catch(err => {
       const container = document.getElementById("truckListContainer");
