@@ -18,9 +18,10 @@ fuel_cards_collection = db['fuel_cards']
 fuel_cards_transactions_collection = db['fuel_cards_transactions']
 
 
-def format_week_range(billing_date_str):
+def format_week_range(billing_date):
     try:
-        billing_date = datetime.strptime(billing_date_str, "%m/%d/%Y")
+        if isinstance(billing_date, str):
+            billing_date = datetime.strptime(billing_date, "%m/%d/%Y")
         previous_sunday = billing_date - timedelta(days=1)
         start_of_week = previous_sunday - timedelta(days=6)
         return f"{start_of_week.strftime('%m/%d/%Y')} - {previous_sunday.strftime('%m/%d/%Y')}"
@@ -38,12 +39,19 @@ def extract_text_from_pdf_file(file_storage):
 
 def extract_billing_date(text):
     match = re.search(r'Billing Date:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
-    return match.group(1) if match else None
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%m/%d/%Y")
+    except Exception:
+        return None
 
 
 def parse_pdf_transactions(file_storage):
     text = extract_text_from_pdf_file(file_storage)
     billing_date = extract_billing_date(text)
+    if not billing_date:
+        raise ValueError("Billing Date not found or invalid format.")
 
     driver_map = {
         match.group(1): match.group(2)
@@ -60,17 +68,22 @@ def parse_pdf_transactions(file_storage):
         r"(?P<vehicle_id>\d+)\s+"
         r"(?P<qty>\d+\.\d+)?\s*"
         r"\$(?P<fuel>\d+\.\d{2})\s+"
-        r"(?:\$\d+\.\d{2}\s+)?"  # merch
+        r"(?:\$\d+\.\d{2}\s+)?"
         r"\$(?P<retail>\d+\.\d{2})\s+"
         r"\$(?P<invoice>\d+\.\d{2})"
     )
 
     transactions = []
     for m in pattern.finditer(text):
+        try:
+            date_obj = datetime.strptime(m.group("date"), "%m/%d/%Y")
+        except Exception:
+            continue
+
         transactions.append({
             "billing_date": billing_date,
+            "date": date_obj,
             "card_number": m.group("card"),
-            "date": m.group("date"),
             "transaction_number": m.group("transaction"),
             "driver_id": m.group("driver_id"),
             "vehicle_id": m.group("vehicle_id"),
@@ -79,7 +92,7 @@ def parse_pdf_transactions(file_storage):
             "retail_price": float(m.group("retail")),
             "invoice_total": float(m.group("invoice")),
             "state": m.group("state"),
-            "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}"),
+            "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}")
         })
 
     return transactions
@@ -94,11 +107,9 @@ def fuel_cards_fragment():
 @fuel_cards_bp.route('/fuel_cards/drivers')
 @login_required
 def get_drivers_for_fuel_cards():
-    print('trying to get drivers for fuel cards')
     try:
         drivers = drivers_collection.find({'company': current_user.company}, {"name": 1})
         result = [{"_id": str(driver["_id"]), "name": driver.get("name", "Без имени")} for driver in drivers]
-        print(jsonify(result))
         return jsonify(result)
     except Exception as e:
         logging.error(f"Error fetching drivers: {e}")
@@ -199,7 +210,6 @@ def upload_transactions():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-
 @fuel_cards_bp.route('/fuel_cards/transactions')
 @login_required
 def get_all_transactions():
@@ -207,7 +217,7 @@ def get_all_transactions():
         transactions = list(fuel_cards_transactions_collection.find({'company': current_user.company}))
         result = []
         for tx in transactions:
-            billing_raw = tx.get("billing_date", "")
+            billing_raw = tx.get("billing_date")
             week_range = format_week_range(billing_raw)
             result.append({
                 "billing_range": week_range,
