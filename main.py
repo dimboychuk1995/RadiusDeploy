@@ -26,6 +26,7 @@ from load_stats_api import load_stats_api
 from dispatchers import dispatchers_bp
 from safety import safety_bp
 from logbook import logbook
+from ifta import ifta_bp
 # Инициализация Flask
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
@@ -56,6 +57,7 @@ app.register_blueprint(dispatchers_bp)
 app.register_blueprint(safety_bp)
 app.register_blueprint(chat_bp)
 app.register_blueprint(logbook)
+app.register_blueprint(ifta_bp)
 # Главная страница
 @app.route('/')
 def index():

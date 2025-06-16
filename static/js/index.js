@@ -47,6 +47,7 @@ function initNavigation() {
     },
     'load_stats_fragment': () => loadGeneralStats?.(),
     'safety': () => initSafety?.(),
+    'safety_ifta': () => initIFTA?.(),
     'chat': () => initChat?.(),
   };
 
@@ -111,7 +112,8 @@ function initNavigation() {
   [
     { arrowId: "dispatcherDropdownArrow", submenuId: "dispatcherSubmenu" },
     { arrowId: "loadsDropdownArrow", submenuId: "loadsSubmenu" },
-    { arrowId: "samsaraDropdownArrow", submenuId: "samsaraSubmenu" }
+    { arrowId: "samsaraDropdownArrow", submenuId: "samsaraSubmenu" },
+    { arrowId: "safetyDropdownArrow", submenuId: "safetySubmenu" }
   ].forEach(({ arrowId, submenuId }) => {
     const arrow = document.getElementById(arrowId);
     const submenu = document.getElementById(submenuId);
