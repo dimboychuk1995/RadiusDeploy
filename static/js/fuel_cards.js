@@ -245,3 +245,65 @@ function closeUploadTransactionsModal() {
     document.getElementById("uploadTransactionsModal").classList.remove("show");
     document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");
 }
+
+
+function initFuelCardsDateRange(context) {
+  const input = document.getElementById("fuelCardsDateRange");
+  if (!input) return;
+
+  const lastWeekStart = moment().subtract(1, 'weeks').startOf('isoWeek');
+  const lastWeekEnd = moment().subtract(1, 'weeks').endOf('isoWeek');
+
+  $(input).daterangepicker({
+    startDate: lastWeekStart,
+    endDate: lastWeekEnd,
+    showDropdowns: true,
+    autoApply: false,
+    linkedCalendars: false,
+    alwaysShowCalendars: true,
+    opens: 'center',
+    showCustomRangeLabel: true,
+    locale: {
+      format: 'MM / DD / YYYY',
+      applyLabel: 'APPLY',
+      cancelLabel: 'CANCEL',
+      daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+      monthNames: moment.months(),
+      firstDay: 1
+    },
+    ranges: {
+      'Last Week': [lastWeekStart, lastWeekEnd],
+      'Reset': [moment(), moment()]
+    }
+  });
+
+  $(input).on('apply.daterangepicker', function(ev, picker) {
+    const startIso = picker.startDate.toISOString();
+    const endIso = picker.endDate.toISOString();
+    const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
+
+    const target = context === 'summary'
+      ? document.getElementById("summaryResultsBody")
+      : document.getElementById("transactionsResultsBody");
+
+    if (isReset) {
+      if (target) target.innerHTML = "";
+      return;
+    }
+
+    if (target) {
+      target.innerHTML = `<div class="text-muted">Loading ${context} from ${startIso} to ${endIso}...</div>`;
+    }
+
+    // Пока просто выводим в консоль
+    console.log(`📅 Selected range for ${context}:`, startIso, endIso);
+  });
+}
+
+function initFuelCardsSummary() {
+  initFuelCardsDateRange('summary');
+}
+
+function initFuelCardTransactions() {
+  initFuelCardsDateRange('transactions');
+}
