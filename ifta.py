@@ -1,6 +1,6 @@
 # ifta.py
 
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, render_template, request
 from flask_login import login_required
 from bson import ObjectId
 from tools.db import db, integrations_db
@@ -86,3 +86,58 @@ def get_trucks_from_alpha_eld(integration):
         return jsonify(response.json())
     except requests.RequestException as e:
         return jsonify({"error": f"Ошибка при запросе к Alpha ELD: {str(e)}"}), 500
+
+
+@ifta_bp.route("/api/ifta/calculate", methods=["POST"])
+@login_required
+def calculate_ifta():
+    data = request.json
+    trucks = data.get("trucks", [])
+    parent_name = data.get("parent_name", "").strip().lower()
+    start_date = data.get("start_date")
+    end_date = data.get("end_date")
+
+    if not all([trucks, parent_name, start_date, end_date]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    # Поддерживаемые источники
+    if parent_name in ["alfa eld", "alpha eld"]:
+        return handle_alpha_eld_ifta(trucks, start_date, end_date)
+
+    return jsonify({"error": f"Источник '{parent_name}' не поддерживается"}), 400
+
+
+def handle_alpha_eld_ifta(trucks, start_date, end_date):
+    results = []
+
+    for truck in trucks:
+        truck_id = truck.get("truckId")
+        token = truck.get("api_key") or truck.get("token")  # вдруг ты решишь в каждый трак кидать токен
+
+        if not truck_id or not token:
+            results.append({
+                "truckId": truck_id,
+                "error": "Missing truckId or token"
+            })
+            continue
+
+        url = (
+            "https://alfaeld.com/extapi/ifta-by-event-report/"
+            f"?dateFrom={start_date}&dateTo={end_date}&truckId={truck_id}&token={token}"
+        )
+
+        try:
+            response = requests.get(url, timeout=60)
+            response.raise_for_status()
+            results.append({
+                "truckId": truck_id,
+                "truck": truck,
+                "data": response.json()
+            })
+        except requests.RequestException as e:
+            results.append({
+                "truckId": truck_id,
+                "error": str(e)
+            })
+
+    return jsonify(results)

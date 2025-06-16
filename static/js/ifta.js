@@ -47,7 +47,7 @@ function openIftaModal(item) {
   content.innerHTML = `
     <p><strong>Интеграция:</strong> ${item.name}</p>
     <p><strong>Источник:</strong> ${item.parent_name}</p>
-  
+
     <div class="d-flex align-items-end flex-wrap gap-3 mt-3">
       <div class="form-group mb-0">
         <label for="iftaDateRange">Выберите диапазон дат:</label>
@@ -57,11 +57,13 @@ function openIftaModal(item) {
         <button id="calculateIftaBtn" class="btn btn-success">Посчитать IFTA</button>
       </div>
     </div>
-  
+
     <div id="truckListContainer" class="mt-4">
       <div class="text-muted">Загружаем список траков...</div>
     </div>
   `;
+
+  initIftaDatePicker();
 
   fetch(`/api/ifta/trucks/${encodeURIComponent(item.parent_name)}/${encodeURIComponent(item.name)}`)
     .then(res => {
@@ -110,7 +112,7 @@ function openIftaModal(item) {
         </table>
       `;
 
-      // Обработчик кнопки "Выбрать все"
+      // Кнопка "Выбрать все"
       const selectAllBtn = document.getElementById("selectAllBtn");
       let allSelected = false;
 
@@ -120,12 +122,55 @@ function openIftaModal(item) {
         checkboxes.forEach(cb => cb.checked = allSelected);
         selectAllBtn.textContent = allSelected ? "Снять выделение" : "Выбрать все";
       });
+
+      // Кнопка "Посчитать IFTA"
+      document.getElementById("calculateIftaBtn").addEventListener("click", async () => {
+        const checkboxes = container.querySelectorAll(".truck-checkbox:checked");
+        const selectedTrucks = [];
+
+        checkboxes.forEach(cb => {
+          const row = cb.closest("tr");
+          const tds = row.querySelectorAll("td");
+          selectedTrucks.push({
+            truckId: tds[1].textContent.trim(),
+            truckNumber: tds[2].textContent.trim(),
+            make: tds[3].textContent.trim(),
+            model: tds[4].textContent.trim(),
+            modelYear: tds[5].textContent.trim(),
+            vin: tds[6].textContent.trim(),
+            status: tds[7].textContent.trim(),
+            api_key: item.api_key  // передаём токен
+          });
+        });
+
+        const dateRange = $("#iftaDateRange").data("daterangepicker");
+        const startDate = dateRange.startDate.format("YYYY-MM-DD");
+        const endDate = dateRange.endDate.format("YYYY-MM-DD");
+
+        try {
+          const res = await fetch("/api/ifta/calculate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              parent_name: item.parent_name,
+              start_date: startDate,
+              end_date: endDate,
+              trucks: selectedTrucks
+            })
+          });
+
+          const data = await res.json();
+          openIftaResultModal(data);
+        } catch (err) {
+          alert("Ошибка при расчёте IFTA");
+          console.error(err);
+        }
+      });
     })
     .catch(err => {
       const container = document.getElementById("truckListContainer");
       container.innerHTML = `<div class="text-danger">❌ ${err.message}</div>`;
     });
-  initIftaDatePicker();
 }
 
 
@@ -211,3 +256,68 @@ function initIftaDatePicker() {
     // Здесь можно вызвать расчёт IFTA
   });
 }
+
+function openIftaResultModal(results) {
+  const modal = document.getElementById("iftaResultModal");
+  const container = document.getElementById("iftaResultsContainer");
+  modal.classList.add("show");
+
+  let totalMiles = 0;
+  let totalGallons = 0;
+
+  const cardsHTML = results.map(result => {
+    if (result.error) {
+      return `<div class="alert alert-danger">Ошибка для трака ${result.truckId}: ${result.error}</div>`;
+    }
+
+    const stateMap = result.data?.diesel?.fuelDataByStateMap || {};
+    const rows = Object.entries(stateMap).map(([state, info]) => {
+      const miles = parseFloat(info.totalDistanceDriven) || 0;
+      const gallons = parseFloat(info.fuelVolumePurchased) || 0;
+      totalMiles += miles;
+      totalGallons += gallons;
+
+      return `
+        <tr>
+          <td>${state}</td>
+          <td>${miles.toFixed(2)}</td>
+          <td>${gallons.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="card mb-3">
+        <div class="card-header"><strong>Truck ID: ${result.truckId}</strong></div>
+        <div class="card-body p-2">
+          <table class="table table-bordered table-sm mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>State</th>
+                <th>Miles</th>
+                <th>Gallons Purchased</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const totalHTML = `
+    <div class="alert alert-info mt-4">
+      <strong>ИТОГО:</strong><br>
+      Общие мили: ${totalMiles.toFixed(2)}<br>
+      Всего галлонов: ${totalGallons.toFixed(2)}
+    </div>
+  `;
+
+  container.innerHTML = cardsHTML + totalHTML;
+}
+
+function closeIftaResultModal() {
+  const modal = document.getElementById("iftaResultModal");
+  if (modal) modal.classList.remove("show");
+}
+
