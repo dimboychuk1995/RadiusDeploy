@@ -10,7 +10,7 @@ logbook = Blueprint("logbook", __name__)
 @login_required
 def fragment_logbook():
     # Получаем API-ключ из коллекции
-    integration = db.integrations_settings.find_one({"name": "Alpha ELD Globeks"})
+    integration = db.integrations_settings.find_one({"name": "Alfa ELD Globeks"})
     if not integration or not integration.get("api_key"):
         return render_template("fragments/logbook_fragment.html", trucks=[], error="API ключ не найден")
 
