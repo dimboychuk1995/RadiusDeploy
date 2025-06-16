@@ -7,6 +7,8 @@ function initFuelCards() {
     setupUploadTransactionsModalButton();
 }
 
+// === Кнопки ===
+
 function setupOpenModalButton() {
     document.getElementById('btn-open-fuel-card-modal')?.addEventListener('click', () => {
         resetFuelCardForm();
@@ -20,6 +22,20 @@ function setupUploadTransactionsModalButton() {
         openUploadTransactionsModal();
     });
 }
+
+function setupFuelCardTransactionsButton() {
+    document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {
+        const section = document.getElementById('fuel-card-transactions-section');
+        if (!section) {
+            console.error("❌ Блок транзакций не найден");
+            return;
+        }
+        section.style.display = 'block';
+        loadFuelCardTransactions();
+    });
+}
+
+// === Создание карты ===
 
 function setupFuelCardFormSubmit() {
     document.getElementById('fuel-card-form')?.addEventListener('submit', function (e) {
@@ -54,6 +70,7 @@ function submitFuelCard(data) {
         if (result.success) {
             console.log('Карта успешно создана');
             closeFuelCardModal();
+            loadFuelCards();
         } else {
             console.error('Ошибка при создании карты:', result.error);
         }
@@ -62,6 +79,8 @@ function submitFuelCard(data) {
         console.error('Ошибка запроса:', err);
     });
 }
+
+// === Загрузка водителей ===
 
 function loadDriverOptions() {
     fetch('/fuel_cards/drivers')
@@ -84,6 +103,8 @@ function populateDriverSelect(drivers) {
         select.appendChild(option);
     });
 }
+
+// === Загрузка и отображение списка карт ===
 
 function loadFuelCards() {
     fetch('/fuel_cards/list')
@@ -112,6 +133,8 @@ function populateFuelCardTable(cards) {
         tbody.appendChild(row);
     });
 }
+
+// === Загрузка PDF-транзакций ===
 
 function setupTransactionUpload() {
     document.getElementById('upload-transactions-form')?.addEventListener('submit', function (e) {
@@ -151,13 +174,39 @@ function setupTransactionUpload() {
     });
 }
 
-function setupFuelCardTransactionsButton() {
-    document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {
-        console.log('Открытие транзакций — в разработке');
-    });
+// === Загрузка транзакций из базы ===
+
+function loadFuelCardTransactions() {
+    fetch('/fuel_cards/transactions')
+        .then(res => res.json())
+        .then(transactions => {
+            const tbody = document.querySelector('#transactions-table tbody');
+            tbody.innerHTML = '';
+
+            transactions.forEach(tx => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${tx.billing_range || ''}</td>
+                    <td>${tx.date || ''}</td>
+                    <td>${tx.card_number || ''}</td>
+                    <td>${tx.driver_id || ''}</td>
+                    <td>${tx.vehicle_id || ''}</td>
+                    <td>${tx.qty ?? ''}</td>
+                    <td>${tx.fuel_total ?? ''}</td>
+                    <td>${tx.retail_price ?? ''}</td>
+                    <td>${tx.invoice_total ?? ''}</td>
+                    <td>${tx.driver_name || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        })
+        .catch(err => {
+            console.error('Ошибка загрузки транзакций:', err);
+        });
 }
 
-// === Универсальные модалки ===
+// === Модалки ===
+
 function openFuelCardModal() {
     document.getElementById("fuelCardModal").classList.add("show");
     document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
