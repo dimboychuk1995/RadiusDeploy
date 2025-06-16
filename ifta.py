@@ -36,7 +36,7 @@ def get_ifta_integrations():
 
     return jsonify(result)
 
-# === Роут ===
+
 
 @ifta_bp.route("/api/ifta/trucks/<parent_name>/<name>")
 @login_required

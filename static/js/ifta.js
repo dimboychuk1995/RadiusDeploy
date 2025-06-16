@@ -47,7 +47,18 @@ function openIftaModal(item) {
   content.innerHTML = `
     <p><strong>Интеграция:</strong> ${item.name}</p>
     <p><strong>Источник:</strong> ${item.parent_name}</p>
-    <div id="truckListContainer" class="mt-3">
+  
+    <div class="d-flex align-items-end flex-wrap gap-3 mt-3">
+      <div class="form-group mb-0">
+        <label for="iftaDateRange">Выберите диапазон дат:</label>
+        <input type="text" id="iftaDateRange" class="form-control" style="min-width: 240px; max-width: 260px;">
+      </div>
+      <div class="mb-2">
+        <button id="calculateIftaBtn" class="btn btn-success">Посчитать IFTA</button>
+      </div>
+    </div>
+  
+    <div id="truckListContainer" class="mt-4">
       <div class="text-muted">Загружаем список траков...</div>
     </div>
   `;
@@ -114,6 +125,7 @@ function openIftaModal(item) {
       const container = document.getElementById("truckListContainer");
       container.innerHTML = `<div class="text-danger">❌ ${err.message}</div>`;
     });
+  initIftaDatePicker();
 }
 
 
@@ -122,4 +134,80 @@ function closeIftaModal() {
   if (modal) {
     modal.classList.remove("show");  // тот же класс, что и в open
   }
+}
+
+function initIftaDatePicker() {
+  const input = document.getElementById("iftaDateRange");
+  if (!input) return;
+
+  const now = moment();
+  const currentYear = now.year();
+  const lastYear = currentYear - 1;
+
+  // Функция для квартала
+  function getQuarterRange(year, quarter) {
+    const start = moment(`${year}-01-01`).quarter(quarter).startOf('quarter');
+    const end = moment(start).endOf('quarter');
+    return [start, end];
+  }
+
+  // Получить последний завершённый квартал текущего года
+  let defaultStart, defaultEnd;
+  for (let q = 4; q >= 1; q--) {
+    const [start, end] = getQuarterRange(currentYear, q);
+    if (end.isBefore(now)) {
+      defaultStart = start;
+      defaultEnd = end;
+      break;
+    }
+  }
+
+  // Формируем список доступных диапазонов
+  const ranges = {};
+
+  for (let year of [currentYear, lastYear]) {
+    for (let q = 1; q <= 4; q++) {
+      const [start, end] = getQuarterRange(year, q);
+      if (end.isBefore(now)) {
+        ranges[`Q${q} ${year}`] = [start, end];
+      }
+    }
+  }
+
+  ranges["Reset"] = [moment(), moment()];
+
+  // Инициализация
+  $(input).daterangepicker({
+    startDate: defaultStart,
+    endDate: defaultEnd,
+    showDropdowns: true,
+    autoApply: false,
+    linkedCalendars: false,
+    alwaysShowCalendars: true,
+    opens: 'center',
+    showCustomRangeLabel: true,
+    locale: {
+      format: 'MM / DD / YYYY',
+      applyLabel: 'APPLY',
+      cancelLabel: 'CANCEL',
+      daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+      monthNames: moment.months(),
+      firstDay: 1
+    },
+    ranges: ranges
+  });
+
+  $(input).on('apply.daterangepicker', function(ev, picker) {
+    const startIso = picker.startDate.toISOString();
+    const endIso = picker.endDate.toISOString();
+
+    const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
+    if (isReset) {
+      console.log("⛔ Reset selected");
+      return;
+    }
+
+    console.log("📅 Выбранный диапазон:", startIso, endIso);
+    // Здесь можно вызвать расчёт IFTA
+  });
 }
