@@ -94,9 +94,11 @@ def fuel_cards_fragment():
 @fuel_cards_bp.route('/fuel_cards/drivers')
 @login_required
 def get_drivers_for_fuel_cards():
+    print('trying to get drivers for fuel cards')
     try:
         drivers = drivers_collection.find({'company': current_user.company}, {"name": 1})
         result = [{"_id": str(driver["_id"]), "name": driver.get("name", "Без имени")} for driver in drivers]
+        print(jsonify(result))
         return jsonify(result)
     except Exception as e:
         logging.error(f"Error fetching drivers: {e}")

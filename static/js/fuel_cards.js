@@ -1,4 +1,5 @@
 function initFuelCards() {
+    console.log('init Fuel Cards called');
     setupOpenModalButton();
     setupFuelCardFormSubmit();
     loadFuelCards();
@@ -10,10 +11,15 @@ function initFuelCards() {
 // === Кнопки ===
 
 function setupOpenModalButton() {
-    document.getElementById('btn-open-fuel-card-modal')?.addEventListener('click', () => {
+    const btn = document.getElementById('btn-open-fuel-card-modal');
+    console.log("🔍 Кнопка найдена?", !!btn);
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+        console.log("🎯 Кнопка нажата");
         resetFuelCardForm();
-        loadDriverOptions();
         openFuelCardModal();
+        loadFuelCardDriverOptions();  // ← новое имя
     });
 }
 
@@ -68,33 +74,44 @@ function submitFuelCard(data) {
     .then(res => res.json())
     .then(result => {
         if (result.success) {
-            console.log('Карта успешно создана');
+            console.log('✅ Карта успешно создана');
             closeFuelCardModal();
             loadFuelCards();
         } else {
-            console.error('Ошибка при создании карты:', result.error);
+            console.error('❌ Ошибка при создании карты:', result.error);
         }
     })
     .catch(err => {
-        console.error('Ошибка запроса:', err);
+        console.error('❌ Ошибка запроса:', err);
     });
 }
 
 // === Загрузка водителей ===
 
-function loadDriverOptions() {
+function loadFuelCardDriverOptions() {
+    console.log("📡 loadFuelCardDriverOptions CALLED");
+
     fetch('/fuel_cards/drivers')
-        .then(res => res.json())
+        .then(res => {
+            console.log("✅ Ответ получен:", res.status);
+            return res.json();
+        })
         .then(drivers => {
+            console.log("🚀 Загружаем водителей...", drivers);
             populateDriverSelect(drivers);
         })
         .catch(err => {
-            console.error("Ошибка при загрузке водителей:", err);
+            console.error("❌ Ошибка при загрузке водителей:", err);
         });
 }
 
 function populateDriverSelect(drivers) {
     const select = document.getElementById('assigned_driver');
+    if (!select) {
+        console.error("❌ <select id='assigned_driver'> не найден");
+        return;
+    }
+
     select.innerHTML = '';
     drivers.forEach(driver => {
         const option = document.createElement('option');
@@ -102,6 +119,8 @@ function populateDriverSelect(drivers) {
         option.textContent = driver.name;
         select.appendChild(option);
     });
+
+    console.log("✅ Водители добавлены в select");
 }
 
 // === Загрузка и отображение списка карт ===
