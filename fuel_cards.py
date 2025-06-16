@@ -235,3 +235,15 @@ def get_all_transactions():
     except Exception as e:
         logging.error(f"Ошибка при получении транзакций: {e}")
         return jsonify([]), 500
+
+
+@fuel_cards_bp.route('/fragment/fuel_cards_summary')
+@login_required
+def fuel_cards_summary_fragment():
+    return render_template('fragments/fuel_cards_summary_fragment.html')
+
+
+@fuel_cards_bp.route('/fragment/fuel_cards_transactions')
+@login_required
+def fuel_cards_transactions_fragment():
+    return render_template('fragments/fuel_cards_transactions_fragment.html')
