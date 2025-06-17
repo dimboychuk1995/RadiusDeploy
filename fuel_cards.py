@@ -140,24 +140,38 @@ def create_fuel_card():
 @login_required
 def get_fuel_cards():
     try:
-        cards = list(fuel_cards_collection.find({'company': current_user.company}))
+        import time
+        t0 = time.time()
+
+        cards = list(fuel_cards_collection.find(
+            {'company': current_user.company},
+            {'provider': 1, 'card_number': 1, 'driver_id': 1, 'vehicle_id': 1, 'assigned_driver': 1}
+        ))
+
+        # Загрузим всех водителей за один запрос
+        driver_ids = [card['assigned_driver'] for card in cards if card.get('assigned_driver')]
+        drivers_map = {}
+        if driver_ids:
+            drivers = drivers_collection.find(
+                {'_id': {'$in': driver_ids}},
+                {'_id': 1, 'name': 1}
+            )
+            drivers_map = {d['_id']: d.get('name', '—') for d in drivers}
+
         result = []
-
         for card in cards:
-            assigned_driver_name = ''
-            if card.get('assigned_driver'):
-                driver = drivers_collection.find_one({'_id': card['assigned_driver']})
-                assigned_driver_name = driver['name'] if driver else '—'
-
+            driver_name = drivers_map.get(card.get('assigned_driver'), '—')
             result.append({
                 "provider": card.get("provider"),
                 "card_number": card.get("card_number"),
                 "driver_id": card.get("driver_id"),
                 "vehicle_id": card.get("vehicle_id"),
-                "assigned_driver_name": assigned_driver_name
+                "assigned_driver_name": driver_name
             })
 
+        print(f"✅ fuel_cards/list loaded in {time.time() - t0:.3f} сек")
         return jsonify(result)
+
     except Exception as e:
         logging.error(f"Ошибка при получении списка карт: {e}")
         return jsonify([]), 500
