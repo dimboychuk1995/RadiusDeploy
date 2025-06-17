@@ -30,28 +30,47 @@ def allowed_file(filename):
 @trucks_bp.route('/fragment/trucks')
 @login_required
 def trucks_fragment():
+    import time
+    t0 = time.time()
+
     try:
         companies_collection = db['companies']
         drivers_collection = db['drivers']
+        log = []
 
-        # Загрузка компаний
-        company_map = {
-            str(c['_id']): c.get('name', '—') for c in companies_collection.find({}, {"_id": 1, "name": 1})
-        }
-        companies = list(companies_collection.find({}, {"_id": 1, "name": 1}))
+        # Компании
+        t1 = time.time()
+        companies_cursor = list(companies_collection.find({}, {"_id": 1, "name": 1}))
+        company_map = {str(c['_id']): c.get('name', '—') for c in companies_cursor}
+        companies = companies_cursor
+        log.append(f"✅ Компании загружены за {time.time() - t1:.3f} сек")
 
-        # Загрузка водителей
+        # Водители
+        t2 = time.time()
         driver_id_map = {}
         driver_name_map = {}
         drivers = list(drivers_collection.find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))
         for driver in drivers:
             truck_id = str(driver.get('truck'))
             if truck_id:
-                driver_id_map[truck_id] = str(driver['_id'])        # для подстановки в селект
-                driver_name_map[truck_id] = driver.get('name', '—')  # для отображения
+                driver_id_map[truck_id] = str(driver['_id'])
+                driver_name_map[truck_id] = driver.get('name', '—')
+        log.append(f"✅ Водители загружены за {time.time() - t2:.3f} сек")
 
-        # Загрузка траков
-        raw_trucks = trucks_collection.find({'company': current_user.company})
+        # Траки
+        t3 = time.time()
+        raw_trucks = trucks_collection.find(
+            {'company': current_user.company},
+            {
+                '_id': 1,
+                'unit_number': 1,
+                'year': 1,
+                'make': 1,
+                'model': 1,
+                'unit_type': 1,
+                'owning_company': 1
+            }
+        )
         trucks = []
 
         for truck in raw_trucks:
@@ -64,12 +83,15 @@ def trucks_fragment():
                 'description': f"{truck.get('year', '')} {truck.get('make', '')} {truck.get('model', '')}".strip(),
                 'type': truck.get('unit_type', '—'),
                 'assigned_driver': driver_name_map.get(truck_id_str, '—'),
-                'assigned_driver_id': driver_id_map.get(truck_id_str, ''),  # <== для подстановки
+                'assigned_driver_id': driver_id_map.get(truck_id_str, ''),
                 'company_owner': company_map.get(owning_company_id, '—'),
                 'owning_company_id': owning_company_id or ''
             })
+        log.append(f"✅ Траки загружены за {time.time() - t3:.3f} сек")
 
-        return render_template(
+        # Рендер
+        t4 = time.time()
+        rendered = render_template(
             'fragments/trucks_fragment.html',
             trucks=trucks,
             companies=companies,
@@ -78,6 +100,14 @@ def trucks_fragment():
             truck_subtypes=TRUCK_SUBTYPES,
             trailer_subtypes=TRAILER_SUBTYPE
         )
+        log.append(f"✅ Шаблон отрендерен за {time.time() - t4:.3f} сек")
+
+        total_time = time.time() - t0
+        log.append(f"⏱️ Общее время: {total_time:.3f} сек")
+        for line in log:
+            print(line)
+
+        return rendered
 
     except Exception as e:
         logging.error(f"Error loading trucks fragment: {e}")
