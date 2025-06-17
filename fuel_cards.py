@@ -186,14 +186,15 @@ def upload_transactions():
             })
 
             if card and card.get('assigned_driver'):
-                # Сохраняем ObjectId водителя
                 tx['driver'] = card['assigned_driver']
 
                 driver = drivers_collection.find_one({'_id': card['assigned_driver']})
                 if driver and driver.get('truck'):
                     truck = trucks_collection.find_one({'_id': driver['truck']})
                     if truck:
-                        tx['unit_number'] = truck['_id']  # Сохраняем как ObjectId
+                        tx['unit_number'] = truck['_id']  # сохраняем как ObjectId
+                        if 'owning_company' in truck:
+                            tx['sing_company'] = truck['owning_company']
 
         fuel_cards_transactions_collection.insert_many(transactions)
 
