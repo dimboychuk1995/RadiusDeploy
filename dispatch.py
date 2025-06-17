@@ -27,13 +27,50 @@ def convert_object_ids(obj):
 @dispatch_bp.route('/fragment/dispatch_fragment', methods=['GET'])
 @login_required
 def dispatch_fragment():
-    try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}))
-        loads = list(loads_collection.find({'company': current_user.company}))
+    import time
+    t0 = time.time()
 
-        # Очистка всех от bytes и ObjectId
+    try:
+        log = []
+
+        t1 = time.time()
+        drivers = list(drivers_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'name': 1, 'truck': 1, 'dispatcher': 1}
+        ))
+        log.append(f"✅ Drivers: {time.time() - t1:.3f} сек")
+
+        t2 = time.time()
+        trucks = list(trucks_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'unit_number': 1}
+        ))
+        log.append(f"✅ Trucks: {time.time() - t2:.3f} сек")
+
+        t3 = time.time()
+        dispatchers = list(users_collection.find(
+            {'company': current_user.company, 'role': 'dispatch'},
+            {'_id': 1, 'username': 1}
+        ))
+        log.append(f"✅ Dispatchers: {time.time() - t3:.3f} сек")
+
+        t4 = time.time()
+        loads = list(loads_collection.find(
+            {'company': current_user.company},
+            {
+                '_id': 1,
+                'assigned_driver': 1,
+                'pickup.date': 1,
+                'pickup.address': 1,
+                'delivery.date': 1,
+                'delivery.address': 1,
+                'status': 1,
+                'load_id': 1
+            }
+        ))
+        log.append(f"✅ Loads: {time.time() - t4:.3f} сек")
+
+        # Очистка
         def clean_for_json(obj):
             if isinstance(obj, dict):
                 return {
@@ -62,12 +99,21 @@ def dispatch_fragment():
             driver['truck'] = truck_map.get(driver.get('truck'))
             grouped_drivers.setdefault(dispatcher_id, []).append(driver)
 
-        return render_template(
+        render_start = time.time()
+        rendered = render_template(
             'fragments/dispatch_fragment.html',
             dispatchers=dispatchers,
             grouped_drivers=grouped_drivers,
             all_loads=loads
         )
+        log.append(f"✅ Render: {time.time() - render_start:.3f} сек")
+
+        total_time = time.time() - t0
+        log.append(f"⏱️ Всего: {total_time:.3f} сек")
+        for line in log:
+            print(line)
+
+        return rendered
 
     except Exception as e:
         logging.error(f"Ошибка в dispatch_fragment: {e}")
