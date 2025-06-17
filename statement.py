@@ -62,17 +62,52 @@ def normalize_commission_table(raw_table):
 @statement_bp.route('/statement/fragment', methods=['GET'])
 @login_required
 def statement_fragment():
+    import time
+    t0 = time.time()
     try:
-        drivers = list(drivers_collection.find({'company': current_user.company}))
-        trucks = list(trucks_collection.find({'company': current_user.company}))
-        loads = list(loads_collection.find({'company': current_user.company}))
-        statements = list(statement_collection.find({'company': current_user.company}))
+        log = []
 
+        # Водители
+        t1 = time.time()
+        drivers = list(drivers_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'name': 1, 'truck': 1, 'scheme_type': 1,
+             'commission_table': 1, 'net_commission_table': 1,
+             'additional_charges': 1}
+        ))
+        log.append(f"✅ Drivers: {time.time() - t1:.3f} сек")
+
+        # Траки
+        t2 = time.time()
+        trucks = list(trucks_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'unit_number': 1}
+        ))
+        log.append(f"✅ Trucks: {time.time() - t2:.3f} сек")
+
+        # Грузы
+        t3 = time.time()
+        loads = list(loads_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'driver_id': 1, 'truck_id': 1}
+        ))
+        log.append(f"✅ Loads: {time.time() - t3:.3f} сек")
+
+        # Стейтменты
+        t4 = time.time()
+        statements = list(statement_collection.find(
+            {'company': current_user.company},
+            {'_id': 1, 'driver_id': 1, 'week': 1, 'salary': 1, 'gross': 1, 'fuel': 1, 'tolls': 1,
+             'applied_charges': 1, 'manual_adjustments': 1, 'created_at': 1, 'note': 1, 'load_ids': 1}
+        ))
+        log.append(f"✅ Statements: {time.time() - t4:.3f} сек")
+
+        # Траки → словарь
         truck_map = {str(truck['_id']): cleanup_doc(truck) for truck in trucks}
 
+        # Водители
         cleaned_drivers = []
         valid_schemes = ['gross', 'net', 'net_percent', 'net_gross']
-
         for driver in drivers:
             d = cleanup_doc(driver)
             d['_id'] = str(d['_id'])
@@ -88,7 +123,6 @@ def statement_fragment():
 
             truck_id = str(d.get('truck'))
             d['truck'] = truck_map.get(truck_id)
-
             cleaned_drivers.append(d)
 
         for t in trucks:
@@ -104,11 +138,20 @@ def statement_fragment():
             s['load_ids'] = [str(lid) for lid in s.get('load_ids', [])]
             s['created_at'] = s.get('created_at').strftime('%Y-%m-%d %H:%M') if s.get('created_at') else ''
 
-        return render_template('fragments/statement_fragment.html',
-                               drivers=cleaned_drivers,
-                               trucks=trucks,
-                               loads=loads,
-                               statements=statements)
+        render_start = time.time()
+        rendered = render_template('fragments/statement_fragment.html',
+                                   drivers=cleaned_drivers,
+                                   trucks=trucks,
+                                   loads=loads,
+                                   statements=statements)
+        log.append(f"✅ Render: {time.time() - render_start:.3f} сек")
+
+        log.append(f"⏱️ Total: {time.time() - t0:.3f} сек")
+        for l in log:
+            print(l)
+
+        return rendered
+
     except Exception as e:
         logging.error("Ошибка в statement_fragment:")
         logging.error(traceback.format_exc())
