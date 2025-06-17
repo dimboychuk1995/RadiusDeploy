@@ -173,21 +173,27 @@ def upload_transactions():
 
         transactions = parse_pdf_transactions(file)
 
+        if not transactions:
+            return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
+
         for tx in transactions:
             tx['company'] = current_user.company
 
-            driver = drivers_collection.find_one({
+            # Найдём карту по card_number
+            card = fuel_cards_collection.find_one({
                 'company': current_user.company,
-                'name': tx.get('driver_name')
+                'card_number': tx.get('card_number')
             })
 
-            if driver and driver.get('truck'):
-                truck = trucks_collection.find_one({'_id': driver['truck']})
-                if truck and truck.get('unit_number'):
-                    tx['unit_number'] = truck['unit_number']
+            if card and card.get('assigned_driver'):
+                # Сохраняем ObjectId водителя
+                tx['driver'] = card['assigned_driver']
 
-        if not transactions:
-            return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
+                driver = drivers_collection.find_one({'_id': card['assigned_driver']})
+                if driver and driver.get('truck'):
+                    truck = trucks_collection.find_one({'_id': driver['truck']})
+                    if truck:
+                        tx['unit_number'] = truck['_id']  # Сохраняем как ObjectId
 
         fuel_cards_transactions_collection.insert_many(transactions)
 
