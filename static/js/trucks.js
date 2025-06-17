@@ -147,3 +147,4 @@ function closeUnitAssignment() {
   document.getElementById("unitAssignment")?.classList.remove("show");
   document.querySelector("#unitAssignment + .custom-offcanvas-backdrop")?.classList.remove("show");
 }
+

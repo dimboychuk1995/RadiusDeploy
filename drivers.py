@@ -49,7 +49,8 @@ def drivers_fragment():
                 "driver_type": 1,
                 "status": 1,
                 "truck": 1,
-                "dispatcher": 1
+                "dispatcher": 1,
+                "hiring_company": 1  # <== добавляем это
             }
         ))
 
@@ -65,10 +66,19 @@ def drivers_fragment():
         # Обогащаем данными
         for i in range(len(drivers)):
             drivers[i] = convert_to_str_id(drivers[i])
+            # преобразуем hiring_company в строку, если есть
+            if drivers[i].get('hiring_company'):
+                drivers[i]['hiring_company'] = str(drivers[i]['hiring_company'])
             drivers[i]['truck_unit'] = truck_units.get(str(drivers[i].get('truck')), 'Нет трака')
             drivers[i]['dispatcher_name'] = dispatcher_map.get(str(drivers[i].get('dispatcher')), 'Нет диспетчера')
 
-        return render_template('fragments/drivers_fragment.html', drivers=drivers, trucks=trucks, dispatchers=dispatchers, companies=companies)
+        return render_template(
+            'fragments/drivers_fragment.html',
+            drivers=drivers,
+            trucks=trucks,
+            dispatchers=dispatchers,
+            companies=companies
+        )
     except Exception as e:
         logging.error(f"Error fetching drivers or trucks: {e}")
         return render_template('error.html', message="Failed to retrieve drivers or trucks list")
