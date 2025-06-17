@@ -68,6 +68,8 @@ def get_ifta_trucks(parent_name, name):
     # Шаг 3: Выбор обработчика по источнику
     if source_name in ["alfa eld", "alpha eld"]:
         return get_trucks_from_alpha_eld(integration)
+    elif source_name == "new eld world":
+        return get_trucks_from_new_eld_world(integration)
 
     return jsonify({"error": f"Источник '{source_name}' пока не поддерживается"}), 400
 
@@ -87,6 +89,39 @@ def get_trucks_from_alpha_eld(integration):
     except requests.RequestException as e:
         return jsonify({"error": f"Ошибка при запросе к Alpha ELD: {str(e)}"}), 500
 
+def get_trucks_from_new_eld_world(integration):
+    token = integration.get("api_key")
+    if not token:
+        return jsonify({"error": "API ключ отсутствует в интеграции"}), 400
+
+    try:
+        response = requests.get(
+            f"https://mystage.neweldworld.com/api/web/v1/vehicle/coordinates/?api_key={token}",
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Преобразуем формат под нашу систему, если нужно
+        trucks = []
+        for item in data:
+            trucks.append({
+                "truckId": item.get("vehicle_id"),
+                "make": item.get("make"),
+                "model": item.get("model"),
+                "year": item.get("year"),
+                "vin": item.get("vin"),
+                "odometer": item.get("odometer"),
+                "location": item.get("start_point"),
+                "latitude": item.get("coordinates", [{}])[0].get("latitude"),
+                "longitude": item.get("coordinates", [{}])[0].get("longitude"),
+                "api_key": token  # для последующих запросов
+            })
+
+        return jsonify(trucks)
+
+    except requests.RequestException as e:
+        return jsonify({"error": f"Ошибка при запросе к New ELD World: {str(e)}"}), 500
 
 @ifta_bp.route("/api/ifta/calculate", methods=["POST"])
 @login_required
