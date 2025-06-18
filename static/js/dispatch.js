@@ -102,6 +102,18 @@ function initDispatcherCalendars() {
         bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${deliveryDateStr}`;
         bar.innerText = `#${load.load_id || load._id}`;
 
+        // 🎨 Цвет по статусу
+        const status = (load.status || '').toLowerCase();
+        if (status === 'new') {
+          bar.style.backgroundColor = '#9b59b6'; // фиолетовый
+        } else if (status === 'picked up') {
+          bar.style.backgroundColor = '#3498db'; // синий
+        } else if (status === 'delivered') {
+          bar.style.backgroundColor = '#2ecc71'; // зелёный
+        } else {
+          bar.style.backgroundColor = '#bdc3c7'; // серый (неизвестный статус)
+        }
+
         timeline.appendChild(bar);
       });
 
