@@ -522,10 +522,18 @@ html, body {
   height: calc(100vh - 300px); /* подгони под свой layout */
 }
 
+.dispatcher-block {
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
 
 .driver-row {
   display: flex;
-  align-items: flex-start; /* исправлено: позволяет .timeline расти по высоте */
+  align-items: stretch; /* растягивает .driver-info по высоте .timeline */
   margin-bottom: 12px;
 }
 
@@ -533,31 +541,40 @@ html, body {
   width: 200px;
   font-weight: 500;
   white-space: nowrap;
+  display: flex;
+  align-items: center;       /* вертикальное выравнивание по центру */
+  justify-content: flex-start;
+  padding-left: 8px;         /* небольшой отступ слева */
 }
 
 .timeline {
   position: relative;
   flex-grow: 1;
-  min-height: 30px;         /* минимальная высота */
-  background: #f1f1f1;      /* или #9c0404 временно для отладки */
-  border-radius: 4px;
-    border: 1px dashed red;
-  /* overflow: hidden; */   /* удалено, чтобы не обрезались .bar */
+  min-height: 0;
+  background: #f1f1f1;
+  border-radius: 10px;       /* Убираем округление, чтобы не давало визуальный зазор */
+  padding: 0;
+  margin: 0;
+  font-size: 0;           /* Убираем влияние line-height */
+  border: none;
 }
 
 .bar {
   position: absolute;
-  height: 24px;
-  background-color: #007bff;
-  border-radius: 4px;
-  color: white;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 6px;
   font-size: 12px;
-  line-height: 24px;
-  padding-left: 6px;
+  color: white;
+  background-color: #007bff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-radius: 10px; /* ← вот это отвечает за округление */
+  box-sizing: border-box;
+  margin: 0;
 }
+
 
 .week-labels {
   display: flex;

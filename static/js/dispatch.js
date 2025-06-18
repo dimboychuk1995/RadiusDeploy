@@ -45,6 +45,9 @@ function initDispatcherCalendars() {
 
       const occupiedSlots = [];
 
+      const barHeight = 20;
+      const barGap = 4;
+
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
 
@@ -78,7 +81,6 @@ function initDispatcherCalendars() {
         const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
         const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
 
-        // Найдём первый свободный слой
         let layer = 0;
         while (true) {
           const conflicts = (occupiedSlots[layer] || []).some(other =>
@@ -95,15 +97,20 @@ function initDispatcherCalendars() {
         bar.className = 'bar';
         bar.style.left = `${leftPercent}%`;
         bar.style.width = `${widthPercent}%`;
-        bar.style.top = `${layer * 22}px`;
-        bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${load.delivery?.address}`;
+        bar.style.top = `${layer * (barHeight + barGap)}px`;
+        bar.style.height = `${barHeight}px`;
+        bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${deliveryDateStr}`;
         bar.innerText = `#${load.load_id || load._id}`;
 
         timeline.appendChild(bar);
       });
 
       const totalLayers = occupiedSlots.length;
-      timeline.style.height = `${Math.max(totalLayers * 26, 30)}px`;
+      let timelineHeight = totalLayers > 0
+        ? barHeight * totalLayers + barGap * (totalLayers - 1)
+        : barHeight;
+
+      timeline.style.height = `${timelineHeight}px`;
 
       row.appendChild(timeline);
       listContainer.appendChild(row);
