@@ -1,158 +1,128 @@
-function getWeekDates(startDate) {
-    const date = new Date(startDate);
-    const day = date.getUTCDay();
-    const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-    monday.setUTCDate(monday.getUTCDate() - ((day + 6) % 7));
-    const result = [];
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setUTCDate(monday.getUTCDate() + i);
-        result.push(d);
-    }
-    return result;
-}
-
-function formatWeekRange(dates) {
-    const options = { month: "2-digit", day: "2-digit" };
-    const start = dates[0].toLocaleDateString("en-US", options);
-    const end = dates[6].toLocaleDateString("en-US", options);
-    return `${start} - ${end}`;
-}
-
 function initDispatcherCalendars() {
-    const blocks = document.querySelectorAll(".dispatch-dispatcher-block");
-    let currentStartDate = new Date();
+  const blocks = document.querySelectorAll('.dispatcher-block');
 
-    function renderAllCalendars() {
-        const weekDates = getWeekDates(currentStartDate);
+  blocks.forEach(block => {
+    const drivers = JSON.parse(block.dataset.drivers || '[]');
+    const loads = JSON.parse(block.dataset.loads || '[]');
+    const listContainer = block.querySelector('.driver-calendar-list');
 
-        blocks.forEach(block => {
-            renderCalendarForBlock(block, weekDates);
-        });
+    const weekDates = getWeekDates(new Date());
+    const weekStart = normalizeDate(weekDates[0]);
+    const weekEnd = normalizeDate(weekDates[6]);
+    const dayMs = 86400000;
 
-        const weekLabel = document.getElementById("globalWeekLabel");
-        if (weekLabel) {
-            weekLabel.textContent = formatWeekRange(weekDates);
-        }
-    }
+    listContainer.innerHTML = '';
 
-    const prevBtn = document.getElementById("globalPrevWeekBtn");
-    const nextBtn = document.getElementById("globalNextWeekBtn");
-
-    if (prevBtn && nextBtn) {
-        prevBtn.addEventListener("click", () => {
-            currentStartDate.setDate(currentStartDate.getDate() - 7);
-            renderAllCalendars();
-        });
-
-        nextBtn.addEventListener("click", () => {
-            currentStartDate.setDate(currentStartDate.getDate() + 7);
-            renderAllCalendars();
-        });
-    }
-
-    renderAllCalendars();
-}
-
-function renderCalendarForBlock(containerElement, weekDates) {
-    if (!containerElement) return;
-
-    let drivers = [];
-    let loads = [];
-
-    try {
-        drivers = JSON.parse(containerElement.dataset.drivers || "[]");
-        loads = JSON.parse(containerElement.dataset.loads || "[]");
-    } catch (e) {
-        console.error("Failed to parse drivers or loads:", e);
-        return;
-    }
-
-    const tbody = containerElement.querySelector(".calendarBody");
-    if (!tbody) return;
-
-    tbody.innerHTML = "";
-
-    const driverRows = {};
     drivers.forEach(driver => {
-        const driverName = driver.name || "—";
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${driverName}</td>` + weekDates.map(() => {
-            return `<td></td><td></td><td></td>`;
-        }).join("");
-        tbody.appendChild(row);
-        driverRows[driver._id] = row;
+      const row = document.createElement('div');
+      row.className = 'driver-row';
+
+      const info = document.createElement('div');
+      info.className = 'driver-info';
+      const unit = driver.truck?.unit_number || '';
+      info.innerText = `${unit} — ${driver.name}`;
+      row.appendChild(info);
+
+      const timeline = document.createElement('div');
+      timeline.className = 'timeline';
+
+      const driverId = normalizeId(driver._id);
+
+      const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
+
+      driverLoads.forEach(load => {
+        const pickup = parseAndNormalizeDate(load?.pickup?.date);
+        const delivery = parseAndNormalizeDate(load?.delivery?.date);
+        if (!pickup || !delivery) return;
+
+        // Пропускаем, если груз не попадает в текущую неделю
+        if (pickup > weekEnd || delivery < weekStart) return;
+
+        const effectiveStart = pickup < weekStart ? weekStart : pickup;
+        const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
+
+        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+        const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
+
+        const leftPercent = (offsetDays / 7) * 100;
+        const widthPercent = (durationDays / 7) * 100;
+
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.left = `${leftPercent}%`;
+        bar.style.width = `${widthPercent}%`;
+        bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${load.delivery?.address}`;
+        bar.innerText = `#${load.load_id || load._id}`;
+
+        timeline.appendChild(bar);
+      });
+
+      row.appendChild(timeline);
+      listContainer.appendChild(row);
     });
+  });
 
-    const driverIds = Object.keys(driverRows);
-    const relevantLoads = loads.filter(load => driverIds.includes(load.assigned_driver));
-
-    paintLoadCells(driverRows, weekDates, relevantLoads, containerElement);
+  updateGlobalWeekLabel();
+  renderWeekLabels();
 }
 
-function paintLoadCells(driverRows, weekDates, loads, containerElement) {
-    const formatDateKey = (date) => {
-        const yyyy = date.getUTCFullYear();
-        const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const dd = String(date.getUTCDate()).padStart(2, '0');
-        return `${mm}/${dd}/${yyyy}`;
-    };
+// Очищает дату до полуночи локально
+function normalizeDate(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
 
-    const parseDate = (str) => {
-        if (!str || typeof str !== 'string') return null;
-        const [mm, dd, yyyy] = str.split('/');
-        const parsed = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
-        return isNaN(parsed.getTime()) ? null : parsed;
-    };
+function parseAndNormalizeDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
+  let year, month, day;
+  if (dateStr.includes('/')) {
+    [month, day, year] = parts.map(Number); // MM/DD/YYYY
+  } else {
+    [year, month, day] = parts.map(Number); // YYYY-MM-DD
+  }
+  return new Date(year, month - 1, day);
+}
 
-    const dateToIndex = {};
-    weekDates.forEach((date, i) => {
-        const key = formatDateKey(date);
-        dateToIndex[key] = i;
-    });
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value && value.$oid) return value.$oid;
+  return String(value);
+}
 
-    const oneDay = 86400000;
+function getWeekDates(baseDate) {
+  const date = new Date(baseDate);
+  const day = date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - ((day + 6) % 7));
+  const result = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    result.push(d);
+  }
+  return result;
+}
 
-    loads.forEach(load => {
-        const driverId = load.assigned_driver;
-        if (!driverId) return;
+function updateGlobalWeekLabel() {
+  const week = getWeekDates(new Date());
+  const fmt = d => d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
+  document.getElementById('globalWeekLabel').innerText = `${fmt(week[0])} — ${fmt(week[6])}`;
+}
 
-        const row = driverRows[driverId];
-        if (!row) return;
+function renderWeekLabels() {
+  const week = getWeekDates(new Date());
+  const container = document.getElementById('weekLabels');
+  container.innerHTML = '';
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-        const pickupDate = parseDate(load.pickup?.date);
-        const deliveryDate = parseDate(load.delivery?.date);
-        if (!pickupDate || !deliveryDate) return;
-
-        const start = pickupDate.getTime();
-        const end = deliveryDate.getTime();
-
-        for (let ts = start; ts <= end; ts += oneDay) {
-            const d = new Date(ts);
-            const key = formatDateKey(d);
-            if (!(key in dateToIndex)) continue;
-
-            const dayIndex = dateToIndex[key];
-            const baseCellIndex = 1 + dayIndex * 3;
-
-            for (let i = 0; i < 3; i++) {
-                const cell = row.children[baseCellIndex + i];
-                if (cell) {
-                    cell.style.backgroundColor = "#cfe2ff";
-                    cell.setAttribute('data-bs-toggle', 'tooltip');
-                    cell.setAttribute('data-bs-html', 'true');
-                    cell.setAttribute('title', `
-<b>ID:</b> ${load.load_id}<br>
-<b>From:</b> ${load.pickup?.address || '—'}<br>
-<b>To:</b> ${load.delivery?.address || '—'}<br>
-<b>Status:</b> ${load.status || '—'}
-                    `.trim());
-                }
-            }
-        }
-    });
-
-    // Инициализация тултипов
-    const tooltipTriggerList = [].slice.call(containerElement.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+  week.forEach(date => {
+    const div = document.createElement('div');
+    div.className = 'day-label';
+    div.innerText = `${dayNames[date.getDay()]} ${date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit'
+    })}`;
+    container.appendChild(div);
+  });
 }
