@@ -190,13 +190,44 @@ def get_super_dispatch_orders():
             except Exception as dt_err:
                 print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
 
+        driver_cache = {}
+
+        def get_driver_name(driver_id):
+            if not driver_id:
+                return None
+            if driver_id in driver_cache:
+                return driver_cache[driver_id]
+
+            try:
+                driver_url = f"{base_url}/drivers/{driver_id}/"
+                print(f"📡 GET DRIVER {driver_url}")
+                resp = requests.get(driver_url, headers=headers)
+                if resp.status_code == 200:
+                    driver_data = resp.json().get("data", {})
+                    name = driver_data.get("name")
+                    driver_cache[driver_id] = name
+                    return name
+                else:
+                    print(f"❌ Ошибка при получении водителя {driver_id}: {resp.status_code}")
+                    return None
+            except Exception as ex:
+                print(f"❌ Исключение при получении водителя {driver_id}: {ex}")
+                return None
+
         for order in filtered_orders:
-            # Поиск company_sign по имени без учёта регистра
             carrier_name_str = order.get("carrier_name", "").strip()
             company = db.companies.find_one({"name": {"$regex": f"^{carrier_name_str}$", "$options": "i"}})
             company_sign_id = company["_id"] if company else None
             if not company_sign_id:
                 print(f"❌ Компания '{carrier_name_str}' не найдена в базе")
+
+            driver_id = order.get("driver_id")
+            driver_name = get_driver_name(driver_id)
+            assigned_driver_obj = None
+            if driver_name:
+                matched_driver = db.drivers.find_one({"name": {"$regex": f"^{driver_name}$", "$options": "i"}})
+                if matched_driver:
+                    assigned_driver_obj = matched_driver["_id"]
 
             load_doc = {
                 "load_id": str(order["id"]),
@@ -213,7 +244,8 @@ def get_super_dispatch_orders():
                 "total_miles": None,
                 "load_description": order.get("instructions"),
                 "vehicles": order.get("vehicles", []),
-                "assigned_driver": order.get("driver_id"),
+                "assigned_driver": assigned_driver_obj,
+                "assigned_driver_name": driver_name,
                 "assigned_dispatch": None,
                 "assigned_power_unit": None,
                 "pickup": {
@@ -267,6 +299,7 @@ def get_super_dispatch_orders():
     except Exception as e:
         logging.exception("Ошибка при получении заказов:")
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 @super_dispatch_bp.route('/test/super_dispatch_orders_list', methods=['GET'])
 @login_required
