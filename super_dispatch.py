@@ -170,25 +170,21 @@ def get_super_dispatch_orders():
 
         filtered_orders = []
         for order in orders:
-            completed_str = order.get('delivery', {}).get('completed_at')
+            scheduled_str = order.get('delivery', {}).get('scheduled_at')
 
-            if not completed_str:
-                print(f"➕ Order {order.get('id')} — БЕЗ completed_at (включён)")
+            if not scheduled_str:
                 filtered_orders.append(order)
                 continue
 
             try:
-                completed_at = parse_date(completed_str)
-                if completed_at.tzinfo is None:
-                    completed_at = completed_at.replace(tzinfo=timezone.utc)
+                scheduled_at = parse_date(scheduled_str)
+                if scheduled_at.tzinfo is None:
+                    scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
 
-                if start_date <= completed_at <= end_date:
-                    print(f"✅ Order {order.get('id')} ✅ {completed_at.isoformat()}")
+                if start_date <= scheduled_at <= end_date:
                     filtered_orders.append(order)
-                else:
-                    print(f"⏭️ Order {order.get('id')} не попадает: {completed_at.isoformat()}")
-            except Exception as dt_err:
-                print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
+            except Exception:
+                pass
 
         driver_cache = {}
 
@@ -207,12 +203,9 @@ def get_super_dispatch_orders():
                     name = driver_data.get("name")
                     driver_cache[driver_id] = name
                     return name
-                else:
-                    print(f"❌ Ошибка при получении водителя {driver_id}: {resp.status_code}")
-                    return None
             except Exception as ex:
-                print(f"❌ Исключение при получении водителя {driver_id}: {ex}")
-                return None
+                print(f"❌ Ошибка получения водителя {driver_id}: {ex}")
+            return None
 
         for order in filtered_orders:
             carrier_name_str = order.get("carrier_name", "").strip()
@@ -223,11 +216,19 @@ def get_super_dispatch_orders():
 
             driver_id = order.get("driver_id")
             driver_name = get_driver_name(driver_id)
-            assigned_driver_obj = None
+
+            assigned_driver = None
+            assigned_dispatch = None
+            assigned_power_unit = None
+
             if driver_name:
-                matched_driver = db.drivers.find_one({"name": {"$regex": f"^{driver_name}$", "$options": "i"}})
-                if matched_driver:
-                    assigned_driver_obj = matched_driver["_id"]
+                driver_doc = db.drivers.find_one({"name": {"$regex": f"^{driver_name}$", "$options": "i"}})
+                if driver_doc:
+                    assigned_driver = driver_doc["_id"]
+                    assigned_dispatch = driver_doc.get("dispatcher")
+                    assigned_power_unit = driver_doc.get("truck")
+                else:
+                    print(f"❌ Водитель '{driver_name}' не найден в базе")
 
             load_doc = {
                 "load_id": str(order["id"]),
@@ -244,10 +245,9 @@ def get_super_dispatch_orders():
                 "total_miles": None,
                 "load_description": order.get("instructions"),
                 "vehicles": order.get("vehicles", []),
-                "assigned_driver": assigned_driver_obj,
-                "assigned_driver_name": driver_name,
-                "assigned_dispatch": None,
-                "assigned_power_unit": None,
+                "assigned_driver": assigned_driver,
+                "assigned_dispatch": assigned_dispatch,
+                "assigned_power_unit": assigned_power_unit,
                 "pickup": {
                     "company": order.get("pickup", {}).get("venue", {}).get("name"),
                     "address": ", ".join(filter(None, [
@@ -256,7 +256,7 @@ def get_super_dispatch_orders():
                         order.get("pickup", {}).get("venue", {}).get("state"),
                         order.get("pickup", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": order.get("pickup", {}).get("completed_at"),
+                    "date": order.get("pickup", {}).get("scheduled_at"),
                     "instructions": order.get("pickup", {}).get("notes", ""),
                     "contact_person": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -270,7 +270,7 @@ def get_super_dispatch_orders():
                         order.get("delivery", {}).get("venue", {}).get("state"),
                         order.get("delivery", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": order.get("delivery", {}).get("completed_at"),
+                    "date": order.get("delivery", {}).get("scheduled_at"),
                     "instructions": order.get("delivery", {}).get("notes", ""),
                     "contact_person": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -287,12 +287,12 @@ def get_super_dispatch_orders():
                 "was_added_to_statement": False
             }
 
-            existing = loads_collection.find_one({
+            existing = db.loads.find_one({
                 "load_id": load_doc["load_id"],
                 "broker_id": load_doc["broker_id"]
             })
             if not existing:
-                loads_collection.insert_one(load_doc)
+                db.loads.insert_one(load_doc)
 
         return jsonify({"success": True, "count": len(filtered_orders)}), 200
 
