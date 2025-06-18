@@ -43,6 +43,8 @@ function initDispatcherCalendars() {
       const driverId = normalizeId(driver._id);
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
 
+      const occupiedSlots = [];
+
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
 
@@ -55,7 +57,6 @@ function initDispatcherCalendars() {
         const delivery = parseAndNormalizeDate(deliveryDateStr);
 
         if (!pickup || !delivery) return;
-
         if (pickup > weekEnd || delivery < weekStart) return;
 
         const effectiveStart = pickup < weekStart ? weekStart : pickup;
@@ -67,24 +68,42 @@ function initDispatcherCalendars() {
         let leftPercent, widthPercent;
 
         if (durationDays === 1) {
-          // Один день: полдня
           leftPercent = (offsetDays + 0.25) / 7 * 100;
           widthPercent = 0.5 / 7 * 100;
         } else {
-          // Несколько дней: половина в начале и конце, полные между
           leftPercent = (offsetDays + 0.5) / 7 * 100;
           widthPercent = (durationDays - 1) / 7 * 100;
         }
+
+        const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
+        const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
+
+        // Найдём первый свободный слой
+        let layer = 0;
+        while (true) {
+          const conflicts = (occupiedSlots[layer] || []).some(other =>
+            !(barEnd <= other.start || barStart >= other.end)
+          );
+          if (!conflicts) break;
+          layer++;
+        }
+
+        if (!occupiedSlots[layer]) occupiedSlots[layer] = [];
+        occupiedSlots[layer].push({ start: barStart, end: barEnd });
 
         const bar = document.createElement('div');
         bar.className = 'bar';
         bar.style.left = `${leftPercent}%`;
         bar.style.width = `${widthPercent}%`;
+        bar.style.top = `${layer * 22}px`;
         bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${load.delivery?.address}`;
         bar.innerText = `#${load.load_id || load._id}`;
 
         timeline.appendChild(bar);
       });
+
+      const totalLayers = occupiedSlots.length;
+      timeline.style.height = `${Math.max(totalLayers * 26, 30)}px`;
 
       row.appendChild(timeline);
       listContainer.appendChild(row);

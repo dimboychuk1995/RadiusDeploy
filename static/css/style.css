@@ -525,7 +525,7 @@ html, body {
 
 .driver-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* исправлено: позволяет .timeline расти по высоте */
   margin-bottom: 12px;
 }
 
@@ -538,15 +538,15 @@ html, body {
 .timeline {
   position: relative;
   flex-grow: 1;
-  height: 30px;
-  background: #f1f1f1;
+  min-height: 30px;         /* минимальная высота */
+  background: #f1f1f1;      /* или #9c0404 временно для отладки */
   border-radius: 4px;
-  overflow: hidden;
+    border: 1px dashed red;
+  /* overflow: hidden; */   /* удалено, чтобы не обрезались .bar */
 }
 
 .bar {
   position: absolute;
-  top: 3px;
   height: 24px;
   background-color: #007bff;
   border-radius: 4px;
