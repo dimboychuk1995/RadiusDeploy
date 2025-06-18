@@ -588,3 +588,11 @@ html, body {
   text-align: center;
   white-space: nowrap;
 }
+
+.driver-calendar-list {
+  overflow: hidden;
+  transition: max-height 0.6s ease;
+}
+.driver-calendar-list.collapsed {
+  max-height: 0 !important;
+}

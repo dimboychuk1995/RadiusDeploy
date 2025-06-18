@@ -9,12 +9,28 @@
 
   <div class="week-labels d-flex mb-3 px-2" id="weekLabels"></div>
 
+  <style>
+    .driver-calendar-list {
+      overflow: hidden;
+      transition: max-height 0.6s ease;
+    }
+    .driver-calendar-list.collapsed {
+      max-height: 0 !important;
+    }
+  </style>
+
   {% for dispatcher in dispatchers %}
     {% set dispatcher_id = dispatcher._id|string %}
     <div class="dispatcher-block mb-5"
+         data-dispatcher-id="{{ dispatcher_id }}"
          data-drivers='{{ grouped_drivers.get(dispatcher_id, []) | tojson | safe }}'
          data-loads='{{ all_loads | tojson | safe }}'>
-      <h5 class="mb-3">Dispatcher: {{ dispatcher.username }}</h5>
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Dispatcher: {{ dispatcher.username }}</h5>
+        <button type="button" class="btn btn-sm btn-outline-secondary toggle-dispatcher-btn">−</button>
+      </div>
+
       <div class="driver-calendar-list"></div>
     </div>
   {% endfor %}
@@ -22,9 +38,15 @@
   {% set unassigned_id = 'unassigned' %}
   {% if grouped_drivers.get(unassigned_id) %}
     <div class="dispatcher-block mb-5"
+         data-dispatcher-id="unassigned"
          data-drivers='{{ grouped_drivers[unassigned_id] | tojson | safe }}'
          data-loads='{{ all_loads | tojson | safe }}'>
-      <h5 class="mb-3">Without a dispatcher</h5>
+
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0">Without a dispatcher</h5>
+        <button type="button" class="btn btn-sm btn-outline-secondary toggle-dispatcher-btn">−</button>
+      </div>
+
       <div class="driver-calendar-list"></div>
     </div>
   {% endif %}

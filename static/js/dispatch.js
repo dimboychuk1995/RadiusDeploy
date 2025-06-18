@@ -12,6 +12,8 @@ function bindWeekSwitchers() {
   });
 }
 
+const collapsedDispatchers = new Set();
+
 function initDispatcherCalendars() {
   const blocks = document.querySelectorAll('.dispatcher-block');
 
@@ -19,6 +21,13 @@ function initDispatcherCalendars() {
     const drivers = JSON.parse(block.dataset.drivers || '[]');
     const loads = JSON.parse(block.dataset.loads || '[]');
     const listContainer = block.querySelector('.driver-calendar-list');
+
+    const dispatcherId = block.dataset.dispatcherId;
+      if (collapsedDispatchers.has(dispatcherId)) {
+        listContainer.classList.add('collapsed');
+        listContainer.style.maxHeight = '0px';
+      }
+
 
     const weekDates = getWeekDates(currentBaseDate);
     const weekStart = normalizeDate(weekDates[0]);
@@ -146,6 +155,7 @@ function initDispatcherCalendars() {
 
   updateGlobalWeekLabel();
   renderWeekLabels();
+  bindDispatcherToggles();
 }
 
 function normalizeDate(date) {
@@ -205,5 +215,30 @@ function renderWeekLabels() {
       day: '2-digit'
     })}`;
     container.appendChild(div);
+  });
+}
+
+function bindDispatcherToggles() {
+  document.querySelectorAll('.toggle-dispatcher-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const block = btn.closest('.dispatcher-block');
+      const list = block.querySelector('.driver-calendar-list');
+      const dispatcherId = block.dataset.dispatcherId;
+
+      if (list.classList.contains('collapsed')) {
+        list.classList.remove('collapsed');
+        list.style.maxHeight = list.scrollHeight + 'px';
+        btn.innerText = '−';
+        collapsedDispatchers.delete(dispatcherId);
+      } else {
+        list.style.maxHeight = list.scrollHeight + 'px';
+        requestAnimationFrame(() => {
+          list.classList.add('collapsed');
+          list.style.maxHeight = '0px';
+        });
+        btn.innerText = '+';
+        collapsedDispatchers.add(dispatcherId);
+      }
+    });
   });
 }
