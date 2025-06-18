@@ -66,7 +66,10 @@ def dispatch_fragment():
                 'delivery.address': 1,
                 'status': 1,
                 'load_id': 1,
-                'extra_delivery': 1
+                'extra_delivery': 1,
+                'price': 1,
+                'total_price': 1,
+                'RPM': 1
             }
         ))
         log.append(f"✅ Loads: {time.time() - t4:.3f} сек")

@@ -99,8 +99,6 @@ function initDispatcherCalendars() {
         bar.style.width = `${widthPercent}%`;
         bar.style.top = `${layer * (barHeight + barGap)}px`;
         bar.style.height = `${barHeight}px`;
-        bar.title = `${load.load_id || load._id} | ${load.pickup?.address} → ${deliveryDateStr}`;
-        bar.innerText = `#${load.load_id || load._id}`;
 
         // 🎨 Цвет по статусу
         const status = (load.status || '').toLowerCase();
@@ -111,8 +109,25 @@ function initDispatcherCalendars() {
         } else if (status === 'delivered') {
           bar.style.backgroundColor = '#2ecc71'; // зелёный
         } else {
-          bar.style.backgroundColor = '#bdc3c7'; // серый (неизвестный статус)
+          bar.style.backgroundColor = '#bdc3c7'; // серый
         }
+
+        // 📝 Текст в баре — штаты
+        const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
+        let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+          const lastExtra = load.extra_delivery[load.extra_delivery.length - 1];
+          if (lastExtra?.address) {
+            deliveryState = lastExtra.address.split(',').pop()?.trim() || '';
+          }
+        }
+
+        const price = load.price || load.total_price || '';
+        const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
+        console.log('LOAD RPM:', load.rpm, 'LOAD ID:', load.load_id || load._id);
+        const barText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
+        bar.title = barText;
+        bar.innerText = barText;
 
         timeline.appendChild(bar);
       });
