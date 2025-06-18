@@ -45,7 +45,15 @@ function initDispatcherCalendars() {
 
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
-        const delivery = parseAndNormalizeDate(load?.delivery?.date);
+
+        let deliveryDateStr;
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
+        } else {
+          deliveryDateStr = load?.delivery?.date;
+        }
+        const delivery = parseAndNormalizeDate(deliveryDateStr);
+
         if (!pickup || !delivery) return;
 
         if (pickup > weekEnd || delivery < weekStart) return;
@@ -56,8 +64,17 @@ function initDispatcherCalendars() {
         const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
         const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
 
-        const leftPercent = (offsetDays / 7) * 100;
-        const widthPercent = (durationDays / 7) * 100;
+        let leftPercent, widthPercent;
+
+        if (durationDays === 1) {
+          // Один день: полдня
+          leftPercent = (offsetDays + 0.25) / 7 * 100;
+          widthPercent = 0.5 / 7 * 100;
+        } else {
+          // Несколько дней: половина в начале и конце, полные между
+          leftPercent = (offsetDays + 0.5) / 7 * 100;
+          widthPercent = (durationDays - 1) / 7 * 100;
+        }
 
         const bar = document.createElement('div');
         bar.className = 'bar';
