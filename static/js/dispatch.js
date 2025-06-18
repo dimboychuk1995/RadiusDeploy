@@ -1,3 +1,17 @@
+let currentBaseDate = new Date(); // глобальная переменная
+
+function bindWeekSwitchers() {
+  document.getElementById('globalPrevWeekBtn')?.addEventListener('click', () => {
+    currentBaseDate.setDate(currentBaseDate.getDate() - 7);
+    initDispatcherCalendars();
+  });
+
+  document.getElementById('globalNextWeekBtn')?.addEventListener('click', () => {
+    currentBaseDate.setDate(currentBaseDate.getDate() + 7);
+    initDispatcherCalendars();
+  });
+}
+
 function initDispatcherCalendars() {
   const blocks = document.querySelectorAll('.dispatcher-block');
 
@@ -6,7 +20,7 @@ function initDispatcherCalendars() {
     const loads = JSON.parse(block.dataset.loads || '[]');
     const listContainer = block.querySelector('.driver-calendar-list');
 
-    const weekDates = getWeekDates(new Date());
+    const weekDates = getWeekDates(currentBaseDate);
     const weekStart = normalizeDate(weekDates[0]);
     const weekEnd = normalizeDate(weekDates[6]);
     const dayMs = 86400000;
@@ -27,7 +41,6 @@ function initDispatcherCalendars() {
       timeline.className = 'timeline';
 
       const driverId = normalizeId(driver._id);
-
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
 
       driverLoads.forEach(load => {
@@ -35,7 +48,6 @@ function initDispatcherCalendars() {
         const delivery = parseAndNormalizeDate(load?.delivery?.date);
         if (!pickup || !delivery) return;
 
-        // Пропускаем, если груз не попадает в текущую неделю
         if (pickup > weekEnd || delivery < weekStart) return;
 
         const effectiveStart = pickup < weekStart ? weekStart : pickup;
@@ -66,7 +78,6 @@ function initDispatcherCalendars() {
   renderWeekLabels();
 }
 
-// Очищает дату до полуночи локально
 function normalizeDate(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -76,9 +87,9 @@ function parseAndNormalizeDate(dateStr) {
   const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
   let year, month, day;
   if (dateStr.includes('/')) {
-    [month, day, year] = parts.map(Number); // MM/DD/YYYY
+    [month, day, year] = parts.map(Number);
   } else {
-    [year, month, day] = parts.map(Number); // YYYY-MM-DD
+    [year, month, day] = parts.map(Number);
   }
   return new Date(year, month - 1, day);
 }
@@ -105,13 +116,13 @@ function getWeekDates(baseDate) {
 }
 
 function updateGlobalWeekLabel() {
-  const week = getWeekDates(new Date());
+  const week = getWeekDates(currentBaseDate);
   const fmt = d => d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
   document.getElementById('globalWeekLabel').innerText = `${fmt(week[0])} — ${fmt(week[6])}`;
 }
 
 function renderWeekLabels() {
-  const week = getWeekDates(new Date());
+  const week = getWeekDates(currentBaseDate);
   const container = document.getElementById('weekLabels');
   container.innerHTML = '';
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

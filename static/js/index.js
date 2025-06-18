@@ -12,7 +12,10 @@ function initNavigation() {
       initDriverParser?.();
       highlightExpiringDrivers?.();
     },
-    'dispatch_fragment': () => initDispatcherCalendars?.(),
+    'dispatch_fragment': () => {
+      initDispatcherCalendars?.();
+      bindWeekSwitchers();
+    },
     'dispatch_brokers': () => initBrokerCustomerSection?.(),
     'accounting': () => initAccountingButtons?.(),
     'statements': () => {
