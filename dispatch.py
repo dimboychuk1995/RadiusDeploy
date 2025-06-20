@@ -122,3 +122,81 @@ def dispatch_fragment():
     except Exception as e:
         logging.error(f"Ошибка в dispatch_fragment: {e}")
         return render_template('error.html', message="Не удалось загрузить данные диспетчеров.")
+
+from flask import request, jsonify
+from bson import ObjectId
+from flask_login import login_required
+from datetime import datetime
+
+@dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
+@login_required
+def prep_consolidation():
+    try:
+        data = request.get_json()
+        load_ids = data.get('load_ids', [])
+        if not load_ids:
+            return jsonify({"success": False, "error": "No load_ids provided"}), 400
+
+        # Преобразование строк в ObjectId
+        object_ids = [ObjectId(id_) for id_ in load_ids]
+
+        # Получаем грузы
+        loads = list(loads_collection.find(
+            {'_id': {'$in': object_ids}},
+            {
+                '_id': 1,
+                'pickup': 1,
+                'delivery': 1,
+                'extra_pickup': 1,
+                'extra_delivery': 1
+            }
+        ))
+
+        pickup_points = []
+        delivery_points = []
+
+        for load in loads:
+            load_id = str(load['_id'])
+
+            # extra_pickup → pickup
+            extras = load.get('extra_pickup') or []
+            for ep in extras:
+                pickup_points.append({
+                    "address": ep.get("address", ""),
+                    "scheduled_at": ep.get("scheduled_at", ""),
+                    "original_load_id": load_id
+                })
+
+            pickup = load.get('pickup')
+            if pickup:
+                pickup_points.append({
+                    "address": pickup.get("address", ""),
+                    "scheduled_at": pickup.get("date", ""),  # в основной пикап поле называется 'date'
+                    "original_load_id": load_id
+                })
+
+            # delivery → extra_delivery
+            delivery = load.get('delivery')
+            if delivery:
+                delivery_points.append({
+                    "address": delivery.get("address", ""),
+                    "scheduled_at": delivery.get("date", ""),
+                    "original_load_id": load_id
+                })
+
+            extras = load.get('extra_delivery') or []
+            for ed in extras:
+                delivery_points.append({
+                    "address": ed.get("address", ""),
+                    "scheduled_at": ed.get("scheduled_at", ""),
+                    "original_load_id": load_id
+                })
+
+        return jsonify({
+            "success": True,
+            "pickup_points": pickup_points,
+            "delivery_points": delivery_points
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -23,11 +23,10 @@ function initDispatcherCalendars() {
     const listContainer = block.querySelector('.driver-calendar-list');
 
     const dispatcherId = block.dataset.dispatcherId;
-      if (collapsedDispatchers.has(dispatcherId)) {
-        listContainer.classList.add('collapsed');
-        listContainer.style.maxHeight = '0px';
-      }
-
+    if (collapsedDispatchers.has(dispatcherId)) {
+      listContainer.classList.add('collapsed');
+      listContainer.style.maxHeight = '0px';
+    }
 
     const weekDates = getWeekDates(currentBaseDate);
     const weekStart = normalizeDate(weekDates[0]);
@@ -109,19 +108,17 @@ function initDispatcherCalendars() {
         bar.style.top = `${layer * (barHeight + barGap)}px`;
         bar.style.height = `${barHeight}px`;
 
-        // 🎨 Цвет по статусу
         const status = (load.status || '').toLowerCase();
         if (status === 'new') {
-          bar.style.backgroundColor = '#9b59b6'; // фиолетовый
+          bar.style.backgroundColor = '#9b59b6';
         } else if (status === 'picked up') {
-          bar.style.backgroundColor = '#3498db'; // синий
+          bar.style.backgroundColor = '#3498db';
         } else if (status === 'delivered') {
-          bar.style.backgroundColor = '#2ecc71'; // зелёный
+          bar.style.backgroundColor = '#2ecc71';
         } else {
-          bar.style.backgroundColor = '#bdc3c7'; // серый
+          bar.style.backgroundColor = '#bdc3c7';
         }
 
-        // 📝 Текст в баре — штаты
         const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
         let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
         if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
@@ -133,10 +130,15 @@ function initDispatcherCalendars() {
 
         const price = load.price || load.total_price || '';
         const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
-        console.log('LOAD RPM:', load.rpm, 'LOAD ID:', load.load_id || load._id);
         const barText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
         bar.title = barText;
         bar.innerText = barText;
+
+        bar.addEventListener('click', () => {
+          bar.classList.toggle('selected');
+          updateConsolidationButtonVisibility();
+          bar.dataset.loadId = load._id?.$oid || load._id;
+        });
 
         timeline.appendChild(bar);
       });
@@ -156,6 +158,48 @@ function initDispatcherCalendars() {
   updateGlobalWeekLabel();
   renderWeekLabels();
   bindDispatcherToggles();
+
+  // 👇 Привязка кнопки после рендера
+  const consolidationBtn = document.getElementById('startConsolidationBtn');
+  if (consolidationBtn && !consolidationBtn.dataset.bound) {
+    consolidationBtn.dataset.bound = 'true';
+    consolidationBtn.addEventListener('click', async () => {
+      console.log('🔥 Нажата кнопка консолидации');
+
+      const selectedBars = Array.from(document.querySelectorAll('.bar.selected'));
+      const loadIds = [...new Set(selectedBars.map(bar => bar.dataset.loadId || bar.getAttribute('data-load-id')))].filter(Boolean);
+
+      if (loadIds.length === 0) {
+        alert('Нет выбранных грузов');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/consolidation/prep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ load_ids: loadIds })
+        });
+
+        const json = await res.json();
+        if (json.success) {
+          console.log('🟢 openConsolidationModal()', json.pickup_points, json.delivery_points);
+          openConsolidationModal(json.pickup_points, json.delivery_points);
+        } else {
+          alert('Ошибка: ' + json.error);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Не удалось загрузить точки консолидации');
+      }
+    });
+  }
+}
+
+function updateConsolidationButtonVisibility() {
+  const anySelected = document.querySelector('.bar.selected');
+  const controls = document.getElementById('consolidateControls');
+  controls.style.display = anySelected ? 'block' : 'none';
 }
 
 function normalizeDate(date) {
@@ -242,3 +286,133 @@ function bindDispatcherToggles() {
     });
   });
 }
+
+function openConsolidationModal(pickups, deliveries) {
+  console.log('🟢 openConsolidationModal()', pickups, deliveries); // 👈 добавить
+  const pickupList = document.getElementById('pickupList');
+  const deliveryList = document.getElementById('deliveryList');
+
+  pickupList.innerHTML = '';
+  pickups.forEach((point, i) => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item';
+    li.draggable = true;
+    li.dataset.loadId = point.original_load_id;
+    li.innerText = `${point.address} — ${point.scheduled_at}`;
+    pickupList.appendChild(li);
+  });
+
+  deliveryList.innerHTML = '';
+  deliveries.forEach((point, i) => {
+    const li = document.createElement('li');
+    li.className = 'list-group-item';
+    li.draggable = true;
+    li.dataset.loadId = point.original_load_id;
+    li.innerText = `${point.address} — ${point.scheduled_at}`;
+    deliveryList.appendChild(li);
+  });
+
+  document.getElementById('consolidationModal').classList.add('show');
+  document.getElementById('consolidationBackdrop').classList.add('show');
+
+  enableDragAndDrop('pickupList');
+  enableDragAndDrop('deliveryList');
+  setupPointClickOrdering();
+}
+
+function setupPointClickOrdering() {
+  const allItems = document.querySelectorAll('#pickupList li, #deliveryList li');
+  const selectionOrder = [];
+
+  allItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const existingIndex = selectionOrder.indexOf(item);
+      if (existingIndex !== -1) {
+        // Удалить из порядка
+        selectionOrder.splice(existingIndex, 1);
+        item.querySelector('.order-badge')?.remove();
+      } else {
+        // Добавить в порядок
+        selectionOrder.push(item);
+        const badge = document.createElement('span');
+        badge.className = 'order-badge';
+        badge.innerText = selectionOrder.length;
+        item.appendChild(badge);
+      }
+
+      // Перенумеровать всё
+      selectionOrder.forEach((el, idx) => {
+        const badge = el.querySelector('.order-badge');
+        if (badge) badge.innerText = idx + 1;
+      });
+    });
+  });
+}
+
+
+function closeConsolidationModal() {
+  document.getElementById('consolidationModal').classList.remove('show');
+  document.getElementById('consolidationBackdrop').classList.remove('show');
+}
+
+// Универсальная drag-and-drop инициализация
+function enableDragAndDrop(listId) {
+  const list = document.getElementById(listId);
+  let dragged;
+
+  list.querySelectorAll('li').forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragged = item;
+      item.style.opacity = 0.5;
+    });
+
+    item.addEventListener('dragend', e => {
+      item.style.opacity = '';
+    });
+
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+    });
+
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragged && dragged !== item) {
+        const siblings = Array.from(list.children);
+        const dropIndex = siblings.indexOf(item);
+        list.insertBefore(dragged, dropIndex > siblings.indexOf(dragged) ? item.nextSibling : item);
+      }
+    });
+  });
+}
+
+//отвечает за открытые модалки
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('startConsolidationBtn')?.addEventListener('click', async () => {
+    console.log('🔥 Нажата кнопка консолидации');
+    const selectedBars = Array.from(document.querySelectorAll('.bar.selected'));
+    const loadIds = [...new Set(selectedBars.map(bar => bar.dataset.loadId || bar.getAttribute('data-load-id')))].filter(Boolean);
+
+    if (loadIds.length === 0) {
+      alert('Нет выбранных грузов');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/consolidation/prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ load_ids: loadIds })
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        openConsolidationModal(json.pickup_points, json.delivery_points);
+      } else {
+        alert('Ошибка: ' + json.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Не удалось загрузить точки консолидации');
+    }
+  });
+});
