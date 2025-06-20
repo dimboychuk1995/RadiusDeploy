@@ -14,26 +14,6 @@ function bindWeekSwitchers() {
   });
 }
 
-function getWeekDates(baseDate) {
-  const date = new Date(baseDate);
-  const day = date.getDay();
-  const monday = new Date(date);
-  monday.setDate(date.getDate() - ((day + 6) % 7));
-  const result = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    result.push(d);
-  }
-  return result;
-}
-
-function updateGlobalWeekLabel() {
-  const week = getWeekDates(currentBaseDate);
-  const fmt = d => d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
-  document.getElementById('globalWeekLabel').innerText = `${fmt(week[0])} — ${fmt(week[6])}`;
-}
-
 
 // ========== Инициализация календарей диспетчеров ==========
 function initDispatcherCalendars() {

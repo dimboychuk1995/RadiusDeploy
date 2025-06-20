@@ -34,6 +34,7 @@ def dispatch_fragment():
     try:
         log = []
 
+        # === Drivers ===
         t1 = time.time()
         drivers = list(drivers_collection.find(
             {'company': current_user.company},
@@ -41,6 +42,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Drivers: {time.time() - t1:.3f} сек")
 
+        # === Trucks ===
         t2 = time.time()
         trucks = list(trucks_collection.find(
             {'company': current_user.company},
@@ -48,6 +50,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Trucks: {time.time() - t2:.3f} сек")
 
+        # === Dispatchers ===
         t3 = time.time()
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
@@ -55,6 +58,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Dispatchers: {time.time() - t3:.3f} сек")
 
+        # === Loads ===
         t4 = time.time()
         loads = list(loads_collection.find(
             {'company': current_user.company},
@@ -75,7 +79,19 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Loads: {time.time() - t4:.3f} сек")
 
-        # Очистка
+        # === Consolidated Loads ===
+        t5 = time.time()
+        consolidated_loads = list(consolidated_loads_collection.find({}, {
+            '_id': 1,
+            'load_ids': 1,
+            'route_points': 1,
+            'total_miles': 1,
+            'total_price': 1,
+            'rpm': 1
+        }))
+        log.append(f"✅ Consolidated Loads: {time.time() - t5:.3f} сек")
+
+        # === Очистка ===
         def clean_for_json(obj):
             if isinstance(obj, dict):
                 return {
@@ -93,7 +109,9 @@ def dispatch_fragment():
         trucks = clean_for_json(trucks)
         dispatchers = clean_for_json(dispatchers)
         loads = clean_for_json(loads)
+        consolidated_loads = clean_for_json(consolidated_loads)
 
+        # === Группировка водителей ===
         truck_map = {t['_id']: t for t in trucks}
         dispatcher_map = {d['_id']: d for d in dispatchers}
 
@@ -104,12 +122,14 @@ def dispatch_fragment():
             driver['truck'] = truck_map.get(driver.get('truck'))
             grouped_drivers.setdefault(dispatcher_id, []).append(driver)
 
+        # === Рендеринг ===
         render_start = time.time()
         rendered = render_template(
             'fragments/dispatch_fragment.html',
             dispatchers=dispatchers,
             grouped_drivers=grouped_drivers,
-            all_loads=loads
+            all_loads=loads,
+            consolidated_loads=consolidated_loads
         )
         log.append(f"✅ Render: {time.time() - render_start:.3f} сек")
 
