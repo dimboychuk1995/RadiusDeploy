@@ -14,7 +14,6 @@ function bindWeekSwitchers() {
   });
 }
 
-
 // ========== Инициализация календарей диспетчеров ==========
 function initDispatcherCalendars() {
   const blocks = document.querySelectorAll('.dispatcher-block');
@@ -50,94 +49,80 @@ function initDispatcherCalendars() {
       const driverId = normalizeId(driver._id);
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
 
-      const groupedByConsolidation = {};
-      const standaloneLoads = [];
-
       const occupiedSlots = [];
-const barHeight = 20;
-const barGap = 4;
+      const barHeight = 20;
+      const barGap = 4;
 
-driverLoads.forEach(load => {
-  const pickup = parseAndNormalizeDate(load?.pickup?.date);
-  let deliveryDateStr;
-  if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-    deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
-  } else {
-    deliveryDateStr = load?.delivery?.date;
-  }
-  const delivery = parseAndNormalizeDate(deliveryDateStr);
+      driverLoads.forEach(load => {
+        const pickup = parseAndNormalizeDate(load?.pickup?.date);
+        let deliveryDateStr;
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
+        } else {
+          deliveryDateStr = load?.delivery?.date;
+        }
+        const delivery = parseAndNormalizeDate(deliveryDateStr);
 
-  if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
+        if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
 
-  const effectiveStart = pickup < weekStart ? weekStart : pickup;
-  const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
-  const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
-  const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
+        const effectiveStart = pickup < weekStart ? weekStart : pickup;
+        const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
+        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+        const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
 
-  let leftPercent, widthPercent;
-  if (durationDays === 1) {
-    leftPercent = (offsetDays + 0.25) / 7 * 100;
-    widthPercent = 0.5 / 7 * 100;
-  } else {
-    leftPercent = (offsetDays + 0.5) / 7 * 100;
-    widthPercent = (durationDays - 1) / 7 * 100;
-  }
+        let leftPercent, widthPercent;
+        if (durationDays === 1) {
+          leftPercent = (offsetDays + 0.25) / 7 * 100;
+          widthPercent = 0.5 / 7 * 100;
+        } else {
+          leftPercent = (offsetDays + 0.5) / 7 * 100;
+          widthPercent = (durationDays - 1) / 7 * 100;
+        }
 
-  const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
-  const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
+        const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
+        const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
 
-  let layer = 0;
-  while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
-    layer++;
-  }
-  occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
+        let layer = 0;
+        while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
+          layer++;
+        }
+        occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
 
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.style.left = `${leftPercent}%`;
-  bar.style.width = `${widthPercent}%`;
-  bar.style.top = `${layer * (barHeight + barGap)}px`;
-  bar.style.height = `${barHeight}px`;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.left = `${leftPercent}%`;
+        bar.style.width = `${widthPercent}%`;
+        bar.style.top = `${layer * (barHeight + barGap)}px`;
+        bar.style.height = `${barHeight}px`;
 
-  // 🟠 Добавляем рамку если консолидация включена
-  if (load.consolidated) {
-    bar.classList.add('consolidated-bar');
-  }
+        if (load.consolidated) {
+          bar.classList.add('consolidated-bar');
+        }
 
-  const status = (load.status || '').toLowerCase();
-  bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
+        const status = (load.status || '').toLowerCase();
+        bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
 
-  const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
-  let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
-  if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-    deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
-  }
+        const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
+        let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+          deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
+        }
 
-  const price = load.price || load.total_price || '';
-  const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
-  bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
-  bar.title = bar.innerText;
-  bar.dataset.loadId = load._id?.$oid || load._id;
+        const price = load.price || load.total_price || '';
+        const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
+        bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
+        bar.title = bar.innerText;
+        bar.dataset.loadId = load._id?.$oid || load._id;
 
-  bar.addEventListener('click', () => {
-    bar.classList.toggle('selected');
-    updateConsolidationButtonVisibility();
-  });
+        bar.addEventListener('click', () => {
+          bar.classList.toggle('selected');
+          updateConsolidationButtonVisibility();
+        });
 
-  timeline.appendChild(bar);
-});
-
-timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupiedSlots.length - barGap : barHeight}px`;
-
-
-      Object.values(groupedByConsolidation).forEach(group => {
-        renderLoadGroup(group, timeline, weekStart, weekEnd);
+        timeline.appendChild(bar);
       });
 
-      standaloneLoads.forEach(load => {
-        renderLoadGroup([load], timeline, weekStart, weekEnd);
-      });
-
+      timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupiedSlots.length - barGap : barHeight}px`;
       row.appendChild(timeline);
       listContainer.appendChild(row);
     });
@@ -164,86 +149,6 @@ timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupie
       if (json.success) openConsolidationModal(json.pickup_points, json.delivery_points);
       else alert(json.error);
     });
-  }
-}
-
-function renderLoadGroup(loadGroup, timeline, weekStart, weekEnd) {
-  const occupiedSlots = [];
-  const barHeight = 20;
-  const barGap = 4;
-  const dayMs = 86400000;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'load-group-wrapper';
-
-  loadGroup.forEach(load => {
-    const pickup = parseAndNormalizeDate(load?.pickup?.date);
-    let deliveryDateStr;
-    if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-      deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
-    } else {
-      deliveryDateStr = load?.delivery?.date;
-    }
-    const delivery = parseAndNormalizeDate(deliveryDateStr);
-
-    if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
-
-    const effectiveStart = pickup < weekStart ? weekStart : pickup;
-    const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
-    const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
-    const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
-
-    let leftPercent, widthPercent;
-    if (durationDays === 1) {
-      leftPercent = (offsetDays + 0.25) / 7 * 100;
-      widthPercent = 0.5 / 7 * 100;
-    } else {
-      leftPercent = (offsetDays + 0.5) / 7 * 100;
-      widthPercent = (durationDays - 1) / 7 * 100;
-    }
-
-    const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
-    const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
-
-    let layer = 0;
-    while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
-      layer++;
-    }
-    occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
-
-    const bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.style.left = `${leftPercent}%`;
-    bar.style.width = `${widthPercent}%`;
-    bar.style.top = `${layer * (barHeight + barGap)}px`;
-    bar.style.height = `${barHeight}px`;
-
-    const status = (load.status || '').toLowerCase();
-    bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
-
-    const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
-    let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
-    if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-      deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
-    }
-
-    const price = load.price || load.total_price || '';
-    const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
-    bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
-    bar.title = bar.innerText;
-    bar.dataset.loadId = load._id?.$oid || load._id;
-
-    bar.addEventListener('click', () => {
-      bar.classList.toggle('selected');
-      updateConsolidationButtonVisibility();
-    });
-
-    wrapper.appendChild(bar);
-  });
-
-  if (wrapper.children.length) {
-    wrapper.classList.add('consolidated-group');
-    wrapper.style.height = `${(barHeight + barGap) * occupiedSlots.length - barGap}px`;
-    timeline.appendChild(wrapper);
   }
 }
 
@@ -320,7 +225,6 @@ function setupPointClickOrdering() {
 }
 
 async function submitConsolidationOrder(orderedPoints) {
-  // Очищаем от невалидных точек
   const cleanedPoints = orderedPoints
     .map(p => ({
       address: p.address?.trim(),
@@ -397,6 +301,7 @@ function updateConsolidationButtonVisibility() {
 function normalizeDate(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
+
 function parseAndNormalizeDate(dateStr) {
   if (!dateStr) return null;
   const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
@@ -405,23 +310,27 @@ function parseAndNormalizeDate(dateStr) {
   else [year, month, day] = parts.map(Number);
   return new Date(year, month - 1, day);
 }
+
 function normalizeId(value) {
   if (!value) return '';
   if (typeof value === 'string') return value;
   if (value && value.$oid) return value.$oid;
   return String(value);
 }
+
 function getWeekDates(baseDate) {
   const date = new Date(baseDate);
   const monday = new Date(date);
   monday.setDate(date.getDate() - ((date.getDay() + 6) % 7));
   return Array.from({ length: 7 }, (_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i));
 }
+
 function updateGlobalWeekLabel() {
   const week = getWeekDates(currentBaseDate);
   const fmt = d => d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
   document.getElementById('globalWeekLabel').innerText = `${fmt(week[0])} — ${fmt(week[6])}`;
 }
+
 function renderWeekLabels() {
   const week = getWeekDates(currentBaseDate);
   const container = document.getElementById('weekLabels');
@@ -430,12 +339,11 @@ function renderWeekLabels() {
   week.forEach(date => {
     const div = document.createElement('div');
     div.className = 'day-label';
-    div.innerText = `${dayNames[date.getDay()]} ${date.toLocaleDateString('en-US', {
-      month: '2-digit', day: '2-digit'
-    })}`;
+    div.innerText = `${dayNames[date.getDay()]} ${date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' })}`;
     container.appendChild(div);
   });
 }
+
 function bindDispatcherToggles() {
   document.querySelectorAll('.toggle-dispatcher-btn').forEach(btn => {
     btn.addEventListener('click', () => {
