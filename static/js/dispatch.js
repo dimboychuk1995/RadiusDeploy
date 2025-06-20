@@ -50,76 +50,94 @@ function initDispatcherCalendars() {
       const driverId = normalizeId(driver._id);
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
 
+      const groupedByConsolidation = {};
+      const standaloneLoads = [];
+
       const occupiedSlots = [];
-      const barHeight = 20;
-      const barGap = 4;
+const barHeight = 20;
+const barGap = 4;
 
-      driverLoads.forEach(load => {
-        const pickup = parseAndNormalizeDate(load?.pickup?.date);
-        let deliveryDateStr;
-        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
-        } else {
-          deliveryDateStr = load?.delivery?.date;
-        }
-        const delivery = parseAndNormalizeDate(deliveryDateStr);
+driverLoads.forEach(load => {
+  const pickup = parseAndNormalizeDate(load?.pickup?.date);
+  let deliveryDateStr;
+  if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+    deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
+  } else {
+    deliveryDateStr = load?.delivery?.date;
+  }
+  const delivery = parseAndNormalizeDate(deliveryDateStr);
 
-        if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
+  if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
 
-        const effectiveStart = pickup < weekStart ? weekStart : pickup;
-        const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
-        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
-        const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
+  const effectiveStart = pickup < weekStart ? weekStart : pickup;
+  const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
+  const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+  const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
 
-        let leftPercent, widthPercent;
-        if (durationDays === 1) {
-          leftPercent = (offsetDays + 0.25) / 7 * 100;
-          widthPercent = 0.5 / 7 * 100;
-        } else {
-          leftPercent = (offsetDays + 0.5) / 7 * 100;
-          widthPercent = (durationDays - 1) / 7 * 100;
-        }
+  let leftPercent, widthPercent;
+  if (durationDays === 1) {
+    leftPercent = (offsetDays + 0.25) / 7 * 100;
+    widthPercent = 0.5 / 7 * 100;
+  } else {
+    leftPercent = (offsetDays + 0.5) / 7 * 100;
+    widthPercent = (durationDays - 1) / 7 * 100;
+  }
 
-        const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
-        const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
+  const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
+  const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
 
-        let layer = 0;
-        while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
-          layer++;
-        }
-        occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
+  let layer = 0;
+  while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
+    layer++;
+  }
+  occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
 
-        const bar = document.createElement('div');
-        bar.className = 'bar';
-        bar.style.left = `${leftPercent}%`;
-        bar.style.width = `${widthPercent}%`;
-        bar.style.top = `${layer * (barHeight + barGap)}px`;
-        bar.style.height = `${barHeight}px`;
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  bar.style.left = `${leftPercent}%`;
+  bar.style.width = `${widthPercent}%`;
+  bar.style.top = `${layer * (barHeight + barGap)}px`;
+  bar.style.height = `${barHeight}px`;
 
-        const status = (load.status || '').toLowerCase();
-        bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
+  // 🟠 Добавляем рамку если консолидация включена
+  if (load.consolidated) {
+    bar.classList.add('consolidated-bar');
+  }
 
-        const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
-        let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
-        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-          deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
-        }
+  const status = (load.status || '').toLowerCase();
+  bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
 
-        const price = load.price || load.total_price || '';
-        const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
-        bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
-        bar.title = bar.innerText;
-        bar.dataset.loadId = load._id?.$oid || load._id;
+  const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
+  let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
+  if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+    deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
+  }
 
-        bar.addEventListener('click', () => {
-          bar.classList.toggle('selected');
-          updateConsolidationButtonVisibility();
-        });
+  const price = load.price || load.total_price || '';
+  const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
+  bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
+  bar.title = bar.innerText;
+  bar.dataset.loadId = load._id?.$oid || load._id;
 
-        timeline.appendChild(bar);
+  bar.addEventListener('click', () => {
+    bar.classList.toggle('selected');
+    updateConsolidationButtonVisibility();
+  });
+
+  timeline.appendChild(bar);
+});
+
+timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupiedSlots.length - barGap : barHeight}px`;
+
+
+      Object.values(groupedByConsolidation).forEach(group => {
+        renderLoadGroup(group, timeline, weekStart, weekEnd);
       });
 
-      timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupiedSlots.length - barGap : barHeight}px`;
+      standaloneLoads.forEach(load => {
+        renderLoadGroup([load], timeline, weekStart, weekEnd);
+      });
+
       row.appendChild(timeline);
       listContainer.appendChild(row);
     });
@@ -146,6 +164,86 @@ function initDispatcherCalendars() {
       if (json.success) openConsolidationModal(json.pickup_points, json.delivery_points);
       else alert(json.error);
     });
+  }
+}
+
+function renderLoadGroup(loadGroup, timeline, weekStart, weekEnd) {
+  const occupiedSlots = [];
+  const barHeight = 20;
+  const barGap = 4;
+  const dayMs = 86400000;
+  const wrapper = document.createElement('div');
+  wrapper.className = 'load-group-wrapper';
+
+  loadGroup.forEach(load => {
+    const pickup = parseAndNormalizeDate(load?.pickup?.date);
+    let deliveryDateStr;
+    if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+      deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
+    } else {
+      deliveryDateStr = load?.delivery?.date;
+    }
+    const delivery = parseAndNormalizeDate(deliveryDateStr);
+
+    if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
+
+    const effectiveStart = pickup < weekStart ? weekStart : pickup;
+    const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
+    const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+    const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
+
+    let leftPercent, widthPercent;
+    if (durationDays === 1) {
+      leftPercent = (offsetDays + 0.25) / 7 * 100;
+      widthPercent = 0.5 / 7 * 100;
+    } else {
+      leftPercent = (offsetDays + 0.5) / 7 * 100;
+      widthPercent = (durationDays - 1) / 7 * 100;
+    }
+
+    const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
+    const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
+
+    let layer = 0;
+    while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
+      layer++;
+    }
+    occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
+
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.left = `${leftPercent}%`;
+    bar.style.width = `${widthPercent}%`;
+    bar.style.top = `${layer * (barHeight + barGap)}px`;
+    bar.style.height = `${barHeight}px`;
+
+    const status = (load.status || '').toLowerCase();
+    bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
+
+    const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
+    let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
+    if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+      deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
+    }
+
+    const price = load.price || load.total_price || '';
+    const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
+    bar.innerText = `${pickupState} → ${deliveryState} | $${price} | ${rpm}`;
+    bar.title = bar.innerText;
+    bar.dataset.loadId = load._id?.$oid || load._id;
+
+    bar.addEventListener('click', () => {
+      bar.classList.toggle('selected');
+      updateConsolidationButtonVisibility();
+    });
+
+    wrapper.appendChild(bar);
+  });
+
+  if (wrapper.children.length) {
+    wrapper.classList.add('consolidated-group');
+    wrapper.style.height = `${(barHeight + barGap) * occupiedSlots.length - barGap}px`;
+    timeline.appendChild(wrapper);
   }
 }
 

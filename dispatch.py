@@ -74,7 +74,9 @@ def dispatch_fragment():
                 'extra_delivery': 1,
                 'price': 1,
                 'total_price': 1,
-                'RPM': 1
+                'RPM': 1,
+                'consolidated': 1,
+                'consolidateId': 1
             }
         ))
         log.append(f"✅ Loads: {time.time() - t4:.3f} сек")
