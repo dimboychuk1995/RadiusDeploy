@@ -12,6 +12,14 @@ super_dispatch_bp = Blueprint('super_dispatch', __name__)
 integrations_settings_collection = db['integrations_settings']
 loads_collection = db['loads']
 
+def format_date_mmddyyyy(date_str):
+    if not date_str:
+        return ""
+    try:
+        dt = parse_date(date_str)
+        return dt.strftime("%m/%d/%Y")
+    except Exception:
+        return date_str  # fallback — если не распарсилось
 
 def fetch_and_save_token(integration_name="Super Dispatch SKF"):
     integration = integrations_settings_collection.find_one({"name": integration_name})
@@ -173,7 +181,6 @@ def get_super_dispatch_orders():
             completed_str = order.get('delivery', {}).get('completed_at')
 
             if not completed_str:
-                print(f"➕ Order {order.get('id')} — БЕЗ completed_at (включён)")
                 filtered_orders.append(order)
                 continue
 
@@ -183,10 +190,7 @@ def get_super_dispatch_orders():
                     completed_at = completed_at.replace(tzinfo=timezone.utc)
 
                 if start_date <= completed_at <= end_date:
-                    print(f"✅ Order {order.get('id')} ✅ {completed_at.isoformat()}")
                     filtered_orders.append(order)
-                else:
-                    print(f"⏭️ Order {order.get('id')} не попадает: {completed_at.isoformat()}")
             except Exception as dt_err:
                 print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
 
@@ -200,34 +204,33 @@ def get_super_dispatch_orders():
 
             try:
                 driver_url = f"{base_url}/drivers/{driver_id}/"
-                print(f"📡 GET DRIVER {driver_url}")
                 resp = requests.get(driver_url, headers=headers)
                 if resp.status_code == 200:
                     driver_data = resp.json().get("data", {})
                     name = driver_data.get("name")
                     driver_cache[driver_id] = name
                     return name
-                else:
-                    print(f"❌ Ошибка при получении водителя {driver_id}: {resp.status_code}")
-                    return None
             except Exception as ex:
                 print(f"❌ Исключение при получении водителя {driver_id}: {ex}")
-                return None
+            return None
 
         for order in filtered_orders:
             carrier_name_str = order.get("carrier_name", "").strip()
             company = db.companies.find_one({"name": {"$regex": f"^{carrier_name_str}$", "$options": "i"}})
             company_sign_id = company["_id"] if company else None
-            if not company_sign_id:
-                print(f"❌ Компания '{carrier_name_str}' не найдена в базе")
 
             driver_id = order.get("driver_id")
             driver_name = get_driver_name(driver_id)
             assigned_driver_obj = None
+            assigned_dispatch_obj = None
+            assigned_power_unit_obj = None
+
             if driver_name:
                 matched_driver = db.drivers.find_one({"name": {"$regex": f"^{driver_name}$", "$options": "i"}})
                 if matched_driver:
                     assigned_driver_obj = matched_driver["_id"]
+                    assigned_dispatch_obj = matched_driver.get("dispatcher")
+                    assigned_power_unit_obj = matched_driver.get("truck")
 
             load_doc = {
                 "load_id": str(order["id"]),
@@ -246,8 +249,8 @@ def get_super_dispatch_orders():
                 "vehicles": order.get("vehicles", []),
                 "assigned_driver": assigned_driver_obj,
                 "assigned_driver_name": driver_name,
-                "assigned_dispatch": None,
-                "assigned_power_unit": None,
+                "assigned_dispatch": assigned_dispatch_obj,
+                "assigned_power_unit": assigned_power_unit_obj,
                 "pickup": {
                     "company": order.get("pickup", {}).get("venue", {}).get("name"),
                     "address": ", ".join(filter(None, [
@@ -256,7 +259,7 @@ def get_super_dispatch_orders():
                         order.get("pickup", {}).get("venue", {}).get("state"),
                         order.get("pickup", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": order.get("pickup", {}).get("completed_at"),
+                    "date": format_date_mmddyyyy(order.get("pickup", {}).get("scheduled_at")),
                     "instructions": order.get("pickup", {}).get("notes", ""),
                     "contact_person": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -270,7 +273,7 @@ def get_super_dispatch_orders():
                         order.get("delivery", {}).get("venue", {}).get("state"),
                         order.get("delivery", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": order.get("delivery", {}).get("completed_at"),
+                    "date": format_date_mmddyyyy(order.get("delivery", {}).get("scheduled_at")),
                     "instructions": order.get("delivery", {}).get("notes", ""),
                     "contact_person": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("phone", ""),
