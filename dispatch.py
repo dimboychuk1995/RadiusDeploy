@@ -261,11 +261,16 @@ def save_consolidation():
         # 🚗 Формируем список адресов
         addresses = [point['address'] for point in route_points]
 
-        # 📡 Запрос в Google Distance Matrix
         from urllib.parse import urlencode
         import requests
 
-        url = f"https://maps.googleapis.com/maps/api/directions/json?{urlencode({'origin': addresses[0], 'destination': addresses[-1], 'waypoints': '|'.join(addresses[1:-1]), 'key': api_key})}"
+        url = f"https://maps.googleapis.com/maps/api/directions/json?" + urlencode({
+            'origin': addresses[0],
+            'destination': addresses[-1],
+            'waypoints': '|'.join(addresses[1:-1]),
+            'key': api_key
+        })
+
         response = requests.get(url)
         if response.status_code != 200:
             return jsonify({"success": False, "error": f"Google API error: {response.status_code}"}), 500
@@ -275,7 +280,6 @@ def save_consolidation():
         for leg in data.get("routes", [])[0].get("legs", []):
             total_miles += leg.get("distance", {}).get("value", 0) / 1609.34  # meters to miles
 
-        # 🧮 RPM = price / miles
         rpm = round(total_price / total_miles, 2) if total_miles else 0
 
         consolidated_doc = {
@@ -296,7 +300,17 @@ def save_consolidation():
 
         consolidated_doc["route_points"] = [p for p in consolidated_doc["route_points"] if p["load_id"]]
 
-        consolidated_loads_collection.insert_one(consolidated_doc)
+        result = consolidated_loads_collection.insert_one(consolidated_doc)
+        consolidate_id = result.inserted_id
+
+        # 🔁 Обновляем грузы
+        loads_collection.update_many(
+            {'_id': {'$in': object_ids}},
+            {'$set': {
+                'consolidated': True,
+                'consolidateId': consolidate_id
+            }}
+        )
 
         return jsonify({"success": True, "miles": round(total_miles, 2), "rpm": rpm})
 
