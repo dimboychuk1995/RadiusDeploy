@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
 import logging
-from bson import ObjectId
+import requests
 
 from auth import users_collection
 from tools.db import db
@@ -11,7 +11,8 @@ dispatch_bp = Blueprint('dispatch', __name__)
 drivers_collection = db['drivers']
 trucks_collection = db['trucks']
 loads_collection = db['loads']
-
+consolidated_loads_collection =db['consolidated_loads']
+integrations_settings_collection = db['integrations_settings']
 
 def convert_object_ids(obj):
     if isinstance(obj, list):
@@ -33,6 +34,7 @@ def dispatch_fragment():
     try:
         log = []
 
+        # === Drivers ===
         t1 = time.time()
         drivers = list(drivers_collection.find(
             {'company': current_user.company},
@@ -40,6 +42,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Drivers: {time.time() - t1:.3f} сек")
 
+        # === Trucks ===
         t2 = time.time()
         trucks = list(trucks_collection.find(
             {'company': current_user.company},
@@ -47,6 +50,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Trucks: {time.time() - t2:.3f} сек")
 
+        # === Dispatchers ===
         t3 = time.time()
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
@@ -54,6 +58,7 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Dispatchers: {time.time() - t3:.3f} сек")
 
+        # === Loads ===
         t4 = time.time()
         loads = list(loads_collection.find(
             {'company': current_user.company},
@@ -74,7 +79,19 @@ def dispatch_fragment():
         ))
         log.append(f"✅ Loads: {time.time() - t4:.3f} сек")
 
-        # Очистка
+        # === Consolidated Loads ===
+        t5 = time.time()
+        consolidated_loads = list(consolidated_loads_collection.find({}, {
+            '_id': 1,
+            'load_ids': 1,
+            'route_points': 1,
+            'total_miles': 1,
+            'total_price': 1,
+            'rpm': 1
+        }))
+        log.append(f"✅ Consolidated Loads: {time.time() - t5:.3f} сек")
+
+        # === Очистка ===
         def clean_for_json(obj):
             if isinstance(obj, dict):
                 return {
@@ -92,7 +109,9 @@ def dispatch_fragment():
         trucks = clean_for_json(trucks)
         dispatchers = clean_for_json(dispatchers)
         loads = clean_for_json(loads)
+        consolidated_loads = clean_for_json(consolidated_loads)
 
+        # === Группировка водителей ===
         truck_map = {t['_id']: t for t in trucks}
         dispatcher_map = {d['_id']: d for d in dispatchers}
 
@@ -103,12 +122,14 @@ def dispatch_fragment():
             driver['truck'] = truck_map.get(driver.get('truck'))
             grouped_drivers.setdefault(dispatcher_id, []).append(driver)
 
+        # === Рендеринг ===
         render_start = time.time()
         rendered = render_template(
             'fragments/dispatch_fragment.html',
             dispatchers=dispatchers,
             grouped_drivers=grouped_drivers,
-            all_loads=loads
+            all_loads=loads,
+            consolidated_loads=consolidated_loads
         )
         log.append(f"✅ Render: {time.time() - render_start:.3f} сек")
 
@@ -122,3 +143,164 @@ def dispatch_fragment():
     except Exception as e:
         logging.error(f"Ошибка в dispatch_fragment: {e}")
         return render_template('error.html', message="Не удалось загрузить данные диспетчеров.")
+
+from flask import request, jsonify
+from bson import ObjectId
+from flask_login import login_required
+from datetime import datetime
+
+@dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
+@login_required
+def prep_consolidation():
+    try:
+        data = request.get_json()
+        load_ids = data.get('load_ids', [])
+        if not load_ids:
+            return jsonify({"success": False, "error": "No load_ids provided"}), 400
+
+        object_ids = [ObjectId(id_) for id_ in load_ids]
+
+        # Получаем грузы
+        loads = list(loads_collection.find(
+            {'_id': {'$in': object_ids}},
+            {
+                '_id': 1,
+                'pickup': 1,
+                'delivery': 1,
+                'extra_pickup': 1,
+                'extra_delivery': 1,
+                'price': 1,
+                'total_price': 1
+            }
+        ))
+
+        pickup_points = []
+        delivery_points = []
+
+        for load in loads:
+            load_id = str(load['_id'])
+            price = float(load.get("total_price", load.get("price", 0)) or 0)
+
+            # Доп. пикапы
+            for ep in load.get('extra_pickup') or []:
+                pickup_points.append({
+                    "address": ep.get("address", ""),
+                    "scheduled_at": ep.get("scheduled_at", ""),
+                    "load_id": load_id,
+                    "price": price
+                })
+
+            # Основной пикап
+            pickup = load.get('pickup')
+            if pickup:
+                pickup_points.append({
+                    "address": pickup.get("address", ""),
+                    "scheduled_at": pickup.get("date", ""),
+                    "load_id": load_id,
+                    "price": price
+                })
+
+            # Основная доставка
+            delivery = load.get('delivery')
+            if delivery:
+                delivery_points.append({
+                    "address": delivery.get("address", ""),
+                    "scheduled_at": delivery.get("date", ""),
+                    "load_id": load_id,
+                    "price": price
+                })
+
+            # Доп. доставки
+            for ed in load.get('extra_delivery') or []:
+                delivery_points.append({
+                    "address": ed.get("address", ""),
+                    "scheduled_at": ed.get("scheduled_at", ""),
+                    "load_id": load_id,
+                    "price": price
+                })
+
+        return jsonify({
+            "success": True,
+            "pickup_points": pickup_points,
+            "delivery_points": delivery_points
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@dispatch_bp.route('/api/consolidation/save', methods=['POST'])
+@login_required
+def save_consolidation():
+    try:
+        data = request.get_json()
+        raw_load_ids = data.get('load_ids', [])
+        route_points = data.get('route_points', [])
+
+        # 🧼 Преобразуем в ObjectId и фильтруем мусор
+        object_ids = []
+        for lid in raw_load_ids:
+            try:
+                object_ids.append(ObjectId(lid))
+            except Exception as e:
+                print(f"⚠️ Пропущен невалидный ID: {lid}")
+
+        if not object_ids or not route_points:
+            return jsonify({"success": False, "error": "Missing data"}), 400
+
+        # 📦 Получаем грузы для подсчета total_price
+        loads = list(loads_collection.find({'_id': {'$in': object_ids}}, {'price': 1}))
+        total_price = sum(float(load.get('price') or 0) for load in loads)
+
+        # 🗺️ Получаем API-ключ
+        integration = integrations_settings_collection.find_one({"name": "Google Maps API"})
+        if not integration or not integration.get("api_key"):
+            return jsonify({"success": False, "error": "Google API key not found"}), 500
+
+        api_key = integration["api_key"]
+
+        # 🚗 Формируем список адресов
+        addresses = [point['address'] for point in route_points]
+
+        # 📡 Запрос в Google Distance Matrix
+        from urllib.parse import urlencode
+        import requests
+
+        url = f"https://maps.googleapis.com/maps/api/directions/json?{urlencode({'origin': addresses[0], 'destination': addresses[-1], 'waypoints': '|'.join(addresses[1:-1]), 'key': api_key})}"
+        response = requests.get(url)
+        if response.status_code != 200:
+            return jsonify({"success": False, "error": f"Google API error: {response.status_code}"}), 500
+
+        data = response.json()
+        total_miles = 0
+        for leg in data.get("routes", [])[0].get("legs", []):
+            total_miles += leg.get("distance", {}).get("value", 0) / 1609.34  # meters to miles
+
+        # 🧮 RPM = price / miles
+        rpm = round(total_price / total_miles, 2) if total_miles else 0
+
+        consolidated_doc = {
+            "load_ids": object_ids,
+            "route_points": [
+                {
+                    "address": p.get("address", ""),
+                    "scheduled_at": p.get("scheduled_at", ""),
+                    "load_id": ObjectId(p["load_id"]) if ObjectId.is_valid(p["load_id"]) else None
+                } for p in route_points
+            ],
+            "total_miles": round(total_miles, 2),
+            "total_price": round(total_price, 2),
+            "rpm": rpm,
+            "created_at": datetime.utcnow(),
+            "created_by": ObjectId(current_user.id)
+        }
+
+        consolidated_doc["route_points"] = [p for p in consolidated_doc["route_points"] if p["load_id"]]
+
+        consolidated_loads_collection.insert_one(consolidated_doc)
+
+        return jsonify({"success": True, "miles": round(total_miles, 2), "rpm": rpm})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -596,3 +596,17 @@ html, body {
 .driver-calendar-list.collapsed {
   max-height: 0 !important;
 }
+
+.bar.selected {
+    outline: 2px solid red;
+    outline-offset: -2px;
+}
+
+.order-badge {
+    background: #3f51b5;
+    color: white;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 50%;
+    margin-left: 8px;
+}

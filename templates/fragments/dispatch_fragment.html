@@ -1,10 +1,15 @@
-<div class="container-fluid">
+<div class="container-fluid" id="calendarContainer"
+     data-consolidated-loads='{{ consolidated_loads | tojson | safe }}'>
   <h2 class="mb-4">Dispatch Calendars</h2>
 
   <div class="d-flex justify-content-between align-items-center mb-4">
     <button class="btn btn-outline-secondary btn-sm" id="globalPrevWeekBtn">← Prev Week</button>
     <div class="fw-bold" id="globalWeekLabel"></div>
     <button class="btn btn-outline-secondary btn-sm" id="globalNextWeekBtn">Next Week →</button>
+  </div>
+
+  <div id="consolidateControls" class="mb-3" style="display: none;">
+      <button id="startConsolidationBtn" class="btn btn-danger btn-sm">Консолидировать грузы</button>
   </div>
 
   <div class="week-labels d-flex mb-3 px-2" id="weekLabels"></div>
@@ -51,3 +56,31 @@
     </div>
   {% endif %}
 </div>
+
+
+<!-- ============== Модалка консолидации грузов ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="consolidationModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Консолидировать грузы</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeConsolidationModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left" style="width: 48%;">
+          <h6>Пикапы</h6>
+          <ul id="pickupList" class="list-group sortable-list"></ul>
+        </div>
+        <div class="load-modal-left" style="width: 48%;">
+          <h6>Доставки</h6>
+          <ul id="deliveryList" class="list-group sortable-list"></ul>
+        </div>
+          <div class="mt-4 text-end">
+              <button id="saveConsolidationBtn" class="btn btn-success" style="display: none;">Сохранить</button>
+          </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="consolidationBackdrop" onclick="closeConsolidationModal()"></div>
