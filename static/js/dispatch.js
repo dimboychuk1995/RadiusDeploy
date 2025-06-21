@@ -14,6 +14,22 @@ function bindWeekSwitchers() {
   });
 }
 
+const consolidationColorMap = {};
+const consolidationColors = [
+  '#e74c3c', '#8e44ad', '#3498db', '#16a085', '#f39c12', '#d35400', '#2ecc71',
+  '#1abc9c', '#c0392b', '#7f8c8d', '#e67e22', '#27ae60', '#2980b9', '#f1c40f'
+];
+let colorIndex = 0;
+
+function getColorForConsolidation(consolidateId) {
+  if (!consolidateId) return null;
+  if (!consolidationColorMap[consolidateId]) {
+    consolidationColorMap[consolidateId] = consolidationColors[colorIndex % consolidationColors.length];
+    colorIndex++;
+  }
+  return consolidationColorMap[consolidateId];
+}
+
 // ========== Инициализация календарей диспетчеров ==========
 function initDispatcherCalendars() {
   const blocks = document.querySelectorAll('.dispatcher-block');
@@ -95,12 +111,18 @@ function initDispatcherCalendars() {
         bar.style.top = `${layer * (barHeight + barGap)}px`;
         bar.style.height = `${barHeight}px`;
 
-        if (load.consolidated) {
-          bar.classList.add('consolidated-bar');
-        }
-
+        let barColor;
         const status = (load.status || '').toLowerCase();
-        bar.style.backgroundColor = status === 'new' ? '#9b59b6' : status === 'picked up' ? '#3498db' : status === 'delivered' ? '#2ecc71' : '#bdc3c7';
+        if (load.consolidated) {
+          const consolidateId = normalizeId(load.consolidateId);
+          barColor = getColorForConsolidation(consolidateId) || '#bdc3c7';
+        } else {
+          barColor = status === 'new' ? '#9b59b6'
+                    : status === 'picked up' ? '#3498db'
+                    : status === 'delivered' ? '#2ecc71'
+                    : '#bdc3c7';
+        }
+        bar.style.backgroundColor = barColor;
 
         const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
         let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
