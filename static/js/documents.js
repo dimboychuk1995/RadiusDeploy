@@ -25,14 +25,14 @@ function initDocuments() {
             case 'lease_agreement':
               initLeaseAgreement(modalBody, modal);
               break;
-            case 'driver_contract':
-              initDriverContract(modalBody, modal);
-              break;
             case 'truck_trailer_checklist':
               initTruckChecklist(modalBody, modal);
               break;
             case 'annual_inspection':
               initAnnualInspection(modalBody, modal);
+              break;
+            case 'driver_contract':
+              initDriverContract(modalBody, modal);
               break;
             default:
               console.warn("⛔ Нет специфичной инициализации для:", template);
@@ -209,4 +209,33 @@ function initAnnualInspection(modalBody, modal) {
       }).from(doc).save();
     });
   }
+}
+
+function initDriverContract(modalBody, modal) {
+  const today = new Date().toLocaleDateString('en-US');
+  modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
+
+  const select = modalBody.querySelector("#companySelect");
+  if (!select) return;
+
+  fetch('/api/companies')
+    .then(res => res.json())
+    .then(data => {
+      const companies = data.companies || [];
+      companies.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c._id;
+        option.textContent = c.name;
+        option.dataset.address = c.address;
+        option.dataset.mc = c.mc;
+        option.dataset.dot = c.dot;
+        select.appendChild(option);
+      });
+
+      select.addEventListener("change", () => {
+        const selected = select.selectedOptions[0];
+        modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
+        modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
+      });
+    });
 }
