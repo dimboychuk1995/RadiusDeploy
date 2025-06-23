@@ -7,12 +7,31 @@ from jinja2 import Template
 from werkzeug.utils import secure_filename
 import subprocess
 import tempfile
+from tools.db import db
 
 # Создаем Blueprint
 document_bp = Blueprint('document_bp', __name__)
 
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+
+companies_collection = db['companies']
+
+@document_bp.route('/api/companies')
+@login_required
+def get_companies():
+    try:
+        companies = list(companies_collection.find({}, {
+            "name": 1,
+            "address": 1,
+            "mc": 1,
+            "dot": 1
+        }))
+        for c in companies:
+            c["_id"] = str(c["_id"])
+        return jsonify({"success": True, "companies": companies})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 # Роут для загрузки HTML-фрагмента "База документов"
 @document_bp.route('/fragment/documents')
@@ -91,3 +110,5 @@ def serve_template(template_name):
         return render_template(f'document_templates/{template_name}.html')  # <-- вот так
     except:
         return "Not found", 404
+
+

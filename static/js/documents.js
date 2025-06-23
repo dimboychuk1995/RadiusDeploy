@@ -8,7 +8,6 @@ function initDocuments() {
       const modalBody = modal.querySelector(".modal-body");
       modal.dataset.template = template;
 
-      // Очищаем тело перед вставкой нового шаблона
       modalBody.innerHTML = "";
 
       fetch(`/templates/document_templates/${template}`)
@@ -19,10 +18,47 @@ function initDocuments() {
         .then(html => {
           modalBody.innerHTML = html;
 
+          // Показываем модалку
           const bsModal = new bootstrap.Modal(modal);
           bsModal.show();
 
-          // Обработчик кнопки "Скачать PDF"
+          // Загружаем компании
+          fetch('/api/companies')
+            .then(res => res.json())
+            .then(data => {
+              if (!data.success) throw new Error("Ошибка получения компаний");
+
+              const companies = data.companies;
+              const select = modalBody.querySelector("#companySelect");
+              if (!select) return;
+
+              companies.forEach(c => {
+                const option = document.createElement("option");
+                option.value = c._id;
+                option.textContent = c.name;
+                option.dataset.address = c.address;
+                option.dataset.mc = c.mc;
+                option.dataset.dot = c.dot;
+                select.appendChild(option);
+              });
+
+              select.addEventListener("change", () => {
+                const selected = select.selectedOptions[0];
+                modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
+                modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
+                modalBody.querySelectorAll("[data-fill='mc']").forEach(el => el.textContent = selected.dataset.mc || '');
+                modalBody.querySelectorAll("[data-fill='dot']").forEach(el => el.textContent = selected.dataset.dot || '');
+
+                const today = new Date().toLocaleDateString('en-US');
+                modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
+              });
+            })
+            .catch(err => {
+              console.error("❌ Ошибка загрузки компаний:", err);
+              alert("Ошибка загрузки списка компаний");
+            });
+
+          // Кнопка "Скачать PDF"
           const downloadBtn = modal.querySelector("#downloadPdfBtn");
           if (downloadBtn) {
             downloadBtn.addEventListener("click", () => {
