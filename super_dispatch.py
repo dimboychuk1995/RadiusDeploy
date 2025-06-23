@@ -345,7 +345,7 @@ def get_super_dispatch_orders_list():
 
         # Фильтрация по дате завершения (включая ордера без completed_at)
         end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=2)
+        start_date = end_date - timedelta(days=4)
         print(f"🕓 Фильтр: {start_date.isoformat()} — {end_date.isoformat()}")
 
         filtered_orders = []
