@@ -1,5 +1,5 @@
 function initDocuments() {
-  console.log("📂 initDocuments() запущен");
+  console.log("\ud83d\udcc2 initDocuments() \u0437\u0430\u043f\u0443\u0449\u0435\u043d");
 
   document.querySelectorAll(".document-template-card").forEach(card => {
     card.addEventListener("click", () => {
@@ -12,73 +12,151 @@ function initDocuments() {
 
       fetch(`/templates/document_templates/${template}`)
         .then(response => {
-          if (!response.ok) throw new Error("❌ Не удалось загрузить шаблон");
+          if (!response.ok) throw new Error("\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0448\u0430\u0431\u043b\u043e\u043d");
           return response.text();
         })
         .then(html => {
           modalBody.innerHTML = html;
 
-          // Показываем модалку
           const bsModal = new bootstrap.Modal(modal);
           bsModal.show();
 
-          // Загружаем компании
-          fetch('/api/companies')
-            .then(res => res.json())
-            .then(data => {
-              if (!data.success) throw new Error("Ошибка получения компаний");
+          switch (template) {
+            case 'lease_agreement':
+              initLeaseAgreement(modalBody, modal);
+              break;
+            case 'driver_contract':
+              initDriverContract(modalBody, modal);
+              break;
+            case 'truck_trailer_checklist':
+              initTruckChecklist(modalBody, modal);
+              break;
+            default:
+              console.warn("\u26d4 \u041d\u0435\u0442 \u0441\u043f\u0435\u0446\u0438\u0444\u0438\u0447\u043d\u043e\u0439 \u0438\u043d\u0438\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u0438 \u0434\u043b\u044f:", template);
+          }
 
-              const companies = data.companies;
-              const select = modalBody.querySelector("#companySelect");
-              if (!select) return;
-
-              companies.forEach(c => {
-                const option = document.createElement("option");
-                option.value = c._id;
-                option.textContent = c.name;
-                option.dataset.address = c.address;
-                option.dataset.mc = c.mc;
-                option.dataset.dot = c.dot;
-                select.appendChild(option);
-              });
-
-              select.addEventListener("change", () => {
-                const selected = select.selectedOptions[0];
-                modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
-                modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
-                modalBody.querySelectorAll("[data-fill='mc']").forEach(el => el.textContent = selected.dataset.mc || '');
-                modalBody.querySelectorAll("[data-fill='dot']").forEach(el => el.textContent = selected.dataset.dot || '');
-
-                const today = new Date().toLocaleDateString('en-US');
-                modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
-              });
-            })
-            .catch(err => {
-              console.error("❌ Ошибка загрузки компаний:", err);
-              alert("Ошибка загрузки списка компаний");
-            });
-
-          // Кнопка "Скачать PDF"
           const downloadBtn = modal.querySelector("#downloadPdfBtn");
           if (downloadBtn) {
-            downloadBtn.addEventListener("click", () => {
+            downloadBtn.addEventListener("click", async () => {
               const doc = modalBody.querySelector("#editableDocument");
-              if (!doc) return alert("❌ Не найден документ для печати");
+              if (!doc) return alert("\u274c \u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0434\u043b\u044f \u043f\u0435\u0447\u0430\u0442\u0438");
 
-              html2pdf().set({
-                margin: 0.5,
-                filename: `${template}_${Date.now()}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-              }).from(doc).save();
+              try {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                await html2pdf().set({
+                  margin: 0.5,
+                  filename: `${template}_${Date.now()}.pdf`,
+                  image: { type: 'jpeg', quality: 0.98 },
+                  html2canvas: { scale: 2 },
+                  jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+                }).from(doc).save();
+              } catch (err) {
+                console.error("\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 PDF:", err);
+                alert("\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 PDF");
+              }
             });
           }
         })
         .catch(err => {
-          console.error("❌ Ошибка загрузки шаблона:", err);
-          alert("Ошибка загрузки шаблона документа");
+          console.error("\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0448\u0430\u0431\u043b\u043e\u043d\u0430:", err);
+          alert("\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0448\u0430\u0431\u043b\u043e\u043d\u0430 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430");
         });
     });
   });
+}
+
+function initLeaseAgreement(modalBody, modal) {
+  const select = modalBody.querySelector("#companySelect");
+
+  fetch('/api/companies')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) throw new Error("Ошибка получения компаний");
+
+      const companies = data.companies;
+      companies.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c._id;
+        option.textContent = c.name;
+        option.dataset.address = c.address;
+        option.dataset.mc = c.mc;
+        option.dataset.dot = c.dot;
+        select.appendChild(option);
+      });
+
+      select.addEventListener("change", () => {
+        const selected = select.selectedOptions[0];
+        modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
+        modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
+        modalBody.querySelectorAll("[data-fill='mc']").forEach(el => el.textContent = selected.dataset.mc || '');
+        modalBody.querySelectorAll("[data-fill='dot']").forEach(el => el.textContent = selected.dataset.dot || '');
+
+        const today = new Date().toLocaleDateString('en-US');
+        modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
+      });
+    });
+
+  const downloadBtn = modal.querySelector("#downloadPdfBtn");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", () => {
+      const doc = modalBody.querySelector("#editableDocument");
+      if (!doc) return alert("❌ Не найден документ для печати");
+
+      html2pdf().set({
+        margin: 0.5,
+        filename: `lease_agreement_${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(doc).save();
+    });
+  }
+}
+
+function initTruckChecklist(modalBody, modal) {
+  const select = modalBody.querySelector("#companySelect");
+
+  fetch('/api/companies')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) throw new Error("Ошибка получения компаний");
+
+      const companies = data.companies;
+      companies.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c._id;
+        option.textContent = c.name;
+        option.dataset.address = c.address;
+        option.dataset.mc = c.mc;
+        option.dataset.dot = c.dot;
+        select.appendChild(option);
+      });
+
+      select.addEventListener("change", () => {
+        const selected = select.selectedOptions[0];
+        modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
+        modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
+        modalBody.querySelectorAll("[data-fill='mc']").forEach(el => el.textContent = selected.dataset.mc || '');
+        modalBody.querySelectorAll("[data-fill='dot']").forEach(el => el.textContent = selected.dataset.dot || '');
+
+        const today = new Date().toLocaleDateString('en-US');
+        modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
+      });
+    });
+
+  const downloadBtn = modal.querySelector("#downloadPdfBtn");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", () => {
+      const doc = modalBody.querySelector("#editableDocument");
+      if (!doc) return alert("❌ Не найден документ для печати");
+
+      html2pdf().set({
+        margin: 0.5,
+        filename: `truck_trailer_checklist_${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(doc).save();
+    });
+  }
 }
