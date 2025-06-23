@@ -1,0 +1,59 @@
+<div class="p-3">
+  <h4>📂 База документов</h4>
+
+  <div class="row">
+    <div class="col-md-3">
+      <div class="card shadow-sm text-center document-template-card" style="cursor: pointer;" data-template="lease_agreement">
+        <div class="card-body">
+          <i class="fas fa-file-contract fa-2x mb-2"></i>
+          <h6 class="card-title">Lease Agreement</h6>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Модалка -->
+<div class="modal fade" id="documentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Создание документа: Lease Agreement</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="documentForm">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label>Company Name</label>
+              <input class="form-control" name="company_name" required>
+            </div>
+            <div class="col-md-6">
+              <label>Start Date</label>
+              <input class="form-control" name="start_date" type="date" required>
+            </div>
+            <div class="col-md-6">
+              <label>Truck Model</label>
+              <input class="form-control" name="truck_model" required>
+            </div>
+            <div class="col-md-12">
+              <label>Lease Terms</label>
+              <textarea class="form-control" name="lease_terms" rows="3"></textarea>
+            </div>
+          </div>
+        </form>
+
+        <div class="mt-4">
+          <h6>Предпросмотр PDF:</h6>
+          <iframe id="pdfPreview" width="100%" height="500px" class="border"></iframe>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="generatePdfBtn">Сгенерировать</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -28,6 +28,7 @@ from safety import safety_bp
 from logbook import logbook
 from ifta import ifta_bp
 from super_dispatch import super_dispatch_bp
+from documents import document_bp
 # Инициализация Flask
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
@@ -60,6 +61,7 @@ app.register_blueprint(chat_bp)
 app.register_blueprint(logbook)
 app.register_blueprint(ifta_bp)
 app.register_blueprint(super_dispatch_bp)
+app.register_blueprint(document_bp)
 # Главная страница
 @app.route('/')
 def index():

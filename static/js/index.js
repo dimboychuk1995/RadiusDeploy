@@ -54,6 +54,7 @@ function initNavigation() {
     'safety': () => initSafety?.(),
     'safety_ifta': () => initIFTA?.(),
     'chat': () => initChat?.(),
+    'documents': () => initDocuments?.(),
   };
 
   function loadFragment(sectionId, url, sectionKey) {
