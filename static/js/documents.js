@@ -31,8 +31,11 @@ function initDocuments() {
             case 'truck_trailer_checklist':
               initTruckChecklist(modalBody, modal);
               break;
+            case 'annual_inspection':
+              initAnnualInspection(modalBody, modal);
+              break;
             default:
-              console.warn("\u26d4 \u041d\u0435\u0442 \u0441\u043f\u0435\u0446\u0438\u0444\u0438\u0447\u043d\u043e\u0439 \u0438\u043d\u0438\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u0438 \u0434\u043b\u044f:", template);
+              console.warn("⛔ Нет специфичной инициализации для:", template);
           }
 
           const downloadBtn = modal.querySelector("#downloadPdfBtn");
@@ -153,6 +156,53 @@ function initTruckChecklist(modalBody, modal) {
       html2pdf().set({
         margin: 0.5,
         filename: `truck_trailer_checklist_${Date.now()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      }).from(doc).save();
+    });
+  }
+}
+
+function initAnnualInspection(modalBody, modal) {
+  const select = modalBody.querySelector("#companySelect");
+
+  fetch('/api/companies')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) throw new Error("Ошибка получения компаний");
+      const companies = data.companies;
+      companies.forEach(c => {
+        const option = document.createElement("option");
+        option.value = c._id;
+        option.textContent = c.name;
+        option.dataset.address = c.address;
+        option.dataset.mc = c.mc;
+        option.dataset.dot = c.dot;
+        select.appendChild(option);
+      });
+
+      select.addEventListener("change", () => {
+        const selected = select.selectedOptions[0];
+        modalBody.querySelectorAll("[data-fill='company_name']").forEach(el => el.textContent = selected.textContent);
+        modalBody.querySelectorAll("[data-fill='company_address']").forEach(el => el.textContent = selected.dataset.address || '');
+        modalBody.querySelectorAll("[data-fill='mc']").forEach(el => el.textContent = selected.dataset.mc || '');
+        modalBody.querySelectorAll("[data-fill='dot']").forEach(el => el.textContent = selected.dataset.dot || '');
+
+        const today = new Date().toLocaleDateString('en-US');
+        modalBody.querySelectorAll("[data-fill='date']").forEach(el => el.textContent = today);
+      });
+    });
+
+  const downloadBtn = modal.querySelector("#downloadPdfBtn");
+  if (downloadBtn) {
+    downloadBtn.addEventListener("click", () => {
+      const doc = modalBody.querySelector("#editableDocument");
+      if (!doc) return alert("❌ Не найден документ для печати");
+
+      html2pdf().set({
+        margin: 0.5,
+        filename: `annual_inspection_${Date.now()}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
