@@ -7,59 +7,43 @@ function initDocuments() {
       console.log("🟦 Клик по шаблону:", template);
 
       const modal = document.getElementById("documentModal");
+      const modalBody = modal.querySelector(".modal-body");
       modal.dataset.template = template;
 
-      const bsModal = new bootstrap.Modal(modal);
-      bsModal.show();
-    });
-  });
+      fetch(`/templates/document_templates/${template}`)
+        .then(response => {
+          if (!response.ok) throw new Error("❌ Не удалось загрузить шаблон");
+          return response.text();
+        })
+        .then(html => {
+          modalBody.innerHTML = html;
 
-  const generateBtn = document.getElementById("generatePdfBtn");
-  if (!generateBtn) {
-    console.error("❌ Кнопка #generatePdfBtn не найдена!");
-    return;
-  }
+          // ❗ Навешиваем обработчик заново после вставки HTML
+          const downloadBtn = modalBody.querySelector("#downloadPdfBtn");
+          if (downloadBtn) {
+            downloadBtn.addEventListener("click", () => {
+              const element = modalBody.querySelector("#editableDocument");
+              if (!element) return alert("Документ не загружен");
 
-  generateBtn.addEventListener("click", () => {
-    console.log("🔵 Нажата кнопка 'Сгенерировать PDF'");
+              const opt = {
+                margin: 0.5,
+                filename: `${template}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+              };
 
-    const modal = document.getElementById("documentModal");
-    const template = modal.dataset.template;
-    console.log("📄 Выбранный шаблон:", template);
+              html2pdf().set(opt).from(element).save();
+            });
+          }
 
-    const form = document.getElementById("documentForm");
-    const formData = new FormData(form);
-    const fields = {};
-
-    formData.forEach((value, key) => {
-      fields[key] = value;
-    });
-
-    console.log("📨 Отправляемые данные:", fields);
-
-    fetch("/api/documents/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ template, fields })
-    })
-    .then(res => {
-      console.log("📬 Ответ от сервера получен, статус:", res.status);
-      return res.json();
-    })
-    .then(res => {
-      console.log("📥 Распакованный ответ:", res);
-      if (res.success) {
-        const previewFrame = document.getElementById("pdfPreview");
-        previewFrame.src = res.file_url;
-        console.log("✅ PDF загружен в предпросмотр:", res.file_url);
-      } else {
-        alert("Ошибка: " + res.error);
-        console.error("❌ Ошибка от сервера:", res.error);
-      }
-    })
-    .catch(err => {
-      console.error("❌ Ошибка при запросе:", err);
-      alert("Ошибка при генерации PDF");
+          const bsModal = new bootstrap.Modal(modal);
+          bsModal.show();
+        })
+        .catch(err => {
+          console.error("❌ Ошибка загрузки шаблона:", err);
+          alert("Ошибка загрузки шаблона документа");
+        });
     });
   });
 }

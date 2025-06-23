@@ -75,8 +75,19 @@ def generate_document():
             return jsonify({"success": True, "file_url": f"/{output_path}"})
         else:
             print("❌ Ошибка subprocess:", result.stderr.decode())
-            return jsonify({"success": False, "error": result.stderr.decode()}), 500
+            return jsonify({""
+                            ""
+                            "success": False, "error": result.stderr.decode()}), 500
 
     except Exception as e:
         print("❌ Общая ошибка:", e)
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@document_bp.route('/templates/document_templates/<template_name>')
+@login_required
+def serve_template(template_name):
+    try:
+        return render_template(f'document_templates/{template_name}.html')  # <-- вот так
+    except:
+        return "Not found", 404
