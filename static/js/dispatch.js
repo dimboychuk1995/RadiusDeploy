@@ -60,25 +60,36 @@ function initDispatcherCalendars() {
       const driverBreaks = breaks.filter(brk => String(brk.driver_id) === String(driver._id));
 
       const info = document.createElement('div');
-      info.className = 'driver-info text-nowrap pe-3';
+      info.className = 'driver-info pe-3';
       info.style.width = '220px';
 
-      const label = document.createElement('span');
-      label.className = 'text-center w-100';
-      label.innerText = `${driver.truck?.unit_number || ''} — ${driver.name}`;
+      const infoInner = document.createElement('div');
+      infoInner.className = 'd-flex flex-column';
+
+      const labelRow = document.createElement('div');
+      labelRow.innerText = `${driver.truck?.unit_number || ''} — ${driver.name}`;
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'd-flex gap-1 mt-1';
 
       const breakBtn = document.createElement('button');
-      breakBtn.className = 'btn btn-sm btn-outline-secondary ms-2 driver-break-btn';
+      breakBtn.className = 'btn btn-sm btn-outline-secondary';
       breakBtn.title = 'Break';
       breakBtn.innerText = 'Break';
-      breakBtn.addEventListener('click', () => {
-        openDriverBreakModal(driverId);
+      breakBtn.addEventListener('click', () => openDriverBreakModal(driverId));
+
+      const mapBtn = document.createElement('button');
+      mapBtn.className = 'btn btn-sm btn-outline-primary';
+      mapBtn.title = 'Map';
+      mapBtn.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+      mapBtn.addEventListener('click', () => {
+        console.log('🗺 Map clicked for', driverId);
       });
 
-      const infoInner = document.createElement('div');
-      infoInner.className = 'd-flex align-items-center justify-content-between';
-      infoInner.appendChild(label);
-      infoInner.appendChild(breakBtn);
+      btnRow.appendChild(breakBtn);
+      btnRow.appendChild(mapBtn);
+      infoInner.appendChild(labelRow);
+      infoInner.appendChild(btnRow);
       info.appendChild(infoInner);
 
       const timelineWrapper = document.createElement('div');
@@ -87,16 +98,10 @@ function initDispatcherCalendars() {
       let weeklyGross = 0;
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
-        let deliveryDateStr;
-        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
-        } else {
-          deliveryDateStr = load?.delivery?.date;
-        }
-        const delivery = parseAndNormalizeDate(deliveryDateStr);
-
+        const delivery = parseAndNormalizeDate(
+          load.extra_delivery?.[load.extra_delivery.length - 1]?.date || load?.delivery?.date
+        );
         if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
-
         const price = load.price || load.total_price || 0;
         weeklyGross += typeof price === 'number' ? price : parseFloat(price) || 0;
       });
@@ -107,25 +112,21 @@ function initDispatcherCalendars() {
 
       const timeline = document.createElement('div');
       timeline.className = 'timeline w-100';
-
       const occupiedSlots = [];
       const barHeight = 20;
       const barGap = 4;
 
-      // === Сначала рисуем брейки ===
       driverBreaks.forEach(brk => {
         const start = parseAndNormalizeDate(brk.start_date);
         const end = parseAndNormalizeDate(brk.end_date);
         if (!start || !end || start > weekEnd || end < weekStart) return;
-
         const effectiveStart = start < weekStart ? weekStart : start;
         const effectiveEnd = end > weekEnd ? weekEnd : end;
         const offsetStart = Math.floor((effectiveStart - weekStart) / dayMs);
         const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
-
         const startMid = offsetStart + 0.5;
         const endMid = startMid + (durationDays - 1);
-        const leftPercent = (startMid) / 7 * 100;
+        const leftPercent = startMid / 7 * 100;
         const widthPercent = (endMid - startMid) / 7 * 100 || (1 / 7 * 100);
 
         const bar = document.createElement('div');
@@ -138,41 +139,29 @@ function initDispatcherCalendars() {
         bar.innerText = brk.reason;
         bar.title = brk.reason;
         bar.style.opacity = '0.5';
-
         timeline.appendChild(bar);
       });
 
-      // === Потом рисуем грузы поверх ===
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
-        let deliveryDateStr;
-        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
-        } else {
-          deliveryDateStr = load?.delivery?.date;
-        }
-        const delivery = parseAndNormalizeDate(deliveryDateStr);
-
+        const delivery = parseAndNormalizeDate(
+          load.extra_delivery?.[load.extra_delivery.length - 1]?.date || load?.delivery?.date
+        );
         if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
-
         const effectiveStart = pickup < weekStart ? weekStart : pickup;
         const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
         const offsetStart = Math.floor((effectiveStart - weekStart) / dayMs);
         const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
-
         const startMid = offsetStart + 0.5;
         const endMid = startMid + (durationDays - 1);
-        const leftPercent = (startMid) / 7 * 100;
+        const leftPercent = startMid / 7 * 100;
         const widthPercent = (endMid - startMid) / 7 * 100 || (1 / 7 * 100);
 
-        const barStart = startMid;
-        const barEnd = endMid;
-
         let layer = 0;
-        while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
+        while ((occupiedSlots[layer] || []).some(other => !(endMid <= other.start || startMid >= other.end))) {
           layer++;
         }
-        occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: barStart, end: barEnd }];
+        occupiedSlots[layer] = [...(occupiedSlots[layer] || []), { start: startMid, end: endMid }];
 
         const bar = document.createElement('div');
         bar.className = 'bar';
@@ -181,24 +170,18 @@ function initDispatcherCalendars() {
         bar.style.top = `${layer * (barHeight + barGap)}px`;
         bar.style.height = `${barHeight}px`;
 
-        let barColor;
         const status = (load.status || '').toLowerCase();
-        if (load.consolidated) {
-          const consolidateId = normalizeId(load.consolidateId);
-          barColor = getColorForConsolidation(consolidateId) || '#bdc3c7';
-        } else {
-          barColor = status === 'new' ? '#9b59b6'
-                    : status === 'picked up' ? '#3498db'
-                    : status === 'delivered' ? '#2ecc71'
-                    : '#bdc3c7';
-        }
-        bar.style.backgroundColor = barColor;
+        const color = load.consolidated
+          ? getColorForConsolidation(normalizeId(load.consolidateId))
+          : status === 'new' ? '#9b59b6'
+          : status === 'picked up' ? '#3498db'
+          : status === 'delivered' ? '#2ecc71'
+          : '#bdc3c7';
+        bar.style.backgroundColor = color || '#bdc3c7';
 
         const pickupState = load.pickup?.address?.split(',').pop()?.trim() || '';
-        let deliveryState = load.delivery?.address?.split(',').pop()?.trim() || '';
-        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
-          deliveryState = load.extra_delivery[load.extra_delivery.length - 1]?.address?.split(',').pop()?.trim() || deliveryState;
-        }
+        const deliveryState = (load.extra_delivery?.[load.extra_delivery.length - 1]?.address || load.delivery?.address || '')
+          .split(',').pop()?.trim() || '';
 
         const price = load.price || load.total_price || '';
         const rpm = load.rpm !== undefined ? load.rpm : (load.RPM ?? '');
@@ -218,7 +201,6 @@ function initDispatcherCalendars() {
 
       timelineWrapper.appendChild(grossDiv);
       timelineWrapper.appendChild(timeline);
-
       row.appendChild(info);
       row.appendChild(timelineWrapper);
       listContainer.appendChild(row);
@@ -236,7 +218,6 @@ function initDispatcherCalendars() {
       const selectedBars = Array.from(document.querySelectorAll('.bar.selected'));
       const loadIds = [...new Set(selectedBars.map(bar => bar.dataset.loadId))].filter(Boolean);
       if (!loadIds.length) return alert('Нет выбранных грузов');
-
       const res = await fetch('/api/consolidation/prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +229,7 @@ function initDispatcherCalendars() {
     });
   }
 }
+
 
 function openConsolidationModal(pickups, deliveries) {
   const pickupList = document.getElementById('pickupList');
@@ -560,6 +542,7 @@ function initDriverBreakDateRange() {
     const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
 
     if (isReset) {
+      input.value = '';
       input.value = '';
       return;
     }
