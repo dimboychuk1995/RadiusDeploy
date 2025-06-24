@@ -1,3 +1,4 @@
+import requests
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
 import logging
@@ -367,3 +368,118 @@ def save_driver_break():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@dispatch_bp.route('/api/driver/location/<driver_id>')
+@login_required
+def get_driver_location(driver_id):
+    try:
+        from datetime import datetime
+
+        print(f"🔍 Получение местоположения для водителя: {driver_id}")
+
+        driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
+        if not driver:
+            print("❌ Водитель не найден")
+            return jsonify({'success': False, 'error': 'Driver not found'}), 404
+
+        truck_id = driver.get('truck')
+        if not truck_id:
+            print("❌ У водителя нет привязанного трака")
+            return jsonify({'success': False, 'error': 'Driver has no assigned truck'}), 400
+
+        truck = trucks_collection.find_one({'_id': ObjectId(truck_id)})
+        if not truck:
+            print("❌ Трак не найден")
+            return jsonify({'success': False, 'error': 'Truck not found'}), 404
+
+        vin = truck.get('vin')
+        print(f"✅ VIN трака: {vin}")
+        if not vin:
+            print("❌ VIN отсутствует")
+            return jsonify({'success': False, 'error': 'Truck missing VIN number'}), 400
+
+        samsara_integration = integrations_settings_collection.find_one({'name': 'samsara'})
+        mapbox_integration = integrations_settings_collection.find_one({'name': 'MapBox'})
+
+        samsara_token = samsara_integration.get('api_key') if samsara_integration else None
+        mapbox_token = mapbox_integration.get('api_key') if mapbox_integration else None
+        print(f"🗺️ Mapbox token: {mapbox_token}")
+        print(f"🔐 Samsara token: {samsara_token}")
+
+        if not samsara_token:
+            print("❌ Нет токена Samsara")
+            return jsonify({'success': False, 'error': 'Samsara token missing'}), 500
+
+        # === Получаем местоположение от Samsara ===
+        print("🌐 Запрос к Samsara API...")
+        url = "https://api.samsara.com/fleet/vehicles/stats?types=gps"
+        headers = {
+            "accept": "application/json",
+            "authorization": f"Bearer {samsara_token}"
+        }
+
+        response = requests.get(url, headers=headers)
+        print(f"📡 Ответ Samsara статус: {response.status_code}")
+        if response.status_code != 200:
+            print("❌ Ошибка при запросе к Samsara")
+            return jsonify({'success': False, 'error': 'Samsara API error'}), 500
+
+        data = response.json()
+        vehicles = data.get("data", [])
+        print(f"🔢 Найдено {len(vehicles)} vehicles")
+
+        matched = None
+        for vehicle in vehicles:
+            ext_ids = vehicle.get("externalIds", {})
+            if ext_ids.get("samsara.vin") == vin:
+                matched = vehicle
+                break
+
+        if not matched:
+            print("❌ Совпадение по VIN не найдено")
+            return jsonify({'success': False, 'error': 'VIN not found in Samsara'}), 404
+
+        gps = matched.get("gps")
+        if not gps:
+            print("❌ Нет данных GPS в найденном vehicle")
+            return jsonify({'success': False, 'error': 'Location not found'}), 404
+
+        lat = gps.get("latitude")
+        lng = gps.get("longitude")
+        print(f"📍 Координаты: {lat}, {lng}")
+
+        # === Поиск грузов на сегодня ===
+        today_str = datetime.utcnow().strftime("%m/%d/%Y")
+        loads_cursor = loads_collection.find({
+            'assigned_driver': ObjectId(driver_id),
+            '$or': [
+                {'pickup.date': today_str},
+                {'delivery.date': today_str}
+            ]
+        })
+
+        today_loads = []
+        for load in loads_cursor:
+            today_loads.append({
+                'pickup': load.get('pickup', {}),
+                'delivery': load.get('delivery', {}),
+                'load_id': str(load.get('_id'))
+            })
+
+        print(f"📦 Найдено грузов на сегодня: {len(today_loads)}")
+
+        return jsonify({
+            'success': True,
+            'lat': lat,
+            'lng': lng,
+            'driver_name': driver.get('name'),
+            'mapbox_token': mapbox_token,
+            'location_text': gps.get("reverseGeo", {}).get("formattedLocation", ""),
+            'loads': today_loads
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500

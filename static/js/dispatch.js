@@ -551,15 +551,152 @@ function initDriverBreakDateRange() {
   });
 }
 
-function openDriverMapModal(driverId) {
-  document.getElementById('driverMapModal').classList.add('show');
-  document.getElementById('driverMapBackdrop').classList.add('show');
-
-  // Сохраняем driverId в модалку через data-атрибут
+async function openDriverMapModal(driverId) {
   const modal = document.getElementById('driverMapModal');
+  const backdrop = document.getElementById('driverMapBackdrop');
+  const mapContainer = document.getElementById('driverMapContent');
+
+  modal.classList.add('show');
+  backdrop.classList.add('show');
   modal.dataset.driverId = driverId;
 
-  console.log('Открыта карта для водителя:', driverId);
+  mapContainer.innerHTML = '<div class="text-muted text-center p-3">Загрузка карты...</div>';
+
+  try {
+    const res = await fetch(`/api/driver/location/${driverId}`);
+    const json = await res.json();
+
+    if (!json.success) {
+      mapContainer.innerHTML = `<div class="text-danger p-3">Ошибка: ${json.error}</div>`;
+      return;
+    }
+
+    const { lat, lng, mapbox_token, driver_name, loads } = json;
+    mapboxgl.accessToken = mapbox_token;
+
+    mapContainer.innerHTML = '';
+    const mapDiv = document.createElement('div');
+    mapDiv.id = 'mapboxDriverMap';
+    mapDiv.style.height = '100%';
+    mapDiv.style.width = '100%';
+    mapContainer.appendChild(mapDiv);
+
+    const map = new mapboxgl.Map({
+      container: 'mapboxDriverMap',
+      style: 'mapbox://styles/mapbox/streets-v11',
+      center: [lng, lat],
+      zoom: 6
+    });
+
+    new mapboxgl.Marker({ color: '#d35400' })
+      .setLngLat([lng, lat])
+      .setPopup(new mapboxgl.Popup().setText(driver_name || 'Водитель'))
+      .addTo(map);
+
+    const bounds = new mapboxgl.LngLatBounds();
+    bounds.extend([lng, lat]);
+
+    const geocode = async (address) => {
+      const query = encodeURIComponent(address);
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapbox_token}`);
+      const data = await res.json();
+      return data.features[0]?.center; // [lng, lat]
+    };
+
+    for (const load of loads || []) {
+      const allAddresses = [];
+
+      if (Array.isArray(load.extra_pickup)) {
+        for (const item of load.extra_pickup) {
+          if (item?.address) allAddresses.push(item.address);
+        }
+      }
+
+      if (load.pickup?.address) allAddresses.push(load.pickup.address);
+      if (load.delivery?.address) allAddresses.push(load.delivery.address);
+
+      if (Array.isArray(load.extra_delivery)) {
+        for (const item of load.extra_delivery) {
+          if (item?.address) allAddresses.push(item.address);
+        }
+      }
+
+      const coords = [];
+      for (const addr of allAddresses) {
+        const pt = await geocode(addr);
+        if (pt) coords.push(pt);
+      }
+
+      coords.forEach(c => bounds.extend(c));
+
+      if (coords.length >= 2) {
+        const coordStr = coords.map(c => c.join(',')).join(';');
+        const routeUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordStr}?geometries=geojson&access_token=${mapbox_token}`;
+        const routeRes = await fetch(routeUrl);
+        const routeData = await routeRes.json();
+        const route = routeData.routes?.[0]?.geometry;
+
+        if (route) {
+          const loadId = typeof load._id === 'object' ? load._id.$oid || load._id.toString() : load._id;
+
+          if (map.getSource(`route-${loadId}`)) {
+            map.removeLayer(`route-${loadId}`);
+            map.removeSource(`route-${loadId}`);
+          }
+
+          map.addSource(`route-${loadId}`, {
+            type: 'geojson',
+            data: {
+              type: 'Feature',
+              geometry: route
+            }
+          });
+
+          map.addLayer({
+            id: `route-${loadId}`,
+            type: 'line',
+            source: `route-${loadId}`,
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+              'line-color': '#0074D9',
+              'line-width': 4,
+              'line-opacity': 0.7
+            }
+          });
+
+
+          coords.forEach((coord, i) => {
+            new mapboxgl.Marker({ color: i === 0 ? 'green' : 'red' })
+              .setLngLat(coord)
+              .setPopup(new mapboxgl.Popup().setText(`${load.load_id || 'Load'} ${i === 0 ? 'Pickup' : 'Drop'}`))
+              .addTo(map);
+          });
+        }
+      }
+    }
+
+    map.fitBounds(bounds, { padding: 60 });
+
+  } catch (err) {
+    console.error('🌐 Ошибка загрузки карты:', err);
+    mapContainer.innerHTML = `<div class="text-danger p-3">Ошибка загрузки данных</div>`;
+  }
+}
+
+async function addAddressMarker(address, label, color, map) {
+  try {
+    const geoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}`);
+    const geoJson = await geoRes.json();
+    if (geoJson.features && geoJson.features.length > 0) {
+      const [lng, lat] = geoJson.features[0].center;
+      new mapboxgl.Marker({ color })
+        .setLngLat([lng, lat])
+        .setPopup(new mapboxgl.Popup().setText(label))
+        .addTo(map);
+    }
+  } catch (err) {
+    console.warn(`⚠️ Не удалось геокодировать адрес: ${address}`);
+  }
 }
 
 function closeDriverMapModal() {
