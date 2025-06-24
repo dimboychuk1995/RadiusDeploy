@@ -114,19 +114,19 @@ function initDispatcherCalendars() {
 
       // === Сначала рисуем брейки ===
       driverBreaks.forEach(brk => {
-        console.log('📆 BREAK', brk.reason, brk.start_date, brk.end_date); // <-- ВСТАВЬ СЮДА
         const start = parseAndNormalizeDate(brk.start_date);
         const end = parseAndNormalizeDate(brk.end_date);
         if (!start || !end || start > weekEnd || end < weekStart) return;
 
         const effectiveStart = start < weekStart ? weekStart : start;
         const effectiveEnd = end > weekEnd ? weekEnd : end;
-        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+        const offsetStart = Math.floor((effectiveStart - weekStart) / dayMs);
         const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
 
-        const leftPercent = (offsetDays + 0.5) / 7 * 100;
-        const widthPercent = durationDays / 7 * 100;
-
+        const startMid = offsetStart + 0.5;
+        const endMid = startMid + (durationDays - 1);
+        const leftPercent = (startMid) / 7 * 100;
+        const widthPercent = (endMid - startMid) / 7 * 100 || (1 / 7 * 100);
 
         const bar = document.createElement('div');
         bar.className = 'bar';
@@ -157,20 +157,16 @@ function initDispatcherCalendars() {
 
         const effectiveStart = pickup < weekStart ? weekStart : pickup;
         const effectiveEnd = delivery > weekEnd ? weekEnd : delivery;
-        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+        const offsetStart = Math.floor((effectiveStart - weekStart) / dayMs);
         const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
 
-        let leftPercent, widthPercent;
-        if (durationDays === 1) {
-          leftPercent = (offsetDays + 0.25) / 7 * 100;
-          widthPercent = 0.5 / 7 * 100;
-        } else {
-          leftPercent = (offsetDays + 0.5) / 7 * 100;
-          widthPercent = (durationDays - 1) / 7 * 100;
-        }
+        const startMid = offsetStart + 0.5;
+        const endMid = startMid + (durationDays - 1);
+        const leftPercent = (startMid) / 7 * 100;
+        const widthPercent = (endMid - startMid) / 7 * 100 || (1 / 7 * 100);
 
-        const barStart = offsetDays + (durationDays === 1 ? 0.25 : 0.5);
-        const barEnd = offsetDays + (durationDays === 1 ? 0.75 : durationDays - 0.5);
+        const barStart = startMid;
+        const barEnd = endMid;
 
         let layer = 0;
         while ((occupiedSlots[layer] || []).some(other => !(barEnd <= other.start || barStart >= other.end))) {
