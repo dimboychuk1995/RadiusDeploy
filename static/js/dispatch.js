@@ -559,7 +559,6 @@ async function openDriverMapModal(driverId) {
   modal.classList.add('show');
   backdrop.classList.add('show');
   modal.dataset.driverId = driverId;
-
   mapContainer.innerHTML = '<div class="text-muted text-center p-3">Загрузка карты...</div>';
 
   try {
@@ -588,6 +587,10 @@ async function openDriverMapModal(driverId) {
       zoom: 6
     });
 
+    // Дождаться полной загрузки карты
+    await new Promise(resolve => map.on('load', resolve));
+
+    // Маркер водителя
     new mapboxgl.Marker({ color: '#d35400' })
       .setLngLat([lng, lat])
       .setPopup(new mapboxgl.Popup().setText(driver_name || 'Водитель'))
@@ -600,51 +603,48 @@ async function openDriverMapModal(driverId) {
       const query = encodeURIComponent(address);
       const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapbox_token}`);
       const data = await res.json();
-      return data.features[0]?.center; // [lng, lat]
+      return data.features[0]?.center;
     };
 
+    let routeIndex = 0;
     for (const load of loads || []) {
-      const allAddresses = [];
+      const addresses = [];
 
       if (Array.isArray(load.extra_pickup)) {
-        for (const item of load.extra_pickup) {
-          if (item?.address) allAddresses.push(item.address);
+        for (const p of load.extra_pickup) {
+          if (p?.address) addresses.push({ address: p.address, label: 'Extra Pickup' });
         }
       }
 
-      if (load.pickup?.address) allAddresses.push(load.pickup.address);
-      if (load.delivery?.address) allAddresses.push(load.delivery.address);
+      if (load.pickup?.address) addresses.push({ address: load.pickup.address, label: 'Pickup' });
+      if (load.delivery?.address) addresses.push({ address: load.delivery.address, label: 'Delivery' });
 
       if (Array.isArray(load.extra_delivery)) {
-        for (const item of load.extra_delivery) {
-          if (item?.address) allAddresses.push(item.address);
+        for (const d of load.extra_delivery) {
+          if (d?.address) addresses.push({ address: d.address, label: 'Extra Delivery' });
         }
       }
 
       const coords = [];
-      for (const addr of allAddresses) {
-        const pt = await geocode(addr);
-        if (pt) coords.push(pt);
+      for (const a of addresses) {
+        const c = await geocode(a.address);
+        if (c) {
+          coords.push({ coord: c, label: a.label });
+          bounds.extend(c);
+        }
       }
 
-      coords.forEach(c => bounds.extend(c));
-
       if (coords.length >= 2) {
-        const coordStr = coords.map(c => c.join(',')).join(';');
+        const coordStr = coords.map(c => c.coord.join(',')).join(';');
         const routeUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordStr}?geometries=geojson&access_token=${mapbox_token}`;
         const routeRes = await fetch(routeUrl);
         const routeData = await routeRes.json();
         const route = routeData.routes?.[0]?.geometry;
 
         if (route) {
-          const loadId = typeof load._id === 'object' ? load._id.$oid || load._id.toString() : load._id;
+          const routeId = `route-${routeIndex++}`;
 
-          if (map.getSource(`route-${loadId}`)) {
-            map.removeLayer(`route-${loadId}`);
-            map.removeSource(`route-${loadId}`);
-          }
-
-          map.addSource(`route-${loadId}`, {
+          map.addSource(routeId, {
             type: 'geojson',
             data: {
               type: 'Feature',
@@ -653,22 +653,21 @@ async function openDriverMapModal(driverId) {
           });
 
           map.addLayer({
-            id: `route-${loadId}`,
+            id: routeId,
             type: 'line',
-            source: `route-${loadId}`,
+            source: routeId,
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint: {
-              'line-color': '#0074D9',
+              'line-color': getRandomColor(),
               'line-width': 4,
               'line-opacity': 0.7
             }
           });
 
-
-          coords.forEach((coord, i) => {
+          coords.forEach(({ coord, label }, i) => {
             new mapboxgl.Marker({ color: i === 0 ? 'green' : 'red' })
               .setLngLat(coord)
-              .setPopup(new mapboxgl.Popup().setText(`${load.load_id || 'Load'} ${i === 0 ? 'Pickup' : 'Drop'}`))
+              .setPopup(new mapboxgl.Popup().setText(`${load.load_id || 'Load'} — ${label}`))
               .addTo(map);
           });
         }
@@ -683,21 +682,11 @@ async function openDriverMapModal(driverId) {
   }
 }
 
-async function addAddressMarker(address, label, color, map) {
-  try {
-    const geoRes = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}`);
-    const geoJson = await geoRes.json();
-    if (geoJson.features && geoJson.features.length > 0) {
-      const [lng, lat] = geoJson.features[0].center;
-      new mapboxgl.Marker({ color })
-        .setLngLat([lng, lat])
-        .setPopup(new mapboxgl.Popup().setText(label))
-        .addTo(map);
-    }
-  } catch (err) {
-    console.warn(`⚠️ Не удалось геокодировать адрес: ${address}`);
-  }
+function getRandomColor() {
+  const colors = ['#0074D9', '#FF4136', '#2ECC40', '#FF851B', '#7FDBFF', '#B10DC9'];
+  return colors[Math.floor(Math.random() * colors.length)];
 }
+
 
 function closeDriverMapModal() {
   document.getElementById('driverMapModal').classList.remove('show');
