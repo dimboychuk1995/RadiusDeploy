@@ -52,18 +52,49 @@ function initDispatcherCalendars() {
 
     drivers.forEach(driver => {
       const row = document.createElement('div');
-      row.className = 'driver-row';
+      row.className = 'driver-row d-flex justify-content-between align-items-center';
 
-      const info = document.createElement('div');
-      info.className = 'driver-info';
-      const unit = driver.truck?.unit_number || '';
-      info.innerText = `${unit} — ${driver.name}`;
-      row.appendChild(info);
-
-      const timeline = document.createElement('div');
-      timeline.className = 'timeline';
       const driverId = normalizeId(driver._id);
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
+
+      const info = document.createElement('div');
+      info.className = 'driver-info text-nowrap pe-3';
+      info.style.width = '220px'; // или другая ширина по макету
+      const unit = driver.truck?.unit_number || '';
+      info.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between">
+          <span class="text-center w-100">${unit} — ${driver.name}</span>
+          <button class="btn btn-sm btn-outline-secondary ms-2 driver-break-btn" title="Break">Break</button>
+        </div>
+      `;
+
+      const timelineWrapper = document.createElement('div');
+      timelineWrapper.className = 'd-flex flex-column align-items-end w-100 ms-3';
+
+      // 💰 Считаем weekly gross
+      let weeklyGross = 0;
+      driverLoads.forEach(load => {
+        const pickup = parseAndNormalizeDate(load?.pickup?.date);
+        let deliveryDateStr;
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length > 0) {
+          deliveryDateStr = load.extra_delivery[load.extra_delivery.length - 1].date;
+        } else {
+          deliveryDateStr = load?.delivery?.date;
+        }
+        const delivery = parseAndNormalizeDate(deliveryDateStr);
+
+        if (!pickup || !delivery || pickup > weekEnd || delivery < weekStart) return;
+
+        const price = load.price || load.total_price || 0;
+        weeklyGross += typeof price === 'number' ? price : parseFloat(price) || 0;
+      });
+
+      const grossDiv = document.createElement('div');
+      grossDiv.className = 'text-muted small mb-1';
+      grossDiv.innerHTML = `<i class="bi bi-cash-stack me-1"></i>$${weeklyGross.toLocaleString()}`;
+
+      const timeline = document.createElement('div');
+      timeline.className = 'timeline w-100';
 
       const occupiedSlots = [];
       const barHeight = 20;
@@ -145,14 +176,26 @@ function initDispatcherCalendars() {
       });
 
       timeline.style.height = `${occupiedSlots.length ? (barHeight + barGap) * occupiedSlots.length - barGap : barHeight}px`;
-      row.appendChild(timeline);
+
+      timelineWrapper.appendChild(grossDiv);
+      timelineWrapper.appendChild(timeline);
+
+      row.appendChild(info);
+      row.appendChild(timelineWrapper);
       listContainer.appendChild(row);
+    });
+  });
+
+  document.querySelectorAll('.driver-break-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      openDriverBreakModal();
     });
   });
 
   updateGlobalWeekLabel();
   renderWeekLabels();
   bindDispatcherToggles();
+
 
   const consolidationBtn = document.getElementById('startConsolidationBtn');
   if (consolidationBtn && !consolidationBtn.dataset.bound) {
@@ -388,4 +431,15 @@ function bindDispatcherToggles() {
       }
     });
   });
+}
+
+
+function openDriverBreakModal() {
+  document.getElementById('driverBreakModal').classList.add('show');
+  document.getElementById('driverBreakBackdrop').classList.add('show');
+}
+
+function closeDriverBreakModal() {
+  document.getElementById('driverBreakModal').classList.remove('show');
+  document.getElementById('driverBreakBackdrop').classList.remove('show');
 }

@@ -84,3 +84,42 @@
 </div>
 
 <div class="custom-offcanvas-backdrop" id="consolidationBackdrop" onclick="closeConsolidationModal()"></div>
+
+
+<!-- ============== Модалка брейка водителя ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverBreakModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Назначить перерыв водителю</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeDriverBreakModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left" style="width: 100%;">
+          <form id="driverBreakForm">
+            <div class="mb-3">
+              <label for="breakReason" class="form-label">Причина</label>
+              <select id="breakReason" class="form-select">
+                <option value="Ремонт">Ремонт</option>
+                <option value="Отпуск">Отпуск</option>
+                <option value="Выходные">Выходные</option>
+                <option value="Supervision">Supervision</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="breakDateRange" class="form-label">Диапазон дат</label>
+              <input type="text" id="breakDateRange" class="form-control" placeholder="Выберите даты">
+            </div>
+            <div class="text-end mt-4">
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="driverBreakBackdrop" onclick="closeDriverBreakModal()"></div>
+
+
