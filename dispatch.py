@@ -13,6 +13,7 @@ trucks_collection = db['trucks']
 loads_collection = db['loads']
 consolidated_loads_collection =db['consolidated_loads']
 integrations_settings_collection = db['integrations_settings']
+drivers_brakes_collection = db['drivers_brakes']
 
 def convert_object_ids(obj):
     if isinstance(obj, list):
@@ -315,6 +316,36 @@ def save_consolidation():
         )
 
         return jsonify({"success": True, "miles": round(total_miles, 2), "rpm": rpm})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@dispatch_bp.route('/api/drivers/break', methods=['POST'])
+@login_required
+def save_driver_break():
+    try:
+        data = request.get_json()
+        driver_id = data.get("driver_id")
+        reason = data.get("reason")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        if not driver_id or not reason or not start_date or not end_date:
+            return jsonify({"success": False, "error": "Missing fields"}), 400
+
+        doc = {
+            "driver_id": ObjectId(driver_id),
+            "reason": reason,
+            "start_date": datetime.fromisoformat(start_date.replace("Z", "+00:00")),
+            "end_date": datetime.fromisoformat(end_date.replace("Z", "+00:00")),
+            "created_at": datetime.utcnow(),
+            "created_by": ObjectId(current_user.id)
+        }
+
+        drivers_brakes_collection.insert_one(doc)
+        return jsonify({"success": True})
 
     except Exception as e:
         import traceback

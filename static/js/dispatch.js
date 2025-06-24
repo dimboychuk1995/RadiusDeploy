@@ -59,19 +59,29 @@ function initDispatcherCalendars() {
 
       const info = document.createElement('div');
       info.className = 'driver-info text-nowrap pe-3';
-      info.style.width = '220px'; // или другая ширина по макету
-      const unit = driver.truck?.unit_number || '';
-      info.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
-          <span class="text-center w-100">${unit} — ${driver.name}</span>
-          <button class="btn btn-sm btn-outline-secondary ms-2 driver-break-btn" title="Break">Break</button>
-        </div>
-      `;
+      info.style.width = '220px';
+
+      const label = document.createElement('span');
+      label.className = 'text-center w-100';
+      label.innerText = `${driver.truck?.unit_number || ''} — ${driver.name}`;
+
+      const breakBtn = document.createElement('button');
+      breakBtn.className = 'btn btn-sm btn-outline-secondary ms-2 driver-break-btn';
+      breakBtn.title = 'Break';
+      breakBtn.innerText = 'Break';
+      breakBtn.addEventListener('click', () => {
+        openDriverBreakModal(driverId);
+      });
+
+      const infoInner = document.createElement('div');
+      infoInner.className = 'd-flex align-items-center justify-content-between';
+      infoInner.appendChild(label);
+      infoInner.appendChild(breakBtn);
+      info.appendChild(infoInner);
 
       const timelineWrapper = document.createElement('div');
       timelineWrapper.className = 'd-flex flex-column align-items-end w-100 ms-3';
 
-      // 💰 Считаем weekly gross
       let weeklyGross = 0;
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
@@ -186,16 +196,9 @@ function initDispatcherCalendars() {
     });
   });
 
-  document.querySelectorAll('.driver-break-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      openDriverBreakModal();
-    });
-  });
-
   updateGlobalWeekLabel();
   renderWeekLabels();
   bindDispatcherToggles();
-
 
   const consolidationBtn = document.getElementById('startConsolidationBtn');
   if (consolidationBtn && !consolidationBtn.dataset.bound) {
@@ -434,12 +437,105 @@ function bindDispatcherToggles() {
 }
 
 
-function openDriverBreakModal() {
+function openDriverBreakModal(driverId) {
+  window.currentBreakDriverId = driverId;
   document.getElementById('driverBreakModal').classList.add('show');
   document.getElementById('driverBreakBackdrop').classList.add('show');
+  initDriverBreakDateRange();
+  initDriverBreakFormListener();
 }
 
 function closeDriverBreakModal() {
   document.getElementById('driverBreakModal').classList.remove('show');
   document.getElementById('driverBreakBackdrop').classList.remove('show');
+}
+
+
+function initDriverBreakFormListener() {
+  const form = document.getElementById('driverBreakForm');
+  if (!form || form.dataset.bound === 'true') return;
+
+  form.dataset.bound = 'true';
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const reason = document.getElementById('breakReason').value;
+    const range = $('#breakDateRange').data('daterangepicker');
+    const startDate = range?.startDate?.toISOString();
+    const endDate = range?.endDate?.toISOString();
+    const driverId = window.currentBreakDriverId;
+
+    if (!driverId || !reason || !startDate || !endDate) {
+      return alert("Все поля обязательны");
+    }
+
+    const res = await fetch('/api/drivers/break', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        driver_id: driverId,
+        reason,
+        start_date: startDate,
+        end_date: endDate
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      alert("Брейк успешно сохранён");
+      closeDriverBreakModal();
+    } else {
+      alert("Ошибка: " + (json.error || "Не удалось сохранить"));
+    }
+  });
+}
+
+
+function initDriverBreakDateRange() {
+  const input = document.getElementById("breakDateRange");
+  if (!input) return;
+
+  const today = moment().startOf('day');
+  const todayPlus3 = moment().add(2, 'days').endOf('day');
+  const todayPlus7 = moment().add(6, 'days').endOf('day');
+  const nextWeekStart = moment().add(1, 'weeks').startOf('isoWeek');
+  const nextWeekEnd = moment().add(1, 'weeks').endOf('isoWeek');
+
+  $(input).daterangepicker({
+    startDate: today,
+    endDate: todayPlus3,
+    showDropdowns: true,
+    autoApply: true, // 👈 Убирает кнопку "Apply"
+    linkedCalendars: false,
+    alwaysShowCalendars: true,
+    opens: 'center',
+    showCustomRangeLabel: true,
+    locale: {
+      format: 'MM / DD / YYYY',
+      cancelLabel: 'CANCEL',
+      daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+      monthNames: moment.months(),
+      firstDay: 1
+    },
+    ranges: {
+      '3 дня от сегодня': [today, todayPlus3],
+      'Неделя от сегодня': [today, todayPlus7],
+      'Вся следующая неделя': [nextWeekStart, nextWeekEnd],
+      'Сброс': [moment(), moment()]
+    }
+  });
+
+  $(input).on('apply.daterangepicker', function(ev, picker) {
+    const startIso = picker.startDate.toISOString();
+    const endIso = picker.endDate.toISOString();
+    const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
+
+    if (isReset) {
+      input.value = '';
+      return;
+    }
+
+    console.log(`📅 Break range selected: ${startIso} to ${endIso}`);
+  });
 }
