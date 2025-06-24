@@ -127,4 +127,25 @@
 
 <div class="custom-offcanvas-backdrop" id="driverBreakBackdrop" onclick="closeDriverBreakModal()"></div>
 
+<!-- ============== Модалка: Водитель на карте ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverMapModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Водитель на карте</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeDriverMapModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left" style="width: 100%;">
+          <!-- Контент карты будет добавлен позже -->
+          <div id="driverMapContent" style="height: 400px; background-color: #f5f5f5; display: flex; align-items: center; justify-content: center;">
+            <span class="text-muted">Здесь будет карта</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="driverMapBackdrop" onclick="closeDriverMapModal()"></div>
 

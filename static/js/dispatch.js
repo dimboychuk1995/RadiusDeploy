@@ -83,7 +83,7 @@ function initDispatcherCalendars() {
       mapBtn.title = 'Map';
       mapBtn.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
       mapBtn.addEventListener('click', () => {
-        console.log('🗺 Map clicked for', driverId);
+        openDriverMapModal(driverId);
       });
 
       btnRow.appendChild(breakBtn);
@@ -549,4 +549,20 @@ function initDriverBreakDateRange() {
 
     console.log(`📅 Break range selected: ${startIso} to ${endIso}`);
   });
+}
+
+function openDriverMapModal(driverId) {
+  document.getElementById('driverMapModal').classList.add('show');
+  document.getElementById('driverMapBackdrop').classList.add('show');
+
+  // Сохраняем driverId в модалку через data-атрибут
+  const modal = document.getElementById('driverMapModal');
+  modal.dataset.driverId = driverId;
+
+  console.log('Открыта карта для водителя:', driverId);
+}
+
+function closeDriverMapModal() {
+  document.getElementById('driverMapModal').classList.remove('show');
+  document.getElementById('driverMapBackdrop').classList.remove('show');
 }
