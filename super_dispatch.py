@@ -158,17 +158,15 @@ def handle_fetch_super_dispatch_orders_socket(data=None):
 
     threading.Thread(target=run).start()
 
-def run_super_dispatch_import_job():
-    result, _ = import_super_dispatch_orders()
-    socketio.emit("super_dispatch_done", result)
-    print(result["message"])
-
 
 def import_super_dispatch_orders():
     try:
         integration = integrations_settings_collection.find_one({"name": "Super Dispatch SKF"})
         if not integration:
-            return {"success": False, "message": "Интеграция не найдена"}, 400
+            result = {"success": False, "message": "Интеграция не найдена"}
+            socketio.emit("super_dispatch_done", result)
+            print(result["message"])
+            return result, 400
 
         access_token = get_valid_token("Super Dispatch SKF")
 
@@ -186,7 +184,10 @@ def import_super_dispatch_orders():
         print(f"📡 Статус: {response.status_code}")
 
         if response.status_code != 200:
-            return {"success": False, "message": f"Ошибка {response.status_code}", "raw": response.text}, 400
+            result = {"success": False, "message": f"Ошибка {response.status_code}", "raw": response.text}
+            socketio.emit("super_dispatch_done", result)
+            print(result["message"])
+            return result, 400
 
         data = response.json()
         orders = data.get('data', [])
@@ -213,10 +214,8 @@ def import_super_dispatch_orders():
             except Exception as dt_err:
                 print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
 
-        # Получаем ключ Google Maps API
         gmaps_settings = integrations_settings_collection.find_one({"name": "Google Maps API"})
         gmaps_api_key = gmaps_settings.get("api_key") if gmaps_settings else None
-
         driver_cache = {}
 
         def get_driver_name(driver_id):
@@ -224,7 +223,6 @@ def import_super_dispatch_orders():
                 return None
             if driver_id in driver_cache:
                 return driver_cache[driver_id]
-
             try:
                 driver_url = f"{base_url}/drivers/{driver_id}/"
                 resp = requests.get(driver_url, headers=headers)
@@ -255,9 +253,8 @@ def import_super_dispatch_orders():
                     assigned_dispatch_obj = matched_driver.get("dispatcher")
                     assigned_power_unit_obj = matched_driver.get("truck")
 
-            price_str = order.get("price")
             try:
-                price = float(price_str)
+                price = float(order.get("price", 0))
             except:
                 price = None
 
@@ -356,11 +353,17 @@ def import_super_dispatch_orders():
             else:
                 print(f"➕ Добавлен новый груз {load_doc['load_id']}")
 
-        return {"success": True, "message": f"Импорт завершён. Загружено: {len(filtered_orders)} заказов."}, 200
+        result = {"success": True, "message": f"Импорт завершён. Загружено: {len(filtered_orders)} заказов."}
+        socketio.emit("super_dispatch_done", result)
+        print(result["message"])
+        return result, 200
 
     except Exception as e:
         logging.exception("Ошибка при импорте Super Dispatch:")
-        return {"success": False, "message": f"Ошибка: {str(e)}"}, 500
+        result = {"success": False, "message": f"Ошибка: {str(e)}"}
+        socketio.emit("super_dispatch_done", result)
+        print(result["message"])
+        return result, 500
 
 
 

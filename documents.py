@@ -1,7 +1,6 @@
 import os
 from flask import Blueprint, render_template, request, send_file, jsonify
 from flask_login import login_required, current_user
-import pdfkit
 from datetime import datetime
 from jinja2 import Template
 from werkzeug.utils import secure_filename
@@ -13,7 +12,6 @@ from tools.db import db
 document_bp = Blueprint('document_bp', __name__)
 
 path_wkhtmltopdf = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
 
 companies_collection = db['companies']
 

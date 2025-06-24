@@ -6,7 +6,7 @@ from flask import Flask, render_template, redirect, url_for
 from flask_login import current_user
 from tools.socketio_instance import socketio  # <-- здесь уже готовый экземпляр
 from apscheduler.schedulers.background import BackgroundScheduler
-from super_dispatch import run_super_dispatch_import_job
+from super_dispatch import import_super_dispatch_orders
 
 # Импорт блюпринтов
 from chat import chat_bp
@@ -35,9 +35,9 @@ from documents import document_bp
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(
-        func=run_super_dispatch_import_job,
+        func=import_super_dispatch_orders,
         trigger="interval",
-        minutes=1,
+        minutes=60,
         id="super_dispatch_import",
         replace_existing=True
     )
