@@ -5,6 +5,8 @@ eventlet.monkey_patch()
 from flask import Flask, render_template, redirect, url_for
 from flask_login import current_user
 from tools.socketio_instance import socketio  # <-- здесь уже готовый экземпляр
+from apscheduler.schedulers.background import BackgroundScheduler
+from super_dispatch import run_super_dispatch_import_job
 
 # Импорт блюпринтов
 from chat import chat_bp
@@ -29,7 +31,19 @@ from logbook import logbook
 from ifta import ifta_bp
 from super_dispatch import super_dispatch_bp
 from documents import document_bp
-# Инициализация Flask
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        func=run_super_dispatch_import_job,
+        trigger="interval",
+        minutes=1,
+        id="super_dispatch_import",
+        replace_existing=True
+    )
+    scheduler.start()
+    logging.info("🔁 Планировщик Super Dispatch запущен")
+
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
 
@@ -78,4 +92,5 @@ def internal_server_error(e):
 
 # Запуск
 if __name__ == '__main__':
+    start_scheduler()
     socketio.run(app, host='127.0.0.1', port=5000, debug=True)

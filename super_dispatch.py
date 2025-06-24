@@ -6,8 +6,10 @@ from urllib.parse import urlencode
 from datetime import datetime, timedelta, timezone
 from tools.db import db
 from dateutil.parser import parse as parse_date
-from bson import ObjectId
-
+from tools.socketio_instance import socketio
+from flask_socketio import SocketIO, emit
+from flask import current_app, copy_current_request_context, request
+import threading
 super_dispatch_bp = Blueprint('super_dispatch', __name__)
 integrations_settings_collection = db['integrations_settings']
 loads_collection = db['loads']
@@ -64,7 +66,6 @@ def fetch_and_save_token(integration_name="Super Dispatch SKF"):
     )
 
     return {"success": True, "access_token": access_token, "expires_at": expires_at.isoformat()}, 200
-
 
 @super_dispatch_bp.route('/test/super_dispatch_token', methods=['POST'])
 @login_required
@@ -143,13 +144,31 @@ def get_super_dispatch_drivers():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@super_dispatch_bp.route('/test/super_dispatch_orders', methods=['GET'])
-@login_required
-def get_super_dispatch_orders():
+@socketio.on('fetch_super_dispatch_orders')
+def handle_fetch_super_dispatch_orders_socket(data=None):
+    def run():
+        try:
+            response = import_super_dispatch_orders()
+        except Exception as e:
+            logging.exception("Ошибка в WebSocket импорте Super Dispatch")
+            socketio.emit("super_dispatch_done", {
+                "success": False,
+                "message": str(e)
+            })
+
+    threading.Thread(target=run).start()
+
+def run_super_dispatch_import_job():
+    result, _ = import_super_dispatch_orders()
+    socketio.emit("super_dispatch_done", result)
+    print(result["message"])
+
+
+def import_super_dispatch_orders():
     try:
         integration = integrations_settings_collection.find_one({"name": "Super Dispatch SKF"})
         if not integration:
-            return jsonify({"success": False, "error": "Интеграция не найдена"}), 400
+            return {"success": False, "message": "Интеграция не найдена"}, 400
 
         access_token = get_valid_token("Super Dispatch SKF")
 
@@ -167,7 +186,7 @@ def get_super_dispatch_orders():
         print(f"📡 Статус: {response.status_code}")
 
         if response.status_code != 200:
-            return jsonify({"success": False, "error": f"Ошибка {response.status_code}", "raw": response.text}), 400
+            return {"success": False, "message": f"Ошибка {response.status_code}", "raw": response.text}, 400
 
         data = response.json()
         orders = data.get('data', [])
@@ -193,6 +212,10 @@ def get_super_dispatch_orders():
                     filtered_orders.append(order)
             except Exception as dt_err:
                 print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
+
+        # Получаем ключ Google Maps API
+        gmaps_settings = integrations_settings_collection.find_one({"name": "Google Maps API"})
+        gmaps_api_key = gmaps_settings.get("api_key") if gmaps_settings else None
 
         driver_cache = {}
 
@@ -232,19 +255,22 @@ def get_super_dispatch_orders():
                     assigned_dispatch_obj = matched_driver.get("dispatcher")
                     assigned_power_unit_obj = matched_driver.get("truck")
 
+            price_str = order.get("price")
+            try:
+                price = float(price_str)
+            except:
+                price = None
+
             load_doc = {
                 "load_id": str(order["id"]),
                 "company_sign": company_sign_id,
                 "broker_load_id": order.get("customer", {}).get("name"),
-                "broker_id": integration.get("broker_id", ObjectId()),
                 "broker_customer_type": "customer",
                 "broker_email": order.get("customer", {}).get("contact", {}).get("email", ""),
                 "broker_phone_number": order.get("customer", {}).get("contact", {}).get("phone", ""),
                 "type": "Vehicle",
                 "weight": None,
-                "RPM": None,
-                "price": order.get("price"),
-                "total_miles": None,
+                "price": price,
                 "load_description": order.get("instructions"),
                 "vehicles": order.get("vehicles", []),
                 "assigned_driver": assigned_driver_obj,
@@ -290,18 +316,52 @@ def get_super_dispatch_orders():
                 "was_added_to_statement": False
             }
 
-            existing = loads_collection.find_one({
-                "load_id": load_doc["load_id"],
-                "broker_id": load_doc["broker_id"]
-            })
-            if not existing:
-                loads_collection.insert_one(load_doc)
+            pickup_address = load_doc['pickup']['address']
+            delivery_address = load_doc['delivery']['address']
+            total_miles = None
+            rpm = None
 
-        return jsonify({"success": True, "count": len(filtered_orders)}), 200
+            if gmaps_api_key and pickup_address and delivery_address:
+                try:
+                    params = {
+                        "origin": pickup_address,
+                        "destination": delivery_address,
+                        "key": gmaps_api_key
+                    }
+                    gmaps_url = "https://maps.googleapis.com/maps/api/directions/json"
+                    gmaps_response = requests.get(gmaps_url, params=params)
+                    if gmaps_response.status_code == 200:
+                        gmaps_data = gmaps_response.json()
+                        if gmaps_data.get("routes"):
+                            meters = gmaps_data["routes"][0]["legs"][0]["distance"]["value"]
+                            total_miles = round(meters / 1609.34, 2)
+                            if price and total_miles > 0:
+                                rpm = round(price / total_miles, 2)
+                except Exception as e:
+                    logging.warning(f"❗ Ошибка Google Maps для load {load_doc['load_id']}: {e}")
+
+            if total_miles:
+                load_doc["total_miles"] = total_miles
+            if rpm:
+                load_doc["RPM"] = rpm
+
+            result = loads_collection.update_one(
+                {"load_id": load_doc["load_id"]},
+                {"$set": load_doc},
+                upsert=True
+            )
+
+            if result.matched_count:
+                print(f"🔁 Обновлён груз {load_doc['load_id']}")
+            else:
+                print(f"➕ Добавлен новый груз {load_doc['load_id']}")
+
+        return {"success": True, "message": f"Импорт завершён. Загружено: {len(filtered_orders)} заказов."}, 200
 
     except Exception as e:
-        logging.exception("Ошибка при получении заказов:")
-        return jsonify({"success": False, "error": str(e)}), 500
+        logging.exception("Ошибка при импорте Super Dispatch:")
+        return {"success": False, "message": f"Ошибка: {str(e)}"}, 500
+
 
 
 @super_dispatch_bp.route('/test/super_dispatch_orders_list', methods=['GET'])
