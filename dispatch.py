@@ -1,7 +1,10 @@
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
 import logging
-import requests
+from flask import request, jsonify
+from bson import ObjectId
+from flask_login import login_required
+from datetime import datetime
 
 from auth import users_collection
 from tools.db import db
@@ -30,6 +33,9 @@ def convert_object_ids(obj):
 @login_required
 def dispatch_fragment():
     import time
+    from datetime import datetime, timedelta, timezone
+    from bson import ObjectId
+
     t0 = time.time()
 
     try:
@@ -94,6 +100,17 @@ def dispatch_fragment():
         }))
         log.append(f"✅ Consolidated Loads: {time.time() - t5:.3f} сек")
 
+        # === Driver Breaks ===
+        t6 = time.time()
+        driver_breaks = list(db['drivers_breaks'].find({}, {
+            '_id': 1,
+            'driver_id': 1,
+            'reason': 1,
+            'start_date': 1,
+            'end_date': 1
+        }))
+        log.append(f"✅ Driver Breaks: {time.time() - t6:.3f} сек")
+
         # === Очистка ===
         def clean_for_json(obj):
             if isinstance(obj, dict):
@@ -113,6 +130,7 @@ def dispatch_fragment():
         dispatchers = clean_for_json(dispatchers)
         loads = clean_for_json(loads)
         consolidated_loads = clean_for_json(consolidated_loads)
+        driver_breaks = clean_for_json(driver_breaks)
 
         # === Группировка водителей ===
         truck_map = {t['_id']: t for t in trucks}
@@ -132,7 +150,8 @@ def dispatch_fragment():
             dispatchers=dispatchers,
             grouped_drivers=grouped_drivers,
             all_loads=loads,
-            consolidated_loads=consolidated_loads
+            consolidated_loads=consolidated_loads,
+            driver_breaks=driver_breaks
         )
         log.append(f"✅ Render: {time.time() - render_start:.3f} сек")
 
@@ -140,17 +159,14 @@ def dispatch_fragment():
         log.append(f"⏱️ Всего: {total_time:.3f} сек")
         for line in log:
             print(line)
-
+        print(f"📊 Breaks count: {len(driver_breaks)}")
         return rendered
 
     except Exception as e:
         logging.error(f"Ошибка в dispatch_fragment: {e}")
         return render_template('error.html', message="Не удалось загрузить данные диспетчеров.")
 
-from flask import request, jsonify
-from bson import ObjectId
-from flask_login import login_required
-from datetime import datetime
+
 
 @dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
 @login_required

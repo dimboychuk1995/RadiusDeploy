@@ -36,6 +36,7 @@ function initDispatcherCalendars() {
   blocks.forEach(block => {
     const drivers = JSON.parse(block.dataset.drivers || '[]');
     const loads = JSON.parse(block.dataset.loads || '[]');
+    const breaks = JSON.parse(block.dataset.breaks || '[]');
     const listContainer = block.querySelector('.driver-calendar-list');
     const dispatcherId = block.dataset.dispatcherId;
 
@@ -56,6 +57,7 @@ function initDispatcherCalendars() {
 
       const driverId = normalizeId(driver._id);
       const driverLoads = loads.filter(load => normalizeId(load?.assigned_driver) === driverId);
+      const driverBreaks = breaks.filter(brk => String(brk.driver_id) === String(driver._id));
 
       const info = document.createElement('div');
       info.className = 'driver-info text-nowrap pe-3';
@@ -110,6 +112,37 @@ function initDispatcherCalendars() {
       const barHeight = 20;
       const barGap = 4;
 
+      // === Сначала рисуем брейки ===
+      driverBreaks.forEach(brk => {
+        console.log('📆 BREAK', brk.reason, brk.start_date, brk.end_date); // <-- ВСТАВЬ СЮДА
+        const start = parseAndNormalizeDate(brk.start_date);
+        const end = parseAndNormalizeDate(brk.end_date);
+        if (!start || !end || start > weekEnd || end < weekStart) return;
+
+        const effectiveStart = start < weekStart ? weekStart : start;
+        const effectiveEnd = end > weekEnd ? weekEnd : end;
+        const offsetDays = Math.floor((effectiveStart - weekStart) / dayMs);
+        const durationDays = Math.floor((effectiveEnd - effectiveStart) / dayMs) + 1;
+
+        const leftPercent = (offsetDays + 0.5) / 7 * 100;
+        const widthPercent = durationDays / 7 * 100;
+
+
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.left = `${leftPercent}%`;
+        bar.style.width = `${widthPercent}%`;
+        bar.style.top = `0px`;
+        bar.style.height = `${barHeight}px`;
+        bar.style.backgroundColor = '#f39c12';
+        bar.innerText = brk.reason;
+        bar.title = brk.reason;
+        bar.style.opacity = '0.5';
+
+        timeline.appendChild(bar);
+      });
+
+      // === Потом рисуем грузы поверх ===
       driverLoads.forEach(load => {
         const pickup = parseAndNormalizeDate(load?.pickup?.date);
         let deliveryDateStr;
@@ -372,12 +405,11 @@ function normalizeDate(date) {
 
 function parseAndNormalizeDate(dateStr) {
   if (!dateStr) return null;
-  const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
-  let year, month, day;
-  if (dateStr.includes('/')) [month, day, year] = parts.map(Number);
-  else [year, month, day] = parts.map(Number);
-  return new Date(year, month - 1, day);
+  const date = new Date(dateStr);
+  if (isNaN(date)) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
+
 
 function normalizeId(value) {
   if (!value) return '';

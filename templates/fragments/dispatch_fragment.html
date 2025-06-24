@@ -1,5 +1,6 @@
 <div class="container-fluid" id="calendarContainer"
      data-consolidated-loads='{{ consolidated_loads | tojson | safe }}'>
+
   <h2 class="mb-4">Dispatch Calendars</h2>
 
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -9,7 +10,7 @@
   </div>
 
   <div id="consolidateControls" class="mb-3" style="display: none;">
-      <button id="startConsolidationBtn" class="btn btn-danger btn-sm">Консолидировать грузы</button>
+    <button id="startConsolidationBtn" class="btn btn-danger btn-sm">Консолидировать грузы</button>
   </div>
 
   <div class="week-labels d-flex mb-3 px-2" id="weekLabels"></div>
@@ -24,12 +25,15 @@
     }
   </style>
 
+  {% set breaks_json = driver_breaks | tojson | safe %}
+
   {% for dispatcher in dispatchers %}
     {% set dispatcher_id = dispatcher._id|string %}
     <div class="dispatcher-block mb-5"
          data-dispatcher-id="{{ dispatcher_id }}"
          data-drivers='{{ grouped_drivers.get(dispatcher_id, []) | tojson | safe }}'
-         data-loads='{{ all_loads | tojson | safe }}'>
+         data-loads='{{ all_loads | tojson | safe }}'
+         data-breaks='{{ breaks_json }}'>
 
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0">Dispatcher: {{ dispatcher.username }}</h5>
@@ -40,12 +44,12 @@
     </div>
   {% endfor %}
 
-  {% set unassigned_id = 'unassigned' %}
-  {% if grouped_drivers.get(unassigned_id) %}
+  {% if grouped_drivers.get('unassigned') %}
     <div class="dispatcher-block mb-5"
          data-dispatcher-id="unassigned"
-         data-drivers='{{ grouped_drivers[unassigned_id] | tojson | safe }}'
-         data-loads='{{ all_loads | tojson | safe }}'>
+         data-drivers='{{ grouped_drivers['unassigned'] | tojson | safe }}'
+         data-loads='{{ all_loads | tojson | safe }}'
+         data-breaks='{{ breaks_json }}'>
 
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h5 class="mb-0">Without a dispatcher</h5>
@@ -56,6 +60,7 @@
     </div>
   {% endif %}
 </div>
+
 
 
 <!-- ============== Модалка консолидации грузов ============== -->
