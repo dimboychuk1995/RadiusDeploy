@@ -53,7 +53,6 @@ function initNavigation() {
     'equipment': () => {
       initEquipment?.();
       initAddProductModal();
-      handleVendorFormSubmit();
       loadVendors();
 
     },

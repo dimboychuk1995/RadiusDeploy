@@ -1,12 +1,16 @@
 from flask import request, jsonify, render_template, Blueprint
-from flask_login import login_required
+from flask_login import login_required, current_user
 from datetime import datetime
 from bson import ObjectId
 from tools.db import db
+from flask import current_app
+import os
+from werkzeug.utils import secure_filename
 
 equipment_bp = Blueprint('equipment', __name__)
 
 vendors_collection = db["vendors"]
+equipment_items_collection = db["equipment_items"]
 
 @equipment_bp.route('/fragment/equipment')
 @login_required
@@ -84,3 +88,36 @@ def vendor_details_fragment(vendor_id):
         return "Vendor not found", 404
 
     return render_template("fragments/vendor_details_fragment.html", vendor=vendor)
+
+@equipment_bp.route("/api/equipment/create", methods=["POST"])
+@login_required
+def create_equipment_item():
+    name = request.form.get("name", "").strip()
+    category = request.form.get("category", "").strip()
+    vendor_id = request.form.get("vendor", "").strip()
+    description = request.form.get("description", "").strip()
+
+    if not name:
+        return jsonify({"success": False, "error": "Поле 'name' обязательно"}), 400
+
+    item = {
+        "name": name,
+        "category": category,
+        "vendor_id": ObjectId(vendor_id) if vendor_id else None,
+        "description": description,
+        "created_at": datetime.utcnow(),
+        "created_by": ObjectId(current_user.get_id())
+    }
+
+    # Обработка фото
+    if 'photo' in request.files:
+        photo = request.files['photo']
+        if photo and photo.filename:
+            filename = secure_filename(photo.filename)
+            save_path = os.path.join(current_app.root_path, "static", "uploads", filename)
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            photo.save(save_path)
+            item["photo"] = f"/static/uploads/{filename}"
+
+    result = equipment_items_collection.insert_one(item)
+    return jsonify({"success": True, "item_id": str(result.inserted_id)})

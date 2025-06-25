@@ -18,6 +18,7 @@ function initEquipment() {
 
   // Инициализируем форму добавления вендора
   handleVendorFormSubmit();
+  handleProductFormSubmit();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -224,27 +225,72 @@ function initAddProductModal() {
     const $cat = $('#productCategory');
     const $vendor = $('#productVendor');
 
-    if ($cat.hasClass('select2-hidden-accessible')) {
-      $cat.select2('destroy');
-    }
-    if ($vendor.hasClass('select2-hidden-accessible')) {
-      $vendor.select2('destroy');
-    }
+    if ($cat.hasClass('select2-hidden-accessible')) $cat.select2('destroy');
+    if ($vendor.hasClass('select2-hidden-accessible')) $vendor.select2('destroy');
 
     $cat.select2({
-      theme: 'bootstrap4',
-      tags: true,
+      theme: 'bootstrap-5',
       width: '100%',
-      placeholder: "Выберите или введите категорию",
-      allowClear: true
+      placeholder: 'Выберите категорию',
+      allowClear: true,
+      minimumResultsForSearch: Infinity
     });
 
     $vendor.select2({
-      theme: 'bootstrap4',
-      tags: true,
+      theme: 'bootstrap-5',
       width: '100%',
-      placeholder: "Выберите или введите вендора",
-      allowClear: true
+      placeholder: 'Выберите вендора',
+      allowClear: true,
+      minimumResultsForSearch: Infinity
     });
   });
 }
+
+function handleProductFormSubmit() {
+  const form = document.getElementById('addProductForm');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+
+    try {
+      const res = await fetch('/api/equipment/create', {
+        method: 'POST',
+        body: formData
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
+        modal.hide();
+        form.reset();
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Успешно',
+          text: 'Продукт добавлен',
+          timer: 1500,
+          showConfirmButton: false
+        });
+
+        // TODO: обновить список продуктов если он отрисован
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Ошибка',
+          text: json.error || 'Неизвестная ошибка'
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Ошибка',
+        text: 'Сервер не отвечает'
+      });
+    }
+  });
+}
+

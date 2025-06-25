@@ -106,14 +106,19 @@
           <!-- Category -->
           <div class="mb-3">
             <label for="productCategory" class="form-label">Category</label>
-            <input type="text" class="form-control" id="productCategory" name="category">
+            <select class="form-select" id="productCategory" name="category" required>
+              <option value="">Select category</option>
+              {% for c in categories %}
+                <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
           </div>
 
-          <!-- Primary Vendor -->
+          <!-- Vendor -->
           <div class="mb-3">
-            <label for="productCategory" class="form-label">Primary Vendor</label>
+            <label for="productVendor" class="form-label">Vendor</label>
             <select class="form-select" id="productVendor" name="vendor" required>
-              <option value="">-</option>
+              <option value="">Select vendor</option>
               {% for v in vendors %}
                 <option value="{{ v.id }}">{{ v.name }}</option>
               {% endfor %}
@@ -141,4 +146,3 @@
     </div>
   </div>
 </div>
-
