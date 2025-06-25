@@ -31,6 +31,7 @@ from logbook import logbook
 from ifta import ifta_bp
 from super_dispatch import super_dispatch_bp
 from documents import document_bp
+from equipment import equipment_bp
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -76,6 +77,8 @@ app.register_blueprint(logbook)
 app.register_blueprint(ifta_bp)
 app.register_blueprint(super_dispatch_bp)
 app.register_blueprint(document_bp)
+app.register_blueprint(equipment_bp)
+
 # Главная страница
 @app.route('/')
 def index():
