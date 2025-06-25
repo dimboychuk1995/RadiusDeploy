@@ -15,17 +15,44 @@ equipment_items_collection = db["equipment_items"]
 @equipment_bp.route('/fragment/equipment')
 @login_required
 def equipment_fragment():
-    vendors = list(db.vendors.find({}, {"_id": 1, "name": 1}))
-    for v in vendors:
-        v["id"] = str(v["_id"])
+    raw_vendors = list(db.vendors.find({}, {
+        "_id": 1,
+        "name": 1,
+        "phone": 1,
+        "email": 1,
+        "address": 1,
+        "contact_person": 1
+    }))
+
+    vendor_map = {v["_id"]: v["name"] for v in raw_vendors}
 
     categories = db.equipment_category.distinct("name")
+
+    # Получаем все продукты
+    items = list(db.equipment_items.find())
+    for item in items:
+        item["id"] = str(item["_id"])
+        item["vendor_name"] = vendor_map.get(item.get("vendor_id"), "—")
+
+    # Конвертируем ObjectId в строку в вендорах
+    vendors = []
+    for v in raw_vendors:
+        vendors.append({
+            "id": str(v["_id"]),
+            "name": v.get("name", "—"),
+            "phone": v.get("phone", "—"),
+            "email": v.get("email", "—"),
+            "address": v.get("address", "—"),
+            "contact_person": v.get("contact_person", "—")
+        })
 
     return render_template(
         "fragments/equipment_fragment.html",
         vendors=vendors,
-        categories=categories
+        categories=categories,
+        equipment_items=items
     )
+
 
 
 @equipment_bp.route("/api/vendors/create", methods=["POST"])
@@ -49,21 +76,6 @@ def create_vendor():
 
     result = vendors_collection.insert_one(vendor)
     return jsonify({"success": True, "vendor_id": str(result.inserted_id)})
-
-
-@equipment_bp.route("/api/vendors/list", methods=["GET"])
-@login_required
-def list_vendors():
-    vendors = vendors_collection.find({}, {"name": 1, "phone": 1, "email": 1}).sort("name", 1)
-    result = []
-    for v in vendors:
-        result.append({
-            "id": str(v["_id"]),
-            "name": v.get("name", ""),
-            "phone": v.get("phone", ""),
-            "email": v.get("email", "")
-        })
-    return jsonify({"success": True, "vendors": result})
 
 
 @equipment_bp.route("/api/vendors/<vendor_id>", methods=["DELETE"])

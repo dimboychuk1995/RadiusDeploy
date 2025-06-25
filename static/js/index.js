@@ -53,8 +53,6 @@ function initNavigation() {
     'equipment': () => {
       initEquipment?.();
       initAddProductModal();
-      loadVendors();
-
     },
     'load_stats_fragment': () => loadGeneralStats?.(),
     'safety': () => initSafety?.(),
