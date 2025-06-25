@@ -1,4 +1,26 @@
-<div class="p-3">
-  <h4>🛠️ Equipment</h4>
-  <p class="text-muted">Скоро здесь появится список оборудования...</p>
+<!-- Навигация вкладками -->
+<ul class="nav nav-tabs mb-3" id="equipment-subnav">
+  <li class="nav-item">
+    <button class="nav-link active" data-target="equipment-list">Equipment List</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-target="vendors">Vendors</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-target="purchase-orders">Purchase Orders</button>
+  </li>
+</ul>
+
+<!-- Контент -->
+<div id="equipment-list" class="equipment-subsection">
+  <h5>📦 Equipment List</h5>
+  <p class="text-muted">Список техники будет отображён здесь.</p>
+</div>
+<div id="vendors" class="equipment-subsection" style="display: none;">
+  <h5>🏭 Vendors</h5>
+  <p class="text-muted">Список поставщиков будет отображён здесь.</p>
+</div>
+<div id="purchase-orders" class="equipment-subsection" style="display: none;">
+  <h5>🧾 Purchase Orders</h5>
+  <p class="text-muted">Здесь будут закупки техники.</p>
 </div>
