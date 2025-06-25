@@ -21,6 +21,7 @@ function initEquipment() {
   initAddProductModal();
   initVendorDeleteButtons();
   initVendorDetailsButtons();
+  initProductDeleteButtons();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -151,6 +152,7 @@ function returnToVendorList() {
   document.getElementById('vendors').style.display = 'block';
 }
 
+//добавление продукта модалка
 function initAddProductModal() {
   const modal = document.getElementById('addProductModal');
   if (!modal) return;
@@ -227,3 +229,58 @@ function handleProductFormSubmit() {
     }
   });
 }
+
+function initProductDeleteButtons() {
+  document.querySelectorAll('.btn-product-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      Swal.fire({
+        title: 'Удалить продукт?',
+        text: 'Это действие необратимо и удалит фото, если оно есть.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Удалить',
+        cancelButtonText: 'Отмена'
+      }).then(result => {
+        if (result.isConfirmed) {
+          deleteProduct(id);
+        }
+      });
+    });
+  });
+}
+
+async function deleteProduct(id) {
+  try {
+    const res = await fetch(`/api/equipment/${id}`, {
+      method: 'DELETE'
+    });
+
+    const json = await res.json();
+
+    if (json.success) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Удалено',
+        text: 'Продукт удалён',
+        timer: 1500,
+        showConfirmButton: false
+      });
+      location.reload();
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Ошибка',
+        text: json.error || 'Не удалось удалить продукт'
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: 'error',
+      title: 'Ошибка',
+      text: 'Сервер не отвечает'
+    });
+  }
+}
+

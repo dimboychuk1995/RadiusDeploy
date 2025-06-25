@@ -15,6 +15,7 @@ equipment_items_collection = db["equipment_items"]
 @equipment_bp.route('/fragment/equipment')
 @login_required
 def equipment_fragment():
+    # Загружаем вендоров
     raw_vendors = list(db.vendors.find({}, {
         "_id": 1,
         "name": 1,
@@ -23,18 +24,25 @@ def equipment_fragment():
         "address": 1,
         "contact_person": 1
     }))
+    vendor_map = {str(v["_id"]): v["name"] for v in raw_vendors}
 
-    vendor_map = {v["_id"]: v["name"] for v in raw_vendors}
-
+    # Загружаем категории
     categories = db.equipment_category.distinct("name")
 
-    # Получаем все продукты
-    items = list(db.equipment_items.find())
+    # Загружаем продукты
+    items = list(db.equipment_items.find({}, {
+        "name": 1,
+        "category": 1,
+        "vendor_id": 1,
+        "price": 1
+    }))
     for item in items:
         item["id"] = str(item["_id"])
-        item["vendor_name"] = vendor_map.get(item.get("vendor_id"), "—")
+        vendor_id = item.get("vendor_id")
+        item["vendor_name"] = vendor_map.get(str(vendor_id)) if vendor_id else "—"
+        item["price"] = item.get("price", "—")
 
-    # Конвертируем ObjectId в строку в вендорах
+    # Приводим вендоров к фронтовому формату
     vendors = []
     for v in raw_vendors:
         vendors.append({
@@ -133,3 +141,32 @@ def create_equipment_item():
 
     result = equipment_items_collection.insert_one(item)
     return jsonify({"success": True, "item_id": str(result.inserted_id)})
+
+@equipment_bp.route("/api/equipment/<item_id>", methods=["DELETE"])
+@login_required
+def delete_equipment_item(item_id):
+    try:
+        obj_id = ObjectId(item_id)
+        item = equipment_items_collection.find_one({"_id": obj_id})
+        if not item:
+            return jsonify({"success": False, "error": "Продукт не найден"}), 404
+
+        # Удаляем фото, если есть
+        if "photo" in item and item["photo"]:
+            photo_path = item["photo"].lstrip("/")  # Убираем ведущий слэш
+            full_path = os.path.join(current_app.root_path, photo_path)
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                except Exception as file_err:
+                    # Фото не удалось удалить — логируем, но не блокируем удаление
+                    current_app.logger.warning(f"Не удалось удалить фото: {full_path} — {file_err}")
+
+        # Удаляем сам документ
+        result = equipment_items_collection.delete_one({"_id": obj_id})
+        if result.deleted_count == 1:
+            return jsonify({"success": True})
+
+        return jsonify({"success": False, "error": "Не удалось удалить продукт"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400
