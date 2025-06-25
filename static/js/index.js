@@ -50,7 +50,11 @@ function initNavigation() {
       initFleetUnitClicks?.();
       loadFleetCharts?.();
     },
-    'equipment': () => initEquipment?.(),
+    'equipment': () => {
+      initEquipment?.();
+      handleVendorFormSubmit();
+      loadVendors();
+    },
     'load_stats_fragment': () => loadGeneralStats?.(),
     'safety': () => initSafety?.(),
     'safety_ifta': () => initIFTA?.(),

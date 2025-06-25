@@ -16,11 +16,73 @@
   <h5>📦 Equipment List</h5>
   <p class="text-muted">Список техники будет отображён здесь.</p>
 </div>
+
+
+
+
 <div id="vendors" class="equipment-subsection" style="display: none;">
-  <h5>🏭 Vendors</h5>
-  <p class="text-muted">Список поставщиков будет отображён здесь.</p>
+
+  <div id="vendors" class="equipment-subsection" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">🏭 Vendors</h5>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addVendorModal">
+          <i class="fas fa-plus me-1"></i> Добавить вендора
+        </button>
+      </div>
+
+      <div id="vendorListContainer">
+        <p class="text-muted">Загрузка...</p>
+      </div>
+  </div>
+
 </div>
+
+
+
+
 <div id="purchase-orders" class="equipment-subsection" style="display: none;">
   <h5>🧾 Purchase Orders</h5>
   <p class="text-muted">Здесь будут закупки техники.</p>
 </div>
+
+
+<!-- Модалка добавления вендора -->
+<div class="modal fade" id="addVendorModal" tabindex="-1" aria-labelledby="addVendorModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="addVendorForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addVendorModalLabel">Добавить вендора</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="vendorName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="vendorName" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label for="vendorPhone" class="form-label">Phone</label>
+            <input type="tel" class="form-control" id="vendorPhone" name="phone">
+          </div>
+          <div class="mb-3">
+            <label for="vendorEmail" class="form-label">Email</label>
+            <input type="email" class="form-control" id="vendorEmail" name="email">
+          </div>
+          <div class="mb-3">
+            <label for="vendorContactPerson" class="form-label">Contact Person</label>
+            <input type="text" class="form-control" id="vendorContactPerson" name="contact_person">
+          </div>
+          <div class="mb-3">
+            <label for="vendorAddress" class="form-label">Address</label>
+            <textarea class="form-control" id="vendorAddress" name="address" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
