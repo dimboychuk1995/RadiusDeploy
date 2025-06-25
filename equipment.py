@@ -13,6 +13,7 @@ equipment_bp = Blueprint('equipment', __name__)
 
 vendors_collection = db["vendors"]
 equipment_items_collection = db["equipment_items"]
+purchase_orders_collection = db["purchase_orders"]
 
 @equipment_bp.route('/fragment/equipment')
 @login_required
@@ -208,3 +209,52 @@ def product_details_fragment(item_id):
 
     except Exception as e:
         return f"Ошибка: {str(e)}", 400
+
+@equipment_bp.route("/api/purchase_orders/create", methods=["POST"])
+@login_required
+def create_purchase_order():
+    vendor_id = request.form.get("vendor_id")
+    product_ids = request.form.getlist("products[]")
+    prices = request.form.getlist("prices[]")
+    paid = request.form.get("paid") == "on"
+
+    if not vendor_id or not product_ids:
+        return jsonify({"success": False, "error": "Vendor и хотя бы один продукт обязательны"}), 400
+
+    products = []
+    for pid, price in zip(product_ids, prices):
+        price = price.strip()
+        products.append({
+            "product_id": ObjectId(pid),
+            "price": price or None
+        })
+
+        # Если цена указана — обновляем её у продукта
+        if price:
+            db.equipment_items.update_one(
+                {"_id": ObjectId(pid)},
+                {"$set": {"price": price}}
+            )
+
+    order = {
+        "vendor_id": ObjectId(vendor_id),
+        "products": products,
+        "paid": paid,
+        "created_by": ObjectId(current_user.get_id()),
+        "created_at": datetime.utcnow()
+    }
+
+    # Фото
+    if 'photo' in request.files:
+        photo = request.files['photo']
+        if photo and photo.filename:
+            filename = secure_filename(photo.filename)
+            unique_prefix = uuid.uuid4().hex[:12]
+            filename = f"{unique_prefix}_{filename}"
+            path = os.path.join(current_app.root_path, "static", "uploads", filename)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            photo.save(path)
+            order["photo"] = f"/static/uploads/{filename}"
+
+    result = purchase_orders_collection.insert_one(order)
+    return jsonify({"success": True, "order_id": str(result.inserted_id)})

@@ -107,7 +107,12 @@
 
 
 <div id="purchase-orders" class="equipment-subsection" style="display: none;">
-  <h5>🧾 Purchase Orders</h5>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">🧾 Purchase Orders</h5>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createPurchaseOrderModal">
+      <i class="fas fa-plus me-1"></i> Create Purchase Order
+    </button>
+  </div>
   <p class="text-muted">Здесь будут закупки техники.</p>
 </div>
 
@@ -212,3 +217,78 @@
     </div>
   </div>
 </div>
+
+
+<!-- 📦 Модалка создания Purchase Order -->
+<div class="modal fade" id="createPurchaseOrderModal" tabindex="-1" aria-labelledby="createPurchaseOrderModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form id="purchaseOrderForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createPurchaseOrderModalLabel">Create Purchase Order</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Вендор -->
+          <div class="mb-3">
+            <label for="poVendor" class="form-label">Vendor</label>
+            <select class="form-select" id="poVendor" name="vendor_id" required>
+              <option value="">Select vendor</option>
+              {% for v in vendors %}
+                <option value="{{ v.id }}">{{ v.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Продукты -->
+          <div class="mb-3">
+            <label class="form-label">Products</label>
+
+            <!-- Контейнер для динамически добавляемых продуктов -->
+            <div id="po-products-container"></div>
+
+            <!-- Кнопка добавления строки -->
+            <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-po-product">
+              <i class="fas fa-plus"></i> Add Product
+            </button>
+
+            <!-- Шаблон строки (disabled и без required) -->
+            <div id="po-product-template" class="d-none">
+              <div class="po-product-row d-flex align-items-center mb-2">
+                <select class="form-select me-2 po-product-select" name="products[]" style="max-width: 250px;" disabled>
+                  <option value="">Select product</option>
+                  {% for p in equipment_items %}
+                    <option value="{{ p.id }}" data-price="{{ p.price or '' }}">{{ p.name }}</option>
+                  {% endfor %}
+                </select>
+                <input type="text" class="form-control me-2 po-product-price" name="prices[]" placeholder="Price" style="width: 100px;" disabled>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-po-product">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Фото -->
+          <div class="mb-3">
+            <label for="poPhoto" class="form-label">Attach photo</label>
+            <input type="file" class="form-control" id="poPhoto" name="photo" accept="image/*">
+          </div>
+
+          <!-- Оплачено -->
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="poPaid" name="paid">
+            <label class="form-check-label" for="poPaid">Paid</label>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+

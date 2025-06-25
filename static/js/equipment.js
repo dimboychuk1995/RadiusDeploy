@@ -23,6 +23,8 @@ function initEquipment() {
   initVendorDetailsButtons();
   initProductDeleteButtons();
   initProductDetailsButtons();
+  initPurchaseOrderModal();
+  handlePurchaseOrderFormSubmit();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -306,3 +308,108 @@ function returnToProductList() {
   document.getElementById('product-details').style.display = 'none';
   document.getElementById('equipment-list').style.display = 'block';
 }
+
+function initPurchaseOrderModal() {
+  const container = document.getElementById('po-products-container');
+  const addBtn = document.getElementById('add-po-product');
+  const template = document.getElementById('po-product-template');
+
+  if (!container || !addBtn || !template) return;
+
+  const rowTemplate = template.firstElementChild;
+
+  addBtn.addEventListener('click', () => {
+    const clone = rowTemplate.cloneNode(true);
+    container.appendChild(clone);
+
+    const select = clone.querySelector('.po-product-select');
+    const priceInput = clone.querySelector('.po-product-price');
+
+    // ✅ Снимаем disabled и проставляем required
+    select.disabled = false;
+    select.required = true;
+    priceInput.disabled = false;
+
+    // При выборе продукта — автозаполнение цены
+    select.addEventListener('change', () => {
+      const selected = select.selectedOptions[0];
+      const price = selected.dataset.price || '—';
+      priceInput.value = price;
+    });
+
+    // Удаление строки
+    clone.querySelector('.remove-po-product').addEventListener('click', () => {
+      clone.remove();
+    });
+  });
+}
+
+function handlePurchaseOrderFormSubmit() {
+  const form = document.getElementById('purchaseOrderForm');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Удаляем пустые product-строки
+    document.querySelectorAll('.po-product-row').forEach(row => {
+      const select = row.querySelector('.po-product-select');
+      if (!select.value) row.remove();
+    });
+
+    // Проверка: остались ли продукты
+    const remaining = document.querySelectorAll('.po-product-row');
+    if (remaining.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Нет выбранных продуктов',
+        text: 'Добавьте хотя бы один продукт с ценой перед сохранением.'
+      });
+      return;
+    }
+
+    const formData = new FormData(form);
+
+    try {
+      const res = await fetch('/api/purchase_orders/create', {
+        method: 'POST',
+        body: formData
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('createPurchaseOrderModal'));
+        modal.hide();
+        form.reset();
+
+        // Очищаем список продуктов вручную
+        document.getElementById('po-products-container').innerHTML = '';
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Created',
+          text: 'Purchase Order сохранён',
+          timer: 1500,
+          showConfirmButton: false
+        });
+
+        location.reload();
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Ошибка',
+          text: json.error || 'Не удалось создать заказ'
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Ошибка',
+        text: 'Сервер не отвечает'
+      });
+    }
+  });
+}
+
+
