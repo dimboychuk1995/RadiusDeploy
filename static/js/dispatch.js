@@ -677,7 +677,7 @@ async function openDriverMapModal(driverId) {
     map.fitBounds(bounds, { padding: 60 });
 
   } catch (err) {
-    console.error('🌐 Ошибка загрузки карты:', err);
+    console.error('🌐 Ошибка загрузки карты  :', err);
     mapContainer.innerHTML = `<div class="text-danger p-3">Ошибка загрузки данных</div>`;
   }
 }
