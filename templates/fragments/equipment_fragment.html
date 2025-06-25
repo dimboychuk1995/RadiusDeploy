@@ -12,39 +12,32 @@
 </ul>
 
 <!-- Контент -->
+
 <div id="equipment-list" class="equipment-subsection">
   <h5>📦 Equipment List</h5>
   <p class="text-muted">Список техники будет отображён здесь.</p>
 </div>
 
-
-
-
 <div id="vendors" class="equipment-subsection" style="display: none;">
-
-  <div id="vendors" class="equipment-subsection" style="display: none;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">🏭 Vendors</h5>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addVendorModal">
-          <i class="fas fa-plus me-1"></i> Добавить вендора
-        </button>
-      </div>
-
-      <div id="vendorListContainer">
-        <p class="text-muted">Загрузка...</p>
-      </div>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">🏭 Vendors</h5>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addVendorModal">
+      <i class="fas fa-plus me-1"></i> Добавить вендора
+    </button>
   </div>
 
+  <div id="vendorListContainer">
+    <p class="text-muted">Загрузка...</p>
+  </div>
 </div>
 
-
-
+<!-- 🔍 Секция деталей вендора — отдельная -->
+<div id="vendor-details" class="equipment-subsection" style="display: none;"></div>
 
 <div id="purchase-orders" class="equipment-subsection" style="display: none;">
   <h5>🧾 Purchase Orders</h5>
   <p class="text-muted">Здесь будут закупки техники.</p>
 </div>
-
 
 <!-- Модалка добавления вендора -->
 <div class="modal fade" id="addVendorModal" tabindex="-1" aria-labelledby="addVendorModalLabel" aria-hidden="true">

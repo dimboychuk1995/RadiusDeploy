@@ -158,11 +158,17 @@ async function loadVendors() {
     document.querySelectorAll('.btn-vendor-details').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
-        Swal.fire({
-          title: 'Детали',
-          text: `Показать детали вендора с ID: ${id}`,
-          icon: 'info'
-        });
+        fetch(`/fragment/vendor/${id}`)
+          .then(res => res.text())
+          .then(html => {
+            // Показываем фрагмент
+            const detailsBlock = document.getElementById('vendor-details');
+            detailsBlock.innerHTML = html;
+            detailsBlock.style.display = 'block';
+
+            // Скрываем список вендоров
+            document.getElementById('vendors').style.display = 'none';
+          });
       });
     });
 
@@ -203,3 +209,10 @@ async function deleteVendor(id) {
     });
   }
 }
+
+function returnToVendorList() {
+  document.getElementById('vendor-details').style.display = 'none';
+  document.getElementById('vendors').style.display = 'block';
+}
+
+

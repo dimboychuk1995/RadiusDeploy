@@ -63,3 +63,14 @@ def delete_vendor(vendor_id):
         return jsonify({"success": False, "error": "Вендор не найден"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
+@equipment_bp.route("/fragment/vendor/<vendor_id>")
+@login_required
+def vendor_details_fragment(vendor_id):
+    from bson import ObjectId
+
+    vendor = vendors_collection.find_one({"_id": ObjectId(vendor_id)})
+    if not vendor:
+        return "Vendor not found", 404
+
+    return render_template("fragments/vendor_details_fragment.html", vendor=vendor)

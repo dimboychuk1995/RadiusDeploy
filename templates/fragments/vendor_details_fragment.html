@@ -1,0 +1,10 @@
+<div class="p-3 border rounded bg-light">
+  <h4>🏭 {{ vendor.name }}</h4>
+  <ul class="list-unstyled">
+    <li><strong>Phone:</strong> {{ vendor.phone or '—' }}</li>
+    <li><strong>Email:</strong> {{ vendor.email or '—' }}</li>
+    <li><strong>Contact Person:</strong> {{ vendor.contact_person or '—' }}</li>
+    <li><strong>Address:</strong> {{ vendor.address or '—' }}</li>
+  </ul>
+  <button class="btn btn-secondary mt-3" onclick="returnToVendorList()">← Назад</button>
+</div>
