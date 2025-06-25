@@ -52,7 +52,6 @@ function initNavigation() {
     },
     'equipment': () => {
       initEquipment?.();
-      initAddProductModal();
     },
     'load_stats_fragment': () => loadGeneralStats?.(),
     'safety': () => initSafety?.(),

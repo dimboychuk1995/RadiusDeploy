@@ -22,6 +22,7 @@ function initEquipment() {
   initVendorDeleteButtons();
   initVendorDetailsButtons();
   initProductDeleteButtons();
+  initProductDetailsButtons();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -284,3 +285,24 @@ async function deleteProduct(id) {
   }
 }
 
+
+function initProductDetailsButtons() {
+  document.querySelectorAll('.btn-product-details').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      fetch(`/fragment/equipment/${id}`)
+        .then(res => res.text())
+        .then(html => {
+          const detailsBlock = document.getElementById('product-details');
+          detailsBlock.innerHTML = html;
+          detailsBlock.style.display = 'block';
+          document.getElementById('equipment-list').style.display = 'none';
+        });
+    });
+  });
+}
+
+function returnToProductList() {
+  document.getElementById('product-details').style.display = 'none';
+  document.getElementById('equipment-list').style.display = 'block';
+}

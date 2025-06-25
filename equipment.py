@@ -1,3 +1,5 @@
+import uuid
+
 from flask import request, jsonify, render_template, Blueprint
 from flask_login import login_required, current_user
 from datetime import datetime
@@ -61,8 +63,6 @@ def equipment_fragment():
         equipment_items=items
     )
 
-
-
 @equipment_bp.route("/api/vendors/create", methods=["POST"])
 @login_required
 def create_vendor():
@@ -109,6 +109,7 @@ def vendor_details_fragment(vendor_id):
 
     return render_template("fragments/vendor_details_fragment.html", vendor=vendor)
 
+
 @equipment_bp.route("/api/equipment/create", methods=["POST"])
 @login_required
 def create_equipment_item():
@@ -116,6 +117,7 @@ def create_equipment_item():
     category = request.form.get("category", "").strip()
     vendor_id = request.form.get("vendor", "").strip()
     description = request.form.get("description", "").strip()
+    price = request.form.get("price", "").strip()
 
     if not name:
         return jsonify({"success": False, "error": "Поле 'name' обязательно"}), 400
@@ -125,15 +127,26 @@ def create_equipment_item():
         "category": category,
         "vendor_id": ObjectId(vendor_id) if vendor_id else None,
         "description": description,
+        "price": price,
         "created_at": datetime.utcnow(),
         "created_by": ObjectId(current_user.get_id())
     }
+
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+    def allowed_file(filename):
+        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
     # Обработка фото
     if 'photo' in request.files:
         photo = request.files['photo']
         if photo and photo.filename:
+            if not allowed_file(photo.filename):
+                return jsonify({"success": False, "error": "Разрешены только изображения JPG, PNG, WEBP"}), 400
+
             filename = secure_filename(photo.filename)
+            unique_prefix = uuid.uuid4().hex[:12]
+            filename = f"{unique_prefix}_{filename}"
             save_path = os.path.join(current_app.root_path, "static", "uploads", filename)
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             photo.save(save_path)
@@ -141,6 +154,7 @@ def create_equipment_item():
 
     result = equipment_items_collection.insert_one(item)
     return jsonify({"success": True, "item_id": str(result.inserted_id)})
+
 
 @equipment_bp.route("/api/equipment/<item_id>", methods=["DELETE"])
 @login_required
@@ -170,3 +184,27 @@ def delete_equipment_item(item_id):
         return jsonify({"success": False, "error": "Не удалось удалить продукт"}), 500
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
+
+@equipment_bp.route("/fragment/equipment/<item_id>")
+@login_required
+def product_details_fragment(item_id):
+    try:
+        obj_id = ObjectId(item_id)
+        product = equipment_items_collection.find_one({"_id": obj_id})
+        if not product:
+            return "Product not found", 404
+
+        # Подтягиваем имя вендора
+        vendor = vendors_collection.find_one({"_id": product.get("vendor_id")})
+        product["vendor_name"] = vendor["name"] if vendor else "—"
+
+        # Преобразуем поля
+        product["id"] = str(product["_id"])
+        product["created_at"] = product.get("created_at")
+        product["photo"] = product.get("photo", None)
+
+        return render_template("fragments/eq_products_details_fragment.html", product=product)
+
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 400
