@@ -216,3 +216,35 @@ function returnToVendorList() {
 }
 
 
+function initAddProductModal() {
+  const modal = document.getElementById('addProductModal');
+  if (!modal) return;
+
+  modal.addEventListener('shown.bs.modal', () => {
+    const $cat = $('#productCategory');
+    const $vendor = $('#productVendor');
+
+    if ($cat.hasClass('select2-hidden-accessible')) {
+      $cat.select2('destroy');
+    }
+    if ($vendor.hasClass('select2-hidden-accessible')) {
+      $vendor.select2('destroy');
+    }
+
+    $cat.select2({
+      theme: 'bootstrap4',
+      tags: true,
+      width: '100%',
+      placeholder: "Выберите или введите категорию",
+      allowClear: true
+    });
+
+    $vendor.select2({
+      theme: 'bootstrap4',
+      tags: true,
+      width: '100%',
+      placeholder: "Выберите или введите вендора",
+      allowClear: true
+    });
+  });
+}

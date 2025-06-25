@@ -14,8 +14,14 @@
 <!-- Контент -->
 
 <div id="equipment-list" class="equipment-subsection">
-  <h5>📦 Equipment List</h5>
-  <p class="text-muted">Список техники будет отображён здесь.</p>
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">📦 Equipment List</h5>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+        <i class="fas fa-plus me-1"></i> Add Product
+      </button>
+
+    </div>
 </div>
 
 <div id="vendors" class="equipment-subsection" style="display: none;">
@@ -73,6 +79,63 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
           <button type="submit" class="btn btn-primary">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<!-- Модалка добавления продукта -->
+<div class="modal fade" id="addProductModal" tabindex="-1" aria-labelledby="addProductModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="addProductForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addProductModalLabel">Add Product</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Name -->
+          <div class="mb-3">
+            <label for="productName" class="form-label">Name</label>
+            <input type="text" class="form-control" id="productName" name="name" required>
+          </div>
+
+          <!-- Category -->
+          <div class="mb-3">
+            <label for="productCategory" class="form-label">Category</label>
+            <input type="text" class="form-control" id="productCategory" name="category">
+          </div>
+
+          <!-- Primary Vendor -->
+          <div class="mb-3">
+            <label for="productCategory" class="form-label">Primary Vendor</label>
+            <select class="form-select" id="productVendor" name="vendor" required>
+              <option value="">-</option>
+              {% for v in vendors %}
+                <option value="{{ v.id }}">{{ v.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Description -->
+          <div class="mb-3">
+            <label for="productDescription" class="form-label">Description</label>
+            <textarea class="form-control" id="productDescription" name="description" rows="2"></textarea>
+          </div>
+
+          <!-- Photo -->
+          <div class="mb-3">
+            <label for="productPhoto" class="form-label">Photo</label>
+            <input type="file" class="form-control" id="productPhoto" name="photo" accept="image/*">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
     </div>

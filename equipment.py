@@ -8,10 +8,20 @@ equipment_bp = Blueprint('equipment', __name__)
 
 vendors_collection = db["vendors"]
 
-@equipment_bp.route("/fragment/equipment")
+@equipment_bp.route('/fragment/equipment')
 @login_required
 def equipment_fragment():
-    return render_template("fragments/equipment_fragment.html")
+    vendors = list(db.vendors.find({}, {"_id": 1, "name": 1}))
+    for v in vendors:
+        v["id"] = str(v["_id"])
+
+    categories = db.equipment_category.distinct("name")
+
+    return render_template(
+        "fragments/equipment_fragment.html",
+        vendors=vendors,
+        categories=categories
+    )
 
 
 @equipment_bp.route("/api/vendors/create", methods=["POST"])

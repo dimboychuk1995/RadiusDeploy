@@ -1,10 +1,57 @@
-<div class="p-3 border rounded bg-light">
-  <h4>🏭 {{ vendor.name }}</h4>
-  <ul class="list-unstyled">
-    <li><strong>Phone:</strong> {{ vendor.phone or '—' }}</li>
-    <li><strong>Email:</strong> {{ vendor.email or '—' }}</li>
-    <li><strong>Contact Person:</strong> {{ vendor.contact_person or '—' }}</li>
-    <li><strong>Address:</strong> {{ vendor.address or '—' }}</li>
-  </ul>
-  <button class="btn btn-secondary mt-3" onclick="returnToVendorList()">← Назад</button>
+<div class="container py-4">
+  <h3 class="fw-bold text-brown mb-4">{{ vendor.name }}</h3>
+
+  <div class="row">
+    <!-- Левая колонка -->
+    <div class="col-md-6">
+      <div class="mb-3">
+        <strong>Name</strong><br>
+        <span class="text-muted">{{ vendor.contact_person or '—' }}</span>
+      </div>
+      <div class="mb-3">
+        <strong>Phone</strong><br>
+        <span class="text-muted">{{ vendor.phone or '—' }}</span>
+      </div>
+      <div class="mb-3">
+        <strong>Address</strong><br>
+        <span class="text-muted">{{ vendor.address or '—' }}</span>
+      </div>
+      <div class="mb-3">
+        <strong>Payment term</strong><br>
+        <span class="text-muted">{{ vendor.payment_term or '—' }}</span>
+      </div>
+      <div class="mb-3">
+        <strong>Remarks</strong><br>
+        <span class="text-muted">{{ vendor.remarks or '—' }}</span>
+      </div>
+    </div>
+
+    <!-- Правая колонка -->
+    <div class="col-md-6">
+      <div class="mb-3">
+        <strong>Email</strong><br>
+        <span class="text-muted">{{ vendor.email or '—' }}</span>
+      </div>
+      <div class="mb-3">
+        <strong>Website</strong><br>
+        <span class="text-muted">{{ vendor.website or 'Enter website' }}</span>
+      </div>
+
+      <!-- Блок баланса -->
+      <div class="bg-light rounded p-3 mt-4" style="max-width: 300px;">
+        <div class="d-flex justify-content-between">
+          <span><strong>Balance</strong> <i class="fas fa-question-circle text-muted" title="Общий баланс"></i></span>
+          <span class="text-muted">$0.00</span>
+        </div>
+        <div class="d-flex justify-content-between mt-2">
+          <span><strong>Credit</strong></span>
+          <span class="text-muted">$0.00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-outline-secondary mt-4" onclick="returnToVendorList()">
+    <i class="fas fa-arrow-left me-1"></i> Назад
+  </button>
 </div>
