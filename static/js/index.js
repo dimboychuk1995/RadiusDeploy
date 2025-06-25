@@ -50,6 +50,7 @@ function initNavigation() {
       initFleetUnitClicks?.();
       loadFleetCharts?.();
     },
+    'equipment': () => initEquipment?.(),
     'load_stats_fragment': () => loadGeneralStats?.(),
     'safety': () => initSafety?.(),
     'safety_ifta': () => initIFTA?.(),
@@ -120,7 +121,8 @@ function initNavigation() {
     { arrowId: "loadsDropdownArrow", submenuId: "loadsSubmenu" },
     { arrowId: "samsaraDropdownArrow", submenuId: "samsaraSubmenu" },
     { arrowId: "safetyDropdownArrow", submenuId: "safetySubmenu" },
-    { arrowId: "fuelCardsDropdownArrow", submenuId: "fuelCardsSubmenu" }  // <-- добавлено
+    { arrowId: "fuelCardsDropdownArrow", submenuId: "fuelCardsSubmenu" },
+    { arrowId: "fleetDropdownArrow", submenuId: "fleetSubmenu" }// <-- добавлено
   ]
       .forEach(({ arrowId, submenuId }) => {
     const arrow = document.getElementById(arrowId);
