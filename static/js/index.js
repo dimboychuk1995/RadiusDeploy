@@ -17,6 +17,7 @@ function initNavigation() {
       bindWeekSwitchers();
     },
     'dispatch_brokers': () => initBrokerCustomerSection?.(),
+    'dispatch_schedule': () => initDispatchSchedule?.(),
     'accounting': () => initAccountingButtons?.(),
     'statements': () => {
       initStatementEvents?.();
