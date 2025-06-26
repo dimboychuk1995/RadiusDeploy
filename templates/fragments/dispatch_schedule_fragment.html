@@ -22,13 +22,13 @@
     </tr>
 
     <!-- Водители диспетчера -->
-    <tr class="driver-row" data-dispatcher="d1">
+    <tr class="driver-row" data-dispatcher="d1" data-driver-id="driver1">
       <td>Stepan Forochivski</td><td>586-453-6849</td><td>2398</td><td>UWC 2072</td>
       <td>ELYSBURG PA</td><td>Auburn, NY</td><td>Winston-Salem, NC</td><td>Buffalo, NY</td>
       <td>Kewadin, MI</td><td>></td><td>></td>
     </tr>
 
-    <tr class="driver-row" data-dispatcher="d1">
+    <tr class="driver-row" data-dispatcher="d1" data-driver-id="driver2">
       <td>Mykhaylo Khromyak</td><td>609-356-9823</td><td>7020</td><td>SKF 8101</td>
       <td>Highland, IL</td><td>Kenova WV</td><td>Johnstown, NY</td><td>Erie, PA</td>
       <td>La Crosse, WI</td><td>EAST DUNDEE IL</td><td></td>
@@ -39,7 +39,7 @@
       <td colspan="11">Alex K ext 104 (708-722-4750)</td>
     </tr>
 
-    <tr class="driver-row" data-dispatcher="d2">
+    <tr class="driver-row" data-dispatcher="d2" data-driver-id="driver3">
       <td>Vasyl Shynker</td><td>773-691-9935</td><td>2205</td><td>UWC 2074</td>
       <td>E Dundee IL</td><td>ROCHESTER, NY</td><td>La Vergne, TN</td><td>Omaha, NE</td>
       <td>Navarre, OH</td><td></td><td></td>
@@ -47,3 +47,47 @@
 
   </tbody>
 </table>
+
+<!-- Контекстное меню -->
+<div id="driverContextMenu" class="dropdown-menu" style="position: absolute; display: none; z-index: 9999;">
+  <button class="dropdown-item" id="setBreakBtn">Назначить брейк</button>
+  <button class="dropdown-item" id="showOnMapBtn">Водитель на карте</button>
+</div>
+
+
+<!-- ============== Модалка назначения брейка водителю ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverBreakModalDispatch">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Назначить перерыв водителю</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeDriverBreakModalDispatch()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left" style="width: 100%;">
+          <form id="driverBreakFormDispatch">
+            <div class="mb-3">
+              <label for="breakReasonDispatch" class="form-label">Причина</label>
+              <select id="breakReasonDispatch" class="form-select">
+                <option value="Ремонт">Ремонт</option>
+                <option value="Отпуск">Отпуск</option>
+                <option value="Выходные">Выходные</option>
+                <option value="Supervision">Supervision</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="breakDateRangeDispatch" class="form-label">Диапазон дат</label>
+              <input type="text" id="breakDateRangeDispatch" class="form-control" placeholder="Выберите даты">
+            </div>
+            <div class="text-end mt-4">
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Затемнение -->
+<div class="custom-offcanvas-backdrop" id="driverBreakBackdropDispatch" onclick="closeDriverBreakModalDispatch()"></div>
