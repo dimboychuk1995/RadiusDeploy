@@ -1,18 +1,37 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request
 from flask_login import login_required
 from tools.db import db  # путь подстрой под свой
 from bson import ObjectId
 
 dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 
+from datetime import datetime, timedelta
+
+
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
 def dispatch_schedule_fragment():
+    # Получаем дату начала и конца недели из query-параметров
+    start_str = request.args.get("start")
+    end_str = request.args.get("end")
+
+    if start_str and end_str:
+        start_of_week = datetime.strptime(start_str, "%Y-%m-%d").date()
+        end_of_week = datetime.strptime(end_str, "%Y-%m-%d").date()
+    else:
+        today = datetime.utcnow().date()
+        start_of_week = today - timedelta(days=today.weekday())  # Monday
+        end_of_week = start_of_week + timedelta(days=6)
+
+    current_week_dates = [start_of_week + timedelta(days=i) for i in range(7)]
+
     # Получаем диспетчеров
     dispatchers = list(db.users.find({"role": "dispatch"}, {
         "_id": 1,
         "username": 1
     }))
+    for dispatcher in dispatchers:
+        dispatcher["id"] = str(dispatcher.pop("_id"))
 
     # Получаем водителей
     drivers = list(db.drivers.find({}, {
@@ -29,21 +48,13 @@ def dispatch_schedule_fragment():
         "_id": 1,
         "unit_number": 1
     }))
-
-    # Преобразуем ObjectId → str
-    for dispatcher in dispatchers:
-        dispatcher["id"] = str(dispatcher.pop("_id"))
-
     for truck in trucks:
         truck["id"] = str(truck.pop("_id"))
-
-    # Мапа: truck_id (str) → truck объект
     truck_map = {truck["id"]: truck for truck in trucks}
 
-    # Привязка трака к водителю
+    # Привязка траков к водителям
     for driver in drivers:
         driver["id"] = str(driver.pop("_id"))
-
         if driver.get("dispatcher"):
             driver["dispatcher"] = str(driver["dispatcher"])
 
@@ -56,22 +67,54 @@ def dispatch_schedule_fragment():
             driver["truck"] = None
             driver["truck_info"] = {}
 
-    # Отладка
-    print("\n=== TRUCK MAP ===")
-    for k, v in truck_map.items():
-        print(f"Truck ID: {k} → Unit: {v.get('unit_number')}")
-
-    print("\n=== DRIVERS ===")
-    for d in drivers:
-        unit = d["truck_info"].get("unit_number", "—")
-        print(f"{d['name']} → truck: {d.get('truck')} → Unit: {unit}")
-
-    # Грузы пока игнорируем
+    # Получаем грузы
+    all_loads = list(db.loads.find({}))
     loads = []
+    driver_delivery_map = {}
+
+    def parse_city_state(address):
+        if not address:
+            return None, None
+        try:
+            parts = address.split(',')
+            city = parts[-2].strip() if len(parts) >= 2 else ''
+            state_zip = parts[-1].strip()
+            state = state_zip.split()[0] if state_zip else ''
+            return city, state
+        except Exception:
+            return None, None
+
+    for load in all_loads:
+        delivery_info = None
+        if isinstance(load.get("extra_delivery"), list) and load["extra_delivery"]:
+            delivery_info = load["extra_delivery"][-1]
+        elif load.get("delivery"):
+            delivery_info = load["delivery"]
+
+        if not delivery_info:
+            continue
+
+        date_str = delivery_info.get("date", "").strip()
+        try:
+            delivery_date = datetime.strptime(date_str, "%m/%d/%Y").date()
+            if not (start_of_week <= delivery_date <= end_of_week):
+                continue
+        except Exception as e:
+            print(f"Invalid delivery date '{date_str}' in load {load.get('_id')}: {e}")
+            continue
+
+        driver_id = str(load.get("assigned_driver"))
+        address = delivery_info.get("address", "")
+        city, state = parse_city_state(address)
+        location_str = f"{city}, {state}" if city and state else address
+        driver_delivery_map[(driver_id, date_str)] = location_str
+        loads.append(load)
 
     return render_template("fragments/dispatch_schedule_fragment.html",
                            page_id="dispatch-table",
                            dispatchers=dispatchers,
                            drivers=drivers,
                            trucks=trucks,
-                           loads=loads)
+                           loads=loads,
+                           current_week_dates=current_week_dates,
+                           driver_delivery_map=driver_delivery_map)
