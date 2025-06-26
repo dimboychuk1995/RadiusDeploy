@@ -250,16 +250,12 @@
           <!-- Продукты -->
           <div class="mb-3">
             <label class="form-label">Products</label>
-
-            <!-- Контейнер для динамически добавляемых продуктов -->
             <div id="po-products-container"></div>
-
-            <!-- Кнопка добавления строки -->
             <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-po-product">
               <i class="fas fa-plus"></i> Add Product
             </button>
 
-            <!-- Шаблон строки (disabled и без required) -->
+            <!-- Шаблон строки -->
             <div id="po-product-template" class="d-none">
               <div class="po-product-row d-flex align-items-center mb-2">
                 <select class="form-select me-2 po-product-select" name="products[]" style="max-width: 250px;" disabled>
@@ -268,7 +264,11 @@
                     <option value="{{ p.id }}" data-price="{{ p.price or '' }}">{{ p.name }}</option>
                   {% endfor %}
                 </select>
-                <input type="text" class="form-control me-2 po-product-price" name="prices[]" placeholder="Price" style="width: 100px;" disabled>
+
+                <input type="number" class="form-control me-2 po-product-price" name="prices[]" placeholder="Price" style="width: 100px;" disabled>
+                <input type="number" class="form-control me-2 po-product-qty" name="quantities[]" placeholder="Qty" style="width: 80px;" disabled>
+                <div class="po-product-total me-2" style="width: 80px;">$0.00</div>
+
                 <button type="button" class="btn btn-sm btn-outline-danger remove-po-product">
                   <i class="fas fa-times"></i>
                 </button>
@@ -286,6 +286,14 @@
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="poPaid" name="paid">
             <label class="form-check-label" for="poPaid">Paid</label>
+          </div>
+
+          <!-- Налог и Total -->
+          <div class="d-flex justify-content-end align-items-center gap-2 mt-4">
+              <label for="po-tax" class="form-label mb-0">Tax ($)</label>
+              <input type="number" step="0.01" id="po-tax" name="tax" class="form-control" style="width: 100px;" value="0">
+              <strong class="ms-3">Total:</strong>
+              <span id="po-total" class="fw-bold">$0.00</span>
           </div>
         </div>
 

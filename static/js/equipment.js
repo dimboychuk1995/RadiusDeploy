@@ -325,22 +325,27 @@ function initPurchaseOrderModal() {
 
     const select = clone.querySelector('.po-product-select');
     const priceInput = clone.querySelector('.po-product-price');
+    const qtyInput = clone.querySelector('.po-product-qty');
+    const totalField = clone.querySelector('.po-product-total');
 
     // ✅ Снимаем disabled и проставляем required
     select.disabled = false;
     select.required = true;
     priceInput.disabled = false;
+    qtyInput.disabled = false;
 
-    // При выборе продукта — автозаполнение цены
+    // Автозаполнение цены при выборе продукта
     select.addEventListener('change', () => {
       const selected = select.selectedOptions[0];
-      const price = selected.dataset.price || '—';
+      const price = selected.dataset.price || '';
       priceInput.value = price;
+      priceInput.dispatchEvent(new Event('input')); // триггер пересчёта
     });
 
     // Удаление строки
     clone.querySelector('.remove-po-product').addEventListener('click', () => {
       clone.remove();
+      updateTotalWithTax(); // пересчёт total после удаления
     });
   });
 }
@@ -348,16 +353,32 @@ function initPurchaseOrderModal() {
 function handlePurchaseOrderFormSubmit() {
   const form = document.getElementById('purchaseOrderForm');
 
+  // При изменении цены или количества — пересчёт суммы
+  form.addEventListener('input', () => {
+    document.querySelectorAll('.po-product-row').forEach(row => {
+      const priceInput = row.querySelector('.po-product-price');
+      const qtyInput = row.querySelector('.po-product-qty');
+      const totalField = row.querySelector('.po-product-total');
+
+      const price = parseFloat(priceInput.value) || 0;
+      const qty = parseFloat(qtyInput.value) || 0;
+      const subtotal = price * qty;
+
+      totalField.textContent = `$${subtotal.toFixed(2)}`;
+    });
+
+    updateTotalWithTax();
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Удаляем пустые product-строки
+    // Удаляем пустые строки
     document.querySelectorAll('.po-product-row').forEach(row => {
       const select = row.querySelector('.po-product-select');
       if (!select.value) row.remove();
     });
 
-    // Проверка: остались ли продукты
     const remaining = document.querySelectorAll('.po-product-row');
     if (remaining.length === 0) {
       Swal.fire({
@@ -382,9 +403,8 @@ function handlePurchaseOrderFormSubmit() {
         const modal = bootstrap.Modal.getInstance(document.getElementById('createPurchaseOrderModal'));
         modal.hide();
         form.reset();
-
-        // Очищаем список продуктов вручную
         document.getElementById('po-products-container').innerHTML = '';
+        updateTotalWithTax();
 
         Swal.fire({
           icon: 'success',
@@ -411,6 +431,22 @@ function handlePurchaseOrderFormSubmit() {
       });
     }
   });
+}
+
+function updateTotalWithTax() {
+  let total = 0;
+
+  document.querySelectorAll('.po-product-row').forEach(row => {
+    const price = parseFloat(row.querySelector('.po-product-price').value) || 0;
+    const qty = parseFloat(row.querySelector('.po-product-qty').value) || 0;
+    total += price * qty;
+  });
+
+  const taxInput = document.getElementById('po-tax');
+  const tax = parseFloat(taxInput.value) || 0;
+  const finalTotal = total + tax;
+
+  document.getElementById('po-total').textContent = `$${finalTotal.toFixed(2)}`;
 }
 
 

@@ -219,29 +219,48 @@ def create_purchase_order():
     vendor_id = request.form.get("vendor_id")
     product_ids = request.form.getlist("products[]")
     prices = request.form.getlist("prices[]")
+    quantities = request.form.getlist("quantities[]")
+    tax = request.form.get("tax", "0")
     paid = request.form.get("paid") == "on"
 
     if not vendor_id or not product_ids:
         return jsonify({"success": False, "error": "Vendor и хотя бы один продукт обязательны"}), 400
 
+    try:
+        tax_value = float(tax)
+    except ValueError:
+        return jsonify({"success": False, "error": "Неверный формат поля tax"}), 400
+
     products = []
-    for pid, price in zip(product_ids, prices):
-        price = price.strip()
+    subtotal = 0
+
+    for pid, price_str, qty_str in zip(product_ids, prices, quantities):
+        price = float(price_str) if price_str.strip() else 0
+        quantity = int(qty_str) if qty_str.strip() else 1
+        line_total = price * quantity
+        subtotal += line_total
+
         products.append({
             "product_id": ObjectId(pid),
-            "price": price or None
+            "price": price,
+            "quantity": quantity,
+            "line_total": round(line_total, 2)
         })
 
-        # Если цена указана — обновляем её у продукта
-        if price:
-            db.equipment_items.update_one(
-                {"_id": ObjectId(pid)},
-                {"$set": {"price": price}}
-            )
+        # Обновляем цену в продукте
+        db.equipment_items.update_one(
+            {"_id": ObjectId(pid)},
+            {"$set": {"price": price}}
+        )
+
+    total = round(subtotal + tax_value, 2)
 
     order = {
         "vendor_id": ObjectId(vendor_id),
         "products": products,
+        "subtotal": round(subtotal, 2),
+        "tax": round(tax_value, 2),
+        "total": total,
         "paid": paid,
         "created_by": ObjectId(current_user.get_id()),
         "created_at": datetime.utcnow()
