@@ -26,6 +26,7 @@ function initEquipment() {
   initPurchaseOrderModal();
   handlePurchaseOrderFormSubmit();
   initPurchaseOrderDeleteButtons();
+  initPurchaseOrderDetailsButtons();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -501,4 +502,27 @@ async function deletePurchaseOrder(id) {
       text: 'Сервер не отвечает'
     });
   }
+}
+
+
+function initPurchaseOrderDetailsButtons() {
+  document.querySelectorAll('.btn-po-details').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+
+      fetch(`/fragment/purchase_order/${id}`)
+        .then(res => res.text())
+        .then(html => {
+          const detailsBlock = document.getElementById('po-details');
+          detailsBlock.innerHTML = html;
+          detailsBlock.style.display = 'block';
+          document.getElementById('purchase-orders').style.display = 'none';
+        });
+    });
+  });
+}
+
+function returnToPurchaseOrderList() {
+  document.getElementById('po-details').style.display = 'none';
+  document.getElementById('purchase-orders').style.display = 'block';
 }

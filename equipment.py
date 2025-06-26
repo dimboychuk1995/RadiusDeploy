@@ -310,3 +310,43 @@ def delete_purchase_order(order_id):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 400
+
+
+@equipment_bp.route('/fragment/purchase_order/<order_id>')
+@login_required
+def purchase_order_details_fragment(order_id):
+    try:
+        order = db.purchase_orders.find_one({"_id": ObjectId(order_id)})
+        if not order:
+            return "Order not found", 404
+
+        vendor = db.vendors.find_one({"_id": order.get("vendor_id")})
+        created_at = order.get("created_at")
+        products_data = order.get("products", [])
+
+        products = []
+        for p in products_data:
+            prod = db.equipment_items.find_one({"_id": p["product_id"]}, {"name": 1})
+            products.append({
+                "name": prod["name"] if prod else "—",
+                "price": float(p.get("price", 0)),
+                "qty": int(p.get("quantity", 1)),
+                "total": round(p.get("line_total", 0), 2)
+            })
+
+        return render_template(
+            "fragments/purchase_order_details_fragment.html",
+            order={
+                "id": str(order["_id"]),
+                "created_at": created_at,
+                "photo": order.get("photo"),
+                "paid": order.get("paid", False),
+                "subtotal": float(order.get("subtotal", 0)),
+                "tax": float(order.get("tax", 0)),
+                "total": float(order.get("total", 0))
+            },
+            vendor=vendor,
+            products=products
+        )
+    except Exception as e:
+        return f"Error: {str(e)}", 500
