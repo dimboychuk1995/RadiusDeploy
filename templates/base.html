@@ -28,7 +28,7 @@
     <!-- Календарь -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
 </head>
-<body>
+<body data-page="{{ page_id }}">
     {% include 'navbar.html' %}
 
     <div class="app-container">
@@ -105,6 +105,7 @@
     <script src="{{ url_for('static', filename='js/documents.js') }}"></script>
     <script src="{{ url_for('static', filename='js/sockets.js') }}"></script>
     <script src="{{ url_for('static', filename='js/equipment.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dispatch_schedule.js') }}"></script>
 
 </body>
 </html>

@@ -1,13 +1,49 @@
-<div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i> Расписание</h5>
-  </div>
+<table class="table table-bordered table-sm text-center align-middle w-100">
+  <thead class="table-light">
+    <tr>
+      <th style="width: 12%;">Driver</th>
+      <th style="width: 10%;">Phone</th>
+      <th style="width: 6%;">Truck</th>
+      <th style="width: 6%;">Trailer</th>
+      <th style="width: 9%;">06/23/2025<br>Monday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/24/2025<br>Tuesday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/25/2025<br>Wednesday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/26/2025<br>Thursday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/27/2025<br>Friday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/28/2025<br>Saturday<br><a href="#">Send list</a></th>
+      <th style="width: 9%;">06/29/2025<br>Sunday<br><a href="#">Send list</a></th>
+    </tr>
+  </thead>
+  <tbody>
 
-  <div class="alert alert-info">
-    Здесь будет отображаться расписание назначений, встреч или событий, связанных с диспетчеризацией.
-  </div>
+    <!-- Диспетчер -->
+    <tr class="table-dark dispatcher-header" data-dispatcher="d1" style="cursor: pointer;">
+      <td colspan="11">Max D ext 102 (708-400-7169)</td>
+    </tr>
 
-  <div id="dispatchScheduleContent">
-    <p class="text-muted">Функционал в разработке...</p>
-  </div>
-</div>
+    <!-- Водители диспетчера -->
+    <tr class="driver-row" data-dispatcher="d1">
+      <td>Stepan Forochivski</td><td>586-453-6849</td><td>2398</td><td>UWC 2072</td>
+      <td>ELYSBURG PA</td><td>Auburn, NY</td><td>Winston-Salem, NC</td><td>Buffalo, NY</td>
+      <td>Kewadin, MI</td><td>></td><td>></td>
+    </tr>
+
+    <tr class="driver-row" data-dispatcher="d1">
+      <td>Mykhaylo Khromyak</td><td>609-356-9823</td><td>7020</td><td>SKF 8101</td>
+      <td>Highland, IL</td><td>Kenova WV</td><td>Johnstown, NY</td><td>Erie, PA</td>
+      <td>La Crosse, WI</td><td>EAST DUNDEE IL</td><td></td>
+    </tr>
+
+    <!-- Второй диспетчер -->
+    <tr class="table-dark dispatcher-header" data-dispatcher="d2" style="cursor: pointer;">
+      <td colspan="11">Alex K ext 104 (708-722-4750)</td>
+    </tr>
+
+    <tr class="driver-row" data-dispatcher="d2">
+      <td>Vasyl Shynker</td><td>773-691-9935</td><td>2205</td><td>UWC 2074</td>
+      <td>E Dundee IL</td><td>ROCHESTER, NY</td><td>La Vergne, TN</td><td>Omaha, NE</td>
+      <td>Navarre, OH</td><td></td><td></td>
+    </tr>
+
+  </tbody>
+</table>
