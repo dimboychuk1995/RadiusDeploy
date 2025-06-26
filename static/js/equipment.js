@@ -37,6 +37,7 @@ function handleVendorFormSubmit() {
       name: form.name.value.trim(),
       phone: form.phone.value.trim(),
       email: form.email.value.trim(),
+      website: form.website.value.trim(),
       contact_person: form.contact_person.value.trim(),
       address: form.address.value.trim()
     };

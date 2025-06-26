@@ -74,6 +74,7 @@
           <th>Name</th>
           <th>Phone</th>
           <th>Email</th>
+          <th>Web Site</th>
           <th style="width: 80px;"></th>
         </tr>
       </thead>
@@ -83,6 +84,7 @@
             <td class="fw-bold">{{ v.name }}</td>
             <td>{{ v.phone or '—' }}</td>
             <td>{{ v.email or '—' }}</td>
+            <td>{{ v.website or '—' }}</td>
             <td class="text-nowrap text-end" style="min-width: 100px;">
               <button class="btn btn-sm btn-outline-primary me-1 btn-vendor-details" data-id="{{ v.id }}" title="Детали">
                 <i class="fas fa-eye"></i>
@@ -137,6 +139,10 @@
           <div class="mb-3">
             <label for="vendorEmail" class="form-label">Email</label>
             <input type="email" class="form-control" id="vendorEmail" name="email">
+          </div>
+            <div class="mb-3">
+            <label for="vendorWebSite" class="form-label">Web Site</label>
+            <input type="text" class="form-control" id="vendorWebSite" name="website">
           </div>
           <div class="mb-3">
             <label for="vendorContactPerson" class="form-label">Contact Person</label>

@@ -24,6 +24,7 @@ def equipment_fragment():
         "name": 1,
         "phone": 1,
         "email": 1,
+        "website": 1,
         "address": 1,
         "contact_person": 1
     }))
@@ -53,6 +54,7 @@ def equipment_fragment():
             "name": v.get("name", "—"),
             "phone": v.get("phone", "—"),
             "email": v.get("email", "—"),
+            "website": v.get("website", "—"),
             "address": v.get("address", "—"),
             "contact_person": v.get("contact_person", "—")
         })
@@ -78,6 +80,7 @@ def create_vendor():
         "name": data.get("name", "").strip(),
         "phone": data.get("phone", "").strip(),
         "email": data.get("email", "").strip(),
+        "website": data.get("website", "").strip(),
         "contact_person": data.get("contact_person", "").strip(),
         "address": data.get("address", "").strip(),
         "created_at": datetime.utcnow()
