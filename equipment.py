@@ -18,7 +18,7 @@ purchase_orders_collection = db["purchase_orders"]
 @equipment_bp.route('/fragment/equipment')
 @login_required
 def equipment_fragment():
-    # Загружаем вендоров
+    # Вендоры
     raw_vendors = list(db.vendors.find({}, {
         "_id": 1,
         "name": 1,
@@ -35,11 +35,13 @@ def equipment_fragment():
 
     # Продукты
     items = list(db.equipment_items.find({}, {
+        "_id": 1,
         "name": 1,
         "category": 1,
         "vendor_id": 1,
         "price": 1
     }))
+    item_map = {str(i["_id"]): i["name"] for i in items}
     for item in items:
         item["id"] = str(item["_id"])
         vendor_id = item.get("vendor_id")
@@ -77,8 +79,29 @@ def equipment_fragment():
         })
 
     # Водители (id + name)
-    raw_drivers = db.drivers.find({}, {"_id": 1, "name": 1})
+    raw_drivers = list(db.drivers.find({}, {"_id": 1, "name": 1}))
+    driver_map = {str(d["_id"]): d.get("name", "—") for d in raw_drivers}
     drivers = [{"id": str(d["_id"]), "name": d.get("name", "—")} for d in raw_drivers]
+
+    # Driver Orders
+    raw_driver_orders = list(db.driver_orders.find({}, {
+        "driver_id": 1,
+        "products": 1,
+        "date": 1
+    }))
+    driver_orders = []
+    for order in raw_driver_orders:
+        product_names = []
+        for item in order.get("products", []):
+            product_id = str(item.get("product_id"))
+            name = item_map.get(product_id, "—")
+            qty = item.get("quantity", 0)
+            product_names.append(f"{name} x{qty}")
+        driver_orders.append({
+            "driver_name": driver_map.get(str(order.get("driver_id")), "—"),
+            "products": product_names,
+            "date": order.get("date").strftime("%m/%d/%Y") if order.get("date") else "—"
+        })
 
     return render_template(
         "fragments/equipment_fragment.html",
@@ -86,7 +109,8 @@ def equipment_fragment():
         categories=categories,
         equipment_items=items,
         purchase_orders=purchase_orders,
-        drivers=drivers  # ← добавлено
+        drivers=drivers,
+        driver_orders=driver_orders  # ← добавлено
     )
 
 @equipment_bp.route("/api/vendors/create", methods=["POST"])

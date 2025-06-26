@@ -158,6 +158,7 @@
 
 
 <!-- 🧾 Секция Выдача товаров -->
+<!-- 🧾 Секция Выдача товаров -->
 <div id="driver-orders" class="equipment-subsection" style="display: none;">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">👷 Driver Orders</h5>
@@ -165,8 +166,39 @@
       <i class="fas fa-plus me-1"></i> New Order
     </button>
   </div>
-  <p class="text-muted">Здесь будут отображаться заказы от водителей.</p>
+
+  {% if driver_orders %}
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 180px;">Driver</th>
+            <th>Products</th>
+            <th style="width: 120px;">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in driver_orders %}
+            <tr>
+              <td>{{ order.driver_name }}</td>
+              <td>
+                <ul class="mb-0 ps-3">
+                  {% for product in order.products %}
+                    <li>{{ product }}</li>
+                  {% endfor %}
+                </ul>
+              </td>
+              <td>{{ order.date }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">Пока нет заказов от водителей.</p>
+  {% endif %}
 </div>
+
 
 <!-- Модалка добавления вендора -->
 <div class="modal fade" id="addVendorModal" tabindex="-1" aria-labelledby="addVendorModalLabel" aria-hidden="true">
