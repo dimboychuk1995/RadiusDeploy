@@ -13,48 +13,35 @@
       <th style="width: 10%;">Phone</th>
       <th style="width: 6%;">Truck</th>
       <th style="width: 6%;">Trailer</th>
-      <th style="width: 9%;">06/23/2025<br>Monday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/24/2025<br>Tuesday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/25/2025<br>Wednesday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/26/2025<br>Thursday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/27/2025<br>Friday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/28/2025<br>Saturday<br><a href="#">Send list</a></th>
-      <th style="width: 9%;">06/29/2025<br>Sunday<br><a href="#">Send list</a></th>
+      {% for i in range(7) %}
+        <th style="width: 9%;">
+          <span class="day-label-placeholder">Date</span><br>
+          <span class="day-name-placeholder">Day</span><br>
+          <a href="#">Send list</a>
+        </th>
+      {% endfor %}
     </tr>
   </thead>
   <tbody>
-
-    <!-- Диспетчер -->
-    <tr class="table-dark dispatcher-header" data-dispatcher="d1" style="cursor: pointer;">
-      <td colspan="11">Max D ext 102 (708-400-7169)</td>
-    </tr>
-
-    <!-- Водители диспетчера -->
-    <tr class="driver-row" data-dispatcher="d1" data-driver-id="driver1">
-      <td>Stepan Forochivski</td><td>586-453-6849</td><td>2398</td><td>UWC 2072</td>
-      <td>ELYSBURG PA</td><td>Auburn, NY</td><td>Winston-Salem, NC</td><td>Buffalo, NY</td>
-      <td>Kewadin, MI</td><td>></td><td>></td>
-    </tr>
-
-    <tr class="driver-row" data-dispatcher="d1" data-driver-id="driver2">
-      <td>Mykhaylo Khromyak</td><td>609-356-9823</td><td>7020</td><td>SKF 8101</td>
-      <td>Highland, IL</td><td>Kenova WV</td><td>Johnstown, NY</td><td>Erie, PA</td>
-      <td>La Crosse, WI</td><td>EAST DUNDEE IL</td><td></td>
-    </tr>
-
-    <!-- Второй диспетчер -->
-    <tr class="table-dark dispatcher-header" data-dispatcher="d2" style="cursor: pointer;">
-      <td colspan="11">Alex K ext 104 (708-722-4750)</td>
-    </tr>
-
-    <tr class="driver-row" data-dispatcher="d2" data-driver-id="driver3">
-      <td>Vasyl Shynker</td><td>773-691-9935</td><td>2205</td><td>UWC 2074</td>
-      <td>E Dundee IL</td><td>ROCHESTER, NY</td><td>La Vergne, TN</td><td>Omaha, NE</td>
-      <td>Navarre, OH</td><td></td><td></td>
-    </tr>
-
+    {% for dispatcher in dispatchers %}
+      <tr class="table-dark dispatcher-header" data-dispatcher="{{ dispatcher.id }}" style="cursor: pointer;">
+        <td colspan="11">{{ dispatcher.username }}</td>
+      </tr>
+      {% for driver in drivers if driver.dispatcher == dispatcher.id %}
+        <tr class="driver-row" data-dispatcher="{{ dispatcher.id }}" data-driver-id="{{ driver.id }}">
+          <td>{{ driver.name }}</td>
+          <td>{{ driver.contact_number or '' }}</td>
+          <td>{{ driver.truck_info.unit_number or 'no truck'}}</td>
+          <td><!-- Trailer --></td>
+          {% for i in range(7) %}
+            <td class="load-cell" data-day="{{ i }}"></td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    {% endfor %}
   </tbody>
 </table>
+
 
 <!-- Контекстное меню -->
 <div id="driverContextMenu" class="dropdown-menu" style="position: absolute; display: none; z-index: 9999;">
