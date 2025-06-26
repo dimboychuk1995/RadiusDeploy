@@ -59,11 +59,30 @@ def equipment_fragment():
             "contact_person": v.get("contact_person", "—")
         })
 
+    # Загружаем purchase orders
+    raw_orders = list(db.purchase_orders.find({}, {
+        "vendor_id": 1,
+        "created_at": 1,
+        "paid": 1,
+        "total": 1
+    }))
+
+    purchase_orders = []
+    for o in raw_orders:
+        purchase_orders.append({
+            "vendor_name": vendor_map.get(str(o.get("vendor_id")), "—"),
+            "date": o.get("created_at").strftime("%m/%d/%Y") if o.get("created_at") else "—",
+            "paid": o.get("paid", False),
+            "total": round(o.get("total", 0), 2),
+            "id": str(o["_id"])  # ← ЭТО
+        })
+
     return render_template(
         "fragments/equipment_fragment.html",
         vendors=vendors,
         categories=categories,
-        equipment_items=items
+        equipment_items=items,
+        purchase_orders=purchase_orders
     )
 
 @equipment_bp.route("/api/vendors/create", methods=["POST"])
@@ -280,3 +299,14 @@ def create_purchase_order():
 
     result = purchase_orders_collection.insert_one(order)
     return jsonify({"success": True, "order_id": str(result.inserted_id)})
+
+@equipment_bp.route("/api/purchase_orders/<order_id>", methods=["DELETE"])
+@login_required
+def delete_purchase_order(order_id):
+    try:
+        result = db.purchase_orders.delete_one({"_id": ObjectId(order_id)})
+        if result.deleted_count == 0:
+            return jsonify({"success": False, "error": "Заказ не найден"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 400

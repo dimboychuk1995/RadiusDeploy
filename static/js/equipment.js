@@ -25,6 +25,7 @@ function initEquipment() {
   initProductDetailsButtons();
   initPurchaseOrderModal();
   handlePurchaseOrderFormSubmit();
+  initPurchaseOrderDeleteButtons();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -450,3 +451,54 @@ function updateTotalWithTax() {
 }
 
 
+function initPurchaseOrderDeleteButtons() {
+  document.querySelectorAll('.btn-po-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+
+      Swal.fire({
+        title: 'Удалить заказ?',
+        text: 'Это действие необратимо.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Удалить',
+        cancelButtonText: 'Отмена'
+      }).then(result => {
+        if (result.isConfirmed) {
+          deletePurchaseOrder(id);
+        }
+      });
+    });
+  });
+}
+
+async function deletePurchaseOrder(id) {
+  try {
+    const res = await fetch(`/api/purchase_orders/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+
+    if (json.success) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Удалено',
+        text: 'Purchase Order удалён',
+        timer: 1500,
+        showConfirmButton: false
+      });
+      location.reload();
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Ошибка',
+        text: json.error || 'Не удалось удалить заказ'
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: 'error',
+      title: 'Ошибка',
+      text: 'Сервер не отвечает'
+    });
+  }
+}

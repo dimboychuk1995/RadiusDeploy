@@ -102,7 +102,6 @@
   {% endif %}
 </div>
 
-
 <!-- 🔍 Секция деталей вендора — отдельная -->
 <div id="vendor-details" class="equipment-subsection" style="display: none;"></div>
 
@@ -115,8 +114,42 @@
       <i class="fas fa-plus me-1"></i> Create Purchase Order
     </button>
   </div>
-  <p class="text-muted">Здесь будут закупки техники.</p>
+
+  {% if purchase_orders %}
+    <table class="table table-borderless">
+      <thead>
+        <tr>
+          <th>Vendor</th>
+          <th>Date</th>
+          <th>Paid</th>
+          <th>Total</th>
+          <th style="width: 80px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for po in purchase_orders %}
+          <tr>
+            <td class="fw-bold">{{ po.vendor_name }}</td>
+            <td>{{ po.date }}</td>
+            <td>{{ 'Yes' if po.paid else 'No' }}</td>
+            <td>${{ '%.2f' | format(po.total) }}</td>
+            <td class="text-nowrap text-end" style="min-width: 100px;">
+              <button class="btn btn-sm btn-outline-primary me-1 btn-po-details" data-id="{{ po.id }}" title="Детали">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger btn-po-delete" data-id="{{ po.id }}" title="Удалить">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="text-muted">No purchase orders yet.</p>
+  {% endif %}
 </div>
+
 
 <!-- Модалка добавления вендора -->
 <div class="modal fade" id="addVendorModal" tabindex="-1" aria-labelledby="addVendorModalLabel" aria-hidden="true">
