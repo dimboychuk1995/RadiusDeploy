@@ -27,6 +27,8 @@ function initEquipment() {
   handlePurchaseOrderFormSubmit();
   initPurchaseOrderDeleteButtons();
   initPurchaseOrderDetailsButtons();
+  initDriverOrderModal();
+  handleDriverOrderFormSubmit();
 }
 
 // 📤 Обработка формы добавления вендора
@@ -525,4 +527,156 @@ function initPurchaseOrderDetailsButtons() {
 function returnToPurchaseOrderList() {
   document.getElementById('po-details').style.display = 'none';
   document.getElementById('purchase-orders').style.display = 'block';
+}
+
+
+function initDriverOrderModal() {
+  const modal = document.getElementById('driverOrderModal');
+  if (!modal) return;
+
+  const container = document.getElementById('driver-order-products-container');
+  const addBtn = document.getElementById('add-driver-order-product');
+  const template = document.getElementById('driver-order-product-template');
+
+  modal.addEventListener('shown.bs.modal', () => {
+    const form = document.getElementById('driverOrderForm');
+    if (form) form.reset();
+    container.innerHTML = ''; // очищаем предыдущие строки
+
+    // Select2 для водителя
+    const $driver = $('#driverOrderDriver');
+    if ($driver.hasClass('select2-hidden-accessible')) $driver.select2('destroy');
+    $driver.select2({
+      theme: 'bootstrap-5',
+      width: '100%',
+      placeholder: 'Select driver',
+      allowClear: true
+    });
+
+    // Добавляем первую строку по умолчанию
+    addDriverOrderProductRow();
+  });
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      addDriverOrderProductRow();
+    });
+  }
+
+  function addDriverOrderProductRow() {
+    const clone = template.firstElementChild.cloneNode(true);
+    container.appendChild(clone);
+
+    const select = clone.querySelector('.driver-order-product-select');
+    const qtyInput = clone.querySelector('.driver-order-product-qty');
+    const removeBtn = clone.querySelector('.remove-driver-order-product');
+
+    // Убираем disabled и добавляем required
+    select.disabled = false;
+    qtyInput.disabled = false;
+    select.required = true;
+    qtyInput.required = true;
+
+    // Инициализация Select2
+    const $select = $(select);
+    if ($select.hasClass('select2-hidden-accessible')) $select.select2('destroy');
+    $select.select2({
+      theme: 'bootstrap-5',
+      width: '100%',
+      placeholder: 'Select product',
+      allowClear: true
+    });
+
+    // Удаление строки
+    removeBtn.addEventListener('click', () => {
+      clone.remove();
+    });
+  }
+}
+
+function handleDriverOrderFormSubmit() {
+  const form = document.getElementById('driverOrderForm');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const driverId = form.driver_id.value;
+    const date = form.date.value;
+    const reason = form.reason.value.trim();
+
+    // Собираем все продукты
+    const productRows = form.querySelectorAll('.driver-order-product-row');
+    const productIds = [];
+    const quantities = [];
+
+    productRows.forEach(row => {
+      const pid = row.querySelector('.driver-order-product-select').value;
+      const qty = row.querySelector('.driver-order-product-qty').value;
+
+      if (pid && qty) {
+        productIds.push(pid);
+        quantities.push(qty);
+      }
+    });
+
+    if (!driverId || !date || !reason || productIds.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Ошибка',
+        text: 'Все поля обязательны и должен быть хотя бы один продукт'
+      });
+      return;
+    }
+
+    // Собираем окончательные данные
+    const payload = new URLSearchParams();
+    payload.append("driver_id", driverId);
+    payload.append("date", date);
+    payload.append("reason", reason);
+    productIds.forEach(id => payload.append("product_ids[]", id));
+    quantities.forEach(qty => payload.append("quantities[]", qty));
+
+    try {
+      const res = await fetch('/api/driver_orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: payload.toString()
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('driverOrderModal'));
+        modal.hide();
+        form.reset();
+        document.getElementById('driver-order-products-container').innerHTML = '';
+
+        Swal.fire({
+          icon: 'success',
+          title: 'Успешно',
+          text: 'Заказ сохранён',
+          timer: 1500,
+          showConfirmButton: false
+        });
+
+        location.reload();
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Ошибка',
+          text: json.error || 'Не удалось создать заказ'
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Ошибка',
+        text: 'Сервер не отвечает'
+      });
+    }
+  });
 }

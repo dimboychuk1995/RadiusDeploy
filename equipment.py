@@ -30,10 +30,10 @@ def equipment_fragment():
     }))
     vendor_map = {str(v["_id"]): v["name"] for v in raw_vendors}
 
-    # Загружаем категории
+    # Категории
     categories = db.equipment_category.distinct("name")
 
-    # Загружаем продукты
+    # Продукты
     items = list(db.equipment_items.find({}, {
         "name": 1,
         "category": 1,
@@ -46,7 +46,7 @@ def equipment_fragment():
         item["vendor_name"] = vendor_map.get(str(vendor_id)) if vendor_id else "—"
         item["price"] = item.get("price", "—")
 
-    # Приводим вендоров к фронтовому формату
+    # Вендоры → фронт
     vendors = []
     for v in raw_vendors:
         vendors.append({
@@ -59,14 +59,13 @@ def equipment_fragment():
             "contact_person": v.get("contact_person", "—")
         })
 
-    # Загружаем purchase orders
+    # Purchase Orders
     raw_orders = list(db.purchase_orders.find({}, {
         "vendor_id": 1,
         "created_at": 1,
         "paid": 1,
         "total": 1
     }))
-
     purchase_orders = []
     for o in raw_orders:
         purchase_orders.append({
@@ -74,15 +73,20 @@ def equipment_fragment():
             "date": o.get("created_at").strftime("%m/%d/%Y") if o.get("created_at") else "—",
             "paid": o.get("paid", False),
             "total": round(o.get("total", 0), 2),
-            "id": str(o["_id"])  # ← ЭТО
+            "id": str(o["_id"])
         })
+
+    # Водители (id + name)
+    raw_drivers = db.drivers.find({}, {"_id": 1, "name": 1})
+    drivers = [{"id": str(d["_id"]), "name": d.get("name", "—")} for d in raw_drivers]
 
     return render_template(
         "fragments/equipment_fragment.html",
         vendors=vendors,
         categories=categories,
         equipment_items=items,
-        purchase_orders=purchase_orders
+        purchase_orders=purchase_orders,
+        drivers=drivers  # ← добавлено
     )
 
 @equipment_bp.route("/api/vendors/create", methods=["POST"])
@@ -239,47 +243,43 @@ def create_purchase_order():
     product_ids = request.form.getlist("products[]")
     prices = request.form.getlist("prices[]")
     quantities = request.form.getlist("quantities[]")
-    tax = request.form.get("tax", "0")
     paid = request.form.get("paid") == "on"
+    tax = float(request.form.get("tax", 0) or 0)
 
     if not vendor_id or not product_ids:
         return jsonify({"success": False, "error": "Vendor и хотя бы один продукт обязательны"}), 400
-
-    try:
-        tax_value = float(tax)
-    except ValueError:
-        return jsonify({"success": False, "error": "Неверный формат поля tax"}), 400
 
     products = []
     subtotal = 0
 
     for pid, price_str, qty_str in zip(product_ids, prices, quantities):
-        price = float(price_str) if price_str.strip() else 0
-        quantity = int(qty_str) if qty_str.strip() else 1
-        line_total = price * quantity
+        price = float(price_str or 0)
+        qty = int(qty_str or 1)
+        line_total = price * qty
         subtotal += line_total
+
+        # Обновляем цену и stock
+        db.equipment_items.update_one(
+            {"_id": ObjectId(pid)},
+            {
+                "$set": {"price": price},
+                "$inc": {"stock": qty}
+            }
+        )
 
         products.append({
             "product_id": ObjectId(pid),
             "price": price,
-            "quantity": quantity,
-            "line_total": round(line_total, 2)
+            "quantity": qty,
+            "line_total": line_total
         })
-
-        # Обновляем цену в продукте
-        db.equipment_items.update_one(
-            {"_id": ObjectId(pid)},
-            {"$set": {"price": price}}
-        )
-
-    total = round(subtotal + tax_value, 2)
 
     order = {
         "vendor_id": ObjectId(vendor_id),
         "products": products,
-        "subtotal": round(subtotal, 2),
-        "tax": round(tax_value, 2),
-        "total": total,
+        "subtotal": subtotal,
+        "tax": tax,
+        "total": subtotal + tax,
         "paid": paid,
         "created_by": ObjectId(current_user.get_id()),
         "created_at": datetime.utcnow()
@@ -350,3 +350,57 @@ def purchase_order_details_fragment(order_id):
         )
     except Exception as e:
         return f"Error: {str(e)}", 500
+
+
+@equipment_bp.route('/api/driver_orders/create', methods=['POST'])
+@login_required
+def create_driver_order():
+    data = request.form
+    driver_id = data.get("driver_id")
+    date_str = data.get("date")
+    reason = data.get("reason", "").strip()
+
+    if not driver_id or not date_str or not reason:
+        return jsonify({"success": False, "error": "Все поля обязательны"}), 400
+
+    try:
+        date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"success": False, "error": "Неверный формат даты"}), 400
+
+    product_ids = data.getlist("product_ids[]")
+    quantities = data.getlist("quantities[]")
+
+    if not product_ids or not quantities or len(product_ids) != len(quantities):
+        return jsonify({"success": False, "error": "Товары и количество обязательны"}), 400
+
+    items = []
+    for pid, qty_str in zip(product_ids, quantities):
+        try:
+            qty = int(qty_str)
+        except ValueError:
+            return jsonify({"success": False, "error": "Некорректное количество"}), 400
+
+        item = {
+            "product_id": ObjectId(pid),
+            "quantity": qty
+        }
+        items.append(item)
+
+        # Обновляем stock
+        db.equipment_items.update_one(
+            {"_id": ObjectId(pid)},
+            {"$inc": {"stock": -qty}}
+        )
+
+    order = {
+        "driver_id": ObjectId(driver_id),
+        "products": items,
+        "date": date,
+        "reason": reason,
+        "created_by": ObjectId(current_user.get_id()),
+        "created_at": datetime.utcnow()
+    }
+
+    db.driver_orders.insert_one(order)
+    return jsonify({"success": True})
