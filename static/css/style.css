@@ -578,7 +578,7 @@ body[data-page="dispatch-table"] .timeline {
 }
 
 table .driver-row {
-  display: table-row !important;
+  display: table-row;
 }
 
 table .driver-row > td {
