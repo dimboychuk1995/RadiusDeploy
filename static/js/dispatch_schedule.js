@@ -1,7 +1,59 @@
 function initDispatchSchedule() {
   bindDispatcherToggleHandlers();
   bindDriverContextMenuHandlers();
+  bindLoadCellClicks();
+  initDriverScheduleWeekNavigation();
 }
+
+function initDriverScheduleWeekNavigation() {
+  let currentWeekStart = moment().startOf('isoWeek');
+
+  function renderWeekHeaders() {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const headerRow = document.querySelector("table thead tr");
+    if (!headerRow) return;
+
+    // Удаляем старые day-ячейки (оставляем первые 4)
+    while (headerRow.children.length > 4) {
+      headerRow.removeChild(headerRow.lastChild);
+    }
+
+    for (let i = 0; i < 7; i++) {
+      const date = moment(currentWeekStart).add(i, 'days');
+      const th = document.createElement("th");
+      th.style.width = "9%";
+      th.innerHTML = `${date.format("MM/DD/YYYY")}<br>${days[i]}<br><a href="#">Send list</a>`;
+      headerRow.appendChild(th);
+    }
+
+    const rangeLabel = document.getElementById("weekRangeLabel");
+    if (rangeLabel) {
+      rangeLabel.textContent = `${moment(currentWeekStart).format("MMM D")} – ${moment(currentWeekStart).add(6, 'days').format("MMM D, YYYY")}`;
+    }
+  }
+
+  // Навешиваем обработчики
+  const prevBtn = document.getElementById("prevWeekBtn");
+  const nextBtn = document.getElementById("nextWeekBtn");
+
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      currentWeekStart.subtract(7, 'days');
+      renderWeekHeaders();
+    });
+  }
+
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      currentWeekStart.add(7, 'days');
+      renderWeekHeaders();
+    });
+  }
+
+  // Первый запуск
+  renderWeekHeaders();
+}
+
 
 function bindDispatcherToggleHandlers() {
   const headers = document.querySelectorAll(".dispatcher-header");
@@ -132,3 +184,57 @@ function initDriverBreakDateRangeDispatch() {
     console.log(`📅 Break range selected: ${startIso} to ${endIso}`);
   });
 }
+
+function bindLoadCellClicks() {
+  const rows = document.querySelectorAll("tr.driver-row");
+
+  let currentDriverRow = null;
+
+  rows.forEach(row => {
+    const cells = row.querySelectorAll("td");
+    cells.forEach((td, index) => {
+      if (index < 4) return;
+
+      const value = td.innerText.trim();
+      if (!value || value === '>') return;
+
+      if (td.dataset.bound === "true") return;
+      td.dataset.bound = "true";
+      td.style.cursor = "pointer";
+
+      td.addEventListener("click", () => {
+        const rowEl = td.closest("tr");
+
+        // Если клик по другой строке — сбросить всё
+        if (currentDriverRow && currentDriverRow !== rowEl) {
+          document.querySelectorAll("tr.driver-row td[data-bound='true']").forEach(cell => {
+            cell.style.outline = "";
+            cell.style.outlineOffset = "";
+            cell.style.borderRadius = "";
+            cell.classList.remove("selected-load-cell");
+          });
+        }
+
+        currentDriverRow = rowEl;
+
+        // Переключить выделение у ячейки
+        const isSelected = td.classList.contains("selected-load-cell");
+
+        if (isSelected) {
+          td.classList.remove("selected-load-cell");
+          td.style.outline = "";
+          td.style.outlineOffset = "";
+          td.style.borderRadius = "";
+        } else {
+          td.classList.add("selected-load-cell");
+          td.style.outline = "3px solid #0d6efd";
+          td.style.outlineOffset = "-3px";
+          td.style.borderRadius = "4px";
+        }
+      });
+    });
+  });
+}
+
+
+
