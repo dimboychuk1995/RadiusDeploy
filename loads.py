@@ -433,23 +433,38 @@ def loads_fragment():
                 "type": 1,
                 "assigned_driver": 1,
                 "pickup.address": 1,
+                "pickup.date": 1,
                 "delivery.address": 1,
+                "delivery.date": 1,
+                "extra_delivery": 1,
+                "extra_deliveries": 1,
                 "price": 1,
                 "RPM": 1,
                 "status": 1,
                 "payment_status": 1,
                 "extra_stops": 1,
-                "company_sign": 1  # ✅ добавлено поле
+                "company_sign": 1
             }
         ))
 
-        # Преобразуем assigned_driver и company_sign
+        # Обогащаем данными
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
 
             if load.get("company_sign"):
                 load["company_sign"] = str(load["company_sign"])
+
+            # Добавляем дату пикапа
+            load["pickup_date"] = load.get("pickup", {}).get("date", "")
+
+            # Добавляем дату деливери (учитывая последнюю extra_delivery)
+            extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
+            if extra_deliveries:
+                last_delivery = extra_deliveries[-1]
+                load["delivery_date"] = last_delivery.get("date", "")
+            else:
+                load["delivery_date"] = load.get("delivery", {}).get("date", "")
 
         return render_template(
             "fragments/loads_fragment.html",
