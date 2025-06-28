@@ -40,9 +40,26 @@
               <td><!-- Trailer --></td>
               {% for i in range(7) %}
                 {% set date_str = current_week_dates[i].strftime("%m/%d/%Y") %}
-                {% set delivery = driver_delivery_map.get((driver.id, date_str)) %}
+                {% set deliveries = driver_delivery_map.get((driver.id, date_str), []) %}
                 <td class="load-cell" data-day="{{ i }}">
-                  {{ delivery if delivery else '' }}
+                  {% if deliveries|length == 1 %}
+                    {{ deliveries[0].location }}
+                  {% elif deliveries|length > 1 %}
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                        {{ deliveries|length }} deliveries
+                      </button>
+                      <ul class="dropdown-menu text-start">
+                        {% for d in deliveries %}
+                          <li>
+                            <a class="dropdown-item" href="#">
+                              {{ d.location }}
+                            </a>
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  {% endif %}
                 </td>
               {% endfor %}
             </tr>
