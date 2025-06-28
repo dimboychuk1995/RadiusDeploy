@@ -6,51 +6,68 @@ function initDispatchSchedule() {
 }
 
 function initDriverScheduleWeekNavigation() {
-  let currentWeekStart = moment().startOf('isoWeek');
+  let currentOffset = 0;
 
-  function loadScheduleFragment() {
-    const start = currentWeekStart.format("YYYY-MM-DD");
-    const end = moment(currentWeekStart).add(6, 'days').format("YYYY-MM-DD");
-
-    fetch(`/fragment/dispatch_schedule?start=${start}&end=${end}`)
-      .then(response => response.text())
-      .then(html => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-        const newContent = doc.querySelector("#dispatch-table-wrapper");  // div id в шаблоне
-        const container = document.querySelector("#dispatch-table-wrapper");
-        if (newContent && container) {
-          container.innerHTML = newContent.innerHTML;
-        }
-        // Повторная инициализация навигации после вставки
-        initDriverScheduleWeekNavigation();
-      })
-      .catch(err => console.error("Ошибка при загрузке фрагмента:", err));
-  }
-
-  // Обработчики кнопок
   const prevBtn = document.getElementById("prevWeekBtn");
   const nextBtn = document.getElementById("nextWeekBtn");
+  const currentBtn = document.getElementById("currentWeekBtn");
 
   if (prevBtn) {
     prevBtn.onclick = () => {
-      currentWeekStart.subtract(7, 'days');
+      currentOffset -= 1;
       loadScheduleFragment();
     };
   }
 
   if (nextBtn) {
     nextBtn.onclick = () => {
-      currentWeekStart.add(7, 'days');
+      currentOffset += 1;
       loadScheduleFragment();
     };
   }
 
-  // Установка надписи диапазона
-  const rangeLabel = document.getElementById("weekRangeLabel");
-  if (rangeLabel) {
-    rangeLabel.textContent = `${moment(currentWeekStart).format("MMM D")} – ${moment(currentWeekStart).add(6, 'days').format("MMM D, YYYY")}`;
+  if (currentBtn) {
+    currentBtn.onclick = () => {
+      currentOffset = 0;
+      loadScheduleFragment();
+    };
   }
+
+  function loadScheduleFragment() {
+    const weekStart = moment().add(currentOffset, 'weeks').startOf('isoWeek');
+    const start = weekStart.format("YYYY-MM-DD");
+    const end = moment(weekStart).add(6, 'days').format("YYYY-MM-DD");
+
+    fetch(`/fragment/dispatch_schedule?start=${start}&end=${end}`)
+      .then(response => response.text())
+      .then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const newContent = doc.querySelector("#dispatch-table-wrapper");
+        const container = document.querySelector("#dispatch-table-wrapper");
+        if (newContent && container) {
+          container.innerHTML = newContent.innerHTML;
+        }
+
+        bindDispatcherToggleHandlers();
+        bindDriverContextMenuHandlers();
+        bindLoadCellClicks();
+        updateWeekLabel();
+      })
+      .catch(err => console.error("Ошибка при загрузке фрагмента:", err));
+  }
+
+  function updateWeekLabel() {
+    const start = moment().add(currentOffset, 'weeks').startOf('isoWeek');
+    const end = moment(start).add(6, 'days');
+    const label = document.getElementById("weekRangeLabel");
+    if (label) {
+      label.textContent = `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`;
+    }
+  }
+
+  // при первой инициализации
+  updateWeekLabel();
 }
 
 
