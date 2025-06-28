@@ -193,7 +193,7 @@ def import_super_dispatch_orders():
         orders = data.get('data', [])
 
         end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=1)
+        start_date = end_date - timedelta(days=7)
         print(f"🕓 Фильтр: {start_date.isoformat()} — {end_date.isoformat()}")
 
         filtered_orders = []

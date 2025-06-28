@@ -81,15 +81,43 @@ def dispatch_schedule_fragment():
         except Exception:
             return None, None
 
+    def safe_float(value):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
     for load in all_loads:
-        delivery_points = []
+        extra_delivery = load.get("extra_delivery", [])
+        main_delivery = load.get("delivery")
+        price = safe_float(load.get("price"))
+        load_id = str(load.get("_id"))
+        driver_id = str(load.get("assigned_driver"))
 
-        if isinstance(load.get("extra_delivery"), list):
-            delivery_points.extend(load["extra_delivery"])
-        if load.get("delivery"):
-            delivery_points.append(load["delivery"])
+        all_deliveries = []
 
-        for delivery_info in delivery_points:
+        if isinstance(extra_delivery, list) and extra_delivery:
+            for i, delivery_info in enumerate(extra_delivery):
+                all_deliveries.append({
+                    "info": delivery_info,
+                    "is_last": i == len(extra_delivery) - 1
+                })
+            # Добавляем main delivery тоже, но она не последняя
+            if main_delivery:
+                all_deliveries.append({
+                    "info": main_delivery,
+                    "is_last": False
+                })
+        else:
+            # Нет extra_delivery, значит main_delivery — последняя
+            if main_delivery:
+                all_deliveries.append({
+                    "info": main_delivery,
+                    "is_last": True
+                })
+
+        for delivery in all_deliveries:
+            delivery_info = delivery["info"]
             date_str = delivery_info.get("date", "").strip()
             try:
                 delivery_date = datetime.strptime(date_str, "%m/%d/%Y").date()
@@ -99,7 +127,6 @@ def dispatch_schedule_fragment():
                 print(f"Invalid delivery date '{date_str}' in load {load.get('_id')}: {e}")
                 continue
 
-            driver_id = str(load.get("assigned_driver"))
             address = delivery_info.get("address", "")
             city, state = parse_city_state(address)
             location_str = f"{city}, {state}" if city and state else address
@@ -109,11 +136,13 @@ def dispatch_schedule_fragment():
                 "city": city,
                 "state": state,
                 "location": location_str,
-                "load_id": str(load.get("_id")),
-                "description": load.get("description", "Delivery")
+                "load_id": load_id,
+                "price": price,
+                "description": load.get("description", "Delivery"),
+                "is_last": delivery["is_last"]
             })
 
-            loads.append(load)
+        loads.append(load)
 
     return render_template("fragments/dispatch_schedule_fragment.html",
                            page_id="dispatch-table",

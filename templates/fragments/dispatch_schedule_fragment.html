@@ -44,6 +44,9 @@
               <td class="load-cell" data-day="{{ i }}">
                 {% if deliveries|length == 1 %}
                   {{ deliveries[0].location }}
+                  {% if deliveries[0].price is not none and deliveries[0].is_last %}
+                    ({{ '${:,.2f}'.format(deliveries[0].price) }})
+                  {% endif %}
                 {% elif deliveries|length > 1 %}
                   <div class="dropdown">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
@@ -57,6 +60,9 @@
                              data-load-id="{{ d.load_id }}"
                              data-driver-id="{{ driver.id }}">
                             {{ d.location }}
+                            {% if d.price is not none and d.is_last %}
+                              ({{ '${:,.2f}'.format(d.price) }})
+                            {% endif %}
                           </a>
                         </li>
                       {% endfor %}

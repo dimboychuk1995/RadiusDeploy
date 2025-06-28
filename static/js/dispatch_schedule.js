@@ -105,21 +105,23 @@ function bindDriverContextMenuHandlers() {
   const menu = document.getElementById("driverContextMenu");
 
   document.addEventListener("contextmenu", function (e) {
+    const td = e.target.closest("td");
     const row = e.target.closest(".driver-row");
-    if (!row) return;
+
+    // Работает только если клик был по первой ячейке (имени)
+    if (!td || !row || td.cellIndex !== 0) return;
 
     e.preventDefault();
 
     selectedDriverId = row.dataset.driverId || null;
     if (!selectedDriverId) return;
 
-    // Позиционируем меню
+    // Показ контекстного меню
     menu.style.top = `${e.pageY}px`;
     menu.style.left = `${e.pageX}px`;
     menu.style.display = "block";
   });
 
-  // Скрытие меню при клике вне
   document.addEventListener("click", function () {
     menu.style.display = "none";
   });
