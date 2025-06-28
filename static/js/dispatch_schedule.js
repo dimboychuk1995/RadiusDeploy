@@ -202,54 +202,89 @@ function initDriverBreakDateRangeDispatch() {
 }
 
 function bindLoadCellClicks() {
-  const rows = document.querySelectorAll("tr.driver-row");
+  // CSS внутри JS
+  const style = document.createElement('style');
+  style.textContent = `
+    .selected-delivery {
+      background-color: #0d6efd !important;
+      color: white !important;
+    }
+    .selected-load-cell {
+      outline: 3px solid #0d6efd;
+      outline-offset: -3px;
+      border-radius: 4px;
+    }
+  `;
+  document.head.appendChild(style);
 
-  let currentDriverRow = null;
+  let currentDriverId = null;
 
-  rows.forEach(row => {
-    const cells = row.querySelectorAll("td");
-    cells.forEach((td, index) => {
-      if (index < 4) return;
+  const allCells = document.querySelectorAll("td.load-cell");
 
-      const value = td.innerText.trim();
-      if (!value || value === '>') return;
+  allCells.forEach(cell => {
+    const row = cell.closest("tr.driver-row");
+    if (!row) return;
+    const driverId = row.dataset.driverId;
+    const hasDropdown = cell.querySelector(".dropdown");
 
-      if (td.dataset.bound === "true") return;
-      td.dataset.bound = "true";
-      td.style.cursor = "pointer";
+    if (!hasDropdown) {
+      // одиночная доставка
+      const text = cell.textContent.trim();
+      if (!text || cell.dataset.bound === "true") return;
 
-      td.addEventListener("click", () => {
-        const rowEl = td.closest("tr");
+      cell.dataset.bound = "true";
+      cell.style.cursor = "pointer";
 
-        // Если клик по другой строке — сбросить всё
-        if (currentDriverRow && currentDriverRow !== rowEl) {
-          document.querySelectorAll("tr.driver-row td[data-bound='true']").forEach(cell => {
-            cell.style.outline = "";
-            cell.style.outlineOffset = "";
-            cell.style.borderRadius = "";
-            cell.classList.remove("selected-load-cell");
-          });
+      cell.addEventListener("click", () => {
+        // если переключили на другого водителя — сбросить всё
+        if (currentDriverId && currentDriverId !== driverId) {
+          clearAllSelections();
         }
+        currentDriverId = driverId;
 
-        currentDriverRow = rowEl;
-
-        // Переключить выделение у ячейки
-        const isSelected = td.classList.contains("selected-load-cell");
-
-        if (isSelected) {
-          td.classList.remove("selected-load-cell");
-          td.style.outline = "";
-          td.style.outlineOffset = "";
-          td.style.borderRadius = "";
-        } else {
-          td.classList.add("selected-load-cell");
-          td.style.outline = "3px solid #0d6efd";
-          td.style.outlineOffset = "-3px";
-          td.style.borderRadius = "4px";
-        }
+        cell.classList.toggle("selected-load-cell");
       });
+    }
+  });
+
+  // dropdown deliveries
+  document.querySelectorAll(".delivery-item").forEach(item => {
+    if (item.dataset.bound === "true") return;
+    item.dataset.bound = "true";
+
+    item.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const cell = item.closest("td");
+      const row = cell.closest("tr.driver-row");
+      const driverId = row.dataset.driverId;
+
+      if (currentDriverId && currentDriverId !== driverId) {
+        clearAllSelections();
+      }
+      currentDriverId = driverId;
+
+      item.classList.toggle("selected-delivery");
+
+      const anySelected = cell.querySelectorAll(".selected-delivery").length > 0;
+      if (anySelected) {
+        cell.classList.add("selected-load-cell");
+      } else {
+        cell.classList.remove("selected-load-cell");
+      }
     });
   });
+
+  function clearAllSelections() {
+    document.querySelectorAll("td.load-cell").forEach(c => {
+      c.classList.remove("selected-load-cell");
+    });
+    document.querySelectorAll(".delivery-item").forEach(i => {
+      i.classList.remove("selected-delivery");
+    });
+    currentDriverId = null;
+  }
 }
 
 

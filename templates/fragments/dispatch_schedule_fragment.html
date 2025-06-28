@@ -11,62 +11,65 @@
 </div>
 
 <div id="dispatch-table-wrapper">
-    <table class="table table-bordered table-sm text-center align-middle w-100">
-      <thead class="table-light">
-        <tr>
-          <th style="width: 12%;">Driver</th>
-          <th style="width: 10%;">Phone</th>
-          <th style="width: 6%;">Truck</th>
-          <th style="width: 6%;">Trailer</th>
-          {% for i in range(7) %}
-            <th style="width: 9%;">
-              <span class="day-label-placeholder">{{ current_week_dates[i].strftime("%m/%d/%Y") }}</span><br>
-              <span class="day-name-placeholder">{{ current_week_dates[i].strftime("%A") }}</span><br>
-              <a href="#">Send list</a>
-            </th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for dispatcher in dispatchers %}
-          <tr class="table-dark dispatcher-header" data-dispatcher="{{ dispatcher.id }}" style="cursor: pointer;">
-            <td colspan="11">{{ dispatcher.username }}</td>
-          </tr>
-          {% for driver in drivers if driver.dispatcher == dispatcher.id %}
-            <tr class="driver-row" data-dispatcher="{{ dispatcher.id }}" data-driver-id="{{ driver.id }}">
-              <td>{{ driver.name }}</td>
-              <td>{{ driver.contact_number or '' }}</td>
-              <td>{{ driver.truck_info.unit_number or 'no truck' }}</td>
-              <td><!-- Trailer --></td>
-              {% for i in range(7) %}
-                {% set date_str = current_week_dates[i].strftime("%m/%d/%Y") %}
-                {% set deliveries = driver_delivery_map.get((driver.id, date_str), []) %}
-                <td class="load-cell" data-day="{{ i }}">
-                  {% if deliveries|length == 1 %}
-                    {{ deliveries[0].location }}
-                  {% elif deliveries|length > 1 %}
-                    <div class="dropdown">
-                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
-                        {{ deliveries|length }} deliveries
-                      </button>
-                      <ul class="dropdown-menu text-start">
-                        {% for d in deliveries %}
-                          <li>
-                            <a class="dropdown-item" href="#">
-                              {{ d.location }}
-                            </a>
-                          </li>
-                        {% endfor %}
-                      </ul>
-                    </div>
-                  {% endif %}
-                </td>
-              {% endfor %}
-            </tr>
-          {% endfor %}
+  <table class="table table-bordered table-sm text-center align-middle w-100">
+    <thead class="table-light">
+      <tr>
+        <th style="width: 12%;">Driver</th>
+        <th style="width: 10%;">Phone</th>
+        <th style="width: 6%;">Truck</th>
+        <th style="width: 6%;">Trailer</th>
+        {% for i in range(7) %}
+          <th style="width: 9%;">
+            <span class="day-label-placeholder">{{ current_week_dates[i].strftime("%m/%d/%Y") }}</span><br>
+            <span class="day-name-placeholder">{{ current_week_dates[i].strftime("%A") }}</span><br>
+            <a href="#">Send list</a>
+          </th>
         {% endfor %}
-      </tbody>
-    </table>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dispatcher in dispatchers %}
+        <tr class="table-dark dispatcher-header" data-dispatcher="{{ dispatcher.id }}" style="cursor: pointer;">
+          <td colspan="11">{{ dispatcher.username }}</td>
+        </tr>
+        {% for driver in drivers if driver.dispatcher == dispatcher.id %}
+          <tr class="driver-row" data-dispatcher="{{ dispatcher.id }}" data-driver-id="{{ driver.id }}">
+            <td>{{ driver.name }}</td>
+            <td>{{ driver.contact_number or '' }}</td>
+            <td>{{ driver.truck_info.unit_number or 'no truck' }}</td>
+            <td><!-- Trailer --></td>
+            {% for i in range(7) %}
+              {% set date_str = current_week_dates[i].strftime("%m/%d/%Y") %}
+              {% set deliveries = driver_delivery_map.get((driver.id, date_str), []) %}
+              <td class="load-cell" data-day="{{ i }}">
+                {% if deliveries|length == 1 %}
+                  {{ deliveries[0].location }}
+                {% elif deliveries|length > 1 %}
+                  <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
+                      {{ deliveries|length }} deliveries
+                    </button>
+                    <ul class="dropdown-menu text-start">
+                      {% for d in deliveries %}
+                        <li>
+                          <a class="dropdown-item delivery-item"
+                             href="#"
+                             data-load-id="{{ d.load_id }}"
+                             data-driver-id="{{ driver.id }}">
+                            {{ d.location }}
+                          </a>
+                        </li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 
