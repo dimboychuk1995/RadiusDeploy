@@ -204,6 +204,12 @@ def parse_load_pdf():
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role(['admin', 'dispatch'])
 def add_load():
+    def try_parse_float(value):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
     try:
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
@@ -211,7 +217,6 @@ def add_load():
         rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
         bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
 
-        # === Проверка и добавление брокера/кастомера ===
         partner_type = request.form.get("broker_customer_type", "broker")
         partner_name = request.form.get("broker_load_id")
         partner_email = request.form.get("broker_email")
@@ -235,7 +240,6 @@ def add_load():
                     "company": current_user.company
                 }).inserted_id
 
-        # === Extra pickups ===
         extra_pickups = []
         for key in request.form:
             if key.startswith("extra_pickup[") and key.endswith("][company]"):
@@ -250,7 +254,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
                 })
 
-        # === Extra deliveries ===
         extra_deliveries = []
         for key in request.form:
             if key.startswith("extra_delivery[") and key.endswith("][company]"):
@@ -265,7 +268,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
                 })
 
-        # === Vehicles ===
         vehicles = []
         for key in request.form:
             if key.startswith("vehicles[") and key.endswith("][year]"):
@@ -279,7 +281,6 @@ def add_load():
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
 
-        # === Водитель и Power Unit ===
         assigned_driver_id = request.form.get("assigned_driver")
         assigned_power_unit = None
 
@@ -291,11 +292,9 @@ def add_load():
             if driver and driver.get("truck"):
                 assigned_power_unit = driver["truck"]
 
-        # ✅ Преобразуем company_sign в ObjectId
         company_sign_raw = request.form.get("company_sign")
         company_sign = ObjectId(company_sign_raw) if company_sign_raw and ObjectId.is_valid(company_sign_raw) else None
 
-        # === Груз ===
         load_data = {
             "load_id": request.form.get("load_id"),
             "company_sign": company_sign,
@@ -305,10 +304,10 @@ def add_load():
             "broker_email": partner_email,
             "broker_phone_number": partner_phone,
             "type": request.form.get("type"),
-            "weight": request.form.get("weight"),
-            "RPM": request.form.get("RPM"),
-            "price": request.form.get("price"),
-            "total_miles": request.form.get("total_miles"),
+            "weight": try_parse_float(request.form.get("weight")),
+            "RPM": try_parse_float(request.form.get("RPM")),
+            "price": try_parse_float(request.form.get("price")),
+            "total_miles": try_parse_float(request.form.get("total_miles")),
             "load_description": request.form.get("load_description"),
             "vehicles": vehicles if vehicles else None,
             "assigned_driver": ObjectId(assigned_driver_id) if assigned_driver_id else None,
@@ -345,7 +344,6 @@ def add_load():
 
         loads_collection.insert_one(load_data)
 
-        # === Email водителю ===
         if load_data.get("assigned_driver"):
             driver = drivers_collection.find_one({"_id": load_data["assigned_driver"]})
             company = db["companies"].find_one({"name": "UWC"})
