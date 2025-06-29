@@ -5,7 +5,7 @@ function initDispatchSchedule() {
   initDriverScheduleWeekNavigation();
   calculateAndBindDriverAmounts();
   bindLoadContextMenuHandlers();
-}
+  }
 
 function initDriverScheduleWeekNavigation() {
   let currentOffset = 0;
@@ -349,17 +349,29 @@ function hideTooltip() {
 }
 
 
-//Правый клик на грузах
+
+
+/**
+ * Обрабатывает правый клик по ячейкам с грузами.
+ * Показывает меню с опциями:
+ * - "Не учитывать в гросс"
+ * - "Консолидировать грузы" (только если выделена хотя бы одна)
+ */
+
 let selectedLoadCell = null;
+let selectedConsolidationCells = [];
+
 
 function bindLoadContextMenuHandlers() {
   const menu = document.getElementById("loadContextMenu");
+  const excludeBtn = document.getElementById("excludeFromGrossBtn");
+  const consolidateBtn = document.getElementById("consolidateLoadsBtn");
 
   document.addEventListener("contextmenu", function (e) {
     const cell = e.target.closest(".load-cell");
     if (!cell) return;
 
-    // Проверка: есть ли груз (либо текст, либо .dropdown, либо .delivery-item)
+    // Проверка: есть ли груз внутри ячейки
     const hasDeliveryText = cell.textContent.trim() !== "";
     const hasDropdown = cell.querySelector(".dropdown");
     const hasDeliveryItem = cell.querySelector(".delivery-item");
@@ -369,27 +381,62 @@ function bindLoadContextMenuHandlers() {
     e.preventDefault();
     selectedLoadCell = cell;
 
+    // Собираем выделенные ячейки (для консолидации)
+    selectedConsolidationCells = Array.from(document.querySelectorAll(".load-cell.selected-load-cell"));
+
+    // Показываем/скрываем опцию "Консолидировать"
+    if (selectedConsolidationCells.length >= 1) {
+      consolidateBtn.style.display = "block";
+    } else {
+      consolidateBtn.style.display = "none";
+    }
+
+    // Показать меню у курсора
     menu.style.top = `${e.pageY}px`;
     menu.style.left = `${e.pageX}px`;
     menu.style.display = "block";
   });
 
+  // Клик вне — закрываем меню
   document.addEventListener("click", function () {
     menu.style.display = "none";
   });
 
-  document.getElementById("excludeFromGrossBtn").addEventListener("click", () => {
+  // 🚫 Не учитывать в гросс
+  excludeBtn.addEventListener("click", () => {
     if (!selectedLoadCell) return;
 
     selectedLoadCell.classList.add("excluded-from-gross");
     selectedLoadCell.dataset.excludeFromGross = "true";
 
-    console.log("🚫 Excluded load-cell from gross");
+    console.log("🚫 Исключена ячейка из gross");
+
+    menu.style.display = "none";
+  });
+
+  // 🔗 Консолидировать грузы
+  consolidateBtn.addEventListener("click", () => {
+    if (!selectedConsolidationCells.length) return;
+
+    const allLoadIds = [];
+
+    selectedConsolidationCells.forEach(cell => {
+      const deliveries = cell.querySelectorAll(".delivery-item[data-load-id]");
+      deliveries.forEach(item => {
+        const id = item.dataset.loadId;
+        if (id && !allLoadIds.includes(id)) {
+          allLoadIds.push(id);
+        }
+      });
+    });
+
+    console.log("🔗 Консолидация грузов:", allLoadIds);
+
+    startConsolidationModal(allLoadIds);
 
     menu.style.display = "none";
   });
 }
-
 
 
 
