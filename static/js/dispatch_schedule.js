@@ -547,6 +547,7 @@ function startConsolidationModal(loadIds) {
       });
       renderConsolidatedLoadsTable(loads);
       initSortableListsDispatch();
+      setupPointClickOrderingDispatch();
     })
     .catch(err => {
       console.error("❌ Ошибка при получении грузов для консолидации:", err);
@@ -601,6 +602,89 @@ function renderConsolidatedLoadsTable(loads) {
     tbody.appendChild(row);
   });
 }
+
+function setupPointClickOrderingDispatch() {
+  const allItems = document.querySelectorAll('#pickupListDispatch li, #deliveryListDispatch li');
+  const selectionOrder = [];
+  const saveBtn = document.getElementById('saveConsolidationBtnDispatch');
+  saveBtn.style.display = 'none';
+
+  allItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const existingIndex = selectionOrder.indexOf(item);
+      if (existingIndex !== -1) {
+        selectionOrder.splice(existingIndex, 1);
+        item.querySelector('.order-badge')?.remove();
+      } else {
+        selectionOrder.push(item);
+        const badge = document.createElement('span');
+        badge.className = 'order-badge';
+        badge.innerText = selectionOrder.length;
+        item.appendChild(badge);
+      }
+
+      selectionOrder.forEach((el, idx) => {
+        const badge = el.querySelector('.order-badge');
+        if (badge) badge.innerText = idx + 1;
+      });
+
+      saveBtn.style.display = selectionOrder.length === allItems.length ? 'inline-block' : 'none';
+    });
+  });
+
+  saveBtn.addEventListener('click', () => {
+    const result = selectionOrder.map(li => ({
+      address: li.innerText.replace(/\s+—\s+\d{2}\/\d{2}\/\d{4}$/, '').trim(),
+      scheduled_at: li.innerText.match(/\d{2}\/\d{2}\/\d{4}$/)?.[0],
+      load_id: li.dataset.id
+    }));
+    const loadIds = [...new Set(result.map(p => p.load_id))];
+    submitConsolidationOrderDispatch(result, loadIds);
+  });
+}
+
+
+async function submitConsolidationOrderDispatch(orderedPoints) {
+  const cleanedPoints = orderedPoints
+    .map(p => ({
+      address: p.address?.trim(),
+      scheduled_at: p.scheduled_at || p.date || '',
+      load_id: p.load_id || null
+    }))
+    .filter(p => p.load_id && p.address);
+
+  const loadIds = [...new Set(cleanedPoints.map(p => p.load_id))];
+
+  if (!loadIds.length) {
+    alert("❌ Нет валидных грузов для консолидации.");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/consolidation/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        load_ids: loadIds,
+        route_points: cleanedPoints
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      closeConsolidationModalDispatch();
+      alert(`✅ Грузы успешно консолидированы\n🚚 Miles: ${json.miles}\n📊 RPM: ${json.rpm}`);
+    } else {
+      alert("Ошибка сервера: " + json.error);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("❌ Ошибка отправки запроса на сервер.");
+  }
+}
+
 
 
 
