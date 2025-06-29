@@ -46,11 +46,14 @@
                   {{ deliveries[0].location }}
                   {% if deliveries[0].price is not none and deliveries[0].is_last %}
                     ({{ '${:,.2f}'.format(deliveries[0].price) }})
-                    <!-- Скрытый элемент для JS -->
-                    <span class="delivery-item d-none"
-                          data-driver-id="{{ driver.id }}"
-                          data-amount="{{ deliveries[0].price }}"></span>
                   {% endif %}
+                  <!-- ✅ Скрытый элемент с load-id -->
+                  <span class="delivery-item d-none"
+                        data-load-id="{{ deliveries[0].load_id }}"
+                        data-driver-id="{{ driver.id }}"
+                        {% if deliveries[0].price is not none and deliveries[0].is_last %}
+                          data-amount="{{ deliveries[0].price }}"
+                        {% endif %}></span>
                 {% elif deliveries|length > 1 %}
                   <div class="dropdown">
                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
@@ -145,22 +148,55 @@
       <h4>Консолидировать грузы</h4>
       <button class="btn btn-sm btn-secondary" onclick="closeConsolidationModalDispatch()">✖</button>
     </div>
-    <div class="custom-offcanvas-body">
-      <div class="load-modal-content">
-        <div class="load-modal-left" style="width: 48%;">
-          <h6>Пикапы</h6>
-          <ul id="pickupListDispatch" class="list-group sortable-list"></ul>
-        </div>
-        <div class="load-modal-left" style="width: 48%;">
-          <h6>Доставки</h6>
-          <ul id="deliveryListDispatch" class="list-group sortable-list"></ul>
-        </div>
-        <div class="mt-4 text-end">
-          <button id="saveConsolidationBtnDispatch" class="btn btn-success" style="display: none;">Сохранить</button>
+
+    <!-- ✅ Ограничиваем высоту, чтобы не тянуло вниз -->
+    <div class="custom-offcanvas-body" style="max-height: 90vh; overflow-y: auto; padding: 16px 24px 20px 24px;">
+
+      <!-- 📌 Вложенный блок без flex, просто по потоку -->
+      <div class="mb-3">
+        <div class="d-flex justify-content-between" style="gap: 4%;">
+          <div style="width: 48%;">
+            <h6>Пикапы</h6>
+            <ul id="pickupListDispatch" class="list-group sortable-list"></ul>
+          </div>
+          <div style="width: 48%;">
+            <h6>Доставки</h6>
+            <ul id="deliveryListDispatch" class="list-group sortable-list"></ul>
+          </div>
         </div>
       </div>
+
+      <!-- 📌 Таблица сразу после -->
+      <div class="mb-3">
+        <h6>Грузы</h6>
+        <div class="table-responsive">
+          <table class="table table-bordered table-sm text-center bg-white" id="consolidatedLoadsTable">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Broker</th>
+                <th>Pickup</th>
+                <th>Delivery</th>
+                <th>RPM</th>
+                <th>Цена</th>
+              </tr>
+            </thead>
+            <tbody id="consolidatedLoadsBody">
+              <!-- Заполняется JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 📌 Кнопка сразу под таблицей -->
+      <div class="text-end">
+        <button id="saveConsolidationBtnDispatch" class="btn btn-success" style="display: none;">Сохранить</button>
+      </div>
+
     </div>
   </div>
 </div>
 
+<!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" id="consolidationBackdropDispatch" onclick="closeConsolidationModalDispatch()"></div>
+

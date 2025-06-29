@@ -442,43 +442,58 @@ function bindLoadContextMenuHandlers() {
 
 //модалка консолидации грузов
 function startConsolidationModal(loadIds) {
-  if (!Array.isArray(loadIds) || loadIds.length === 0) return;
+  if (!Array.isArray(loadIds) || loadIds.length === 0) {
+    console.warn("🚫 Нет loadIds для консолидации");
+    return;
+  }
 
   const modal = document.getElementById("consolidationModalDispatch");
   const backdrop = document.getElementById("consolidationBackdropDispatch");
   const pickupList = document.getElementById("pickupListDispatch");
   const deliveryList = document.getElementById("deliveryListDispatch");
   const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
+  const loadsTableBody = document.getElementById("consolidatedLoadsBody");
 
   // Очистка
   pickupList.innerHTML = "";
   deliveryList.innerHTML = "";
+  loadsTableBody.innerHTML = "";
   saveBtn.style.display = "none";
 
   // Показ модалки
   modal.classList.add("show");
   backdrop.classList.add("show");
 
-  // Загрузка данных по loadIds
-  fetch("/api/consolidation/details", {
+  console.log("📤 Отправка запроса на /api/consolidation/prep с load_ids:", loadIds);
+
+  fetch("/api/consolidation/prep", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ loadIds }),
+    body: JSON.stringify({ load_ids: loadIds }),
   })
     .then(res => res.json())
     .then(data => {
+      console.log("📥 Ответ от /api/consolidation/prep:", data);
+
       if (!data.success) {
-        alert("Ошибка загрузки данных для консолидации");
+        alert("❌ Ошибка загрузки данных для консолидации");
         return;
       }
 
-      const { pickups, deliveries } = data;
+      const pickups = data.pickup_points || [];
+      const deliveries = data.delivery_points || [];
+      const loads = data.loads || [];
 
+      console.log("✅ Pickups:", pickups);
+      console.log("✅ Deliveries:", deliveries);
+      console.log("✅ Loads:", loads);
+
+      // Добавляем в списки
       pickups.forEach(pick => {
         const li = document.createElement("li");
         li.className = "list-group-item";
         li.textContent = pick.address;
-        li.dataset.id = pick.loadId;
+        li.dataset.id = pick.load_id;
         pickupList.appendChild(li);
       });
 
@@ -486,7 +501,7 @@ function startConsolidationModal(loadIds) {
         const li = document.createElement("li");
         li.className = "list-group-item";
         li.textContent = del.address;
-        li.dataset.id = del.loadId;
+        li.dataset.id = del.load_id;
         deliveryList.appendChild(li);
       });
 
@@ -494,10 +509,47 @@ function startConsolidationModal(loadIds) {
         saveBtn.style.display = "inline-block";
       }
 
+      // 🧾 Таблица грузов
+      if (loads.length === 0) {
+        console.warn("⚠️ Список loads пуст — таблица не будет отрисована.");
+      }
+
+      loads.forEach((load, idx) => {
+        console.log(`📦 Отрисовка груза #${idx + 1}:`, load);
+
+        const tr = document.createElement("tr");
+
+        const id = load._id || load.id || "—";
+        const broker = load.broker?.name || "—";
+        const price = parseFloat(load.total_price ?? load.price ?? 0);
+        const miles = parseFloat(load.miles ?? 0);
+        const rpm = miles ? (price / miles).toFixed(2) : "—";
+
+        const pickupAddresses = [
+          ...(load.extra_pickup || []),
+          ...(load.pickup ? [load.pickup] : [])
+        ].map(p => p.address).join(" → ") || "—";
+
+        const deliveryAddresses = [
+          ...(load.delivery ? [load.delivery] : []),
+          ...(load.extra_delivery || [])
+        ].map(d => d.address).join(" → ") || "—";
+
+        tr.innerHTML = `
+          <td>${id}</td>
+          <td>${broker}</td>
+          <td>${pickupAddresses}</td>
+          <td>${deliveryAddresses}</td>
+          <td>${rpm}</td>
+          <td>$${price.toFixed(2)}</td>
+        `;
+        loadsTableBody.appendChild(tr);
+      });
+      renderConsolidatedLoadsTable(loads);
       initSortableListsDispatch();
     })
     .catch(err => {
-      console.error("Ошибка при получении грузов для консолидации:", err);
+      console.error("❌ Ошибка при получении грузов для консолидации:", err);
     });
 }
 
@@ -515,6 +567,38 @@ function initSortableListsDispatch() {
   new Sortable(document.getElementById("deliveryListDispatch"), {
     animation: 150,
     ghostClass: 'sortable-ghost'
+  });
+}
+
+function renderConsolidatedLoadsTable(loads) {
+  const tbody = document.getElementById("consolidatedLoadsBody");
+  tbody.innerHTML = "";
+
+  loads.forEach(load => {
+    const row = document.createElement("tr");
+
+    const pickupAddresses = [
+      ...(load.extra_pickup || []).map(p => p.address),
+      load.pickup?.address
+    ].filter(Boolean).join("<br>");
+
+    const deliveryAddresses = [
+      ...(load.extra_delivery || []).map(d => d.address),
+      load.delivery?.address
+    ].filter(Boolean).join("<br>");
+
+    // Надёжное вычисление RPM
+    const rpm = load.RPM ? parseFloat(load.RPM).toFixed(2) : "—";
+
+    row.innerHTML = `
+      <td>${load.load_id || ""}</td>
+      <td>${load.broker_load_id || ""}</td>
+      <td>${pickupAddresses}</td>
+      <td>${deliveryAddresses}</td>
+      <td>${rpm}</td>
+      <td>${parseFloat(load.total_price || load.price || 0).toFixed(2)}</td>
+    `;
+    tbody.appendChild(row);
   });
 }
 

@@ -168,7 +168,7 @@ def dispatch_fragment():
         return render_template('error.html', message="Не удалось загрузить данные диспетчеров.")
 
 
-
+# we called this method from different places
 @dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
 @login_required
 def prep_consolidation():
@@ -185,23 +185,29 @@ def prep_consolidation():
             {'_id': {'$in': object_ids}},
             {
                 '_id': 1,
+                'load_id': 1,  # ← обязательно!
                 'pickup': 1,
                 'delivery': 1,
                 'extra_pickup': 1,
                 'extra_delivery': 1,
                 'price': 1,
-                'total_price': 1
+                'total_price': 1,
+                'miles': 1,
+                'broker': 1,
+                'broker_id': 1,
+                'broker_load_id': 1,
+                'RPM': 1
             }
         ))
 
         pickup_points = []
         delivery_points = []
+        result_loads = []
 
         for load in loads:
             load_id = str(load['_id'])
             price = float(load.get("total_price", load.get("price", 0)) or 0)
 
-            # Доп. пикапы
             for ep in load.get('extra_pickup') or []:
                 pickup_points.append({
                     "address": ep.get("address", ""),
@@ -210,7 +216,6 @@ def prep_consolidation():
                     "price": price
                 })
 
-            # Основной пикап
             pickup = load.get('pickup')
             if pickup:
                 pickup_points.append({
@@ -220,7 +225,6 @@ def prep_consolidation():
                     "price": price
                 })
 
-            # Основная доставка
             delivery = load.get('delivery')
             if delivery:
                 delivery_points.append({
@@ -230,7 +234,6 @@ def prep_consolidation():
                     "price": price
                 })
 
-            # Доп. доставки
             for ed in load.get('extra_delivery') or []:
                 delivery_points.append({
                     "address": ed.get("address", ""),
@@ -239,10 +242,28 @@ def prep_consolidation():
                     "price": price
                 })
 
+            result_loads.append({
+                "_id": load_id,
+                "load_id": load.get("load_id", ""),
+                "broker_id": load.get("broker_id", ""),  # ← добавлено
+                "broker_load_id": load.get("broker_load_id", ""),  # ← добавлено
+                "broker": load.get("broker", {}),
+                "pickup": load.get("pickup") or {},
+                "extra_pickup": load.get("extra_pickup") or [],
+                "delivery": load.get("delivery") or {},
+                "extra_delivery": load.get("extra_delivery") or [],
+                "price": load.get("price"),
+                "total_price": load.get("total_price"),
+                "RPM": load.get("RPM"),
+                "miles": load.get("miles")
+            })
+
+        # ✅ Возврат JSON-ответа
         return jsonify({
             "success": True,
             "pickup_points": pickup_points,
-            "delivery_points": delivery_points
+            "delivery_points": delivery_points,
+            "loads": result_loads
         })
 
     except Exception as e:
