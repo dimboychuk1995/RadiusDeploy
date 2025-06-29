@@ -46,6 +46,10 @@
                   {{ deliveries[0].location }}
                   {% if deliveries[0].price is not none and deliveries[0].is_last %}
                     ({{ '${:,.2f}'.format(deliveries[0].price) }})
+                    <!-- Скрытый элемент для JS -->
+                    <span class="delivery-item d-none"
+                          data-driver-id="{{ driver.id }}"
+                          data-amount="{{ deliveries[0].price }}"></span>
                   {% endif %}
                 {% elif deliveries|length > 1 %}
                   <div class="dropdown">
@@ -58,7 +62,10 @@
                           <a class="dropdown-item delivery-item"
                              href="#"
                              data-load-id="{{ d.load_id }}"
-                             data-driver-id="{{ driver.id }}">
+                             data-driver-id="{{ driver.id }}"
+                             {% if d.price is not none and d.is_last %}
+                               data-amount="{{ d.price }}"
+                             {% endif %}>
                             {{ d.location }}
                             {% if d.price is not none and d.is_last %}
                               ({{ '${:,.2f}'.format(d.price) }})
@@ -83,6 +90,11 @@
 <div id="driverContextMenu" class="dropdown-menu" style="position: absolute; display: none; z-index: 9999;">
   <button class="dropdown-item" id="setBreakBtn">Назначить брейк</button>
   <button class="dropdown-item" id="showOnMapBtn">Водитель на карте</button>
+</div>
+
+<!-- Контекстное меню грузов -->
+<div id="loadContextMenu" class="position-absolute bg-white border shadow-sm rounded px-2 py-1" style="display: none; z-index: 9999;">
+  <button class="dropdown-item text-danger" id="excludeFromGrossBtn">Не учитывать в гросс этой недели</button>
 </div>
 
 

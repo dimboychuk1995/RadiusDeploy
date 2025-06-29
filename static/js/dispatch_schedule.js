@@ -3,6 +3,8 @@ function initDispatchSchedule() {
   bindDriverContextMenuHandlers();
   bindLoadCellClicks();
   initDriverScheduleWeekNavigation();
+  calculateAndBindDriverAmounts();
+  bindLoadContextMenuHandlers();
 }
 
 function initDriverScheduleWeekNavigation() {
@@ -288,6 +290,106 @@ function bindLoadCellClicks() {
     currentDriverId = null;
   }
 }
+
+function calculateAndBindDriverAmounts() {
+  const rows = document.querySelectorAll("tr.driver-row");
+  rows.forEach(row => {
+    const driverId = row.dataset.driverId;
+    let total = 0;
+
+    // Собираем все delivery-item с ценой
+    const deliveries = row.querySelectorAll(".delivery-item[data-amount]");
+    deliveries.forEach(item => {
+      const amount = parseFloat(item.dataset.amount);
+      if (!isNaN(amount)) {
+        total += amount;
+      }
+    });
+
+    // Сохраняем в data-атрибут и навешиваем tooltip
+    row.dataset.totalAmount = total.toFixed(2);
+
+    const nameCell = row.querySelector("td:first-child");
+    if (nameCell) {
+      nameCell.addEventListener("mouseenter", () => {
+        showTooltip(nameCell, `Total: $${total.toFixed(2)}`);
+      });
+      nameCell.addEventListener("mouseleave", hideTooltip);
+    }
+  });
+}
+
+let tooltipEl = null;
+
+function showTooltip(target, text) {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement("div");
+    tooltipEl.style.position = "absolute";
+    tooltipEl.style.background = "#333";
+    tooltipEl.style.color = "#fff";
+    tooltipEl.style.padding = "4px 8px";
+    tooltipEl.style.borderRadius = "4px";
+    tooltipEl.style.fontSize = "12px";
+    tooltipEl.style.zIndex = "9999";
+    tooltipEl.style.pointerEvents = "none";
+    document.body.appendChild(tooltipEl);
+  }
+
+  tooltipEl.textContent = text;
+  const rect = target.getBoundingClientRect();
+  tooltipEl.style.top = `${rect.top + window.scrollY - 30}px`;
+  tooltipEl.style.left = `${rect.left + window.scrollX}px`;
+  tooltipEl.style.display = "block";
+}
+
+function hideTooltip() {
+  if (tooltipEl) {
+    tooltipEl.style.display = "none";
+  }
+}
+
+
+//Правый клик на грузах
+let selectedLoadCell = null;
+
+function bindLoadContextMenuHandlers() {
+  const menu = document.getElementById("loadContextMenu");
+
+  document.addEventListener("contextmenu", function (e) {
+    const cell = e.target.closest(".load-cell");
+    if (!cell) return;
+
+    // Проверка: есть ли груз (либо текст, либо .dropdown, либо .delivery-item)
+    const hasDeliveryText = cell.textContent.trim() !== "";
+    const hasDropdown = cell.querySelector(".dropdown");
+    const hasDeliveryItem = cell.querySelector(".delivery-item");
+
+    if (!hasDeliveryText && !hasDropdown && !hasDeliveryItem) return;
+
+    e.preventDefault();
+    selectedLoadCell = cell;
+
+    menu.style.top = `${e.pageY}px`;
+    menu.style.left = `${e.pageX}px`;
+    menu.style.display = "block";
+  });
+
+  document.addEventListener("click", function () {
+    menu.style.display = "none";
+  });
+
+  document.getElementById("excludeFromGrossBtn").addEventListener("click", () => {
+    if (!selectedLoadCell) return;
+
+    selectedLoadCell.classList.add("excluded-from-gross");
+    selectedLoadCell.dataset.excludeFromGross = "true";
+
+    console.log("🚫 Excluded load-cell from gross");
+
+    menu.style.display = "none";
+  });
+}
+
 
 
 
