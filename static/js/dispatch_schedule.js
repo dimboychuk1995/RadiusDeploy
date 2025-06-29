@@ -440,3 +440,83 @@ function bindLoadContextMenuHandlers() {
 
 
 
+//модалка консолидации грузов
+function startConsolidationModal(loadIds) {
+  if (!Array.isArray(loadIds) || loadIds.length === 0) return;
+
+  const modal = document.getElementById("consolidationModalDispatch");
+  const backdrop = document.getElementById("consolidationBackdropDispatch");
+  const pickupList = document.getElementById("pickupListDispatch");
+  const deliveryList = document.getElementById("deliveryListDispatch");
+  const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
+
+  // Очистка
+  pickupList.innerHTML = "";
+  deliveryList.innerHTML = "";
+  saveBtn.style.display = "none";
+
+  // Показ модалки
+  modal.classList.add("show");
+  backdrop.classList.add("show");
+
+  // Загрузка данных по loadIds
+  fetch("/api/consolidation/details", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ loadIds }),
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) {
+        alert("Ошибка загрузки данных для консолидации");
+        return;
+      }
+
+      const { pickups, deliveries } = data;
+
+      pickups.forEach(pick => {
+        const li = document.createElement("li");
+        li.className = "list-group-item";
+        li.textContent = pick.address;
+        li.dataset.id = pick.loadId;
+        pickupList.appendChild(li);
+      });
+
+      deliveries.forEach(del => {
+        const li = document.createElement("li");
+        li.className = "list-group-item";
+        li.textContent = del.address;
+        li.dataset.id = del.loadId;
+        deliveryList.appendChild(li);
+      });
+
+      if (pickups.length > 0 && deliveries.length > 0) {
+        saveBtn.style.display = "inline-block";
+      }
+
+      initSortableListsDispatch();
+    })
+    .catch(err => {
+      console.error("Ошибка при получении грузов для консолидации:", err);
+    });
+}
+
+function closeConsolidationModalDispatch() {
+  document.getElementById("consolidationModalDispatch").classList.remove("show");
+  document.getElementById("consolidationBackdropDispatch").classList.remove("show");
+}
+
+function initSortableListsDispatch() {
+  new Sortable(document.getElementById("pickupListDispatch"), {
+    animation: 150,
+    ghostClass: 'sortable-ghost'
+  });
+
+  new Sortable(document.getElementById("deliveryListDispatch"), {
+    animation: 150,
+    ghostClass: 'sortable-ghost'
+  });
+}
+
+
+

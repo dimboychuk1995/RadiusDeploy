@@ -136,3 +136,31 @@
 
 <!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" id="driverBreakBackdropDispatch" onclick="closeDriverBreakModalDispatch()"></div>
+
+
+<!-- ============== Модалка консолидации грузов (DISPATCH) ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="consolidationModalDispatch">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Консолидировать грузы</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeConsolidationModalDispatch()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left" style="width: 48%;">
+          <h6>Пикапы</h6>
+          <ul id="pickupListDispatch" class="list-group sortable-list"></ul>
+        </div>
+        <div class="load-modal-left" style="width: 48%;">
+          <h6>Доставки</h6>
+          <ul id="deliveryListDispatch" class="list-group sortable-list"></ul>
+        </div>
+        <div class="mt-4 text-end">
+          <button id="saveConsolidationBtnDispatch" class="btn btn-success" style="display: none;">Сохранить</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="consolidationBackdropDispatch" onclick="closeConsolidationModalDispatch()"></div>
