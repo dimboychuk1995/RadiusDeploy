@@ -242,11 +242,17 @@ def prep_consolidation():
                     "price": price
                 })
 
+            load_id = str(load['_id'])
+
             result_loads.append({
                 "_id": load_id,
-                "load_id": load.get("load_id", ""),
-                "broker_id": load.get("broker_id", ""),  # ← добавлено
-                "broker_load_id": load.get("broker_load_id", ""),  # ← добавлено
+                "load_id": str(load.get("load_id", "")),
+                "broker_id": str(load.get("broker_id")) if load.get("broker_id") else "",
+                "company_sign": str(load.get("company_sign")) if load.get("company_sign") else "",
+                "assigned_driver": str(load.get("assigned_driver")) if load.get("assigned_driver") else "",
+                "assigned_dispatch": str(load.get("assigned_dispatch")) if load.get("assigned_dispatch") else "",
+                "assigned_power_unit": str(load.get("assigned_power_unit")) if load.get("assigned_power_unit") else "",
+                "broker_load_id": load.get("broker_load_id", ""),
                 "broker": load.get("broker", {}),
                 "pickup": load.get("pickup") or {},
                 "extra_pickup": load.get("extra_pickup") or [],
@@ -255,7 +261,7 @@ def prep_consolidation():
                 "price": load.get("price"),
                 "total_price": load.get("total_price"),
                 "RPM": load.get("RPM"),
-                "miles": load.get("miles")
+                "miles": load.get("total_miles")
             })
 
         # ✅ Возврат JSON-ответа
