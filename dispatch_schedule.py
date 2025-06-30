@@ -12,6 +12,10 @@ dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
 def dispatch_schedule_fragment():
+    tz_doc = db.company_timezone.find_one({})
+    tz_name = tz_doc.get("timezone", "America/Chicago")
+    tz = ZoneInfo(tz_name)
+
     start_str = request.args.get("start")
     end_str = request.args.get("end")
 
@@ -19,7 +23,8 @@ def dispatch_schedule_fragment():
         start_of_week = datetime.strptime(start_str, "%Y-%m-%d").date()
         end_of_week = datetime.strptime(end_str, "%Y-%m-%d").date()
     else:
-        today = datetime.utcnow().date()
+        now_local = datetime.now(tz)
+        today = now_local.date()
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
