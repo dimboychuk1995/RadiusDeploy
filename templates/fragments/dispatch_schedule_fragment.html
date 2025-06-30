@@ -81,7 +81,9 @@
                 {% endif %}
 
                 {% if breaks %}
-                  <div class="text-danger fw-bold" title="{{ breaks|join(', ') }}">///\\\</div>
+                  <div class="text-danger fw-bold" title="{{ breaks|join(', ') }}">
+                      {{ breaks|join(', ') }}
+                  </div>
                 {% endif %}
               </td>
             {% endfor %}
