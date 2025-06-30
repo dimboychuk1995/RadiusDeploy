@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="container mt-4">
+    <h3>All Settings</h3>
+
+    <div class="mb-3">
+      <label for="timezoneSelect" class="form-label">Select Timezone (US Only):</label>
+      <select id="timezoneSelect" class="form-select">
+        <!-- JS вставит сюда таймзоны -->
+      </select>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

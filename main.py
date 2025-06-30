@@ -33,6 +33,7 @@ from super_dispatch import super_dispatch_bp
 from documents import document_bp
 from equipment import equipment_bp
 from dispatch_schedule import dispatch_schedule_bp
+from settings import settings_bp
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -80,6 +81,8 @@ app.register_blueprint(super_dispatch_bp)
 app.register_blueprint(document_bp)
 app.register_blueprint(equipment_bp)
 app.register_blueprint(dispatch_schedule_bp)
+app.register_blueprint(settings_bp)
+
 
 # Главная страница
 @app.route('/')
