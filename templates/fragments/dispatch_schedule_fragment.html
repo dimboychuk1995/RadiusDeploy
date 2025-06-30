@@ -41,13 +41,13 @@
             {% for i in range(7) %}
               {% set date_str = current_week_dates[i].strftime("%m/%d/%Y") %}
               {% set deliveries = driver_delivery_map.get((driver.id, date_str), []) %}
+              {% set breaks = driver_break_map.get((driver.id, date_str)) %}
               <td class="load-cell" data-day="{{ i }}">
                 {% if deliveries|length == 1 %}
                   {{ deliveries[0].location }}
                   {% if deliveries[0].price is not none and deliveries[0].is_last %}
                     ({{ '${:,.2f}'.format(deliveries[0].price) }})
                   {% endif %}
-                  <!-- ✅ Скрытый элемент с load-id -->
                   <span class="delivery-item d-none"
                         data-load-id="{{ deliveries[0].load_id }}"
                         data-driver-id="{{ driver.id }}"
@@ -79,6 +79,10 @@
                     </ul>
                   </div>
                 {% endif %}
+
+                {% if breaks %}
+                  <div class="text-danger fw-bold" title="{{ breaks|join(', ') }}">///\\\</div>
+                {% endif %}
               </td>
             {% endfor %}
           </tr>
@@ -87,6 +91,7 @@
     </tbody>
   </table>
 </div>
+
 
 
 <!-- Контекстное меню -->

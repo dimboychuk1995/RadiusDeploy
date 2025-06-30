@@ -6,7 +6,7 @@ from collections import defaultdict
 dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 
 from datetime import datetime, timedelta
-
+from pytz import timezone  # добавь в начало файла
 
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
@@ -25,28 +25,17 @@ def dispatch_schedule_fragment():
     current_week_dates = [start_of_week + timedelta(days=i) for i in range(7)]
 
     # Диспетчеры
-    dispatchers = list(db.users.find({"role": "dispatch"}, {
-        "_id": 1,
-        "username": 1
-    }))
+    dispatchers = list(db.users.find({"role": "dispatch"}, {"_id": 1, "username": 1}))
     for dispatcher in dispatchers:
         dispatcher["id"] = str(dispatcher.pop("_id"))
 
     # Водители
     drivers = list(db.drivers.find({}, {
-        "_id": 1,
-        "name": 1,
-        "contact_number": 1,
-        "email": 1,
-        "truck": 1,
-        "dispatcher": 1
+        "_id": 1, "name": 1, "contact_number": 1, "email": 1, "truck": 1, "dispatcher": 1
     }))
 
     # Траки
-    trucks = list(db.trucks.find({}, {
-        "_id": 1,
-        "unit_number": 1
-    }))
+    trucks = list(db.trucks.find({}, {"_id": 1, "unit_number": 1}))
     for truck in trucks:
         truck["id"] = str(truck.pop("_id"))
     truck_map = {truck["id"]: truck for truck in trucks}
@@ -102,19 +91,11 @@ def dispatch_schedule_fragment():
                     "info": delivery_info,
                     "is_last": i == len(extra_delivery) - 1
                 })
-            # Добавляем main delivery тоже, но она не последняя
             if main_delivery:
-                all_deliveries.append({
-                    "info": main_delivery,
-                    "is_last": False
-                })
+                all_deliveries.append({"info": main_delivery, "is_last": False})
         else:
-            # Нет extra_delivery, значит main_delivery — последняя
             if main_delivery:
-                all_deliveries.append({
-                    "info": main_delivery,
-                    "is_last": True
-                })
+                all_deliveries.append({"info": main_delivery, "is_last": True})
 
         for delivery in all_deliveries:
             delivery_info = delivery["info"]
@@ -144,6 +125,37 @@ def dispatch_schedule_fragment():
 
         loads.append(load)
 
+    # 🕒 Timezone-aware брейки
+    tz = timezone("America/Chicago")
+
+    breaks_cursor = db.drivers_brakes.find({
+        "start_date": {"$lte": datetime.combine(end_of_week, datetime.max.time())},
+        "end_date": {"$gte": datetime.combine(start_of_week, datetime.min.time())}
+    })
+
+    driver_breaks = []
+    driver_break_map = defaultdict(list)
+
+    for br in breaks_cursor:
+        start_date = br["start_date"].astimezone(tz).date()
+        end_date = br["end_date"].astimezone(tz).date()
+        driver_id = str(br["driver_id"])
+        reason = br.get("reason", "")
+
+        current = start_date
+        while current <= end_date:
+            date_str = current.strftime("%m/%d/%Y")
+            driver_break_map[(driver_id, date_str)].append(reason)
+            current += timedelta(days=1)
+
+        driver_breaks.append({
+            "id": str(br["_id"]),
+            "driver_id": driver_id,
+            "reason": reason,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d")
+        })
+
     return render_template("fragments/dispatch_schedule_fragment.html",
                            page_id="dispatch-table",
                            dispatchers=dispatchers,
@@ -151,4 +163,6 @@ def dispatch_schedule_fragment():
                            trucks=trucks,
                            loads=loads,
                            current_week_dates=current_week_dates,
-                           driver_delivery_map=driver_delivery_map)
+                           driver_delivery_map=driver_delivery_map,
+                           driver_breaks=driver_breaks,
+                           driver_break_map=driver_break_map)

@@ -140,6 +140,8 @@ function bindDriverContextMenuHandlers() {
 function openDriverBreakModalDispatch(driverId) {
   if (!driverId) return;
 
+  window.currentBreakDriverId = driverId; // ⬅️ обязательно
+
   const modal = document.getElementById("driverBreakModalDispatch");
   const backdrop = document.getElementById("driverBreakBackdropDispatch");
 
@@ -147,6 +149,7 @@ function openDriverBreakModalDispatch(driverId) {
   backdrop.classList.add("show");
 
   initDriverBreakDateRangeDispatch();
+  initDriverBreakFormListenerDispatch(); // тоже важно
 }
 
 function closeDriverBreakModalDispatch() {
@@ -202,6 +205,46 @@ function initDriverBreakDateRangeDispatch() {
     }
 
     console.log(`📅 Break range selected: ${startIso} to ${endIso}`);
+  });
+}
+
+function initDriverBreakFormListenerDispatch() {
+  const form = document.getElementById('driverBreakFormDispatch');
+  if (!form || form.dataset.bound === 'true') return;
+
+  form.dataset.bound = 'true';
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const reason = document.getElementById('breakReasonDispatch').value;
+    const range = $('#breakDateRangeDispatch').data('daterangepicker');
+    const startDate = range?.startDate?.toISOString();
+    const endDate = range?.endDate?.toISOString();
+    const driverId = window.currentBreakDriverId;
+
+    if (!driverId || !reason || !startDate || !endDate) {
+      return alert("Все поля обязательны");
+    }
+
+    const res = await fetch('/api/drivers/break', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        driver_id: driverId,
+        reason,
+        start_date: startDate,
+        end_date: endDate
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      alert("Брейк успешно сохранён");
+      closeDriverBreakModalDispatch();
+    } else {
+      alert("Ошибка: " + (json.error || "Не удалось сохранить"));
+    }
   });
 }
 
