@@ -195,16 +195,13 @@ function initDriverBreakDateRangeDispatch() {
   });
 
   $(input).on('apply.daterangepicker', function (ev, picker) {
-    const startIso = picker.startDate.toISOString();
-    const endIso = picker.endDate.toISOString();
-    const isReset = picker.startDate.isSame(moment(), 'day') && picker.endDate.isSame(moment(), 'day');
+    const startFormatted = picker.startDate.startOf('day').toISOString();
+    const endFormatted = picker.endDate.endOf('day').toISOString();  // 🔧 конец дня
 
-    if (isReset) {
-      input.value = '';
-      return;
-    }
+    input.dataset.startDate = startFormatted;
+    input.dataset.endDate = endFormatted;
 
-    console.log(`📅 Break range selected: ${startIso} to ${endIso}`);
+    console.log(`📅 Break range selected: ${startFormatted} to ${endFormatted}`);
   });
 }
 
@@ -218,13 +215,13 @@ function initDriverBreakFormListenerDispatch() {
     e.preventDefault();
 
     const reason = document.getElementById('breakReasonDispatch').value;
-    const range = $('#breakDateRangeDispatch').data('daterangepicker');
-    const startDate = range?.startDate?.toISOString();
-    const endDate = range?.endDate?.toISOString();
+    const input = document.getElementById("breakDateRangeDispatch");
+    const startDate = input.dataset.startDate;
+    const endDate = input.dataset.endDate;
     const driverId = window.currentBreakDriverId;
 
     if (!driverId || !reason || !startDate || !endDate) {
-      return alert("Все поля обязательны");
+      return Swal.fire("Ошибка", "Все поля обязательны", "error");
     }
 
     const res = await fetch('/api/drivers/break', {
@@ -240,13 +237,15 @@ function initDriverBreakFormListenerDispatch() {
 
     const json = await res.json();
     if (json.success) {
-      alert("Брейк успешно сохранён");
+      Swal.fire("Успех", "Брейк успешно сохранён", "success");
       closeDriverBreakModalDispatch();
     } else {
-      alert("Ошибка: " + (json.error || "Не удалось сохранить"));
+      Swal.fire("Ошибка", json.error || "Не удалось сохранить", "error");
     }
   });
 }
+
+
 
 function bindLoadCellClicks() {
   // CSS внутри JS

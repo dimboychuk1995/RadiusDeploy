@@ -1,12 +1,13 @@
-from flask import Blueprint, render_template, request
+from zoneinfo import ZoneInfo
+from flask import Blueprint
+from tools.db import db
+from flask import render_template, request
 from flask_login import login_required
-from tools.db import db  # путь подстрой под свой
-from bson import ObjectId
+from datetime import datetime, timedelta, time, timezone
 from collections import defaultdict
+
 dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 
-from datetime import datetime, timedelta
-from pytz import timezone  # добавь в начало файла
 
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
@@ -29,12 +30,10 @@ def dispatch_schedule_fragment():
     for dispatcher in dispatchers:
         dispatcher["id"] = str(dispatcher.pop("_id"))
 
-    # Водители
+    # Водители и траки
     drivers = list(db.drivers.find({}, {
         "_id": 1, "name": 1, "contact_number": 1, "email": 1, "truck": 1, "dispatcher": 1
     }))
-
-    # Траки
     trucks = list(db.trucks.find({}, {"_id": 1, "unit_number": 1}))
     for truck in trucks:
         truck["id"] = str(truck.pop("_id"))
@@ -53,7 +52,7 @@ def dispatch_schedule_fragment():
             driver["truck"] = None
             driver["truck_info"] = {}
 
-    # Грузы и deliveries
+    # Грузы
     all_loads = list(db.loads.find({}))
     loads = []
     driver_delivery_map = defaultdict(list)
@@ -82,7 +81,6 @@ def dispatch_schedule_fragment():
         price = safe_float(load.get("price"))
         load_id = str(load.get("_id"))
         driver_id = str(load.get("assigned_driver"))
-
         all_deliveries = []
 
         if isinstance(extra_delivery, list) and extra_delivery:
@@ -104,8 +102,7 @@ def dispatch_schedule_fragment():
                 delivery_date = datetime.strptime(date_str, "%m/%d/%Y").date()
                 if not (start_of_week <= delivery_date <= end_of_week):
                     continue
-            except Exception as e:
-                print(f"Invalid delivery date '{date_str}' in load {load.get('_id')}: {e}")
+            except Exception:
                 continue
 
             address = delivery_info.get("address", "")
@@ -125,9 +122,12 @@ def dispatch_schedule_fragment():
 
         loads.append(load)
 
-    # 🕒 Timezone-aware брейки
-    tz = timezone("America/Chicago")
+    # Таймзона
+    tz_doc = db.company_timezone.find_one({})
+    tz_name = tz_doc.get("timezone", "America/Chicago")
+    tz = ZoneInfo(tz_name)
 
+    # Брейки
     breaks_cursor = db.drivers_brakes.find({
         "start_date": {"$lte": datetime.combine(end_of_week, datetime.max.time())},
         "end_date": {"$gte": datetime.combine(start_of_week, datetime.min.time())}
@@ -137,13 +137,29 @@ def dispatch_schedule_fragment():
     driver_break_map = defaultdict(list)
 
     for br in breaks_cursor:
-        start_date = br["start_date"].astimezone(tz).date()
-        end_date = br["end_date"].astimezone(tz).date()
+        start_utc = br["start_date"]
+        end_utc = br["end_date"]
         driver_id = str(br["driver_id"])
         reason = br.get("reason", "")
 
-        current = start_date
-        while current <= end_date:
+        print(f"\n=== DRIVER BREAK ===")
+        print(f"Original UTC start: {start_utc} | end: {end_utc}")
+
+        start_local = start_utc.replace(tzinfo=timezone.utc).astimezone(tz)
+        end_local = end_utc.replace(tzinfo=timezone.utc).astimezone(tz)
+
+        print(f"Chicago LOCAL start: {start_local} | end: {end_local}")
+        print("====================\n")
+
+        start_date_local = start_local.date()
+
+        if end_local.time() == time(0, 0):
+            end_date_local = (end_local - timedelta(seconds=1)).date()
+        else:
+            end_date_local = end_local.date()
+
+        current = start_date_local
+        while current <= end_date_local:
             date_str = current.strftime("%m/%d/%Y")
             driver_break_map[(driver_id, date_str)].append(reason)
             current += timedelta(days=1)
@@ -152,8 +168,8 @@ def dispatch_schedule_fragment():
             "id": str(br["_id"]),
             "driver_id": driver_id,
             "reason": reason,
-            "start_date": start_date.strftime("%Y-%m-%d"),
-            "end_date": end_date.strftime("%Y-%m-%d")
+            "start_date": start_date_local.strftime("%Y-%m-%d"),
+            "end_date": end_date_local.strftime("%Y-%m-%d")
         })
 
     return render_template("fragments/dispatch_schedule_fragment.html",

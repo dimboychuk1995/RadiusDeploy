@@ -1,3 +1,5 @@
+
+
 import requests
 from flask import Blueprint, render_template
 from flask_login import login_required, current_user
@@ -5,11 +7,11 @@ import logging
 from flask import request, jsonify
 from bson import ObjectId
 from flask_login import login_required
-from datetime import datetime
-
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from auth import users_collection
 from tools.db import db
-
+from dateutil import parser
 dispatch_bp = Blueprint('dispatch', __name__)
 
 drivers_collection = db['drivers']
@@ -366,6 +368,7 @@ def save_consolidation():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @dispatch_bp.route('/api/drivers/break', methods=['POST'])
 @login_required
 def save_driver_break():
@@ -373,22 +376,36 @@ def save_driver_break():
         data = request.get_json()
         driver_id = data.get("driver_id")
         reason = data.get("reason")
-        start_date = data.get("start_date")
-        end_date = data.get("end_date")
+        start_date_str = data.get("start_date")  # ISO: "2025-06-24T00:00:00.000Z"
+        end_date_str = data.get("end_date")
 
-        if not driver_id or not reason or not start_date or not end_date:
+        if not driver_id or not reason or not start_date_str or not end_date_str:
             return jsonify({"success": False, "error": "Missing fields"}), 400
 
+        # Получаем таймзону из базы
+        tz_doc = db.company_timezone.find_one({}) or {}
+        tz_name = tz_doc.get("timezone", "America/Chicago")
+        tz = ZoneInfo(tz_name)
+
+        # Парсим ISO-формат и конвертируем в локальную таймзону
+        start_utc = datetime.fromisoformat(start_date_str.replace("Z", "+00:00"))
+        end_utc = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+
+        # Переводим в локальное время
+        start_local = start_utc.astimezone(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_local = end_utc.astimezone(tz).replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        # Сохраняем в UTC (Mongo предпочитает UTC)
         doc = {
             "driver_id": ObjectId(driver_id),
             "reason": reason,
-            "start_date": datetime.fromisoformat(start_date.replace("Z", "+00:00")),
-            "end_date": datetime.fromisoformat(end_date.replace("Z", "+00:00")),
+            "start_date": start_local.astimezone(ZoneInfo("UTC")),
+            "end_date": end_local.astimezone(ZoneInfo("UTC")),
             "created_at": datetime.utcnow(),
             "created_by": ObjectId(current_user.id)
         }
 
-        drivers_brakes_collection.insert_one(doc)
+        db.drivers_brakes.insert_one(doc)
         return jsonify({"success": True})
 
     except Exception as e:
