@@ -43,23 +43,16 @@
 
     <div class="custom-offcanvas-body">
       <div class="load-modal-content">
-        <div class="load-modal-left w-100">
-          <div class="form-group">
-            <label>Имя:</label>
-            <p id="dispatcherName" class="form-control-plaintext">—</p>
-          </div>
-          <div class="form-group">
-            <label>Email:</label>
-            <p id="dispatcherEmail" class="form-control-plaintext">—</p>
-          </div>
-          <div class="form-group">
-            <label>Телефон:</label>
-            <p id="dispatcherPhone" class="form-control-plaintext">—</p>
-          </div>
-          <div class="form-group">
-            <label>Компания:</label>
-            <p id="dispatcherCompany" class="form-control-plaintext">—</p>
-          </div>
+        <div class="load-modal-left">
+          <p><strong>Real Name:</strong> <span id="dispatcherRealName">—</span></p>
+          <p><strong>Dispatch Name:</strong> <span id="dispatcherDispatchName">—</span></p>
+          <p><strong>Company Dispatch:</strong> <span id="dispatcherCompanyDispatch">—</span></p>
+          <p><strong>Email:</strong> <span id="dispatcherEmail">—</span></p>
+          <p><strong>Email Password:</strong> <span id="dispatcherEmailPassword">—</span></p>
+          <p>
+            <strong>Salary Scheme:</strong> <span id="dispatcherSalaryScheme">—</span>
+            <button class="btn btn-sm btn-primary float-end" onclick="openSalarySchemeModal()">Set Salary Scheme</button>
+          </p>
         </div>
       </div>
     </div>
@@ -67,6 +60,23 @@
 </div>
 
 <div class="custom-offcanvas-backdrop" id="dispatcherDetailsBackdrop" onclick="closeDispatcherDetailsModal()"></div>
+
+
+<!-- Bootstrap Modal for Salary Scheme -->
+<div class="modal fade" id="salarySchemeModal" tabindex="-1" aria-labelledby="salarySchemeLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="salarySchemeLabel">Set Salary Scheme</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Пока пусто -->
+        <p>Будущий контент здесь...</p>
+      </div>
+    </div>
+  </div>
+</div>
 
 
 
