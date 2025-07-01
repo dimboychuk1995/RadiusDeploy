@@ -7,6 +7,7 @@
                 <tr>
                     <th>Имя пользователя</th>
                     <th>Компания</th>
+                    <th>Детали</th>
                 </tr>
             </thead>
             <tbody>
@@ -14,6 +15,9 @@
                 <tr>
                     <td>{{ user.username }}</td>
                     <td>{{ user.company }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick='openDispatcherDetailsModal({{ user | tojson | safe }})'>Детали</button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -22,3 +26,119 @@
         <p>Нет зарегистрированных диспетчеров.</p>
     {% endif %}
 </div>
+
+
+<!-- ============== Детали диспетчера (редактируемые) ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="dispatcherDetailsModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Детали диспетчера</h5>
+      <button type="button" class="close" onclick="closeDispatcherDetailsModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <input type="hidden" id="dispatcherId">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <div class="form-group">
+            <label for="dispatcherRealName">Real Name</label>
+            <input type="text" class="form-control" id="dispatcherRealName">
+          </div>
+
+          <div class="form-group">
+            <label for="dispatcherDispatchName">Dispatch Name</label>
+            <input type="text" class="form-control" id="dispatcherDispatchName">
+          </div>
+
+          <div class="form-group">
+            <label for="dispatcherCompanyDispatch">Company Dispatch</label>
+            <select class="form-control" id="dispatcherCompanyDispatch">
+              {% for company in companies %}
+                <option value="{{ company.id }}">{{ company.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="dispatcherPhone">Телефон</label>
+            <input type="text" id="dispatcherPhone" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label for="dispatcherEmail">Email</label>
+            <input type="email" class="form-control" id="dispatcherEmail">
+          </div>
+
+          <div class="form-group">
+            <label for="dispatcherEmailPassword">Email Password</label>
+            <input type="text" class="form-control" id="dispatcherEmailPassword">
+          </div>
+
+          <div class="form-group">
+            <label>Salary Scheme</label>
+            <div class="d-flex justify-content-between align-items-center">
+              <span id="dispatcherSalarySchemeText">—</span>
+              <button class="btn btn-sm btn-outline-primary" onclick="openSalarySchemeModal()">Set Salary Scheme</button>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex justify-content-end">
+            <button class="btn btn-secondary mr-2" onclick="closeDispatcherDetailsModal()">Закрыть</button>
+            <button class="btn btn-success" onclick="saveDispatcherDetails()">Сохранить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="dispatcherDetailsBackdrop" onclick="closeDispatcherDetailsModal()"></div>
+
+
+
+<!-- ============== Зарплата диспетчера (редактируемые) ============== -->
+<div class="modal fade" id="salarySchemeModal" tabindex="-1" aria-labelledby="salarySchemeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="salarySchemeModalLabel">Схема зарплаты</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="salarySchemeSelect">Выберите схему</label>
+          <select id="salarySchemeSelect" class="form-control" onchange="handleSalarySchemeChange()">
+            <option value="">— Выбрать —</option>
+            <option value="percent">Процент от грузов</option>
+            <option value="fixed_plus_percent">Ставка + процент от грузов</option>
+            <option value="per_driver_plus_percent">Ставка за каждого водителя + процент от грузов</option>
+          </select>
+        </div>
+
+        <div id="percentBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryPercent">Процент за грузы (%)</label>
+          <input type="number" id="salaryPercent" class="form-control" step="0.1" min="0">
+        </div>
+
+        <div id="fixedBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryFixed">Фиксированная ставка ($)</label>
+          <input type="number" id="salaryFixed" class="form-control" step="0.01" min="0">
+        </div>
+
+        <div id="perDriverBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryPerDriver">Сумма за каждого водителя ($)</label>
+          <input type="number" id="salaryPerDriver" class="form-control" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        <button type="button" class="btn btn-primary" onclick="saveSalaryScheme()">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+

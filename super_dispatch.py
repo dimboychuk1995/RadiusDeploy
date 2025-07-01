@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify
 from flask_login import login_required
 import logging
 import requests
@@ -7,12 +7,25 @@ from datetime import datetime, timedelta, timezone
 from tools.db import db
 from dateutil.parser import parse as parse_date
 from tools.socketio_instance import socketio
-from flask_socketio import SocketIO, emit
-from flask import current_app, copy_current_request_context, request
+from flask import request
 import threading
+import pytz
 super_dispatch_bp = Blueprint('super_dispatch', __name__)
 integrations_settings_collection = db['integrations_settings']
 loads_collection = db['loads']
+
+def parse_date(date_str):
+    if not date_str or not date_str.strip():
+        return None
+    try:
+        # Super Dispatch обычно отдаёт даты в ISO формате
+        dt = datetime.fromisoformat(date_str.rstrip("Z"))  # без Z для совместимости
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=pytz.utc)
+        return dt.astimezone(pytz.utc)
+    except Exception as e:
+        logging.warning(f"⚠️ parse_date('{date_str}') failed: {e}")
+        return None
 
 def format_date_mmddyyyy(date_str):
     if not date_str:
@@ -282,7 +295,7 @@ def import_super_dispatch_orders():
                         order.get("pickup", {}).get("venue", {}).get("state"),
                         order.get("pickup", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": format_date_mmddyyyy(order.get("pickup", {}).get("scheduled_at")),
+                    "date": parse_date(order.get("pickup", {}).get("scheduled_at")),
                     "instructions": order.get("pickup", {}).get("notes", ""),
                     "contact_person": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -296,7 +309,7 @@ def import_super_dispatch_orders():
                         order.get("delivery", {}).get("venue", {}).get("state"),
                         order.get("delivery", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": format_date_mmddyyyy(order.get("delivery", {}).get("scheduled_at")),
+                    "date": parse_date(order.get("delivery", {}).get("scheduled_at")),
                     "instructions": order.get("delivery", {}).get("notes", ""),
                     "contact_person": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("phone", ""),

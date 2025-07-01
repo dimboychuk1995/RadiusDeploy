@@ -1,0 +1,30 @@
+<div class="p-3">
+  <h3>Стейтменты Диспетчеров</h3>
+  <button class="btn btn-primary mt-3"
+          onclick="openDispatcherPayrollModal()">
+    <i class="fas fa-calculator me-2"></i> Посчитать зарплату диспетчерам
+  </button>
+</div>
+
+<!-- ============== Модалка расчета зарплаты диспетчеров ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="dispatcherPayrollModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Расчет зарплаты диспетчеров</h5>
+      <button type="button" class="close" onclick="closeDispatcherPayrollModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <p class="text-muted">Модалка пока пустая.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" id="dispatcherPayrollBackdrop" onclick="closeDispatcherPayrollModal()"></div>
+

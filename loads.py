@@ -21,6 +21,7 @@ from xhtml2pdf import pisa
 from io import BytesIO
 from jinja2 import Template
 from flask import send_file
+import pytz
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -37,12 +38,22 @@ dispatchers = list(db["users"].find({"role": "dispatch"}, {"_id": 1, "username":
 ALLOWED_EXTENSIONS = {'pdf'}
 
 def parse_date(date_str):
-    if not date_str:
-        return ""
+    if not date_str or not date_str.strip():
+        return None
     try:
-        return datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
-    except:
-        return ""
+        # Попробуем разные форматы (добавь свои, если надо)
+        for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y-%m-%d %H:%M"):
+            try:
+                naive = datetime.strptime(date_str.strip(), fmt)
+                local_tz = pytz.timezone("America/Chicago")  # или твоя таймзона
+                local_dt = local_tz.localize(naive)
+                return local_dt.astimezone(pytz.utc)
+            except ValueError:
+                continue
+        raise ValueError("Не удалось распарсить дату")
+    except Exception as e:
+        logging.warning(f"❌ Ошибка в parse_date('{date_str}'): {e}")
+        return None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -388,23 +399,36 @@ def customers_list():
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
 def loads_fragment():
+    from datetime import datetime, timezone
+    import pytz
+
     try:
+        # Таймзона компании
+        local_tz = pytz.timezone("America/Chicago")  # можно заменить динамически
+
+        # Функция преобразования даты из UTC → local → строка
+        def to_local_str(dt):
+            if not dt or not isinstance(dt, datetime):
+                return ""
+            local_dt = dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
+            return local_dt.strftime("%m/%d/%Y")
+
         # Получаем все компании (если используется в шаблоне)
         companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 
-        # Получаем всех водителей компании с нужными полями
+        # Получаем всех водителей компании
         all_drivers = list(drivers_collection.find(
             {'company': current_user.company},
             {"_id": 1, "name": 1, "dispatcher": 1, "status": 1, "truck": 1}
         ))
 
-        # Фильтруем: только активные и у которых есть трак
+        # Фильтрация: активные с траками
         filtered_drivers = [
             d for d in all_drivers
             if d.get('status') == 'Active' and d.get('truck')
         ]
 
-        # Если диспетчер — свои водители вверх
+        # Если диспетчер — сортировка водителей
         if hasattr(current_user, 'role') and current_user.role == 'dispatch':
             dispatcher_id = ObjectId(current_user.get_id())
             own_drivers = [d for d in filtered_drivers if d.get('dispatcher') == dispatcher_id]
@@ -416,13 +440,13 @@ def loads_fragment():
         # Карта ID -> имя
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
-        # Получаем всех диспетчеров
+        # Все диспетчеры компании
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
             {"_id": 1, "username": 1}
         ))
 
-        # Получаем грузы
+        # Грузы
         loads = list(loads_collection.find(
             {'company': current_user.company},
             {
@@ -445,7 +469,7 @@ def loads_fragment():
             }
         ))
 
-        # Обогащаем данными
+        # Обогащение
         for load in loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
@@ -453,16 +477,18 @@ def loads_fragment():
             if load.get("company_sign"):
                 load["company_sign"] = str(load["company_sign"])
 
-            # Добавляем дату пикапа
-            load["pickup_date"] = load.get("pickup", {}).get("date", "")
+            # pickup date
+            pickup_dt = load.get("pickup", {}).get("date")
+            load["pickup_date"] = to_local_str(pickup_dt)
 
-            # Добавляем дату деливери (учитывая последнюю extra_delivery)
+            # delivery date
             extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
             if extra_deliveries:
                 last_delivery = extra_deliveries[-1]
-                load["delivery_date"] = last_delivery.get("date", "")
+                delivery_dt = last_delivery.get("date")
             else:
-                load["delivery_date"] = load.get("delivery", {}).get("date", "")
+                delivery_dt = load.get("delivery", {}).get("date")
+            load["delivery_date"] = to_local_str(delivery_dt)
 
         return render_template(
             "fragments/loads_fragment.html",

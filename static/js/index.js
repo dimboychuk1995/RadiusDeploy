@@ -24,6 +24,10 @@ function initNavigation() {
       initStatementFilter?.();
       initStatementRowClicks?.();
     },
+    'statement_dispatchers': () => {
+      initStatementDispatcherEvents?.();
+      // ... любые другие нужные функции
+    },
     'fuel_cards': () => initFuelCards?.(),
     'fuel_cards_summary': () => initFuelCardsSummary?.(),
     'fuel_cards_transactions': () => initFuelCardTransactions?.(),
@@ -125,7 +129,8 @@ function initNavigation() {
     { arrowId: "samsaraDropdownArrow", submenuId: "samsaraSubmenu" },
     { arrowId: "safetyDropdownArrow", submenuId: "safetySubmenu" },
     { arrowId: "fuelCardsDropdownArrow", submenuId: "fuelCardsSubmenu" },
-    { arrowId: "fleetDropdownArrow", submenuId: "fleetSubmenu" }// <-- добавлено
+    { arrowId: "fleetDropdownArrow", submenuId: "fleetSubmenu" },
+    { arrowId: "statementsDropdownArrow", submenuId: "statementsSubmenu" }
   ]
       .forEach(({ arrowId, submenuId }) => {
     const arrow = document.getElementById(arrowId);
