@@ -44,8 +44,8 @@
                   <td>{{ load.driver_name or '—' }}</td>
                   <td>{{ load.pickup.address if load.pickup else '—' }}</td>
 
-                  {# === Pickup Date === #}
-                  <td>{{ load.pickup.date if load.pickup and load.pickup.date else '—' }}</td>
+                  {# === Pickup Date (отформатировано в Python) === #}
+                  <td>{{ load.pickup_date or '—' }}</td>
 
                   {# === Delivery Address (последний extra_delivery при наличии) === #}
                   <td>
@@ -57,14 +57,8 @@
                     {% endif %}
                   </td>
 
-                  {# === Delivery Date (последний extra_delivery при наличии) === #}
-                  <td>
-                    {% if extra_deliveries and extra_deliveries | length > 0 %}
-                      {{ extra_deliveries[-1].date or '—' }}
-                    {% else %}
-                      {{ load.delivery.date if load.delivery else '—' }}
-                    {% endif %}
-                  </td>
+                  {# === Delivery Date (отформатировано в Python) === #}
+                  <td>{{ load.delivery_date or '—' }}</td>
 
                   <td>${{ load.price or '—' }}</td>
                   <td>${{ load.RPM or '—' }}</td>
