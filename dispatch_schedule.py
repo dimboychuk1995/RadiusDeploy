@@ -12,10 +12,16 @@ dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
 def dispatch_schedule_fragment():
+    from datetime import datetime, timedelta, time, timezone
+    from collections import defaultdict
+    from zoneinfo import ZoneInfo
+
+    # Таймзона компании
     tz_doc = db.company_timezone.find_one({})
     tz_name = tz_doc.get("timezone", "America/Chicago")
     tz = ZoneInfo(tz_name)
 
+    # Диапазон недели
     start_str = request.args.get("start")
     end_str = request.args.get("end")
 
@@ -23,8 +29,7 @@ def dispatch_schedule_fragment():
         start_of_week = datetime.strptime(start_str, "%Y-%m-%d").date()
         end_of_week = datetime.strptime(end_str, "%Y-%m-%d").date()
     else:
-        now_local = datetime.now(tz)
-        today = now_local.date()
+        today = datetime.now(tz).date()
         start_of_week = today - timedelta(days=today.weekday())
         end_of_week = start_of_week + timedelta(days=6)
 
@@ -57,7 +62,6 @@ def dispatch_schedule_fragment():
             driver["truck"] = None
             driver["truck_info"] = {}
 
-    # Грузы
     all_loads = list(db.loads.find({}))
     loads = []
     driver_delivery_map = defaultdict(list)
@@ -102,12 +106,24 @@ def dispatch_schedule_fragment():
 
         for delivery in all_deliveries:
             delivery_info = delivery["info"]
-            date_str = delivery_info.get("date", "").strip()
-            try:
-                delivery_date = datetime.strptime(date_str, "%m/%d/%Y").date()
-                if not (start_of_week <= delivery_date <= end_of_week):
+            raw_date = delivery_info.get("date")
+
+            if isinstance(raw_date, datetime):
+                if raw_date.tzinfo is None:
+                    raw_date = raw_date.replace(tzinfo=timezone.utc)
+                local_dt = raw_date.astimezone(tz)
+                delivery_date = local_dt.date()
+                date_str = delivery_date.strftime("%m/%d/%Y")
+            elif isinstance(raw_date, str):
+                try:
+                    date_str = raw_date.strip()
+                    delivery_date = datetime.strptime(date_str, "%m/%d/%Y").date()
+                except Exception:
                     continue
-            except Exception:
+            else:
+                continue
+
+            if not (start_of_week <= delivery_date <= end_of_week):
                 continue
 
             address = delivery_info.get("address", "")
@@ -127,11 +143,6 @@ def dispatch_schedule_fragment():
 
         loads.append(load)
 
-    # Таймзона
-    tz_doc = db.company_timezone.find_one({})
-    tz_name = tz_doc.get("timezone", "America/Chicago")
-    tz = ZoneInfo(tz_name)
-
     # Брейки
     breaks_cursor = db.drivers_brakes.find({
         "start_date": {"$lte": datetime.combine(end_of_week, datetime.max.time())},
@@ -147,21 +158,11 @@ def dispatch_schedule_fragment():
         driver_id = str(br["driver_id"])
         reason = br.get("reason", "")
 
-        print(f"\n=== DRIVER BREAK ===")
-        print(f"Original UTC start: {start_utc} | end: {end_utc}")
-
         start_local = start_utc.replace(tzinfo=timezone.utc).astimezone(tz)
         end_local = end_utc.replace(tzinfo=timezone.utc).astimezone(tz)
 
-        print(f"Chicago LOCAL start: {start_local} | end: {end_local}")
-        print("====================\n")
-
         start_date_local = start_local.date()
-
-        if end_local.time() == time(0, 0):
-            end_date_local = (end_local - timedelta(seconds=1)).date()
-        else:
-            end_date_local = end_local.date()
+        end_date_local = end_local.date() if end_local.time() != time(0, 0) else (end_local - timedelta(seconds=1)).date()
 
         current = start_date_local
         while current <= end_date_local:
