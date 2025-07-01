@@ -5,13 +5,29 @@ from bson import ObjectId
 
 dispatchers_bp = Blueprint('dispatchers', __name__)
 users_collection = db['users']
+companies_collection = db['companies']
 
 @dispatchers_bp.route('/fragment/dispatchers')
 def dispatchers_fragment():
-    dispatchers = list(users_collection.find({"role": "dispatch"}))
-    for user in dispatchers:
-        user["_id"] = str(user["_id"])  # ← Преобразуем ObjectId в строку
-    return render_template('fragments/dispatchers_fragment.html', dispatchers=dispatchers)
+    dispatchers_cursor = users_collection.find({"role": "dispatch"})
+    dispatchers = []
+    for d in dispatchers_cursor:
+        d["_id"] = str(d["_id"])
+        d["company_dispatch"] = str(d.get("company_dispatch", ""))
+
+        # Добавим поля схемы зарплаты, если они есть
+        d["salary_scheme"] = d.get("salary_scheme", "")
+        d["salary_percent"] = d.get("salary_percent", "")
+        d["salary_fixed"] = d.get("salary_fixed", "")
+        d["salary_per_driver"] = d.get("salary_per_driver", "")
+
+        dispatchers.append(d)
+
+    companies = list(db.companies.find({}, {"_id": 1, "name": 1}))
+    companies = [{"id": str(c["_id"]), "name": c["name"]} for c in companies]
+
+    return render_template("fragments/dispatchers_fragment.html", dispatchers=dispatchers, companies=companies)
+
 
 
 @dispatchers_bp.route('/api/dispatchers/<dispatcher_id>/update', methods=['POST'])
@@ -42,3 +58,22 @@ def update_dispatcher(dispatcher_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+
+@dispatchers_bp.route('/api/dispatchers/<dispatcher_id>/salary', methods=['POST'])
+def update_dispatcher_salary(dispatcher_id):
+    try:
+        data = request.get_json()
+        users_collection.update_one(
+            {"_id": ObjectId(dispatcher_id)},
+            {"$set": {
+                "salary_scheme_type": data.get("salary_scheme_type"),
+                "salary_percent": data.get("salary_percent", 0),
+                "salary_fixed": data.get("salary_fixed", 0),
+                "salary_per_driver": data.get("salary_per_driver", 0)
+            }}
+        )
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

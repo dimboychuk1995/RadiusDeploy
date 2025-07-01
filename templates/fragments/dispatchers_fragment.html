@@ -54,7 +54,11 @@
 
           <div class="form-group">
             <label for="dispatcherCompanyDispatch">Company Dispatch</label>
-            <input type="text" class="form-control" id="dispatcherCompanyDispatch">
+            <select class="form-control" id="dispatcherCompanyDispatch">
+              {% for company in companies %}
+                <option value="{{ company.id }}">{{ company.name }}</option>
+              {% endfor %}
+            </select>
           </div>
 
           <div class="form-group">
@@ -94,23 +98,47 @@
 
 
 
-
-<!-- Bootstrap Modal for Salary Scheme -->
-<div class="modal fade" id="salarySchemeModal" tabindex="-1" aria-labelledby="salarySchemeLabel" aria-hidden="true">
+<!-- ============== Зарплата диспетчера (редактируемые) ============== -->
+<div class="modal fade" id="salarySchemeModal" tabindex="-1" aria-labelledby="salarySchemeModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="salarySchemeLabel">Set Salary Scheme</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title" id="salarySchemeModalLabel">Схема зарплаты</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
       </div>
       <div class="modal-body">
-        <!-- Пока пусто -->
-        <p>Будущий контент здесь...</p>
+        <div class="form-group">
+          <label for="salarySchemeSelect">Выберите схему</label>
+          <select id="salarySchemeSelect" class="form-control" onchange="handleSalarySchemeChange()">
+            <option value="">— Выбрать —</option>
+            <option value="percent">Процент от грузов</option>
+            <option value="fixed_plus_percent">Ставка + процент от грузов</option>
+            <option value="per_driver_plus_percent">Ставка за каждого водителя + процент от грузов</option>
+          </select>
+        </div>
+
+        <div id="percentBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryPercent">Процент за грузы (%)</label>
+          <input type="number" id="salaryPercent" class="form-control" step="0.1" min="0">
+        </div>
+
+        <div id="fixedBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryFixed">Фиксированная ставка ($)</label>
+          <input type="number" id="salaryFixed" class="form-control" step="0.01" min="0">
+        </div>
+
+        <div id="perDriverBlock" class="form-group mt-3" style="display: none;">
+          <label for="salaryPerDriver">Сумма за каждого водителя ($)</label>
+          <input type="number" id="salaryPerDriver" class="form-control" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        <button type="button" class="btn btn-primary" onclick="saveSalaryScheme()">Сохранить</button>
       </div>
     </div>
   </div>
 </div>
-
 
 
 
