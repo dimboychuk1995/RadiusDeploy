@@ -9,38 +9,19 @@ from collections import defaultdict
 dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 
 
-@dispatch_schedule_bp.route("/fragment/dispatch_schedule")
-@login_required
-def dispatch_schedule_fragment():
-    from datetime import datetime, timedelta, time, timezone
-    from collections import defaultdict
-    from zoneinfo import ZoneInfo
-
-    # Таймзона компании
+def get_company_timezone():
     tz_doc = db.company_timezone.find_one({})
     tz_name = tz_doc.get("timezone", "America/Chicago")
-    tz = ZoneInfo(tz_name)
+    return ZoneInfo(tz_name)
 
-    # Диапазон недели
-    start_str = request.args.get("start")
-    end_str = request.args.get("end")
-
-    if start_str and end_str:
-        start_of_week = datetime.strptime(start_str, "%Y-%m-%d").date()
-        end_of_week = datetime.strptime(end_str, "%Y-%m-%d").date()
-    else:
-        today = datetime.now(tz).date()
-        start_of_week = today - timedelta(days=today.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-
-    current_week_dates = [start_of_week + timedelta(days=i) for i in range(7)]
-
-    # Диспетчеры
+def get_dispatchers():
     dispatchers = list(db.users.find({"role": "dispatch"}, {"_id": 1, "username": 1}))
-    for dispatcher in dispatchers:
-        dispatcher["id"] = str(dispatcher.pop("_id"))
+    for d in dispatchers:
+        d["id"] = str(d.pop("_id"))
+    return dispatchers
 
-    # Водители и траки
+
+def get_drivers_and_trucks():
     drivers = list(db.drivers.find({}, {
         "_id": 1, "name": 1, "contact_number": 1, "email": 1, "truck": 1, "dispatcher": 1
     }))
@@ -62,9 +43,10 @@ def dispatch_schedule_fragment():
             driver["truck"] = None
             driver["truck_info"] = {}
 
-    all_loads = list(db.loads.find({}))
-    loads = []
-    driver_delivery_map = defaultdict(list)
+    return drivers, trucks
+
+def get_driver_delivery_map(loads, tz, start_of_week, end_of_week):
+    from collections import defaultdict
 
     def parse_city_state(address):
         if not address:
@@ -84,7 +66,9 @@ def dispatch_schedule_fragment():
         except (ValueError, TypeError):
             return None
 
-    for load in all_loads:
+    delivery_map = defaultdict(list)
+
+    for load in loads:
         extra_delivery = load.get("extra_delivery", [])
         main_delivery = load.get("delivery")
         price = safe_float(load.get("price"))
@@ -130,7 +114,7 @@ def dispatch_schedule_fragment():
             city, state = parse_city_state(address)
             location_str = f"{city}, {state}" if city and state else address
 
-            driver_delivery_map[(driver_id, date_str)].append({
+            delivery_map[(driver_id, date_str)].append({
                 "address": address,
                 "city": city,
                 "state": state,
@@ -141,16 +125,18 @@ def dispatch_schedule_fragment():
                 "is_last": delivery["is_last"]
             })
 
-        loads.append(load)
+    return delivery_map
 
-    # Брейки
+def get_driver_break_map(tz, start_of_week, end_of_week):
+    from collections import defaultdict
+
     breaks_cursor = db.drivers_brakes.find({
         "start_date": {"$lte": datetime.combine(end_of_week, datetime.max.time())},
         "end_date": {"$gte": datetime.combine(start_of_week, datetime.min.time())}
     })
 
-    driver_breaks = []
-    driver_break_map = defaultdict(list)
+    break_map = defaultdict(list)
+    break_list = []
 
     for br in breaks_cursor:
         start_utc = br["start_date"]
@@ -167,10 +153,10 @@ def dispatch_schedule_fragment():
         current = start_date_local
         while current <= end_date_local:
             date_str = current.strftime("%m/%d/%Y")
-            driver_break_map[(driver_id, date_str)].append(reason)
+            break_map[(driver_id, date_str)].append(reason)
             current += timedelta(days=1)
 
-        driver_breaks.append({
+        break_list.append({
             "id": str(br["_id"]),
             "driver_id": driver_id,
             "reason": reason,
@@ -178,12 +164,39 @@ def dispatch_schedule_fragment():
             "end_date": end_date_local.strftime("%Y-%m-%d")
         })
 
+    return break_list, break_map
+
+
+@dispatch_schedule_bp.route("/fragment/dispatch_schedule")
+@login_required
+def dispatch_schedule_fragment():
+    tz = get_company_timezone()
+
+    start_str = request.args.get("start")
+    end_str = request.args.get("end")
+
+    if start_str and end_str:
+        start_of_week = datetime.strptime(start_str, "%Y-%m-%d").date()
+        end_of_week = datetime.strptime(end_str, "%Y-%m-%d").date()
+    else:
+        today = datetime.now(tz).date()
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+
+    current_week_dates = [start_of_week + timedelta(days=i) for i in range(7)]
+
+    dispatchers = get_dispatchers()
+    drivers, trucks = get_drivers_and_trucks()
+    all_loads = list(db.loads.find({}))
+    driver_delivery_map = get_driver_delivery_map(all_loads, tz, start_of_week, end_of_week)
+    driver_breaks, driver_break_map = get_driver_break_map(tz, start_of_week, end_of_week)
+
     return render_template("fragments/dispatch_schedule_fragment.html",
                            page_id="dispatch-table",
                            dispatchers=dispatchers,
                            drivers=drivers,
                            trucks=trucks,
-                           loads=loads,
+                           loads=all_loads,
                            current_week_dates=current_week_dates,
                            driver_delivery_map=driver_delivery_map,
                            driver_breaks=driver_breaks,
