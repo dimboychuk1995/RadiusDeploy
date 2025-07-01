@@ -37,15 +37,23 @@ def update_dispatcher(dispatcher_id):
         if not data:
             return jsonify({"error": "Нет данных"}), 400
 
+        # Подготовка данных
         update_fields = {
             "real_name": data.get("real_name", "").strip(),
             "dispatch_name": data.get("dispatch_name", "").strip(),
-            "company_dispatch": data.get("company_dispatch", "").strip(),
             "email": data.get("email", "").strip(),
             "email_password": data.get("email_password", "").strip(),
             "phone": data.get("phone", "").strip()
         }
 
+        company_dispatch_raw = data.get("company_dispatch", "").strip()
+        if company_dispatch_raw:
+            try:
+                update_fields["company_dispatch"] = ObjectId(company_dispatch_raw)
+            except Exception:
+                return jsonify({"error": "Неверный формат company_dispatch"}), 400
+
+        # Обновление
         result = users_collection.update_one(
             {"_id": ObjectId(dispatcher_id)},
             {"$set": update_fields}
@@ -58,7 +66,6 @@ def update_dispatcher(dispatcher_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 
 @dispatchers_bp.route('/api/dispatchers/<dispatcher_id>/salary', methods=['POST'])
