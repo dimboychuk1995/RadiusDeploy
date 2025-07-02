@@ -267,3 +267,39 @@ def save_dispatcher_statement():
     except Exception as e:
         print("Ошибка сохранения стейтмента:", str(e))
         return jsonify({"error": str(e)}), 500
+
+@dispatch_statements_bp.route("/api/dispatcher_statements_by_week", methods=["POST"])
+def get_dispatcher_statements_by_week():
+    try:
+        data = request.get_json()
+        week_str = data.get("week_start")
+        if not week_str:
+            return jsonify({"error": "Missing week_start"}), 400
+
+        # Парсим дату и переводим в UTC
+        start_naive = datetime.strptime(week_str.strip(), "%m/%d/%Y")
+        tz_data = tz_collection.find_one()
+        tz_name = tz_data.get("timezone", "America/Chicago")
+        local_tz = timezone(tz_name)
+        week_start_utc = local_tz.localize(start_naive).astimezone(utc)
+
+        # Загружаем диспетчеров
+        dispatchers = users_collection.find({"role": "dispatch"}, {"_id": 1, "real_name": 1})
+        dispatcher_map = {str(d["_id"]): d.get("real_name", "—") for d in dispatchers}
+
+        # Ищем стейтменты
+        statements = list(db.statement_dispatch.find(
+            {"week_start": week_start_utc},
+            {"dispatcher_id": 1, "total_price": 1, "dispatcher_salary": 1}
+        ))
+
+        # Подставляем имя диспетчера
+        for stmt in statements:
+            stmt["_id"] = str(stmt["_id"])
+            stmt["dispatcher_id"] = str(stmt["dispatcher_id"])
+            stmt["dispatcher_name"] = dispatcher_map.get(stmt["dispatcher_id"], "—")
+
+        return jsonify({"success": True, "statements": statements})
+    except Exception as e:
+        print("Ошибка получения стейтментов:", str(e))
+        return jsonify({"error": str(e)}), 500

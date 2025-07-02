@@ -1,9 +1,22 @@
 <!-- Кнопка открытия -->
 <div class="p-3">
-  <h3>Стейтменты Диспетчеров</h3>
   <button class="btn btn-primary mt-3" onclick="openDispatcherPayrollModal()">
     <i class="fas fa-calculator me-2"></i> Посчитать зарплату диспетчерам
   </button>
+</div>
+
+
+<div class="p-3">
+  <h3>Сохраненные стейтменты диспетчеров</h3>
+
+  <label for="statementWeekRangeSelect" class="form-label mt-3">Выберите неделю:</label>
+  <select id="statementWeekRangeSelect" class="form-select mb-3"></select>
+
+  <button class="btn btn-primary" onclick="loadDispatcherStatements()">
+    <i class="fas fa-database me-2"></i> Показать стейтменты
+  </button>
+
+  <div id="dispatcherStatementsContainer" class="mt-4"></div>
 </div>
 
 <!-- Модалка -->

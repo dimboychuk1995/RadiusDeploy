@@ -1,5 +1,5 @@
 function initStatementDispatcherEvents() {
-  // сюда только вызовы других функций, если появятся
+  generateWeekRanges("statementWeekRangeSelect");
 }
 
 function openDispatcherPayrollModal() {
@@ -262,3 +262,53 @@ function saveDispatcherStatement() {
       }
     });
 }
+
+function loadDispatcherStatements() {
+  const week = document.getElementById("statementWeekRangeSelect").value;
+  if (!week) return;
+
+  const startOfWeek = week.split("-")[0].trim();
+
+  fetch("/api/dispatcher_statements_by_week", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ week_start: startOfWeek })
+  })
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("dispatcherStatementsContainer");
+      if (!data.success) {
+        container.innerHTML = `<div class="alert alert-danger">Ошибка: ${data.error || "Неизвестная"}</div>`;
+        return;
+      }
+
+      if (data.statements.length === 0) {
+        container.innerHTML = `<div class="alert alert-info">Нет стейтментов на выбранную неделю</div>`;
+        return;
+      }
+
+      const rows = data.statements.map(s => `
+        <tr>
+          <td>${s.dispatcher_name}</td>
+          <td>$${s.total_price.toFixed(2)}</td>
+          <td><strong class="text-success">$${s.dispatcher_salary.toFixed(2)}</strong></td>
+        </tr>
+      `).join("");
+
+      container.innerHTML = `
+        <table class="table table-sm table-bordered align-middle text-nowrap">
+          <thead class="table-light">
+            <tr>
+              <th>Диспетчер</th>
+              <th>Сумма по грузам</th>
+              <th>Зарплата</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    });
+}
+
