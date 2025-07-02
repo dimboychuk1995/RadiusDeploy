@@ -193,3 +193,43 @@ function recalculateDispatcherTotals() {
     <p><strong>Зарплата диспетчера:</strong> <span class="text-success fw-bold">$${salary.toFixed(2)}</span></p>
   `;
 }
+
+function saveDispatcherStatement() {
+  const data = window._dispatcherPayrollData;
+  if (!data) return alert("Сначала выполните расчет.");
+
+  const selectedCheckboxes = document.querySelectorAll(".payroll-load-checkbox:checked");
+  const selectedLoadIds = Array.from(selectedCheckboxes).map(cb => {
+    const row = cb.closest("tr");
+    return row ? row.querySelector("span").innerText : null;
+  }).filter(Boolean);
+
+  const payload = {
+    dispatcher_id: document.getElementById("dispatcherSelect").value,
+    week_range: document.getElementById("weekRangeSelect").value,
+    total_price: parseFloat(data.total_price),
+    salary_type: data.salary_type,
+    salary_percent: data.salary_percent,
+    salary_fixed: data.salary_fixed,
+    salary_per_driver: data.salary_per_driver,
+    dispatcher_salary: document.querySelector("#dispatcherPayrollSummary .fw-bold")?.innerText.replace("$", ""),
+    unique_drivers: parseInt(document.querySelector("#dispatcherPayrollSummary").innerText.match(/Выбранных водителей:\s*(\d+)/)?.[1] || 0),
+    selected_load_ids: selectedLoadIds
+  };
+
+  fetch("/api/save_dispatcher_statement", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      alert("Сохранено успешно");
+    } else {
+      alert("Ошибка: " + (res.error || "Неизвестная"));
+    }
+  });
+}

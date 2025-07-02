@@ -150,3 +150,116 @@ def calculate_dispatcher_payroll():
     except Exception as e:
         print("Ошибка расчета зарплаты:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+@dispatch_statements_bp.route("/api/save_dispatcher_statement", methods=["POST"])
+@login_required
+def save_dispatcher_statement():
+    try:
+        data = request.get_json()
+
+        dispatcher_id = data.get("dispatcher_id")
+        week_range = data.get("week_range")
+        total_price = data.get("total_price", 0)
+        salary_type = data.get("salary_type")
+        salary_percent = data.get("salary_percent", 0)
+        salary_fixed = data.get("salary_fixed", 0)
+        salary_per_driver = data.get("salary_per_driver", 0)
+        dispatcher_salary = float(data.get("dispatcher_salary", 0))
+        unique_drivers = int(data.get("unique_drivers", 0))
+        selected_load_ids = data.get("selected_load_ids", [])
+
+        if not dispatcher_id or not week_range or not selected_load_ids:
+            return jsonify({"error": "Missing required data"}), 400
+
+        # Получаем грузы по load_id → найдём их _id
+        loads_cursor = loads_collection.find({"load_id": {"$in": selected_load_ids}})
+        loads = list(loads_cursor)
+
+        # Мапа: load_id → _id
+        load_id_to_object_id = {load["load_id"]: load["_id"] for load in loads}
+
+        # Предзагрузка
+        drivers_map = {str(d["_id"]): d.get("name", "") for d in drivers_collection.find({}, {"_id": 1, "name": 1})}
+        companies_map = {str(c["_id"]): c.get("name", "") for c in companies_collection.find({}, {"_id": 1, "name": 1})}
+
+        # Таймзона
+        tz_data = tz_collection.find_one()
+        tz_name = tz_data.get("timezone", "America/Chicago")
+        local_tz = timezone(tz_name)
+
+        loads_by_driver = []
+        selected_object_ids = []
+
+        driver_group_map = {}
+
+        for load in loads:
+            if load.get("load_id") not in selected_load_ids:
+                continue
+
+            selected_object_ids.append(load["_id"])
+
+            driver_id = load.get("assigned_driver")
+            driver_id_str = str(driver_id) if driver_id else None
+            driver_name = drivers_map.get(driver_id_str, "Нет")
+
+            last_delivery = (load.get("extra_delivery", [])[-1]
+                             if load.get("extra_delivery") else load.get("delivery"))
+            if not last_delivery:
+                continue
+
+            delivery_date = last_delivery.get("date")
+            delivery_address = last_delivery.get("address", "")
+            delivery_date_str = delivery_date.replace(tzinfo=utc).astimezone(local_tz).strftime("%m/%d/%Y") if delivery_date else ""
+
+            pickup = load.get("pickup", {})
+            pickup_date = pickup.get("date")
+            pickup_address = pickup.get("address", "")
+            pickup_date_str = pickup_date.replace(tzinfo=utc).astimezone(local_tz).strftime("%m/%d/%Y") if pickup_date else ""
+
+            company_id = str(load.get("company_sign", ""))
+            company_name = companies_map.get(company_id, "—")
+
+            load_entry = {
+                "_id": load["_id"],
+                "load_id": load.get("load_id"),
+                "company_name": company_name,
+                "RPM": load.get("RPM", ""),
+                "price": load.get("price", 0),
+                "pickup_address": pickup_address,
+                "pickup_date": pickup_date_str,
+                "delivery_address": delivery_address,
+                "delivery_date": delivery_date_str,
+                "extra_stops": load.get("extra_stops", [])
+            }
+
+            driver_group_map.setdefault(driver_name, []).append(load_entry)
+
+        # Преобразуем в список для сохранения
+        for driver_name, loads in driver_group_map.items():
+            loads_by_driver.append({
+                "driver": driver_name,
+                "loads": loads
+            })
+
+        statement_doc = {
+            "dispatcher_id": ObjectId(dispatcher_id),
+            "week_range": week_range,
+            "created_at": datetime.utcnow(),
+            "total_price": total_price,
+            "salary_type": salary_type,
+            "salary_percent": salary_percent,
+            "salary_fixed": salary_fixed,
+            "salary_per_driver": salary_per_driver,
+            "dispatcher_salary": dispatcher_salary,
+            "unique_driver_count": unique_drivers,
+            "selected_load_ids": selected_object_ids,
+            "loads_by_driver": loads_by_driver
+        }
+
+        result = db.statement_dispatch.insert_one(statement_doc)
+        return jsonify({"success": True, "inserted_id": str(result.inserted_id)})
+
+    except Exception as e:
+        print("Ошибка сохранения стейтмента:", str(e))
+        return jsonify({"error": str(e)}), 500
