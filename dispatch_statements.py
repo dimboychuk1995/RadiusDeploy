@@ -29,22 +29,31 @@ def calculate_dispatcher_payroll():
         if not dispatcher_id or not week_range:
             return jsonify({"error": "Missing dispatcher_id or week_range"}), 400
 
-        # Извлекаем таймзону
+        # Таймзона
         tz_data = tz_collection.find_one()
         tz_name = tz_data.get("timezone", "America/Chicago")
         local_tz = timezone(tz_name)
 
-        # Парсим и локализуем диапазон дат
+        # Диапазон
         start_str, end_str = [s.strip() for s in week_range.split("-")]
         start_local = local_tz.localize(datetime.strptime(start_str, "%m/%d/%Y"))
         end_local = local_tz.localize(datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1))
 
-        # Вывод диапазона
         print("=== Диапазон от клиента ===")
         print(f"Начало: {start_local.strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"Конец: {(end_local - timedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # Загружаем все грузы для диспетчера
+        # Диспетчер
+        dispatcher = users_collection.find_one({"_id": ObjectId(dispatcher_id)})
+        if not dispatcher:
+            return jsonify({"error": "Dispatcher not found"}), 404
+
+        salary_type = dispatcher.get("salary_scheme_type")
+        salary_percent = dispatcher.get("salary_percent", 0)
+        salary_fixed = dispatcher.get("salary_fixed", 0)
+        salary_per_driver = dispatcher.get("salary_per_driver", 0)
+
+        # Получаем грузы
         loads = list(loads_collection.find({
             "assigned_dispatch": ObjectId(dispatcher_id),
             "$or": [
@@ -55,57 +64,71 @@ def calculate_dispatcher_payroll():
 
         matched_loads = []
         total_price = 0
-        unique_driver_ids = set()
+        driver_groups = {}
+        no_driver_loads = []
 
         for load in loads:
-            # Пропуск если груз уже учтен
             if load.get("was_added_to_dispatch_statement") is True:
                 continue
 
-            # Получаем дату последней доставки
             last_delivery = (load["extra_delivery"][-1] if load.get("extra_delivery") else load.get("delivery"))
-            if not last_delivery:
+            if not last_delivery or not last_delivery.get("date"):
                 continue
 
-            delivery_date_raw = last_delivery.get("date")
-            if not delivery_date_raw:
-                continue
-
-            delivery_utc = delivery_date_raw.replace(tzinfo=utc)
+            delivery_utc = last_delivery["date"].replace(tzinfo=utc)
             delivery_local = delivery_utc.astimezone(local_tz)
 
             if start_local <= delivery_local < end_local:
-                matched_loads.append(load)
                 total_price += load.get("price", 0)
+                matched_loads.append(load)
 
-                # Уникальные водители
                 driver_id = load.get("assigned_driver")
-                if driver_id:
-                    unique_driver_ids.add(str(driver_id))
+                load_data = {
+                    "load_id": load.get("load_id"),
+                    "price": load.get("price"),
+                    "delivery_local": delivery_local.strftime('%Y-%m-%d %H:%M:%S')
+                }
 
-                # Обновляем флаг, чтобы не засчитать повторно
+                if driver_id:
+                    key = str(driver_id)
+                    driver_groups.setdefault(key, []).append(load_data)
+                else:
+                    no_driver_loads.append(load_data)
+
+                # Обновить флаг
                 loads_collection.update_one(
                     {"_id": load["_id"]},
                     {"$set": {"was_added_to_dispatch_statement": True}}
                 )
 
-                print("=== Груз ===")
-                print(f"Load ID: {load.get('load_id')}")
-                print(f"Цена: {load.get('price')}")
-                print(f"Дата доставки (UTC): {delivery_utc}")
-                print(f"Дата доставки (локальная): {delivery_local.strftime('%Y-%m-%d %H:%M:%S')}")
+        unique_driver_count = len(driver_groups)
+
+        # === Расчёт зарплаты ===
+        dispatcher_salary = 0
+
+        if salary_type == "percent":
+            dispatcher_salary = round(total_price * (salary_percent / 100), 2)
+        elif salary_type == "fixed_plus_percent":
+            dispatcher_salary = round(total_price * (salary_percent / 100) + salary_fixed, 2)
+        elif salary_type == "per_driver_plus_percent":
+            dispatcher_salary = round(total_price * (salary_percent / 100) + unique_driver_count * salary_per_driver, 2)
+        else:
+            print("❗ Неизвестный тип расчета зарплаты:", salary_type)
 
         print("=== ИТОГО ===")
-        print(f"Найдено грузов: {len(matched_loads)}")
+        print(f"Грузов: {len(matched_loads)}")
         print(f"Сумма по грузам: ${total_price}")
-        print(f"Уникальных водителей: {len(unique_driver_ids)}")
-        print(f"Диапазон: {start_local.strftime('%m/%d/%Y')} - {(end_local - timedelta(days=1)).strftime('%m/%d/%Y')}")
+        print(f"Водителей: {unique_driver_count}")
+        print(f"Зарплата диспетчера ({salary_type}): ${dispatcher_salary}")
 
         return jsonify({
             "success": True,
-            "matched_loads": len(matched_loads),
             "total_price": total_price,
-            "unique_drivers": len(unique_driver_ids)
+            "matched_loads": len(matched_loads),
+            "unique_drivers": unique_driver_count,
+            "dispatcher_salary": dispatcher_salary,
+            "driver_groups": driver_groups,
+            "no_driver": no_driver_loads
         })
 
     except Exception as e:
