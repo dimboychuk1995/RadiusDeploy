@@ -24,13 +24,14 @@ function generateWeekRanges(selectId) {
   const diff = day === 0 ? -6 : 1 - day;
   const baseMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
 
+  const mmdd = d => String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0") + "/" + d.getFullYear();
+
   for (let i = 0; i < 10; i++) {
     const monday = new Date(baseMonday);
-    monday.setDate(monday.getDate() + i * 7);
+    monday.setDate(monday.getDate() - i * 7);
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
 
-    const mmdd = d => String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0") + "/" + d.getFullYear();
     const label = `${mmdd(monday)} - ${mmdd(sunday)}`;
 
     const option = document.createElement("option");

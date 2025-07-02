@@ -34,22 +34,17 @@ def calculate_dispatcher_payroll():
         tz_name = tz_data.get("timezone", "America/Chicago")
         local_tz = timezone(tz_name)
 
-        # Парсим диапазон недели
+        # Парсим и локализуем диапазон дат
         start_str, end_str = [s.strip() for s in week_range.split("-")]
-        start_local_naive = datetime.strptime(start_str, "%m/%d/%Y")
-        end_local_naive = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+        start_local = local_tz.localize(datetime.strptime(start_str, "%m/%d/%Y"))
+        end_local = local_tz.localize(datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1))
 
-        # Локализуем в текущую таймзону
-        start_local = local_tz.localize(start_local_naive)
-        end_local = local_tz.localize(end_local_naive)
-
-        # Вывод для отладки
+        # Вывод диапазона
         print("=== Диапазон от клиента ===")
-        print(f"Начало (строка): {start_str}")
-        print(f"Конец (строка): {end_str}")
-        print(f"Локальный диапазон: {start_local.strftime('%Y-%m-%d %H:%M:%S')} - {(end_local - timedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Начало: {start_local.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Конец: {(end_local - timedelta(seconds=1)).strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # Поиск грузов этого диспетчера
+        # Загружаем все грузы для диспетчера
         loads = list(loads_collection.find({
             "assigned_dispatch": ObjectId(dispatcher_id),
             "$or": [
@@ -60,14 +55,15 @@ def calculate_dispatcher_payroll():
 
         matched_loads = []
         total_price = 0
+        unique_driver_ids = set()
 
         for load in loads:
-            # Получаем дату последней доставки
-            if load.get("extra_delivery"):
-                last_delivery = load["extra_delivery"][-1]
-            else:
-                last_delivery = load.get("delivery")
+            # Пропуск если груз уже учтен
+            if load.get("was_added_to_dispatch_statement") is True:
+                continue
 
+            # Получаем дату последней доставки
+            last_delivery = (load["extra_delivery"][-1] if load.get("extra_delivery") else load.get("delivery"))
             if not last_delivery:
                 continue
 
@@ -75,14 +71,23 @@ def calculate_dispatcher_payroll():
             if not delivery_date_raw:
                 continue
 
-            # Приводим дату к UTC, затем в локальную
             delivery_utc = delivery_date_raw.replace(tzinfo=utc)
             delivery_local = delivery_utc.astimezone(local_tz)
 
-            # Сравнение в локальной зоне
             if start_local <= delivery_local < end_local:
                 matched_loads.append(load)
                 total_price += load.get("price", 0)
+
+                # Уникальные водители
+                driver_id = load.get("assigned_driver")
+                if driver_id:
+                    unique_driver_ids.add(str(driver_id))
+
+                # Обновляем флаг, чтобы не засчитать повторно
+                loads_collection.update_one(
+                    {"_id": load["_id"]},
+                    {"$set": {"was_added_to_dispatch_statement": True}}
+                )
 
                 print("=== Груз ===")
                 print(f"Load ID: {load.get('load_id')}")
@@ -93,9 +98,15 @@ def calculate_dispatcher_payroll():
         print("=== ИТОГО ===")
         print(f"Найдено грузов: {len(matched_loads)}")
         print(f"Сумма по грузам: ${total_price}")
+        print(f"Уникальных водителей: {len(unique_driver_ids)}")
         print(f"Диапазон: {start_local.strftime('%m/%d/%Y')} - {(end_local - timedelta(days=1)).strftime('%m/%d/%Y')}")
 
-        return jsonify({"success": True, "matched_loads": len(matched_loads), "total_price": total_price})
+        return jsonify({
+            "success": True,
+            "matched_loads": len(matched_loads),
+            "total_price": total_price,
+            "unique_drivers": len(unique_driver_ids)
+        })
 
     except Exception as e:
         print("Ошибка расчета зарплаты:", str(e))
