@@ -294,6 +294,11 @@ function loadDispatcherStatements() {
           <td>${s.dispatcher_name}</td>
           <td>$${s.total_price.toFixed(2)}</td>
           <td><strong class="text-success">$${s.dispatcher_salary.toFixed(2)}</strong></td>
+          <td>
+            <button class="btn btn-sm btn-outline-info" onclick="showDispatcherStatementDetails('${s._id}')">
+              <i class="fas fa-info-circle me-1"></i> Детали
+            </button>
+          </td>
         </tr>
       `).join("");
 
@@ -304,6 +309,7 @@ function loadDispatcherStatements() {
               <th>Диспетчер</th>
               <th>Сумма по грузам</th>
               <th>Зарплата</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -312,3 +318,24 @@ function loadDispatcherStatements() {
     });
 }
 
+
+function showDispatcherStatementDetails(statementId) {
+  fetch(`/fragment/statement_dispatchers/details/${statementId}`)
+    .then(res => res.text())
+    .then(html => {
+      document.getElementById("dispatcherStatementsListContainer").style.display = "none";
+      document.getElementById("dispatcherStatementDetailsContainer").innerHTML = html;
+      document.getElementById("dispatcherStatementDetailsContainer").style.display = "block";
+    })
+    .catch(err => {
+      console.error("Ошибка загрузки деталей:", err);
+      Swal.fire("Ошибка", "Не удалось загрузить детали стейтмента", "error");
+    });
+}
+
+
+function backToStatementsTable() {
+  document.getElementById("dispatcherStatementDetailsContainer").style.display = "none";
+  document.getElementById("dispatcherStatementDetailsContainer").innerHTML = "";
+  document.getElementById("dispatcherStatementsListContainer").style.display = "block";
+}

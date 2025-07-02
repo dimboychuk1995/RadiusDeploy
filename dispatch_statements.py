@@ -303,3 +303,20 @@ def get_dispatcher_statements_by_week():
     except Exception as e:
         print("Ошибка получения стейтментов:", str(e))
         return jsonify({"error": str(e)}), 500
+
+
+@dispatch_statements_bp.route("/fragment/statement_dispatchers/details/<statement_id>")
+def statement_dispatch_details_fragment(statement_id):
+    try:
+        statement = db.statement_dispatch.find_one({"_id": ObjectId(statement_id)})
+        if not statement:
+            return "Стейтмент не найден", 404
+
+        dispatcher = db.users.find_one({"_id": statement["dispatcher_id"]}, {"real_name": 1})
+        dispatcher_name = dispatcher.get("real_name", "—") if dispatcher else "—"
+
+        return render_template("fragments/statement_dispatchers_details_fragment.html",
+                               statement=statement,
+                               dispatcher_name=dispatcher_name)
+    except Exception as e:
+        return f"Ошибка: {str(e)}", 500

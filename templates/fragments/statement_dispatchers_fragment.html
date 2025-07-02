@@ -5,8 +5,8 @@
   </button>
 </div>
 
-
-<div class="p-3">
+<!-- 📦 Контейнер: Список стейтментов -->
+<div id="dispatcherStatementsListContainer" class="p-3">
   <h3>Сохраненные стейтменты диспетчеров</h3>
 
   <label for="statementWeekRangeSelect" class="form-label mt-3">Выберите неделю:</label>
@@ -19,7 +19,10 @@
   <div id="dispatcherStatementsContainer" class="mt-4"></div>
 </div>
 
-<!-- Модалка -->
+<!-- 📋 Контейнер: Детали стейтмента (изначально скрыт) -->
+<div id="dispatcherStatementDetailsContainer" class="p-3" style="display: none;"></div>
+
+<!-- 🧮 Модалка расчета зарплаты -->
 <div class="custom-offcanvas custom-offcanvas-right" id="dispatcherPayrollModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -30,7 +33,6 @@
     </div>
 
     <div class="custom-offcanvas-body" id="dispatcherPayrollModalBody">
-      <!-- Селект встроен прямо в модалку -->
       <div class="load-modal-content">
         <div class="load-modal-left">
           <label for="dispatcherSelect" class="form-label">Выберите диспетчера:</label>
@@ -43,24 +45,19 @@
           <label for="weekRangeSelect" class="form-label">Выберите неделю:</label>
           <select id="weekRangeSelect" class="form-select mb-3"></select>
 
-          <!-- Кнопки -->
           <div class="d-flex gap-2">
             <button class="btn btn-primary" onclick="calculateDispatcherPayroll()">Рассчитать</button>
             <button class="btn btn-outline-primary" onclick="calculateAllDispatchersPayroll()">Рассчитать для всех диспетчеров</button>
           </div>
 
-          <!-- ⬇️ Вставь вот это -->
           <div id="dispatcherPayrollResults" class="mt-4"></div>
 
-          <!-- Кнопка Сохранить -->
           <button class="btn btn-success mt-3" onclick="saveDispatcherStatement()">💾 Сохранить расчет</button>
-
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Задний фон -->
+<!-- Фон -->
 <div class="custom-offcanvas-backdrop" id="dispatcherPayrollBackdrop" onclick="closeDispatcherPayrollModal()"></div>
-
