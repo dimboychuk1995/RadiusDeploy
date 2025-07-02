@@ -196,13 +196,29 @@ function recalculateDispatcherTotals() {
 
 function saveDispatcherStatement() {
   const data = window._dispatcherPayrollData;
-  if (!data) return alert("Сначала выполните расчет.");
+  if (!data) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Ошибка',
+      text: 'Сначала выполните расчет.'
+    });
+    return;
+  }
 
   const selectedCheckboxes = document.querySelectorAll(".payroll-load-checkbox:checked");
   const selectedLoadIds = Array.from(selectedCheckboxes).map(cb => {
     const row = cb.closest("tr");
     return row ? row.querySelector("span").innerText : null;
   }).filter(Boolean);
+
+  if (selectedLoadIds.length === 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Нет выбранных грузов',
+      text: 'Пожалуйста, выберите хотя бы один груз перед сохранением.'
+    });
+    return;
+  }
 
   const payload = {
     dispatcher_id: document.getElementById("dispatcherSelect").value,
@@ -224,12 +240,25 @@ function saveDispatcherStatement() {
     },
     body: JSON.stringify(payload)
   })
-  .then(r => r.json())
-  .then(res => {
-    if (res.success) {
-      alert("Сохранено успешно");
-    } else {
-      alert("Ошибка: " + (res.error || "Неизвестная"));
-    }
-  });
+    .then(r => r.json())
+    .then(res => {
+      if (res.success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Успешно',
+          text: 'Расчет сохранен в базу.'
+        });
+
+        // Закрыть модалку и очистить
+        closeDispatcherPayrollModal();
+        document.getElementById("dispatcherPayrollResults").innerHTML = "";
+        window._dispatcherPayrollData = null;
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Ошибка',
+          text: res.error || "Неизвестная ошибка"
+        });
+      }
+    });
 }

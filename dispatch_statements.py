@@ -172,25 +172,29 @@ def save_dispatcher_statement():
         if not dispatcher_id or not week_range or not selected_load_ids:
             return jsonify({"error": "Missing required data"}), 400
 
-        # Получаем грузы по load_id → найдём их _id
-        loads_cursor = loads_collection.find({"load_id": {"$in": selected_load_ids}})
-        loads = list(loads_cursor)
+        # Конвертация диапазона в UTC
+        start_str, end_str = [s.strip() for s in week_range.split("-")]
+        start_naive = datetime.strptime(start_str, "%m/%d/%Y")
+        end_naive = datetime.strptime(end_str, "%m/%d/%Y")
 
-        # Мапа: load_id → _id
-        load_id_to_object_id = {load["load_id"]: load["_id"] for load in loads}
-
-        # Предзагрузка
-        drivers_map = {str(d["_id"]): d.get("name", "") for d in drivers_collection.find({}, {"_id": 1, "name": 1})}
-        companies_map = {str(c["_id"]): c.get("name", "") for c in companies_collection.find({}, {"_id": 1, "name": 1})}
-
-        # Таймзона
         tz_data = tz_collection.find_one()
         tz_name = tz_data.get("timezone", "America/Chicago")
         local_tz = timezone(tz_name)
 
+        week_start = local_tz.localize(start_naive).astimezone(utc)
+        week_end = local_tz.localize(end_naive).astimezone(utc)
+
+        # Получаем грузы по load_id → найдём их _id
+        loads_cursor = loads_collection.find({"load_id": {"$in": selected_load_ids}})
+        loads = list(loads_cursor)
+
+        load_id_to_object_id = {load["load_id"]: load["_id"] for load in loads}
+
+        drivers_map = {str(d["_id"]): d.get("name", "") for d in drivers_collection.find({}, {"_id": 1, "name": 1})}
+        companies_map = {str(c["_id"]): c.get("name", "") for c in companies_collection.find({}, {"_id": 1, "name": 1})}
+
         loads_by_driver = []
         selected_object_ids = []
-
         driver_group_map = {}
 
         for load in loads:
@@ -235,7 +239,6 @@ def save_dispatcher_statement():
 
             driver_group_map.setdefault(driver_name, []).append(load_entry)
 
-        # Преобразуем в список для сохранения
         for driver_name, loads in driver_group_map.items():
             loads_by_driver.append({
                 "driver": driver_name,
@@ -244,7 +247,8 @@ def save_dispatcher_statement():
 
         statement_doc = {
             "dispatcher_id": ObjectId(dispatcher_id),
-            "week_range": week_range,
+            "week_start": week_start,
+            "week_end": week_end,
             "created_at": datetime.utcnow(),
             "total_price": total_price,
             "salary_type": salary_type,
