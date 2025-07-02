@@ -39,3 +39,25 @@ function generateWeekRanges(selectId) {
     select.appendChild(option);
   }
 }
+
+
+function calculateDispatcherPayroll() {
+  const dispatcherId = document.getElementById("dispatcherSelect").value;
+  const weekRange = document.getElementById("weekRangeSelect").value;
+
+  fetch("/api/calculate_dispatcher_payroll", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ dispatcher_id: dispatcherId, week_range: weekRange })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert(`Найдено: ${data.matched_loads}, сумма: $${data.total_price}`);
+    } else {
+      alert("Ошибка: " + (data.error || "Неизвестная"));
+    }
+  });
+}
