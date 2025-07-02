@@ -3,11 +3,11 @@ function initStatementDispatcherEvents() {
 }
 
 function openDispatcherPayrollModal() {
-  document.getElementById("dispatcherPayrollModal").classList.add("show");
-  document.getElementById("dispatcherPayrollBackdrop").classList.add("show");
+    document.getElementById("dispatcherPayrollModal").classList.add("show");
+    document.getElementById("dispatcherPayrollBackdrop").classList.add("show");
 }
 
 function closeDispatcherPayrollModal() {
-  document.getElementById("dispatcherPayrollModal").classList.remove("show");
-  document.getElementById("dispatcherPayrollBackdrop").classList.remove("show");
+    document.getElementById("dispatcherPayrollModal").classList.remove("show");
+    document.getElementById("dispatcherPayrollBackdrop").classList.remove("show");
 }
