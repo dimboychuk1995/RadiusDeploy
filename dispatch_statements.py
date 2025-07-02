@@ -4,6 +4,9 @@ import pymongo
 dispatch_statements_bp = Blueprint('dispatch_statements', __name__)
 
 users_collection = db['users']
+loads_collection = db["loads"]
+tz_collection = db["company_timezone"]
+
 
 @dispatch_statements_bp.route("/fragment/statement_dispatchers")
 def statement_dispatchers_fragment():

@@ -28,10 +28,14 @@
           </select>
 
           <label for="weekRangeSelect" class="form-label">Выберите неделю:</label>
-          <select id="weekRangeSelect" class="form-select"></select>
+          <select id="weekRangeSelect" class="form-select mb-3"></select>
 
+          <!-- Кнопки -->
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" onclick="calculateDispatcherPayroll()">Рассчитать</button>
+            <button class="btn btn-outline-primary" onclick="calculateAllDispatchersPayroll()">Рассчитать для всех диспетчеров</button>
+          </div>
 
-        
         </div>
       </div>
     </div>
