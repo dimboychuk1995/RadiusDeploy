@@ -119,12 +119,6 @@ def calculate_dispatcher_payroll():
                 else:
                     no_driver_loads.append(load_data)
 
-                # Отметить как добавленный в стейтмент
-                loads_collection.update_one(
-                    {"_id": load["_id"]},
-                    {"$set": {"was_added_to_dispatch_statement": True}}
-                )
-
         unique_driver_count = len(driver_groups)
 
         # Расчёт зарплаты
@@ -144,6 +138,9 @@ def calculate_dispatcher_payroll():
             "matched_loads_count": len(matched_loads),
             "unique_drivers": unique_driver_count,
             "dispatcher_salary": dispatcher_salary,
+            "salary_percent": salary_percent,  # ← добавь это
+            "salary_fixed": salary_fixed,  # ← и это
+            "salary_per_driver": salary_per_driver,  # ← и это
             "salary_type": salary_type,
             "driver_groups": driver_groups,
             "no_driver": no_driver_loads,
