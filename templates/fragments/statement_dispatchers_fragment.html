@@ -1,12 +1,12 @@
+<!-- Кнопка открытия -->
 <div class="p-3">
   <h3>Стейтменты Диспетчеров</h3>
-  <button class="btn btn-primary mt-3"
-          onclick="openDispatcherPayrollModal()">
+  <button class="btn btn-primary mt-3" onclick="openDispatcherPayrollModal()">
     <i class="fas fa-calculator me-2"></i> Посчитать зарплату диспетчерам
   </button>
 </div>
 
-<!-- ============== Модалка расчета зарплаты диспетчеров ============== -->
+<!-- Модалка -->
 <div class="custom-offcanvas custom-offcanvas-right" id="dispatcherPayrollModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -16,15 +16,32 @@
       </button>
     </div>
 
-    <div class="custom-offcanvas-body">
+    <div class="custom-offcanvas-body" id="dispatcherPayrollModalBody">
+      <!-- Селект встроен прямо в модалку -->
       <div class="load-modal-content">
         <div class="load-modal-left">
-          <p class="text-muted">Модалка пока пустая.</p>
+          <label for="dispatcherSelect" class="form-label">Выберите диспетчера:</label>
+          <select id="dispatcherSelect" class="form-select">
+            {% for dispatcher in dispatchers %}
+              <option value="{{ dispatcher.id }}">{{ dispatcher.real_name }}</option>
+            {% endfor %}
+          </select>
+
+          <label for="weekRangeSelect" class="form-label">Выберите неделю:</label>
+          <select id="weekRangeSelect" class="form-select mb-3"></select>
+
+          <!-- Кнопки -->
+          <div class="d-flex gap-2">
+            <button class="btn btn-primary" onclick="calculateDispatcherPayroll()">Рассчитать</button>
+            <button class="btn btn-outline-primary" onclick="calculateAllDispatchersPayroll()">Рассчитать для всех диспетчеров</button>
+          </div>
+
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Задний фон -->
 <div class="custom-offcanvas-backdrop" id="dispatcherPayrollBackdrop" onclick="closeDispatcherPayrollModal()"></div>
 
