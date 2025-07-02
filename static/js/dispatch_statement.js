@@ -53,12 +53,59 @@ function calculateDispatcherPayroll() {
     },
     body: JSON.stringify({ dispatcher_id: dispatcherId, week_range: weekRange })
   })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      alert(`Найдено: ${data.matched_loads}, сумма: $${data.total_price}`);
-    } else {
-      alert("Ошибка: " + (data.error || "Неизвестная"));
-    }
-  });
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        renderDispatcherPayrollResult(data);
+      } else {
+        alert("Ошибка: " + (data.error || "Неизвестная"));
+      }
+    });
+}
+
+function renderDispatcherPayrollResult(data) {
+  const resultsDiv = document.getElementById("dispatcherPayrollResults");
+
+  const summaryHtml = `
+    <hr />
+    <div class="mt-3">
+      <h6>Период: ${data.period_start} — ${data.period_end}</h6>
+      <p><strong>Сумма по грузам:</strong> $${data.total_price}</p>
+      <p><strong>Тип расчета:</strong> ${data.salary_type}</p>
+      <p><strong>Уникальных водителей:</strong> ${data.unique_drivers}</p>
+      <p><strong>Зарплата диспетчера:</strong> <span class="text-success fw-bold">$${data.dispatcher_salary}</span></p>
+    </div>
+  `;
+
+  const loadsRows = data.loads_list.map(l => `
+    <tr>
+      <td>${l.load_id}</td>
+      <td>$${l.price}</td>
+      <td>${l.delivery_local}</td>
+      <td>${l.driver_id || '<span class="text-danger">Нет</span>'}</td>
+    </tr>
+  `).join("");
+
+  const loadsTable = `
+    <div class="mt-4">
+      <h6>Грузы:</h6>
+      <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>ID груза</th>
+              <th>Цена</th>
+              <th>Дата доставки</th>
+              <th>Водитель</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${loadsRows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  resultsDiv.innerHTML = summaryHtml + loadsTable;
 }
