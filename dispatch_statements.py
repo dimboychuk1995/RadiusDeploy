@@ -9,7 +9,8 @@ dispatch_statements_bp = Blueprint('dispatch_statements', __name__)
 users_collection = db['users']
 loads_collection = db["loads"]
 tz_collection = db["company_timezone"]
-
+drivers_collection = db["drivers"]
+companies_collection = db["companies"]
 
 @dispatch_statements_bp.route("/fragment/statement_dispatchers")
 def statement_dispatchers_fragment():
@@ -49,6 +50,10 @@ def calculate_dispatcher_payroll():
         salary_fixed = dispatcher.get("salary_fixed", 0)
         salary_per_driver = dispatcher.get("salary_per_driver", 0)
 
+        # Предзагрузка водителей и компаний
+        drivers_map = {str(d["_id"]): d.get("name", "") for d in drivers_collection.find({}, {"_id": 1, "name": 1})}
+        companies_map = {str(c["_id"]): c.get("name", "") for c in companies_collection.find({}, {"_id": 1, "name": 1})}
+
         # Получаем грузы
         loads = list(loads_collection.find({
             "assigned_dispatch": ObjectId(dispatcher_id),
@@ -76,35 +81,45 @@ def calculate_dispatcher_payroll():
             delivery_local = delivery_utc.astimezone(local_tz)
 
             if start_local <= delivery_local < end_local:
-                price = load.get("price", 0)
-                total_price += price
                 matched_loads.append(load)
+                total_price += load.get("price", 0)
 
                 driver_id = load.get("assigned_driver")
-                delivery_str = delivery_local.strftime('%Y-%m-%d %H:%M:%S')
-                load_summary = {
+                driver_id_str = str(driver_id) if driver_id else None
+                driver_name = drivers_map.get(driver_id_str, "Нет")
+
+                company_id = str(load.get("company_sign", ""))
+                company_name = companies_map.get(company_id, "—")
+
+                pickup_info = load.get("pickup", {})
+                pickup_date_utc = pickup_info.get("date")
+                pickup_date = pickup_date_utc.replace(tzinfo=utc).astimezone(local_tz).strftime("%m/%d/%Y") if pickup_date_utc else ""
+                pickup_address = pickup_info.get("address", "")
+
+                delivery_address = last_delivery.get("address", "")
+                delivery_date = delivery_local.strftime("%m/%d/%Y")
+
+                load_data = {
                     "load_id": load.get("load_id"),
-                    "price": price,
-                    "delivery_local": delivery_str,
-                    "driver_id": str(driver_id) if driver_id else None
+                    "company_name": company_name,
+                    "RPM": load.get("RPM", ""),
+                    "price": load.get("price", 0),
+                    "driver_name": driver_name,
+                    "pickup_address": pickup_address,
+                    "pickup_date": pickup_date,
+                    "delivery_address": delivery_address,
+                    "delivery_date": delivery_date,
+                    "extra_stops": load.get("extra_stops", [])
                 }
-                loads_list.append(load_summary)
+
+                loads_list.append(load_data)
 
                 if driver_id:
-                    key = str(driver_id)
-                    driver_groups.setdefault(key, []).append({
-                        "load_id": load.get("load_id"),
-                        "price": price,
-                        "delivery_local": delivery_str
-                    })
+                    driver_groups.setdefault(driver_name, []).append(load_data)
                 else:
-                    no_driver_loads.append({
-                        "load_id": load.get("load_id"),
-                        "price": price,
-                        "delivery_local": delivery_str
-                    })
+                    no_driver_loads.append(load_data)
 
-                # Обновить флаг
+                # Отметить как добавленный в стейтмент
                 loads_collection.update_one(
                     {"_id": load["_id"]},
                     {"$set": {"was_added_to_dispatch_statement": True}}
@@ -112,7 +127,7 @@ def calculate_dispatcher_payroll():
 
         unique_driver_count = len(driver_groups)
 
-        # === Расчёт зарплаты ===
+        # Расчёт зарплаты
         dispatcher_salary = 0
         if salary_type == "percent":
             dispatcher_salary = round(total_price * (salary_percent / 100), 2)
@@ -121,7 +136,6 @@ def calculate_dispatcher_payroll():
         elif salary_type == "per_driver_plus_percent":
             dispatcher_salary = round(total_price * (salary_percent / 100) + unique_driver_count * salary_per_driver, 2)
 
-        print('Trying to give result')
         return jsonify({
             "success": True,
             "period_start": start_local.strftime('%Y-%m-%d %H:%M:%S'),

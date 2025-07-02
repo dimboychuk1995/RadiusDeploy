@@ -80,23 +80,40 @@ function renderDispatcherPayrollResult(data) {
   const loadsRows = data.loads_list.map(l => `
     <tr>
       <td>${l.load_id}</td>
+      <td>${l.company_name}</td>
+      <td>${l.RPM || "—"}</td>
       <td>$${l.price}</td>
-      <td>${l.delivery_local}</td>
-      <td>${l.driver_id || '<span class="text-danger">Нет</span>'}</td>
+      <td>${l.driver_name || '<span class="text-danger">Нет</span>'}</td>
+      <td>
+        <div><strong>${l.pickup_date}</strong></div>
+        <div>${l.pickup_address || "—"}</div>
+      </td>
+      <td>
+        <div><strong>${l.delivery_date}</strong></div>
+        <div>${l.delivery_address || "—"}</div>
+      </td>
+      <td>${Array.isArray(l.extra_stops) && l.extra_stops.length > 0 
+        ? l.extra_stops.map((s, i) => `<div><strong>Stop ${i + 1}:</strong> ${s.address || ""}</div>`).join("")
+        : "—"
+      }</td>
     </tr>
   `).join("");
 
   const loadsTable = `
     <div class="mt-4">
       <h6>Грузы:</h6>
-      <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
-        <table class="table table-sm table-bordered align-middle">
+      <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+        <table class="table table-sm table-bordered align-middle text-nowrap">
           <thead class="table-light">
             <tr>
-              <th>ID груза</th>
+              <th>ID</th>
+              <th>Компания</th>
+              <th>RPM</th>
               <th>Цена</th>
-              <th>Дата доставки</th>
               <th>Водитель</th>
+              <th>Пикап</th>
+              <th>Доставка</th>
+              <th>Extra Stops</th>
             </tr>
           </thead>
           <tbody>
