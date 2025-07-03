@@ -1,21 +1,15 @@
+function initStatementEvents() {
+  generateWeekRanges("statementWeekRangeSelect");
+}
+
 function openDriverStatementModal() {
-  const modal = document.getElementById("driverStatementModal");
-  const backdrop = document.getElementById("driverStatementBackdrop");
+  document.getElementById("driverStatementModal").classList.add("show");
+  document.getElementById("driverStatementBackdrop").classList.add("show");
 
-  modal.style.display = "block";
-  modal.classList.add("show");
-
-  backdrop.style.display = "block";
-  backdrop.classList.add("show");
+  generateWeekRanges("driverWeekRangeSelect");
 }
 
 function closeDriverStatementModal() {
-  const modal = document.getElementById("driverStatementModal");
-  const backdrop = document.getElementById("driverStatementBackdrop");
-
-  modal.style.display = "none";
-  modal.classList.remove("show");
-
-  backdrop.style.display = "none";
-  backdrop.classList.remove("show");
+  document.getElementById("driverStatementModal").classList.remove("show");
+  document.getElementById("driverStatementBackdrop").classList.remove("show");
 }
