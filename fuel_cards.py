@@ -292,7 +292,7 @@ def summary_by_driver():
             summary[driver_name]["qty"] += tx.get("qty", 0)
             summary[driver_name]["retail"] += tx.get("retail_price", 0)
             summary[driver_name]["invoice"] += tx.get("invoice_total", 0)
-            summary[driver_name]["unit_number"] = tx.get("unit_number", "")
+            summary[driver_name]["unit_number"] = str(tx.get("unit_number", ""))  # 👈 fix here
 
         result = []
         for name, values in summary.items():
