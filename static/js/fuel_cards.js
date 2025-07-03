@@ -318,7 +318,7 @@ function fetchFuelSummaryData(startIso, endIso) {
       if (!container) return;
 
       if (!data.length) {
-        container.innerHTML = `<div class="alert alert-warning">Нет данных</div>`;
+        container.innerHTML = `<div class="alert alert-warning">Нет данныхs</div>`;
         return;
       }
 
