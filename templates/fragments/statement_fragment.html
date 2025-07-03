@@ -1,202 +1,58 @@
-<!-- Кнопка -->
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h4>Стейтменты водителей</h4>
-  <button class="btn btn-primary" onclick="openStatementModal()">
-    Создать стейтмент
+<!-- 📦 Контейнер: Список стейтментов водителей -->
+<div id="driverStatementsContainerWrapper" class="p-3">
+
+  <!-- Кнопка открытия -->
+  <div class="p-3">
+    <button id="btn-open-driver-statement-modal" class="btn btn-primary mt-3" onclick="openDriverStatementModal()">
+      <i class="fas fa-file-invoice-dollar me-2"></i> Добавить стейтмент водителя
+    </button>
+  </div>
+
+  <h3>Сохраненные стейтменты водителей</h3>
+
+  <label for="driverStatementWeekRangeSelect" class="form-label mt-3">Выберите неделю:</label>
+  <select id="driverStatementWeekRangeSelect" class="form-select mb-3"></select>
+
+  <button class="btn btn-primary" onclick="loadDriverStatements()">
+    <i class="fas fa-database me-2"></i> Показать стейтменты
   </button>
+
+  <div id="driverStatementsContainer" class="mt-4"></div>
 </div>
 
-<!-- Выезжающее модальное окно справа -->
-<div class="custom-offcanvas custom-offcanvas-right" id="createStatementModal">
+<!-- 🚛 Модалка добавления стейтмента водителя -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverStatementModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
-      <h5 class="modal-title">Создание стейтмента</h5>
-      <button type="button" class="close" onclick="closeStatementModal()">
+      <h5 class="modal-title">Добавление стейтмента водителя</h5>
+      <button type="button" class="close" onclick="closeDriverStatementModal()">
         <span>&times;</span>
       </button>
     </div>
 
-    <div class="custom-offcanvas-body">
+    <div class="custom-offcanvas-body" id="driverStatementModalBody">
       <div class="load-modal-content">
         <div class="load-modal-left">
-          <!-- ВЫБОР ВОДИТЕЛЯ -->
-          <div class="form-group">
-            <label for="driverSelect">Выберите водителя</label>
-            <select id="driverSelect" class="form-control" style="width: 100%">
-              <option value="">Начните вводить имя...</option>
-              {% for driver in drivers %}
-              <option value="{{ driver._id }}" data-driver='{{ driver | tojson | safe }}'>
-                {{ driver.name }}{% if driver.truck and driver.truck.unit_number %} ({{ driver.truck.unit_number }}){% endif %}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
+          <label for="driverSelect" class="form-label">Выберите водителя:</label>
+          <select id="driverSelect" class="form-select">
+            {% for driver in drivers %}
+              <option value="{{ driver.id }}">{{ driver.name }}</option>
+            {% endfor %}
+          </select>
 
-          <!-- РАСКРЫВАЮЩАЯСЯ ЧАСТЬ -->
-          <div id="statementDetails" style="display: none; margin-top: 20px;">
-            <div class="form-group mt-3">
-              <label for="weekSelect">Выберите неделю</label>
-              <select id="weekSelect" class="form-control"></select>
-            </div>
-            <div class="form-group">
-              <label for="note">Примечание</label>
-              <textarea id="note" class="form-control" rows="2"></textarea>
-            </div>
-            <div class="form-group">
-              <label for="fuelInput">Топливо (Fuel)</label>
-              <input type="number" step="0.01" id="fuelInput" class="form-control" value="0">
-            </div>
-            <div class="form-group">
-              <label for="tollsInput">Толлы (Tolls)</label>
-              <input type="number" step="0.01" id="tollsInput" class="form-control" value="0">
-            </div>
-          </div>
+          <label for="driverWeekRangeSelect" class="form-label">Выберите неделю:</label>
+          <select id="driverWeekRangeSelect" class="form-select mb-3"></select>
 
-          <!-- ГРУЗЫ ВОДИТЕЛЯ -->
-          <div id="driverLoadsBlock" style="display:none; margin-top: 20px;">
-            <h5>Грузы водителя</h5>
-            <div id="driverLoadsContent">
-              <p class="text-muted">Грузы будут показаны после выбора водителя.</p>
-            </div>
-          </div>
+          <button class="btn btn-primary" onclick="calculateDriverStatement()">Рассчитать</button>
 
-          <!-- ТОПЛИВО -->
-          <div id="driverFuelBlock" style="display:none; margin-top: 20px;">
-            <h5>Топливные транзакции</h5>
-            <div id="driverFuelContent">
-              <p class="text-muted">Транзакции появятся после выбора водителя и недели.</p>
-            </div>
-          </div>
+          <div id="driverStatementResults" class="mt-4"></div>
 
-          <!-- ТОЛЛЫ -->
-          <div id="driverTollsBlock" style="display:none; margin-top: 20px;">
-            <h5>Толлы</h5>
-            <div id="driverTollsContent">
-              <p class="text-muted">Толлы появятся после выбора водителя и недели.</p>
-            </div>
-          </div>
-
-          <!-- ДОПОЛНИТЕЛЬНЫЕ СПИСАНИЯ -->
-          <div id="driverChargesBlock" style="display:none; margin-top: 20px;">
-            <h5>Дополнительные списания</h5>
-            <div id="driverChargesContent">
-              <p class="text-muted">Списания появятся после выбора водителя и недели.</p>
-            </div>
-          </div>
-
-          <!-- ДИНАМИЧЕСКИЕ СПИСАНИЯ/ВОЗВРАТЫ -->
-          <div id="manualAdjustmentsBlock" style="margin-top: 20px;">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0">Списания / Возвраты</h5>
-              <button type="button" class="btn btn-sm btn-outline-primary" onclick="addManualAdjustment()">➕ Добавить</button>
-            </div>
-            <div id="manualAdjustmentsContainer"></div>
-          </div>
-
-          <!-- ЗАРПЛАТА ВОДИТЕЛЯ -->
-          <div id="salaryResult" style="display: none; margin-top: 20px;">
-            <h5>Расчёт зарплаты</h5>
-            <p id="salaryAmount" class="font-weight-bold text-success" style="font-size: 1.2rem;">$0.00</p>
-          </div>
-
-          <div class="mt-4 d-flex justify-content-end">
-            <button type="button" class="btn btn-secondary mr-2" onclick="closeStatementModal()">Отмена</button>
-            <button type="button" class="btn btn-success" id="createStatementBtn" disabled>Создать</button>
-          </div>
+          <button class="btn btn-success mt-3" onclick="saveDriverStatement()">💾 Сохранить расчет</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-
-<!-- Затемнение фона -->
-<div class="custom-offcanvas-backdrop" onclick="closeStatementModal()"></div>
-
-<!-- Динамический поиск -->
-<div class="d-flex justify-content-between align-items-end mb-3 gap-3 flex-wrap">
-  <div class="flex-fill me-2">
-    <label for="filterDriver" class="form-label mb-1">Поиск по водителю</label>
-    <input type="text" id="filterDriver" class="form-control" placeholder="Введите имя водителя...">
-  </div>
-
-  <div class="flex-fill ms-2">
-    <label for="filterWeek" class="form-label mb-1">Фильтр по неделе</label>
-    <select id="filterWeek" class="form-control"></select>
-  </div>
-</div>
-
-<!-- Список сохранённых стейтментов -->
-<div class="card mt-4">
-  <div class="card-header">
-    <h5 class="mb-0">Сохранённые стейтменты</h5>
-  </div>
-  <div class="card-body p-0">
-    {% if statements %}
-      <table class="table table-sm table-bordered mb-0">
-        <thead class="thead-light">
-          <tr>
-            <th>Водитель</th>
-            <th>Неделя</th>
-            <th>Зарплата</th>
-            <th>Gross</th>
-            <th>Топливо</th>
-            <th>Толлы</th>
-            <th>Регулярные списание</th> <!-- ✅ добавлено -->
-            <th>Ручные списания / возвраты</th>
-            <th>Дата создания</th>
-            <th>Примечание</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for s in statements %}
-            <tr data-statement-id="{{ s._id }}" style="cursor: pointer;">
-              <td>
-                {% set driver = drivers | selectattr('_id', 'equalto', s.driver_id|string) | first %}
-                {{ driver.name if driver else 'Неизвестно' }}
-              </td>
-              <td>{{ s.week }}</td>
-              <td>${{ "%.2f"|format(s.salary or 0) }}</td>
-              <td>${{ "%.2f"|format(s.gross or 0) }}</td>
-              <td>${{ "%.2f"|format(s.fuel or 0) }}</td>
-              <td>${{ "%.2f"|format(s.tolls or 0) }}</td>
-
-              <td>
-                {% if s.applied_charges %}
-                  <ul class="mb-0 pl-3">
-                    {% for c in s.applied_charges %}
-                      <li>{{ c.type }} — ${{ "%.2f"|format(c.amount) }}</li>
-                    {% endfor %}
-                  </ul>
-                {% else %}
-                  <span class="text-muted">–</span>
-                {% endif %}
-              </td>
-
-              <td>
-                  {% if s.manual_adjustments %}
-                    <ul class="mb-0 pl-3">
-                      {% for m in s.manual_adjustments %}
-                        <li>
-                          {{ m.type == 'refund' and 'Возврат' or 'Списание' }}:
-                          ${{ "%.2f"|format(m.amount or 0) }}
-                          ({{ m.target == 'gross' and 'из gross' or 'из зарплаты' }})
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  {% else %}
-                    <span class="text-muted">–</span>
-                  {% endif %}
-                </td>
-
-              <td>{{ s.created_at }}</td>
-              <td>{{ s.note }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p class="text-muted px-3 py-2 mb-0">Сохранённые стейтменты отсутствуют.</p>
-    {% endif %}
-  </div>
-</div>
+<!-- Фон -->
+<div class="custom-offcanvas-backdrop" id="driverStatementBackdrop" onclick="closeDriverStatementModal()"></div>

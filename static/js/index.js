@@ -21,12 +21,9 @@ function initNavigation() {
     'accounting': () => initAccountingButtons?.(),
     'statements': () => {
       initStatementEvents?.();
-      initStatementFilter?.();
-      initStatementRowClicks?.();
     },
     'statement_dispatchers': () => {
       initStatementDispatcherEvents?.();
-      // ... любые другие нужные функции
     },
     'fuel_cards': () => initFuelCards?.(),
     'fuel_cards_summary': () => initFuelCardsSummary?.(),
