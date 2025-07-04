@@ -23,6 +23,11 @@ function calculateDriverStatement() {
     return;
   }
 
+  fetchAndRenderDriverLoads(driverId, weekRange);
+  fetchDriverFuelSummary(driverId, weekRange);
+}
+
+function fetchAndRenderDriverLoads(driverId, weekRange) {
   fetch(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
     .then(data => {
@@ -59,5 +64,36 @@ function calculateDriverStatement() {
     })
     .catch(err => {
       console.error("Ошибка при получении грузов:", err);
+    });
+}
+
+function fetchDriverFuelSummary(driverId, weekRange) {
+  fetch(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("driverStatementResults");
+
+      if (!data.success || !data.fuel) {
+        container.insertAdjacentHTML("beforeend", "<p>Нет данных по топливу</p>");
+        return;
+      }
+
+      const fuel = data.fuel;
+      const fuelHtml = `
+        <div class="mt-4">
+          <h5>⛽ Топливо за период:</h5>
+          <ul>
+            <li><strong>Gallons (qty):</strong> ${fuel.qty}</li>
+            <li><strong>Retail Total:</strong> $${fuel.retail}</li>
+            <li><strong>Invoice Total:</strong> $${fuel.invoice}</li>
+            <li><strong>Used Cards:</strong> ${fuel.cards.join(", ")}</li>
+          </ul>
+        </div>
+      `;
+
+      container.insertAdjacentHTML("beforeend", fuelHtml);
+    })
+    .catch(err => {
+      console.error("Ошибка при получении дизеля:", err);
     });
 }

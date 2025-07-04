@@ -90,6 +90,68 @@ def get_driver_statement_loads():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
 
+@statement_bp.route("/api/driver_fuel_summary", methods=["GET"])
+def get_driver_fuel_summary():
+    try:
+        driver_id = request.args.get("driver_id")
+        week_range = request.args.get("week_range")
+
+        if not driver_id or not week_range:
+            return jsonify({"error": "Missing driver_id or week_range"}), 400
+
+        start_str, end_str = [s.strip() for s in week_range.split("-")]
+        start_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+
+        # 1. Find all cards assigned to driver
+        fuel_cards = list(fuel_cards_collection.find({
+            "assigned_driver": ObjectId(driver_id)
+        }))
+
+        card_numbers = [c.get("card_number") for c in fuel_cards if c.get("card_number")]
+
+        if not card_numbers:
+            return jsonify({
+                "success": True,
+                "fuel": {
+                    "qty": 0.0,
+                    "retail": 0.0,
+                    "invoice": 0.0,
+                    "cards": []
+                }
+            })
+
+        # 2. Find transactions in range
+        query = {
+            "card_number": {"$in": card_numbers},
+            "date": {"$gte": start_date, "$lt": end_date}
+        }
+
+        transactions = list(fuel_cards_transactions_collection.find(query))
+
+        fuel = {
+            "qty": 0.0,
+            "retail": 0.0,
+            "invoice": 0.0,
+            "cards": card_numbers
+        }
+
+        for tx in transactions:
+            fuel["qty"] += tx.get("qty", 0)
+            fuel["retail"] += tx.get("retail_price", 0)
+            fuel["invoice"] += tx.get("invoice_total", 0)
+
+        fuel["qty"] = round(fuel["qty"], 2)
+        fuel["retail"] = round(fuel["retail"], 2)
+        fuel["invoice"] = round(fuel["invoice"], 2)
+
+        return jsonify({"success": True, "fuel": fuel})
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/driver_fuel_summary:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
 
 
 
