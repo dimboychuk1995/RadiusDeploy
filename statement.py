@@ -154,6 +154,34 @@ def get_driver_fuel_summary():
         return jsonify({"success": False, "error": str(e)})
 
 
+@statement_bp.route("/api/driver_commission_scheme", methods=["GET"])
+def get_driver_commission_scheme():
+    try:
+        driver_id = request.args.get("driver_id")
+        if not driver_id:
+            return jsonify({"success": False, "error": "Missing driver_id"}), 400
+
+        driver = drivers_collection.find_one({"_id": ObjectId(driver_id)})
+        if not driver:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
+
+        # Безопасно получить тип схемы
+        scheme_info = driver.get("net_commission_table") or {}
+        scheme_type = scheme_info.get("type", "percent")
+
+        commission_table = driver.get("commission_table", [])
+
+        return jsonify({
+            "success": True,
+            "scheme_type": scheme_type,
+            "commission_table": commission_table
+        })
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/driver_commission_scheme:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
 
 
 
