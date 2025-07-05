@@ -158,23 +158,55 @@ def get_driver_fuel_summary():
 def get_driver_commission_scheme():
     try:
         driver_id = request.args.get("driver_id")
-        if not driver_id:
-            return jsonify({"success": False, "error": "Missing driver_id"}), 400
+        week_range = request.args.get("week_range")  # Добавим параметр
+
+        if not driver_id or not week_range:
+            return jsonify({"success": False, "error": "Missing driver_id or week_range"}), 400
+
+        start_str, end_str = [s.strip() for s in week_range.split("-")]
+        start_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_date = datetime.strptime(end_str, "%m/%d/%Y")
 
         driver = drivers_collection.find_one({"_id": ObjectId(driver_id)})
         if not driver:
             return jsonify({"success": False, "error": "Driver not found"}), 404
 
-        # Безопасно получить тип схемы
+        # Зарплатная схема
         scheme_info = driver.get("net_commission_table") or {}
         scheme_type = scheme_info.get("type", "percent")
-
         commission_table = driver.get("commission_table", [])
+
+        # Списания (deductions)
+        additional_charges = driver.get("additional_charges", []) or []
+        deductions = []
+
+        for charge in additional_charges:
+            period = charge.get("period")
+            amount = charge.get("amount", 0)
+            day_of_month = charge.get("day_of_month")
+            charge_type = charge.get("type", "Unknown")
+
+            if period == "statement":
+                deductions.append({
+                    "type": charge_type,
+                    "amount": amount
+                })
+
+            elif period == "monthly" and isinstance(day_of_month, int):
+                for day in range((end_date - start_date).days + 1):
+                    current = start_date + timedelta(days=day)
+                    if current.day == day_of_month:
+                        deductions.append({
+                            "type": charge_type,
+                            "amount": amount
+                        })
+                        break  # только одно совпадение нужно
 
         return jsonify({
             "success": True,
             "scheme_type": scheme_type,
-            "commission_table": commission_table
+            "commission_table": commission_table,
+            "deductions": deductions
         })
 
     except Exception as e:

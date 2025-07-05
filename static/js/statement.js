@@ -122,6 +122,7 @@ function fetchDriverFuelSummary(driverId, weekRange) {
 window.recalculateDriverSalary = async function () {
   const container = document.getElementById("driverStatementResults");
   const driverId = document.getElementById("driverSelect").value;
+  const weekRange = document.getElementById("driverWeekRangeSelect").value;
 
   const checkboxes = container.querySelectorAll(".load-checkbox");
   let totalAmount = 0;
@@ -133,7 +134,7 @@ window.recalculateDriverSalary = async function () {
   });
 
   try {
-    const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}`);
+    const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
     const data = await res.json();
 
     if (!data.success) {
@@ -143,7 +144,7 @@ window.recalculateDriverSalary = async function () {
 
     let salary = 0;
 
-    if (totalAmount > 0 && data.scheme_type === "percent") {
+    if (data.scheme_type === "percent") {
       const table = data.commission_table || [];
 
       if (table.length === 1) {
@@ -158,18 +159,36 @@ window.recalculateDriverSalary = async function () {
       }
     }
 
+    // Списания
+    const deductions = data.deductions || [];
+    const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const finalSalary = salary - totalDeductions;
+
     // Удалим старый блок
     const old = container.querySelector("#driverSalaryBlock");
     if (old) old.remove();
 
-    const html = `
+    // Формируем блок
+    let html = `
       <div id="driverSalaryBlock" class="mt-4">
         <h5>💰 Зарплата водителя:</h5>
         <p><strong>Общая сумма выбранных грузов:</strong> $${totalAmount.toFixed(2)}</p>
-        <p><strong>Зарплата:</strong> $${salary.toFixed(2)}</p>
-      </div>
+        <p><strong>Зарплата до вычетов:</strong> $${salary.toFixed(2)}</p>
     `;
 
+    if (deductions.length > 0) {
+      html += `
+        <h6 class="mt-3">💸 Списания:</h6>
+        <ul>
+          ${deductions.map(d => `
+            <li>${d.type}: -$${d.amount.toFixed(2)}</li>
+          `).join("")}
+        </ul>
+        <p><strong>Итого после вычетов:</strong> $${finalSalary.toFixed(2)}</p>
+      `;
+    }
+
+    html += `</div>`;
     container.insertAdjacentHTML("beforeend", html);
 
   } catch (err) {
