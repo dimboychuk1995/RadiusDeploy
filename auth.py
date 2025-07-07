@@ -22,7 +22,7 @@ login_manager.login_view = 'auth.login'
 login_manager.login_message = "Пожалуйста, войдите для доступа к этой странице."
 
 # Роли
-USER_ROLES = ['admin', 'user', 'dispatch']
+USER_ROLES = ['admin', 'user', 'dispatch','driver']
 
 # Класс User
 class User(UserMixin):
