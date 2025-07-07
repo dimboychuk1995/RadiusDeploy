@@ -89,6 +89,7 @@ def drivers_fragment():
 def add_driver():
     try:
         from datetime import datetime
+        from werkzeug.security import generate_password_hash
 
         def to_mmddyyyy(date_str):
             if not date_str:
@@ -109,11 +110,13 @@ def add_driver():
                 }
             return None
 
+        email = request.form.get('email')
+
         driver_data = {
             'name': request.form.get('name'),
             'contact_number': request.form.get('contact_number'),
             'address': request.form.get('address'),
-            'email': request.form.get('email'),
+            'email': email,
             'dob': to_mmddyyyy(request.form.get('dob')),
             'driver_type': request.form.get('driver_type'),
             'status': request.form.get('status', 'В процессе принятия'),
@@ -155,11 +158,25 @@ def add_driver():
                 'file': save_file('agreement_file')
             },
             'ssn': request.form.get('ssn')
-
         }
 
-        drivers_collection.insert_one(driver_data)
+        # Сохраняем водителя
+        result = drivers_collection.insert_one(driver_data)
+        driver_id = result.inserted_id
+
+        # Добавляем пользователя с ролью driver
+        password = 'password'
+        user_data = {
+            'username': email,
+            'password': generate_password_hash(password, method='scrypt'),
+            'role': 'driver',
+            'company': current_user.company,
+            'driver_id': driver_id
+        }
+        users_collection.insert_one(user_data)
+
         return redirect(url_for('index'))
+
     except Exception as e:
         logging.error(f"Error adding driver: {e}")
         return render_template('error.html', message="Failed to add driver")
