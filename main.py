@@ -93,8 +93,11 @@ app.register_blueprint(dispatch_schedule_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
 
-CORS(app, supports_credentials=True, origins=["http://localhost:8081", "http://192.168.0.229:8081"])
-
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:8081",
+    "http://192.168.0.229:8081",
+    "https://38f9244c3e57.ngrok-free.app"
+])
 
 # Главная страница
 @app.route('/')
@@ -113,4 +116,4 @@ def internal_server_error(e):
 # Запуск
 if __name__ == '__main__':
     start_scheduler()
-    app.run(host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)

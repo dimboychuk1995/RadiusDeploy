@@ -826,6 +826,7 @@ def upload_load_photos(load_id):
 @loads_bp.route("/api/loads", methods=["GET"])
 @jwt_required
 def get_loads():
+    from flask import g  # ⬅️ важно
     try:
         page = int(request.args.get("page", 1))
         per_page = 10
@@ -838,8 +839,7 @@ def get_loads():
                 return jsonify({"success": False, "error": "Driver not found or missing driver_id"}), 404
 
             query["assigned_driver"] = ObjectId(user["driver_id"])
-        else:
-            return jsonify({"success": False, "error": "Only drivers can access loads"}), 403
+        # ⬇️ иначе оставляем query пустым = все грузы
 
         total = loads_collection.count_documents(query)
         cursor = loads_collection.find(query).skip((page - 1) * per_page).limit(per_page)
