@@ -145,8 +145,8 @@ def mobile_add_user_to_room(room_id):
     return jsonify({'success': True})
 
 
-@socketio.on("join")
-def handle_join(data):
+@socketio.on("mobile_join")
+def mobile_join_handler(data):
     token = data.get("token")
     room_id = data.get("room_id")
 
