@@ -54,6 +54,9 @@ def start_scheduler():
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
 
+app.config["JWT_SECRET"] = "super_secret_123"
+
+
 # 🔧 КОНФИГ КУК
 app.config.update(
     SESSION_COOKIE_SAMESITE="None",   # ✅ Разрешает куки в кросс-доменных запросах
@@ -101,11 +104,14 @@ app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
 app.register_blueprint(mobile_chat_bp)
 
-CORS(app, supports_credentials=True, origins=[
-    "http://localhost:8081",
-    "http://192.168.0.229:8081",
-    "https://009cb13d6fd1.ngrok-free.app"
-])
+CORS(app,
+     supports_credentials=True,
+     origins=[
+         "http://localhost:8081",
+         "http://192.168.0.229:8081",
+         "https://009cb13d6fd1.ngrok-free.app"
+     ],
+     expose_headers=["Authorization"])
 
 # Главная страница
 @app.route('/')
@@ -124,4 +130,4 @@ def internal_server_error(e):
 # Запуск
 if __name__ == '__main__':
     start_scheduler()
-    socketio.run(app, host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)

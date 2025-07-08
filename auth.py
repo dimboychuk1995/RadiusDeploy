@@ -171,7 +171,7 @@ def api_login():
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
     }
 
-    token = jwt.encode(payload, current_app.secret_key, algorithm="HS256")
+    token = jwt.encode(payload, current_app.config["JWT_SECRET"], algorithm="HS256")
     if isinstance(token, bytes):
         token = token.decode("utf-8")
 
