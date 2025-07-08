@@ -4,6 +4,7 @@ from datetime import datetime
 from email.mime.application import MIMEApplication
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify
 from bson.objectid import ObjectId
+from flask_cors import cross_origin, CORS
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 import gridfs
@@ -22,6 +23,9 @@ from io import BytesIO
 from jinja2 import Template
 from flask import send_file
 import pytz
+from flask import g
+
+from tools.jwt_auth import jwt_required
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -770,3 +774,162 @@ def assign_driver_to_load():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "message": "Ошибка сервера"}), 500
+
+
+# ======================= API: Мобильное приложение =======================
+@loads_bp.route("/api/loads/<load_id>/upload_photos", methods=["POST"])
+@cross_origin()
+def upload_load_photos(load_id):
+    try:
+        stage = request.form.get("stage")  # "pickup" или "delivery"
+        if stage not in ["pickup", "delivery"]:
+            return jsonify({"success": False, "error": "Invalid stage"}), 400
+
+        load = loads_collection.find_one({"load_id": load_id})
+        if not load:
+            return jsonify({"success": False, "error": "Load not found"}), 404
+
+        files = request.files.getlist("photos")
+        if not files:
+            return jsonify({"success": False, "error": "No files uploaded"}), 400
+
+        saved_ids = []
+        for file in files:
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file_id = fs.put(file, filename=filename, content_type=file.content_type,
+                                 metadata={"load_id": load_id, "stage": stage})
+                saved_ids.append(file_id)
+
+        update_fields = {f"{stage}_photo_ids": saved_ids}
+
+        # Автообновление статуса
+        status = str(load.get("status", "")).lower()
+        if stage == "pickup" and status == "new":
+            update_fields["status"] = "picked_up"
+        elif stage == "delivery" and status == "picked_up":
+            update_fields["status"] = "delivered"
+
+        loads_collection.update_one({"_id": load["_id"]}, {"$set": update_fields})
+
+        return jsonify({
+            "success": True,
+            "message": "Photos uploaded",
+            "file_ids": [str(fid) for fid in saved_ids]
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+@loads_bp.route("/api/loads", methods=["GET"])
+@jwt_required
+def get_loads():
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = 10
+
+        query = {}
+
+        if g.role == "driver":
+            user = users_collection.find_one({"_id": ObjectId(g.user_id)})
+            if not user or "driver_id" not in user:
+                return jsonify({"success": False, "error": "Driver not found or missing driver_id"}), 404
+
+            query["assigned_driver"] = ObjectId(user["driver_id"])
+        else:
+            return jsonify({"success": False, "error": "Only drivers can access loads"}), 403
+
+        total = loads_collection.count_documents(query)
+        cursor = loads_collection.find(query).skip((page - 1) * per_page).limit(per_page)
+
+        result = []
+        for load in cursor:
+            delivery_date = load.get("delivery", {}).get("date")
+            delivery_address = load.get("delivery", {}).get("address")
+            extra_deliveries = load.get("extra_delivery", [])
+            if extra_deliveries:
+                last_extra = extra_deliveries[-1]
+                delivery_date = last_extra.get("date", delivery_date)
+                delivery_address = last_extra.get("address", delivery_address)
+
+            result.append({
+                "load_id": load.get("load_id"),
+                "pickup_address": load.get("pickup", {}).get("address", ""),
+                "pickup_date": load.get("pickup", {}).get("date"),
+                "delivery_address": delivery_address,
+                "delivery_date": delivery_date,
+                "price": load.get("price"),
+                "RPM": load.get("RPM"),
+            })
+
+        return jsonify({
+            "success": True,
+            "loads": result,
+            "page": page,
+            "per_page": per_page
+        })
+
+    except Exception as e:
+        print(f"[ERROR] /api/loads: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@loads_bp.route("/api/load/<load_id>", methods=["GET"])
+@cross_origin()
+def get_load_details(load_id):
+    try:
+        load = loads_collection.find_one({"load_id": load_id})
+        if not load:
+            return jsonify({"success": False, "error": "Load not found"}), 404
+
+        def serialize_location(entry):
+            return {
+                "company": entry.get("company", ""),
+                "address": entry.get("address", ""),
+                "date": entry.get("date"),
+                "instructions": entry.get("instructions", ""),
+                "contact_person": entry.get("contact_person", ""),
+                "contact_phone_number": entry.get("contact_phone_number", ""),
+                "contact_email": entry.get("contact_email", "")
+            }
+
+        result = {
+            "load_id": load.get("load_id"),
+            "price": load.get("price"),
+            "RPM": load.get("RPM"),
+            "total_miles": load.get("total_miles"),
+            "weight": load.get("weight"),
+            "description": load.get("load_description", ""),
+            "pickup": serialize_location(load.get("pickup", {})),
+            "extra_pickup": [serialize_location(p) for p in load.get("extra_pickup") or []],
+            "delivery": serialize_location(load.get("delivery", {})),
+            "extra_delivery": [serialize_location(d) for d in load.get("extra_delivery") or []],
+            "status": load.get("status"),
+            "payment_status": load.get("payment_status"),
+            "broker_name": load.get("broker_load_id"),
+            "broker_phone": load.get("broker_phone_number"),
+            "pickup_photo_urls": [f"/api/load/photo/{str(pid)}" for pid in load.get("pickup_photo_ids", [])],
+            "delivery_photo_urls": [f"/api/load/photo/{str(pid)}" for pid in load.get("delivery_photo_ids", [])],
+        }
+
+        return jsonify({"success": True, "load": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@loads_bp.route("/api/load/photo/<photo_id>", methods=["GET"])
+@cross_origin()
+def get_load_photo(photo_id):
+    try:
+        file_obj = fs.get(ObjectId(photo_id))
+        return send_file(
+            BytesIO(file_obj.read()),
+            mimetype=file_obj.content_type or "image/jpeg",
+            as_attachment=False,
+            download_name=file_obj.filename
+        )
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": f"Cannot retrieve photo: {str(e)}"
+        }), 404

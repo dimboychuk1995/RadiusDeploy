@@ -2,6 +2,7 @@ import logging
 import eventlet
 eventlet.monkey_patch()
 
+from flask_cors import CORS
 from flask import Flask, render_template, redirect, url_for
 from flask_login import current_user
 from tools.socketio_instance import socketio  # <-- здесь уже готовый экземпляр
@@ -52,6 +53,12 @@ def start_scheduler():
 app = Flask(__name__)
 app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
 
+# 🔧 КОНФИГ КУК
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",   # ✅ Разрешает куки в кросс-доменных запросах
+    SESSION_COOKIE_SECURE=False          # ✅ Обязательно для SameSite=None (требует HTTPS)
+)
+
 # Инициализация Flask-Login
 login_manager.init_app(app)
 
@@ -86,6 +93,9 @@ app.register_blueprint(dispatch_schedule_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
 
+CORS(app, supports_credentials=True, origins=["http://localhost:8081", "http://192.168.0.229:8081"])
+
+
 # Главная страница
 @app.route('/')
 def index():
@@ -103,4 +113,4 @@ def internal_server_error(e):
 # Запуск
 if __name__ == '__main__':
     start_scheduler()
-    socketio.run(app, host='127.0.0.1', port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5000)

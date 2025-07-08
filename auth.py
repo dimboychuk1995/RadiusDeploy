@@ -1,9 +1,16 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g
+import datetime
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app
+from flask import g
+import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from functools import wraps
 from bson.objectid import ObjectId
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask import jsonify
+from flask_cors import cross_origin
+from tools.user_wrapper import UserWrapper
 
 from tools.db import db  # <-- Используем единое подключение к MongoDB
 
@@ -141,3 +148,73 @@ def delete_user(user_id):
     except Exception as e:
         flash(f'Ошибка при удалении пользователя: {e}', 'danger')
     return redirect(url_for('auth.users_list'))
+
+
+# ======================= API: Мобильный логин =======================
+@auth_bp.route("/api/login", methods=["POST"])
+@cross_origin(supports_credentials=True, origins=["http://localhost:8081"])
+def api_login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Missing username or password"}), 400
+
+    user = users_collection.find_one({"username": username})
+    if not user or not check_password_hash(user.get("password", ""), password):
+        return jsonify({"success": False, "message": "Invalid credentials"}), 401
+
+    payload = {
+        "user_id": str(user["_id"]),
+        "role": user.get("role", ""),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+    }
+
+    token = jwt.encode(payload, current_app.secret_key, algorithm="HS256")
+
+    return jsonify({
+        "success": True,
+        "token": token,
+        "user_id": str(user["_id"]),
+        "username": user["username"],
+        "role": user.get("role", ""),
+        "company": user.get("company", ""),
+        "driver_id": str(user.get("driver_id", "")) if user.get("driver_id") else None
+    })
+
+# ======================= API: Смена пароля =======================
+@auth_bp.route("/api/change_password", methods=["POST"])
+@cross_origin()
+def api_change_password():
+    try:
+        data = request.get_json()
+        user_id = data.get("user_id", "").strip()
+        current_password = data.get("currentPassword", "").strip()
+        new_password = data.get("newPassword", "").strip()
+
+        if not user_id or not current_password or not new_password:
+            return jsonify({"success": False, "message": "Заполните все поля"}), 400
+
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+
+        if not user:
+            return jsonify({"success": False, "message": "Пользователь не найден"}), 404
+
+        if not check_password_hash(user["password"], current_password):
+            return jsonify({"success": False, "message": "Неверный текущий пароль"}), 401
+
+        new_hashed = generate_password_hash(new_password, method="scrypt")
+        result = users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"password": new_hashed}}
+        )
+
+        if result.modified_count == 0:
+            return jsonify({"success": False, "message": "Пароль не был обновлён"}), 500
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        logging.exception("Ошибка при смене пароля")
+        return jsonify({"success": False, "message": str(e)}), 500
