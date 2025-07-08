@@ -30,14 +30,23 @@ def handle_send_message(data):
 
     message = {
         'room_id': ObjectId(room_id),
-        'sender_id': str(current_user.id),
+        'sender_id': ObjectId(current_user.id),
         'sender_name': current_user.username,
         'content': data.get('content', '').strip(),
         'timestamp': datetime.utcnow().isoformat()
     }
 
     db.chat_messages.insert_one(message)
-    socketio.emit('new_message', message, room=room_id)
+
+    safe_message = {
+        '_id': str(message['_id']) if '_id' in message else None,
+        'room_id': str(message['room_id']),
+        'sender_id': str(message['sender_id']),
+        'sender_name': message['sender_name'],
+        'content': message['content'],
+        'timestamp': message['timestamp']
+    }
+    socketio.emit('new_message', safe_message, room=room_id)
 
 
 @socketio.on('join')
@@ -67,7 +76,7 @@ def chat_fragment():
 @chat_bp.route('/api/chat/rooms', methods=['GET'])
 @login_required
 def get_rooms():
-    rooms = list(db.chat_rooms.find({'participants': str(current_user.id)}))
+    rooms = list(db.chat_rooms.find({'participants': ObjectId(current_user.id)}))
     for room in rooms:
         room['_id'] = str(room['_id'])
         room_id_obj = ObjectId(room['_id'])
@@ -85,7 +94,19 @@ def get_rooms():
         else:
             room['last_message'] = None
 
-    return jsonify(rooms)
+    serialized_rooms = []
+    for room in rooms:
+        serialized_room = {
+            '_id': str(room['_id']),
+            'name': room.get('name', ''),
+            'created_by': str(room.get('created_by')),
+            'participants': [str(p) for p in room.get('participants', [])],
+            'created_at': room['created_at'].isoformat() if room.get('created_at') else None,
+            'last_message': room.get('last_message')
+        }
+        serialized_rooms.append(serialized_room)
+
+    return jsonify(serialized_rooms)
 
 
 @chat_bp.route('/api/chat/rooms', methods=['POST'])
@@ -97,15 +118,23 @@ def create_room():
 
     room = {
         'name': name,
-        'created_by': str(current_user.id),
-        'participants': [str(current_user.id)],  # 👈 вот тут
+        'created_by': ObjectId(current_user.id),
+        'participants': [ObjectId(current_user.id)],
         'created_at': datetime.utcnow()
     }
 
     inserted = db.chat_rooms.insert_one(room)
     room['_id'] = str(inserted.inserted_id)
 
-    return jsonify({'status': 'ok', 'room': room})
+    room_serializable = {
+        '_id': str(inserted.inserted_id),
+        'name': room['name'],
+        'created_by': str(room['created_by']),
+        'participants': [str(p) for p in room['participants']],
+        'created_at': room['created_at'].isoformat()
+    }
+
+    return jsonify({'status': 'ok', 'room': room_serializable})
 
 # ====== MESSAGES ======
 @chat_bp.route('/api/chat/messages/<room_id>', methods=['GET'])
@@ -120,7 +149,8 @@ def get_messages(room_id):
 
     for msg in messages:
         msg['_id'] = str(msg['_id'])
-        msg['room_id'] = str(msg['room_id'])  # ⬅️ ЭТО НУЖНО!
+        msg['room_id'] = str(msg['room_id'])
+        msg['sender_id'] = str(msg.get('sender_id', ''))
         if msg.get('reply_to') and msg['reply_to'].get('message_id'):
             msg['reply_to']['message_id'] = str(msg['reply_to']['message_id'])
 
@@ -161,7 +191,7 @@ def send_message(room_id):
 
     message = {
         'room_id': ObjectId(room_id),
-        'sender_id': str(current_user.id),
+        'sender_id': ObjectId(current_user.id),
         'sender_name': current_user.username,
         'content': content,
         'files': file_infos,
@@ -174,8 +204,8 @@ def send_message(room_id):
 
     safe_message = {
         '_id': str(message['_id']),
-        'room_id': room_id,
-        'sender_id': message['sender_id'],
+        'room_id': str(message['room_id']),
+        'sender_id': str(message['sender_id']),
         'sender_name': message['sender_name'],
         'content': message['content'],
         'files': message['files'],
@@ -200,7 +230,7 @@ def rename_room(room_id):
     if not room:
         return jsonify({'status': 'error', 'error': 'Room not found'}), 404
 
-    if room.get('created_by') != str(current_user.id):
+    if room.get('created_by') != ObjectId(current_user.id):
         return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
 
     db.chat_rooms.update_one({'_id': ObjectId(room_id)}, {'$set': {'name': new_name}})
@@ -213,10 +243,9 @@ def delete_room(room_id):
     if not room:
         return jsonify({'status': 'error', 'error': 'Room not found'}), 404
 
-    if room.get('created_by') != str(current_user.id):
+    if room.get('created_by') != ObjectId(current_user.id):
         return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
 
-    # 🧹 Удаление всех файлов
     messages = db.chat_messages.find({'room_id': ObjectId(room_id)})
     for msg in messages:
         files = msg.get('files', [])
@@ -228,7 +257,6 @@ def delete_room(room_id):
                 except Exception as e:
                     print(f"⚠️ Не удалось удалить файл {file_path}: {e}", file=sys.stderr)
 
-    # 🗑 Удаление сообщений и комнаты
     db.chat_messages.delete_many({'room_id': ObjectId(room_id)})
     db.chat_rooms.delete_one({'_id': ObjectId(room_id)})
 
@@ -247,12 +275,12 @@ def add_user_to_room(room_id):
     if not room:
         return jsonify({'status': 'error', 'error': 'Room not found'}), 404
 
-    if room['created_by'] != str(current_user.id):
+    if room['created_by'] != ObjectId(current_user.id):
         return jsonify({'status': 'error', 'error': 'Not authorized'}), 403
 
     db.chat_rooms.update_one(
         {'_id': ObjectId(room_id)},
-        {'$addToSet': {'participants': user_id_to_add}}
+        {'$addToSet': {'participants': ObjectId(user_id_to_add)}}
     )
 
     return jsonify({'status': 'ok'})
@@ -260,7 +288,7 @@ def add_user_to_room(room_id):
 @chat_bp.route('/api/users')
 @login_required
 def list_users():
-    users = list(db.users.find({}, {'_id': 1, 'username': 1}))  # или адаптируй под ORM
+    users = list(db.users.find({}, {'_id': 1, 'username': 1}))
     for u in users:
         u['_id'] = str(u['_id'])
     return jsonify(users)

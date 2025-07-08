@@ -36,6 +36,7 @@ from equipment import equipment_bp
 from dispatch_schedule import dispatch_schedule_bp
 from settings import settings_bp
 from dispatch_statements import dispatch_statements_bp
+from chat_mobile import mobile_chat_bp
 
 
 def start_scheduler():
@@ -98,6 +99,7 @@ app.register_blueprint(equipment_bp)
 app.register_blueprint(dispatch_schedule_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
+app.register_blueprint(mobile_chat_bp)
 
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:8081",
