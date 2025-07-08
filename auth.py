@@ -88,6 +88,7 @@ def load_user_context():
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
+    print('desktop login')
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -154,6 +155,7 @@ def delete_user(user_id):
 @auth_bp.route("/api/login", methods=["POST"])
 @cross_origin(supports_credentials=True, origins=["http://localhost:8081"])
 def api_login():
+    print('mobile login')
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
