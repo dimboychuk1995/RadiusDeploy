@@ -1,6 +1,6 @@
 import logging
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()
 
 from flask_cors import CORS
 from flask import Flask, render_template, redirect, url_for, request, jsonify
@@ -52,15 +52,13 @@ def start_scheduler():
     logging.info("🔁 Планировщик Super Dispatch запущен")
 
 app = Flask(__name__)
-app.secret_key = 'secret'  # Лучше заменить на os.getenv('SECRET_KEY')
-
+app.secret_key = 'secret'
 app.config["JWT_SECRET"] = "super_secret_123"
 
-
-# 🔧 КОНФИГ КУК
+# Куки для кросс-доменных запросов
 app.config.update(
-    SESSION_COOKIE_SAMESITE="None",   # ✅ Разрешает куки в кросс-доменных запросах
-    SESSION_COOKIE_SECURE=False          # ✅ Обязательно для SameSite=None (требует HTTPS)
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=False  # true, если HTTPS
 )
 
 # Инициализация Flask-Login
@@ -72,8 +70,27 @@ def unauthorized_callback():
         return jsonify({"success": False, "message": "Unauthorized"}), 401
     return redirect(url_for("auth.login"))
 
-# Инициализация SocketIO на приложении
-socketio.init_app(app, async_mode='eventlet')  # <-- ПРАВИЛЬНО: инициализируем здесь
+# ✅ CORS настроен глобально
+CORS(app,
+     supports_credentials=True,
+     origins=[
+         "http://localhost:8081",
+         "http://192.168.0.229:8081",
+         "https://009cb13d6fd1.ngrok-free.app"
+     ],
+     expose_headers=["Authorization"])
+
+# ✅ SocketIO инициализируем без CORS тут (он уже есть выше)
+socketio.init_app(
+    app,
+    async_mode='gevent',
+    cors_allowed_origins=[
+        "http://localhost:8081",
+        "http://192.168.0.229:8081",
+        "https://009cb13d6fd1.ngrok-free.app",
+        "http://127.0.0.1:5000"
+    ]
+)
 
 # Регистрация всех блюпринтов
 app.register_blueprint(auth_bp)
@@ -103,15 +120,6 @@ app.register_blueprint(dispatch_schedule_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
 app.register_blueprint(mobile_chat_bp)
-
-CORS(app,
-     supports_credentials=True,
-     origins=[
-         "http://localhost:8081",
-         "http://192.168.0.229:8081",
-         "https://009cb13d6fd1.ngrok-free.app"
-     ],
-     expose_headers=["Authorization"])
 
 # Главная страница
 @app.route('/')

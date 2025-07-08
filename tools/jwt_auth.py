@@ -3,6 +3,25 @@
 import jwt
 from functools import wraps
 from flask import request, jsonify, current_app, g
+from jwt import ExpiredSignatureError, InvalidTokenError
+
+
+def decode_token(token):
+    try:
+        jwt_secret = current_app.config["JWT_SECRET"]
+        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
+        return {
+            "user_id": payload["user_id"],
+            "role": payload["role"],
+            "username": payload.get("username", "")
+        }
+    except ExpiredSignatureError:
+        print("❌ JWT: Token expired")
+    except InvalidTokenError:
+        print("❌ JWT: Invalid token")
+    except Exception as e:
+        print("❌ JWT: Unexpected error:", e)
+    return None
 
 
 def jwt_required(f):

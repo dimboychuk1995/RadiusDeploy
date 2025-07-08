@@ -5,7 +5,7 @@ from datetime import datetime
 from flask_cors import cross_origin
 
 from tools.db import db
-from tools.jwt_auth import jwt_required
+from tools.jwt_auth import jwt_required, decode_token
 from flask_socketio import join_room, emit, disconnect
 from tools.socketio_instance import socketio
 
@@ -16,7 +16,7 @@ mobile_chat_bp = Blueprint('mobile_chat', __name__)
 @socketio.on('mobile_join_room')
 def mobile_join_room(data):
     token = data.get('token')
-    user = jwt_required(token)
+    user = decode_token(token)
     if not user:
         print("❌ Socket auth failed (join)")
         disconnect()
@@ -32,7 +32,7 @@ def mobile_join_room(data):
 @socketio.on('mobile_send_message')
 def mobile_send_message(data):
     token = data.get('token')
-    user = jwt_required(token)
+    user = decode_token(token)
     if not user:
         print("❌ Socket auth failed (send)")
         disconnect()
@@ -143,3 +143,24 @@ def mobile_add_user_to_room(room_id):
         {'$addToSet': {'participants': user_id}}
     )
     return jsonify({'success': True})
+
+
+@socketio.on("join")
+def handle_join(data):
+    token = data.get("token")
+    room_id = data.get("room_id")
+
+    if not token:
+        print("❌ SOCKET: Токен не передан")
+        return
+
+    user_data = decode_token(token)
+    if not user_data:
+        print("❌ SOCKET: Неверный токен")
+        return
+
+    g.user_id = user_data["user_id"]
+    g.role = user_data["role"]
+
+    join_room(room_id)
+    print(f"✅ SOCKET: Пользователь {g.user_id} вошёл в комнату {room_id}")
