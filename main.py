@@ -3,7 +3,7 @@ import eventlet
 eventlet.monkey_patch()
 
 from flask_cors import CORS
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect, url_for, request, jsonify
 from flask_login import current_user
 from tools.socketio_instance import socketio  # <-- здесь уже готовый экземпляр
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -62,6 +62,12 @@ app.config.update(
 # Инициализация Flask-Login
 login_manager.init_app(app)
 
+@login_manager.unauthorized_handler
+def unauthorized_callback():
+    if request.path.startswith("/api/"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    return redirect(url_for("auth.login"))
+
 # Инициализация SocketIO на приложении
 socketio.init_app(app, async_mode='eventlet')  # <-- ПРАВИЛЬНО: инициализируем здесь
 
@@ -96,7 +102,7 @@ app.register_blueprint(dispatch_statements_bp)
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:8081",
     "http://192.168.0.229:8081",
-    "https://38f9244c3e57.ngrok-free.app"
+    "https://009cb13d6fd1.ngrok-free.app"
 ])
 
 # Главная страница
@@ -116,4 +122,4 @@ def internal_server_error(e):
 # Запуск
 if __name__ == '__main__':
     start_scheduler()
-    socketio.run(app, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, host="0.0.0.0", port=5000)

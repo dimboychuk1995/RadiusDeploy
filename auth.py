@@ -172,16 +172,19 @@ def api_login():
     }
 
     token = jwt.encode(payload, current_app.secret_key, algorithm="HS256")
+    if isinstance(token, bytes):
+        token = token.decode("utf-8")
 
     return jsonify({
         "success": True,
-        "token": token,
+        "token": token,  # ✅ теперь точно строка
         "user_id": str(user["_id"]),
         "username": user["username"],
         "role": user.get("role", ""),
         "company": user.get("company", ""),
         "driver_id": str(user.get("driver_id", "")) if user.get("driver_id") else None
     })
+
 
 # ======================= API: Смена пароля =======================
 @auth_bp.route("/api/change_password", methods=["POST"])

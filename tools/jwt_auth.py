@@ -17,6 +17,11 @@ def jwt_required(f):
             decoded = jwt.decode(token, current_app.secret_key, algorithms=["HS256"])
             g.user_id = decoded.get("user_id")
             g.role = decoded.get("role")
+
+            # ✅ ВАЖНО: для водителя добавляем driver_id
+            if g.role == "driver":
+                g.driver_id = decoded.get("driver_id")
+
         except jwt.ExpiredSignatureError:
             return jsonify({"success": False, "message": "Token expired"}), 401
         except jwt.InvalidTokenError:
