@@ -65,18 +65,11 @@ def mobile_get_rooms():
 
     try:
         user_oid = ObjectId(g.user_id)
-        print("🧾 user_oid =", user_oid)
     except Exception as e:
         print("❌ Ошибка преобразования user_id:", e)
         return jsonify({'success': False, 'error': 'Invalid user ID'}), 400
 
-    all_rooms = list(db.chat_rooms.find({}))
-    print(f"📦 ВСЕХ комнат в базе: {len(all_rooms)}")
-
-    for r in all_rooms:
-        print("➡️ Комната:", r.get('name', 'Без имени'))
-        print("   participants:", r.get('participants'))
-
+    # 🧠 Находим только те комнаты, где пользователь — участник
     rooms = list(db.chat_rooms.find({'participants': user_oid}))
     print(f"🔍 Найдено комнат с участием {user_oid}: {len(rooms)}")
 
@@ -86,7 +79,8 @@ def mobile_get_rooms():
         room_id = str(room['_id'])
         participants = [str(p) for p in room.get('participants', [])]
 
-        last_msg = db.chat_messages.find({'room_id': ObjectId(room_id)}).sort('timestamp', -1).limit(1)
+        # 🕓 Последнее сообщение
+        last_msg = db.chat_messages.find({'room_id': room['_id']}).sort('timestamp', -1).limit(1)
         last_msg = list(last_msg)
         last_message = None
         if last_msg:
@@ -109,19 +103,35 @@ def mobile_get_rooms():
 
     return jsonify({'success': True, 'rooms': result})
 
-@mobile_chat_bp.route('/api/mobile/chat/messages/<room_id>', methods=['GET'])
+@mobile_chat_bp.route("/api/mobile/chat/messages/<room_id>", methods=["GET"])
 @jwt_required
+@cross_origin()
 def mobile_get_messages(room_id):
+    print("📨 Запрос сообщений для комнаты:", room_id)
     try:
         room_oid = ObjectId(room_id)
     except Exception:
         return jsonify({'success': False, 'error': 'Invalid room ID'}), 400
 
-    messages = list(db.chat_messages.find({'room_id': room_oid}).sort('timestamp', 1))
+    # Проверка: участвует ли пользователь в этой комнате
+    room = db.chat_rooms.find_one({'_id': room_oid, 'participants': ObjectId(g.user_id)})
+    if not room:
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+    messages = db.chat_messages.find({'room_id': room_oid}).sort('timestamp', 1)
+    result = []
     for msg in messages:
-        msg['_id'] = str(msg['_id'])
-        msg['room_id'] = str(msg['room_id'])
-    return jsonify({'success': True, 'messages': messages})
+        result.append({
+            '_id': str(msg['_id']),
+            'sender_name': msg.get('sender_name'),
+            'content': msg.get('content', ''),
+            'timestamp': str(msg.get('timestamp')),
+            'has_files': bool(msg.get('files')),
+            'files': msg.get('files', []),
+            'reply_to': str(msg['reply_to']) if msg.get('reply_to') else None,
+        })
+
+    return jsonify({'success': True, 'messages': result})
 
 
 @mobile_chat_bp.route('/api/mobile/chat/rooms/<room_id>/add_me', methods=['POST'])
