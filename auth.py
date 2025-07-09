@@ -169,6 +169,7 @@ def api_login():
 
     payload = {
         "user_id": str(user["_id"]),
+        "username": user.get("username", ""),  # ✅ добавили username
         "role": user.get("role", ""),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
     }
@@ -179,9 +180,9 @@ def api_login():
 
     return jsonify({
         "success": True,
-        "token": token,  # ✅ теперь точно строка
+        "token": token,
         "user_id": str(user["_id"]),
-        "username": user["username"],
+        "username": user.get("username", ""),   # ✅ убедились что отправляем
         "role": user.get("role", ""),
         "company": user.get("company", ""),
         "driver_id": str(user.get("driver_id", "")) if user.get("driver_id") else None

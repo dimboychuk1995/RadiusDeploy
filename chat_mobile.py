@@ -31,6 +31,11 @@ def mobile_join_room(data):
 
 @socketio.on('mobile_send_message')
 def mobile_send_message(data):
+    from bson import ObjectId
+    from datetime import datetime
+
+    print("📥 SOCKET: mobile_send_message вызван", data)
+
     token = data.get('token')
     user = decode_token(token)
     if not user:
@@ -43,16 +48,37 @@ def mobile_send_message(data):
     if not room_id or not content:
         return
 
-    message = {
-        'room_id': ObjectId(room_id),
-        'sender_id': user['user_id'],
-        'sender_name': user['username'],
-        'content': content,
-        'timestamp': datetime.utcnow().isoformat()
-    }
+    try:
+        room_oid = ObjectId(room_id)
+        sender_oid = ObjectId(user["user_id"])
+    except Exception as e:
+        print("❌ Ошибка преобразования ID:", e)
+        return
 
-    db.chat_messages.insert_one(message)
-    emit("new_message", message, room=room_id)
+    timestamp = datetime.utcnow()
+    sender_name = user.get("username", "Unknown")
+    print("📦 USER PAYLOAD:", user)
+    print("sender name:", user.get("username", "Unknown"))
+
+    # 💾 Сохраняем в MongoDB
+    db_message = {
+        'room_id': room_oid,
+        'sender_id': sender_oid,
+        'sender_name': sender_name,
+        'content': content,
+        'timestamp': timestamp
+    }
+    db.chat_messages.insert_one(db_message)
+
+    # 📤 Отправляем сериализуемый JSON клиентам
+    emit_message = {
+        'room_id': str(room_oid),
+        'sender_id': str(sender_oid),
+        'sender_name': sender_name,
+        'content': content,
+        'timestamp': timestamp.isoformat()
+    }
+    emit("new_message", emit_message, room=room_id)
 
 # ======= API ROUTES =======
 

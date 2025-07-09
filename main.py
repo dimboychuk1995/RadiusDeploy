@@ -2,6 +2,8 @@ import logging
 from gevent import monkey
 monkey.patch_all()
 
+from chat_mobile import mobile_chat_bp
+
 from flask_cors import CORS
 from flask import Flask, render_template, redirect, url_for, request, jsonify
 from flask_login import current_user
@@ -36,7 +38,7 @@ from equipment import equipment_bp
 from dispatch_schedule import dispatch_schedule_bp
 from settings import settings_bp
 from dispatch_statements import dispatch_statements_bp
-from chat_mobile import mobile_chat_bp
+
 
 
 def start_scheduler():
