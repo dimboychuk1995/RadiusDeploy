@@ -27,19 +27,15 @@ def mobile_join_room(data):
         return
 
     join_room(room_id)
-    print(f"📲 MOBILE SOCKET: {user['user_id']} joined room {room_id}")
 
 @socketio.on('mobile_send_message')
 def mobile_send_message(data):
     from bson import ObjectId
     from datetime import datetime
 
-    print("📥 SOCKET: mobile_send_message вызван", data)
-
     token = data.get('token')
     user = decode_token(token)
     if not user:
-        print("❌ Socket auth failed (send)")
         disconnect()
         return
 
@@ -52,13 +48,10 @@ def mobile_send_message(data):
         room_oid = ObjectId(room_id)
         sender_oid = ObjectId(user["user_id"])
     except Exception as e:
-        print("❌ Ошибка преобразования ID:", e)
         return
 
     timestamp = datetime.utcnow()
     sender_name = user.get("username", "Unknown")
-    print("📦 USER PAYLOAD:", user)
-    print("sender name:", user.get("username", "Unknown"))
 
     # 💾 Сохраняем в MongoDB
     db_message = {
@@ -143,8 +136,10 @@ def mobile_get_messages(room_id):
         result.append({
             '_id': str(msg['_id']),
             'sender_name': msg.get('sender_name'),
+            'sender_id': str(msg.get('sender_id')) if msg.get('sender_id') else None,  # 👈 ДОБАВЬ ЭТО
             'content': msg.get('content', ''),
-            'timestamp': str(msg.get('timestamp')),
+            'timestamp': msg.get('timestamp').isoformat() if isinstance(msg.get('timestamp'), datetime) else str(
+                msg.get('timestamp')),
             'has_files': bool(msg.get('files')),
             'files': msg.get('files', []),
             'reply_to': str(msg['reply_to']) if msg.get('reply_to') else None,
