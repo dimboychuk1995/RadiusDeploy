@@ -60,19 +60,13 @@ def mobile_send_message(data):
 @jwt_required
 @cross_origin()
 def mobile_get_rooms():
-    print("✅ mobile_get_rooms вызван")
-    print("👤 g.user_id =", g.user_id)
-
     try:
         user_oid = ObjectId(g.user_id)
     except Exception as e:
-        print("❌ Ошибка преобразования user_id:", e)
         return jsonify({'success': False, 'error': 'Invalid user ID'}), 400
 
     # 🧠 Находим только те комнаты, где пользователь — участник
     rooms = list(db.chat_rooms.find({'participants': user_oid}))
-    print(f"🔍 Найдено комнат с участием {user_oid}: {len(rooms)}")
-
     result = []
 
     for room in rooms:
@@ -107,7 +101,6 @@ def mobile_get_rooms():
 @jwt_required
 @cross_origin()
 def mobile_get_messages(room_id):
-    print("📨 Запрос сообщений для комнаты:", room_id)
     try:
         room_oid = ObjectId(room_id)
     except Exception:

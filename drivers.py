@@ -582,12 +582,15 @@ def update_push_token(driver_id):
 
         print(f"📊 MongoDB update result: matched={result.matched_count}, modified={result.modified_count}")
 
-        if result.modified_count:
-            print("✅ Push token успешно обновлён")
-            return jsonify(success=True)
+        if result.matched_count == 0:
+            print("❌ Водитель не найден")
+            return jsonify(success=False, error="🚫 Водитель не найден"), 404
+        elif result.modified_count == 0:
+            print("ℹ️ Токен уже был таким же — не обновлён")
+            return jsonify(success=False, error="ℹ️ Токен не изменился", same_token=True), 200
         else:
-            print("⚠️ Водитель не найден или токен не изменён")
-            return jsonify(success=False, error="🚫 Водитель не найден или токен не изменился"), 404
+            print("✅ Push token успешно обновлён")
+            return jsonify(success=True), 200
 
     except Exception as e:
         print("❌ Ошибка в update_push_token")
