@@ -5,6 +5,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from bson.objectid import ObjectId
 from bson.binary import Binary
 import logging
+
+from flask_cors import cross_origin
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
@@ -14,6 +16,8 @@ from tools.gpt_connection import get_openai_client
 
 from PIL import Image
 import pytesseract
+
+from tools.jwt_auth import jwt_required
 
 drivers_bp = Blueprint('drivers', __name__)
 logging.basicConfig(level=logging.ERROR)
@@ -549,3 +553,43 @@ def edit_driver_truck(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при обновлении трака для водителя {driver_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@drivers_bp.route('/api/drivers/<driver_id>/update_push_token', methods=['POST'])
+@jwt_required
+@cross_origin()
+def update_push_token(driver_id):
+    from flask import request, jsonify
+    from bson import ObjectId
+    import traceback
+
+    try:
+        print("📥 /update_push_token вызван")
+        print(f"🧾 driver_id из URL: {driver_id}")
+
+        data = request.get_json()
+        print(f"📦 Тело запроса: {data}")
+
+        token = data.get("expo_push_token")
+        if not token:
+            print("❌ Не передан expo_push_token")
+            return jsonify(success=False, error="❌ Токен не передан"), 400
+
+        result = drivers_collection.update_one(
+            {"_id": ObjectId(driver_id)},
+            {"$set": {"expo_push_token": token}}
+        )
+
+        print(f"📊 MongoDB update result: matched={result.matched_count}, modified={result.modified_count}")
+
+        if result.modified_count:
+            print("✅ Push token успешно обновлён")
+            return jsonify(success=True)
+        else:
+            print("⚠️ Водитель не найден или токен не изменён")
+            return jsonify(success=False, error="🚫 Водитель не найден или токен не изменился"), 404
+
+    except Exception as e:
+        print("❌ Ошибка в update_push_token")
+        traceback.print_exc()
+        return jsonify(success=False, error=str(e)), 500

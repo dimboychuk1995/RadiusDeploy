@@ -1,4 +1,5 @@
 import logging
+import traceback
 import json
 from datetime import datetime
 from email.mime.application import MIMEApplication
@@ -25,7 +26,7 @@ from io import BytesIO
 from jinja2 import Template
 from flask import send_file
 import pytz
-
+from utils.notifications import send_push_notification
 from tools.jwt_auth import jwt_required
 
 loads_bp = Blueprint('loads', __name__)
@@ -225,8 +226,12 @@ def add_load():
             return None
 
     try:
+        print("🟡 add_load() вызван")
+        print("🧩 Начинаем обработку формы")
+
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
+        print("✅ Обработаны файлы")
 
         rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
         bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
@@ -235,6 +240,8 @@ def add_load():
         partner_name = request.form.get("broker_load_id")
         partner_email = request.form.get("broker_email")
         partner_phone = request.form.get("broker_phone_number")
+
+        print(f"🧾 Broker/customer type: {partner_type}, name: {partner_name}")
 
         broker_id = None
         if partner_name:
@@ -254,6 +261,8 @@ def add_load():
                     "company": current_user.company
                 }).inserted_id
 
+        print("✅ Обработан брокер")
+
         extra_pickups = []
         for key in request.form:
             if key.startswith("extra_pickup[") and key.endswith("][company]"):
@@ -267,6 +276,8 @@ def add_load():
                     "contact_phone_number": request.form.get(f"extra_pickup[{idx}][contact_phone_number]"),
                     "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
                 })
+
+        print("✅ Обработаны extra pickups")
 
         extra_deliveries = []
         for key in request.form:
@@ -282,6 +293,8 @@ def add_load():
                     "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
                 })
 
+        print("✅ Обработаны extra deliveries")
+
         vehicles = []
         for key in request.form:
             if key.startswith("vehicles[") and key.endswith("][year]"):
@@ -295,14 +308,18 @@ def add_load():
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
 
-        assigned_driver_id = request.form.get("assigned_driver")
-        assigned_power_unit = None
+        print("✅ Обработаны vehicles")
 
+        assigned_driver_id = request.form.get("assigned_driver")
+        print(f"👤 Получен assigned_driver: {assigned_driver_id}")
+
+        assigned_power_unit = None
         if assigned_driver_id:
             driver = drivers_collection.find_one({
                 "_id": ObjectId(assigned_driver_id),
                 "company": current_user.company
             })
+            print(f"🔍 Найден водитель: {driver}")
             if driver and driver.get("truck"):
                 assigned_power_unit = driver["truck"]
 
@@ -356,10 +373,13 @@ def add_load():
             "was_added_to_statement": False
         }
 
+        print("📦 Собран load_data, вставляем в базу...")
         loads_collection.insert_one(load_data)
 
-        if load_data.get("assigned_driver"):
-            driver = drivers_collection.find_one({"_id": load_data["assigned_driver"]})
+        assigned_driver_obj_id = load_data.get("assigned_driver")
+        if assigned_driver_obj_id:
+            driver = drivers_collection.find_one({"_id": assigned_driver_obj_id})
+            print(f"👤 Водитель для push: {driver}")
             company = db["companies"].find_one({"name": "UWC"})
 
             if driver and driver.get("email") and company and company.get("email") and company.get("password"):
@@ -372,12 +392,31 @@ def add_load():
                         load_info=load_data
                     )
                 except Exception as e:
-                    logging.warning(f"❌ Ошибка отправки email водителю: {str(e)}")
+                    print(f"❌ Ошибка email: {str(e)}")
 
+            expo_token = driver.get("expo_push_token")
+            print(f"📱 expo_push_token: {expo_token}")
+
+            if expo_token:
+                pickup = load_data["pickup"]["address"]
+                delivery = load_data["delivery"]["address"]
+                load_id_str = load_data.get("load_id", "Новый груз")
+
+                print("📤 Отправка PUSH...")
+                send_push_notification(
+                    expo_token,
+                    title=f"📦 Назначен новый груз {load_id_str}",
+                    body=f"{pickup} → {delivery}"
+                )
+            else:
+                print("⚠️ У водителя нет push токена")
+
+        print("✅ Успешно завершено, redirect...")
         return redirect(url_for('index') + '#section-loads-fragment')
 
     except Exception as e:
-        logging.exception("Ошибка при добавлении груза")
+        print("❌ Ошибка в add_load:")
+        traceback.print_exc()
         return render_template("error.html", message="Ошибка при сохранении груза")
 
 

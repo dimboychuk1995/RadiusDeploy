@@ -54,6 +54,7 @@ def start_scheduler():
 app = Flask(__name__)
 app.secret_key = 'secret'
 app.config["JWT_SECRET"] = "super_secret_123"
+logging.basicConfig(level=logging.INFO)
 
 # Куки для кросс-доменных запросов
 app.config.update(
