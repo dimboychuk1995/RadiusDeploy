@@ -28,50 +28,72 @@ def mobile_join_room(data):
 
     join_room(room_id)
 
-@socketio.on('mobile_send_message')
-def mobile_send_message(data):
-    from bson import ObjectId
-    from datetime import datetime
 
-    token = data.get('token')
-    user = decode_token(token)
-    if not user:
-        disconnect()
+@socketio.on("mobile_send_message")
+def mobile_send_message(data):
+    print("📥 SOCKET: mobile_send_message вызван", data)
+
+    token = data.get("token")
+    room_id = data.get("room_id")
+    content = data.get("content", "")
+    reply_to_id = data.get("reply_to")
+
+    if not token:
+        print("❌ SOCKET: Токен не передан")
         return
 
-    room_id = data.get("room_id")
-    content = data.get("content", "").strip()
-    if not room_id or not content:
+    user = decode_token(token)
+    print("📦 USER PAYLOAD:", user)
+
+    if not user:
+        print("❌ SOCKET: Неверный токен")
         return
 
     try:
         room_oid = ObjectId(room_id)
-        sender_oid = ObjectId(user["user_id"])
-    except Exception as e:
+    except:
+        print("❌ SOCKET: Неверный room_id")
         return
 
-    timestamp = datetime.utcnow()
-    sender_name = user.get("username", "Unknown")
+    # Проверка: пользователь в комнате?
+    room = db.chat_rooms.find_one({"_id": room_oid, "participants": ObjectId(user["user_id"])})
+    if not room:
+        print("❌ SOCKET: Нет доступа к комнате")
+        return
 
-    # 💾 Сохраняем в MongoDB
-    db_message = {
-        'room_id': room_oid,
-        'sender_id': sender_oid,
-        'sender_name': sender_name,
-        'content': content,
-        'timestamp': timestamp
+    message = {
+        "room_id": room_oid,
+        "sender_id": ObjectId(user["user_id"]),
+        "sender_name": user.get("username", "Unknown"),
+        "content": content,
+        "files": [],
+        "timestamp": datetime.utcnow(),  # ✅ Храним как datetime
     }
-    db.chat_messages.insert_one(db_message)
 
-    # 📤 Отправляем сериализуемый JSON клиентам
-    emit_message = {
-        'room_id': str(room_oid),
-        'sender_id': str(sender_oid),
-        'sender_name': sender_name,
-        'content': content,
-        'timestamp': timestamp.isoformat()
-    }
-    emit("new_message", emit_message, room=room_id)
+    if reply_to_id:
+        try:
+            original = db.chat_messages.find_one({"_id": ObjectId(reply_to_id)})
+            if original:
+                ts = original.get("timestamp")
+                reply_data = {
+                    "sender_name": original.get("sender_name"),
+                    "content": original.get("content", ""),
+                    "files": original.get("files", []),
+                    "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                    "message_id": str(original["_id"]),
+                }
+                message["reply_to"] = reply_data
+        except Exception as e:
+            print("⚠️ Ошибка при получении reply_to:", str(e))
+
+    inserted = db.chat_messages.insert_one(message)
+    message["_id"] = str(inserted.inserted_id)
+    message["room_id"] = str(room_oid)
+    message["sender_id"] = str(message["sender_id"])
+    message["timestamp"] = message["timestamp"].isoformat()
+
+    emit("new_message", message, room=room_id)
+
 
 # ======= API ROUTES =======
 
