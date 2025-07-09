@@ -23,7 +23,7 @@ def mobile_join_room(data):
     token = data.get('token')
     user = decode_token(token)
     if not user:
-        print("❌ Socket auth failed (join)")
+        print("❌ Socket auth ffailed (join)")
         disconnect()
         return
 
