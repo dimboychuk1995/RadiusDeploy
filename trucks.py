@@ -112,7 +112,7 @@ def trucks_fragment():
     except Exception as e:
         logging.error(f"Error loading trucks fragment: {e}")
         logging.error(traceback.format_exc())
-        return render_template('error.html', message="Failed to load trucks fragment")
+        return render_template('error.html', message="Failed to lcoad trucks fragment")
 
 
 @trucks_bp.route('/add_truck', methods=['POST'])
