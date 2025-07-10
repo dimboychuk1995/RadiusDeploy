@@ -49,6 +49,17 @@ def parse_utc_date(date_str):
         print(f"❌ parse_utc_date error: {e} for input: {date_str}")
         return None
 
+def format_local_date(dt):
+    try:
+        if not isinstance(dt, datetime):
+            return None
+        company_tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+        tz_str = company_tz_doc["timezone"] if company_tz_doc and "timezone" in company_tz_doc else "America/Chicago"
+        local_dt = dt.astimezone(ZoneInfo(tz_str))
+        return local_dt.strftime("%m/%d/%Y")
+    except Exception as e:
+        logging.warning(f"⏰ Ошибка преобразования даты: {e}")
+        return None
 
 @trucks_bp.route('/fragment/trucks')
 @login_required
@@ -253,7 +264,7 @@ def unit_details_fragment(truck_id):
         if not truck:
             return render_template('error.html', message="Юнит не найден")
 
-        # Назначенный водитель — ищем по полю 'truck'
+        # Назначенный водитель
         assigned_driver_name = "—"
         driver = db['drivers'].find_one({"truck": truck['_id']})
         if driver:
@@ -266,6 +277,19 @@ def unit_details_fragment(truck_id):
             if company:
                 owning_company_name = company.get("name", "—")
 
+        # Конвертируем все даты в формат mm/dd/yyyy
+        if truck.get("registration", {}).get("expiration_date"):
+            truck["registration"]["expiration_date"] = format_local_date(truck["registration"]["expiration_date"])
+
+        if truck.get("annual_inspection", {}).get("expiration_date"):
+            truck["annual_inspection"]["expiration_date"] = format_local_date(truck["annual_inspection"]["expiration_date"])
+
+        if truck.get("liability_insurance", {}).get("expiration_date"):
+            truck["liability_insurance"]["expiration_date"] = format_local_date(truck["liability_insurance"]["expiration_date"])
+
+        if truck.get("created_at"):
+            truck["created_at"] = format_local_date(truck["created_at"])
+
         return render_template(
             'fragments/unit_details_fragment.html',
             truck=truck,
@@ -277,7 +301,6 @@ def unit_details_fragment(truck_id):
         logging.error(f"Error loading unit details: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Ошибка при загрузке данных юнита")
-
 
 @trucks_bp.route('/api/parse_unit_pdf', methods=['POST'])
 def parse_unit_pdf():
