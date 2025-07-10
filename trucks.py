@@ -9,7 +9,7 @@ from bson.objectid import ObjectId
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
-
+from tools.db import fs
 from auth import requires_role
 from tools.db import db
 from tools.gpt_connection import get_openai_client
@@ -114,19 +114,22 @@ def trucks_fragment():
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to load trucks fragment")
 
+
 @trucks_bp.route('/add_truck', methods=['POST'])
 @requires_role('admin')
 def add_truck():
     try:
-        def get_file(field_name):
+        def save_file_to_gridfs(field_name):
             file = request.files.get(field_name)
             if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file_id = fs.put(file, filename=filename, content_type=file.mimetype)
                 return {
-                    'file_data': file.read(),
-                    'file_name': secure_filename(file.filename),
-                    'file_mimetype': file.mimetype
+                    "file_id": file_id,
+                    "filename": filename,
+                    "content_type": file.mimetype
                 }
-            return {}
+            return None
 
         truck_data = {
             "unit_number": request.form.get("unit_number"),
@@ -138,27 +141,31 @@ def add_truck():
             "unit_type": request.form.get("unit_type"),
             "subtype": request.form.get("subtype"),
             "company": current_user.company,
-            "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get("assigned_driver_id") else None,
-            "owning_company": ObjectId(request.form.get("owning_company")) if request.form.get("owning_company") else None,
+            "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get(
+                "assigned_driver_id") else None,
+            "owning_company": ObjectId(request.form.get("owning_company")) if request.form.get(
+                "owning_company") else None,
 
             "registration": {
                 "license_plate": request.form.get("registration_plate"),
                 "expiration_date": request.form.get("registration_exp"),
-                **get_file("registration_file")
+                "file": save_file_to_gridfs("registration_file")
             },
 
             "annual_inspection": {
                 "expiration_date": request.form.get("inspection_exp"),
-                **get_file("inspection_file")
+                "file": save_file_to_gridfs("inspection_file")
             },
 
-            "power_of_attorney": get_file("power_of_attorney_file"),
+            "power_of_attorney": {
+                "file": save_file_to_gridfs("power_of_attorney_file")
+            },
 
             "liability_insurance": {
                 "provider": request.form.get("insurance_provider"),
                 "policy_number": request.form.get("insurance_policy"),
                 "expiration_date": request.form.get("insurance_exp"),
-                **get_file("insurance_file")
+                "file": save_file_to_gridfs("insurance_file")
             }
         }
 
@@ -169,6 +176,7 @@ def add_truck():
         logging.error(f"Error adding truck: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to add truck")
+
 
 @trucks_bp.route('/delete_truck/<truck_id>', methods=['POST'])
 @requires_role('admin')
