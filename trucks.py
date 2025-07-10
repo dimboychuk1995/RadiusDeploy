@@ -65,51 +65,106 @@ def format_local_date(dt):
 @login_required
 def trucks_fragment():
     import time
+    from zoneinfo import ZoneInfo
+    from datetime import datetime, timedelta
+
     t0 = time.time()
 
+    def format_local_date(dt):
+        try:
+            if not isinstance(dt, datetime):
+                return None
+            company_tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+            tz_str = company_tz_doc["timezone"] if company_tz_doc and "timezone" in company_tz_doc else "America/Chicago"
+            return dt.astimezone(ZoneInfo(tz_str)).strftime("%m/%d/%Y")
+        except Exception:
+            return None
+
+    def check_expiry_color(*dates):
+        try:
+            now = datetime.now(ZoneInfo("UTC"))
+            print(f"\n📅 Проверка сроков (now = {now.isoformat()}):")
+            max_level = ""
+
+            for dt in dates:
+                if isinstance(dt, datetime):
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                    delta = dt - now
+                    days = delta.days
+                    print(f"  ▶️ {dt.isoformat()} — осталось {days} дней")
+
+                    if days < 0:
+                        print("    🔴 ПРОСРОЧЕНО")
+                        return "table-danger"
+                    elif days <= 30:
+                        print("    🟠 ИСТЕКАЕТ ≤ 30 ДНЕЙ")
+                        max_level = "table-warning"
+                    elif days <= 60 and max_level != "table-warning":
+                        print("    🟡 ИСТЕКАЕТ ≤ 60 ДНЕЙ")
+                        max_level = "table-info"
+
+            print(f"    ✅ Цвет строки: {max_level}")
+            return max_level
+        except Exception as e:
+            logging.warning(f"Ошибка в check_expiry_color: {e}")
+            return ""
+
+    def make_tooltip(label, dt):
+        if not isinstance(dt, datetime):
+            return None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+        now = datetime.now(ZoneInfo("UTC"))
+        delta = (dt - now).days
+        if delta < 0:
+            return f"{label}: просрочен на {abs(delta)} дней"
+        else:
+            return f"{label}: осталось {delta} дней"
+
     try:
-        companies_collection = db['companies']
-        drivers_collection = db['drivers']
-        log = []
+        companies = list(db['companies'].find({}, {"_id": 1, "name": 1}))
+        drivers = list(db['drivers'].find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))
 
-        # Компании
-        t1 = time.time()
-        companies_cursor = list(companies_collection.find({}, {"_id": 1, "name": 1}))
-        company_map = {str(c['_id']): c.get('name', '—') for c in companies_cursor}
-        companies = companies_cursor
-        log.append(f"✅ Компании загружены за {time.time() - t1:.3f} сек")
-
-        # Водители
-        t2 = time.time()
+        company_map = {str(c['_id']): c.get('name', '—') for c in companies}
         driver_id_map = {}
         driver_name_map = {}
-        drivers = list(drivers_collection.find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))
         for driver in drivers:
             truck_id = str(driver.get('truck'))
             if truck_id:
                 driver_id_map[truck_id] = str(driver['_id'])
                 driver_name_map[truck_id] = driver.get('name', '—')
-        log.append(f"✅ Водители загружены за {time.time() - t2:.3f} сек")
 
-        # Траки
-        t3 = time.time()
-        raw_trucks = trucks_collection.find(
-            {'company': current_user.company},
-            {
-                '_id': 1,
-                'unit_number': 1,
-                'year': 1,
-                'make': 1,
-                'model': 1,
-                'unit_type': 1,
-                'owning_company': 1
-            }
-        )
+        raw_trucks = trucks_collection.find({'company': current_user.company})
         trucks = []
 
         for truck in raw_trucks:
             truck_id_str = str(truck['_id'])
             owning_company_id = str(truck.get('owning_company')) if truck.get('owning_company') else None
+
+            # оригинальные UTC-даты
+            reg_dt = truck.get('registration', {}).get('expiration_date')
+            insp_dt = truck.get('annual_inspection', {}).get('expiration_date')
+            poa_dt = truck.get('power_of_attorney', {}).get('expiration_date')
+            ins_dt = truck.get('liability_insurance', {}).get('expiration_date')
+
+            status_color = check_expiry_color(reg_dt, insp_dt, ins_dt)
+
+            tooltip_parts = []
+            for label, dt in [
+                ("Registration", reg_dt),
+                ("Inspection", insp_dt),
+                ("Power of Attorney", poa_dt),
+                ("Liability Insurance", ins_dt),
+            ]:
+                msg = make_tooltip(label, dt)
+                if msg:
+                    tooltip_parts.append(msg)
+
+            tooltip_text = " | ".join(tooltip_parts)
+            print(f"\n🚛 Truck {truck.get('unit_number', '—')}:")
+            print(f"   📌 Статус цвета: {status_color}")
+            print(f"   🧷 Tooltip: {tooltip_text}")
 
             trucks.append({
                 'id': truck_id_str,
@@ -119,12 +174,17 @@ def trucks_fragment():
                 'assigned_driver': driver_name_map.get(truck_id_str, '—'),
                 'assigned_driver_id': driver_id_map.get(truck_id_str, ''),
                 'company_owner': company_map.get(owning_company_id, '—'),
-                'owning_company_id': owning_company_id or ''
-            })
-        log.append(f"✅ Траки загружены за {time.time() - t3:.3f} сек")
+                'owning_company_id': owning_company_id or '',
 
-        # Рендер
-        t4 = time.time()
+                'registration_exp': format_local_date(reg_dt),
+                'inspection_exp': format_local_date(insp_dt),
+                'poa_exp': format_local_date(poa_dt),
+                'insurance_exp': format_local_date(ins_dt),
+
+                'status_color': status_color,
+                'tooltip': tooltip_text
+            })
+
         rendered = render_template(
             'fragments/trucks_fragment.html',
             trucks=trucks,
@@ -134,19 +194,14 @@ def trucks_fragment():
             truck_subtypes=TRUCK_SUBTYPES,
             trailer_subtypes=TRAILER_SUBTYPE
         )
-        log.append(f"✅ Шаблон отрендерен за {time.time() - t4:.3f} сек")
 
-        total_time = time.time() - t0
-        log.append(f"⏱️ Общее время: {total_time:.3f} сек")
-        for line in log:
-            print(line)
-
+        print(f"\n✅ Общая генерация: {time.time() - t0:.3f} сек\n")
         return rendered
 
     except Exception as e:
         logging.error(f"Error loading trucks fragment: {e}")
         logging.error(traceback.format_exc())
-        return render_template('error.html', message="Failed to lcoad trucks fragment")
+        return render_template('error.html', message="Failed to load trucks fragment")
 
 
 @trucks_bp.route('/add_truck', methods=['POST'])

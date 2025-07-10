@@ -28,7 +28,7 @@
           </thead>
           <tbody>
             {% for truck in company_trucks %}
-              <tr id="truck-{{ truck.id }}">
+              <tr id="truck-{{ truck.id }}" class="{{ truck.status_color }}" data-tooltip="{{ truck.tooltip }}">
                 <td>{{ truck.unit_number }}</td>
                 <td>{{ truck.description }}</td>
                 <td>{{ truck.type }}</td>
@@ -73,7 +73,7 @@
         </thead>
         <tbody>
           {% for truck in no_company_trucks %}
-            <tr id="truck-{{ truck.id }}">
+            <tr id="truck-{{ truck.id }}" class="{{ truck.status_color }}" data-tooltip="{{ truck.tooltip }}">
               <td>{{ truck.unit_number }}</td>
               <td>{{ truck.description }}</td>
               <td>{{ truck.type }}</td>

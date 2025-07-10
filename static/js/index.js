@@ -5,6 +5,7 @@ function initNavigation() {
     'trucks': () => {
       initTruckModalActions?.();
       initTruckDetailsClick?.();
+      initTruckTooltips?.();
     },
     'drivers': () => {
       initDriverFilter?.();
