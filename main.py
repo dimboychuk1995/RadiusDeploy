@@ -39,7 +39,8 @@ from dispatch_schedule import dispatch_schedule_bp
 from settings import settings_bp
 from dispatch_statements import dispatch_statements_bp
 
-
+from gevent.pywsgi import WSGIServer
+from geventwebsocket.handler import WebSocketHandler
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
@@ -79,7 +80,7 @@ CORS(app,
      origins=[
          "http://localhost:8081",
          "http://192.168.0.229:8081",
-         "https://3b95522a1c03.ngrok-free.app"
+         "https://db647287a3ce.ngrok-free.app"
      ],
      expose_headers=["Authorization"])
 
@@ -90,7 +91,7 @@ socketio.init_app(
     cors_allowed_origins=[
         "http://localhost:8081",
         "http://192.168.0.229:8081",
-        "https://3b95522a1c03.ngrok-free.app",
+        "https://db647287a3ce.ngrok-free.app",
         "http://127.0.0.1:5000"
     ]
 )
@@ -141,4 +142,6 @@ def internal_server_error(e):
 # Запуск
 if __name__ == '__main__':
     start_scheduler()
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    print("🚀 Starting server on http://0.0.0.0:5000")
+    http_server = WSGIServer(('0.0.0.0', 5000), app, handler_class=WebSocketHandler)
+    http_server.serve_forever()

@@ -222,18 +222,27 @@ def get_file(truck_id):
         if not truck:
             return "Юнит не найден", 404
 
-        doc = truck.get(doc_type)
-        if not doc or not doc.get('file_data'):
+        section = truck.get(doc_type)
+        if not section or "file" not in section or not section["file"]:
             return "Файл не найден", 404
 
+        file_info = section["file"]
+        file_id = file_info.get("file_id")
+        if not file_id:
+            return "Файл не найден", 404
+
+        file_data = fs.get(file_id)
+
         return send_file(
-            BytesIO(doc['file_data']),
-            download_name=doc.get('file_name', 'file.pdf'),
-            mimetype=doc.get('file_mimetype', 'application/pdf'),
+            BytesIO(file_data.read()),
+            download_name=file_info.get("filename", "file.pdf"),
+            mimetype=file_info.get("content_type", "application/pdf"),
             as_attachment=False
         )
+
     except Exception as e:
-        logging.error(f"Error getting file: {e}")
+        logging.error(f"❌ Ошибка при получении файла: {e}")
+        logging.error(traceback.format_exc())
         return "Ошибка при получении файла", 500
 
 @trucks_bp.route('/fragment/unit_details/<truck_id>')

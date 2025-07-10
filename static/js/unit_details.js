@@ -60,6 +60,5 @@ function loadTrucksFragment() {
             section.innerHTML = html;
 
             initTruckDetailsClick();
-            initTruckSearch();
         });
 }
