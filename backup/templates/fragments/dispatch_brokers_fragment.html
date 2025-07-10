@@ -1,0 +1,184 @@
+<!-- ==================== dispatch_brokers_fragment.html ==================== -->
+<h2>Брокеры и Кастомеры</h2>
+
+<!-- Кнопка открытия модалки -->
+<div class="d-flex justify-content-end mb-3">
+  <button class="btn btn-success" id="openAddBrokerCustomerBtn">➕ Добавить</button>
+</div>
+
+<!-- Переключатель -->
+<div class="d-flex justify-content-center mb-4">
+  <div class="btn-group" role="group">
+    <button id="tab-brokers" class="btn btn-outline-primary active">Брокеры</button>
+    <button id="tab-customers" class="btn btn-outline-primary">Кастомеры</button>
+  </div>
+</div>
+
+<!-- Таблицы -->
+<div id="brokersTableBlock">
+  <h4>Брокеры</h4>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+          <th>MC</th>
+        <th>DOT</th>
+        <th>Название</th>
+        <th>Телефон</th>
+        <th>Email</th>
+        <th>Контактное лицо</th>
+        <th>Тел. контакта</th>
+        <th>Email контакта</th>
+        <th>Адрес</th>
+        <th>Условия оплаты</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for broker in brokers %}
+      <tr id="row-broker-{{ broker._id }}">
+          <td data-field="mc">{{ broker.mc }}</td>
+          <td data-field="dot">{{ broker.dot }}</td>
+          <td data-field="name">{{ broker.name }}</td>
+          <td data-field="phone">{{ broker.phone }}</td>
+          <td data-field="email">{{ broker.email }}</td>
+          <td data-field="contact_person">{{ broker.contact_person }}</td>
+          <td data-field="contact_phone">{{ broker.contact_phone }}</td>
+          <td data-field="contact_email">{{ broker.contact_email }}</td>
+          <td data-field="address">{{ broker.address }}</td>
+          <td data-field="payment_term">{{ broker.payment_term }}</td>
+          <td>
+            <button class="btn btn-sm btn-primary me-1"
+                    onclick="editBrokerCustomer('{{ broker._id }}', 'broker')">✏️</button>
+            <button class="btn btn-sm btn-danger"
+                    onclick="deleteBrokerCustomer('{{ broker._id }}', 'broker')">🗑️</button>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="customersTableBlock" style="display: none;">
+  <h4>Кастомеры</h4>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+        <th>Название</th>
+        <th>Телефон</th>
+        <th>Email</th>
+        <th>Контактное лицо</th>
+        <th>Тел. контакта</th>
+        <th>Email контакта</th>
+        <th>Адрес</th>
+        <th>Условия оплаты</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer in customers %}
+      <tr id="row-customer-{{ customer._id }}">
+          <td data-field="name">{{ customer.name }}</td>
+          <td data-field="phone">{{ customer.phone }}</td>
+          <td data-field="email">{{ customer.email }}</td>
+          <td data-field="contact_person">{{ customer.contact_person }}</td>
+          <td data-field="contact_phone">{{ customer.contact_phone }}</td>
+          <td data-field="contact_email">{{ customer.contact_email }}</td>
+          <td data-field="address">{{ customer.address }}</td>
+          <td data-field="payment_term">{{ customer.payment_term }}</td>
+          <td>
+            <button class="btn btn-sm btn-primary me-1"
+                    onclick="editBrokerCustomer('{{ customer._id }}', 'customer')">✏️</button>
+            <button class="btn btn-sm btn-danger"
+                    onclick="deleteBrokerCustomer('{{ customer._id }}', 'customer')">🗑️</button>
+          </td>
+        </tr>
+
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ============== Модалка ============== -->
+<div class="custom-offcanvas custom-offcanvas-right" id="addBrokerCustomerModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4 id="brokerCustomerModalTitle">Добавить</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeBrokerCustomerModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="brokerCustomerForm" method="POST" enctype="multipart/form-data">
+            <div class="form-group mb-3">
+              <label>Тип:</label>
+              <select class="form-control" id="entityTypeSelect" name="entity_type" required>
+                <option value="" disabled selected>Выберите тип</option>
+                <option value="broker">Брокер</option>
+                <option value="customer">Кастомер</option>
+              </select>
+            </div>
+
+            <div id="commonFieldsBlock" style="display: none;">
+              <div id="mcDotBlock" style="display: none;">
+                <div class="form-group mb-3">
+                  <label>MC:</label>
+                  <input type="text" class="form-control" id="mcInput" name="mc">
+                </div>
+                <div class="form-group mb-3">
+                  <label>DOT:</label>
+                  <input type="text" class="form-control" id="dotInput" name="dot">
+                </div>
+              </div>
+
+              <div class="form-group mb-3">
+                <label>Название:</label>
+                <input type="text" class="form-control" id="nameInput" name="name" required>
+              </div>
+              <div class="form-group mb-3">
+                <label>Телефон:</label>
+                <input type="text" class="form-control" id="phoneInput" name="phone">
+              </div>
+              <div class="form-group mb-3">
+                <label>Email:</label>
+                <input type="email" class="form-control" id="emailInput" name="email">
+              </div>
+              <div class="form-group mb-3">
+                <label>Контактное лицо:</label>
+                <input type="text" class="form-control" id="contactPersonInput" name="contact_person">
+              </div>
+              <div class="form-group mb-3">
+                <label>Телефон контакта:</label>
+                <input type="text" class="form-control" id="contactPhoneInput" name="contact_phone">
+              </div>
+              <div class="form-group mb-3">
+                <label>Email контакта:</label>
+                <input type="email" class="form-control" id="contactEmailInput" name="contact_email">
+              </div>
+              <div class="form-group mb-3">
+                <label>Адрес:</label>
+                <input type="text" class="form-control" id="addressInput" name="address">
+              </div>
+              <div class="form-group mb-3">
+                <label>Условия оплаты:</label>
+                <input type="text" class="form-control" id="paymentTermInput" name="payment_term">
+              </div>
+
+              <div class="mt-4 d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary me-2" onclick="closeBrokerCustomerModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Сохранить</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        <!-- Правая колонка пока не используется -->
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="custom-offcanvas-backdrop" id="brokerCustomerBackdrop" onclick="closeBrokerCustomerModal()"></div>
+
+
+<div class="custom-offcanvas-backdrop" id="brokerCustomerBackdrop" onclick="closeBrokerCustomerModal()"></div>

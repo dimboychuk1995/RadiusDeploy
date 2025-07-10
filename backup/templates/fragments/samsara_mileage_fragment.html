@@ -1,0 +1,130 @@
+<div class="p-4">
+  <h4 class="mb-4"><i class="fas fa-road me-2"></i>Пробеги по Samsara</h4>
+
+  <!-- Центрированная навигация -->
+  <div class="d-flex justify-content-center mb-3">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-primary mileage-tab active" data-target="#samsara_drivers">Samsara Drivers</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#samsara_vehicles">Samsara Vehicles</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#mileage-stats">Статистика</button>
+      <button class="btn btn-outline-primary mileage-tab" data-target="#units-mileage">Units Mileage</button>
+    </div>
+  </div>
+
+  <!-- Секции -->
+    <div id="samsara_drivers" class="mileage-section" style="display: block;">
+
+          <button class="btn btn-sm btn-success mb-3 me-2" onclick="openAddSamsaraDriverModal()">➕ Добавить водителя</button>
+          <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraDrivers()">🔄 Обновить список водителей</button>
+
+          <div id="driversTableContainer">
+            <div id="driversList" class="list-group"></div>
+          </div>
+
+          <!-- Модалка -->
+          <div id="addSamsaraDriverModal" class="custom-offcanvas custom-offcanvas-right">
+              <div class="custom-offcanvas-content">
+                <div class="custom-offcanvas-header">
+                  <h5 class="mb-0">Добавить Samsara водителя</h5>
+                  <button class="btn btn-sm btn-secondary" onclick="closeAddSamsaraDriverModal()">✖</button>
+                </div>
+
+                <div class="custom-offcanvas-body">
+                  <form id="addSamsaraDriverForm">
+                    <!-- Выбор водителя -->
+                    <div class="mb-4">
+                      <label for="driverSelect" class="form-label fw-bold">Выберите водителя</label>
+                      <select id="driverSelect" name="driverId" class="form-select" required>
+                        <option value="">-- Выберите --</option>
+                      </select>
+                    </div>
+
+                    <!-- Детали водителя (автозаполняемые) -->
+                    <div id="driverDetails" style="display: none;">
+                      <div class="mb-3">
+                        <label class="form-label">Driver Name</label>
+                        <input type="text" class="form-control" id="driverName" name="name" readonly>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Driver Phone Number</label>
+                        <input type="text" class="form-control" id="driverPhone" name="phone" readonly>
+                      </div>
+                      <div class="mb-3">
+                        <label class="form-label">Driver Licence Number</label>
+                        <input type="text" class="form-control" id="driverLicense" name="license" readonly>
+                      </div>
+                    </div>
+
+                    <!-- Логин/пароль -->
+                    <div class="mb-3">
+                      <label class="form-label">Driver App Login (Username)</label>
+                      <input type="text" class="form-control" name="username" required>
+                    </div>
+                    <div class="mb-4">
+                      <label class="form-label">Driver App Password</label>
+                      <input type="password" class="form-control" name="password" required>
+                    </div>
+
+                    <!-- Кнопка -->
+                    <div class="d-flex justify-content-end">
+                      <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            <div class="custom-offcanvas-backdrop" onclick="closeAddSamsaraDriverModal()"></div>
+
+        </div>
+
+  <div id="samsara_vehicles" class="mileage-section" style="display: none;">
+      <button class="btn btn-sm btn-primary mb-3" onclick="loadSamsaraVehicles()">🔄 Обновить список траков</button>
+      <div id="vehiclesList" class="list-group"></div>
+    </div>
+
+  <div id="mileage-stats" class="mileage-section" style="display: none;">
+    <!-- Коробки -->
+  </div>
+
+  <!-- Новый блок: Units Mileage -->
+  <div id="units-mileage" class="mileage-section" style="display: none;">
+
+    <div class="mb-3">
+      <input type="text" id="dateRangePicker" class="form-control" style="max-width: 320px;" />
+    </div>
+
+    <div id="mileageResults" class="table-responsive mt-3">
+      <table class="table table-bordered table-sm">
+        <thead>
+          <tr>
+            <th>Truck Name</th>
+            <th>Start Odometer</th>
+            <th>End Odometer</th>
+            <th>Total Miles</th>
+          </tr>
+        </thead>
+        <tbody id="mileageResultsBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="mileageOverlay" style="
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+">
+  🔄 Загрузка пробегов...
+</div>

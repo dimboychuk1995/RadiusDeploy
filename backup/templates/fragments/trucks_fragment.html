@@ -1,0 +1,241 @@
+<h4>Грузовики</h4>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <button class="btn btn-primary" onclick="openTruckModal()">➕ Добавить грузовик</button>
+</div>
+
+<!-- Секции по компаниям -->
+{% for company in companies %}
+  {% set company_trucks = trucks | selectattr("owning_company_id", "equalto", company._id|string) | list %}
+  {% if company_trucks %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center"
+           style="cursor: pointer;"
+           onclick="toggleCompanySection('{{ company._id }}')">
+        <h5 class="mb-0">{{ company.name }}</h5>
+        <span class="toggle-icon" id="icon-{{ company._id }}">&#9660;</span>
+      </div>
+      <div class="card-body company-section" id="section-{{ company._id }}" style="display: block;">
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>Unit Number</th>
+              <th>Описание</th>
+              <th>Тип</th>
+              <th>Компания-владелец</th>
+              <th>Назначенный водитель</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for truck in company_trucks %}
+              <tr id="truck-{{ truck.id }}">
+                <td>{{ truck.unit_number }}</td>
+                <td>{{ truck.description }}</td>
+                <td>{{ truck.type }}</td>
+                <td>{{ truck.company_owner }}</td>
+                <td>{{ truck.assigned_driver }}</td>
+                <td>
+                  <button class="btn btn-info btn-sm" onclick="showUnitDetails('{{ truck.id }}'); event.stopPropagation();">Детали</button>
+                  <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck.id }}'); event.stopPropagation();">Удалить</button>
+                  <button class="btn btn-warning btn-sm" onclick="openUnitAssignment(
+                      '{{ truck.id }}','{{ truck.assigned_driver_id or '' }}','{{ truck.owning_company_id or '' }}'); event.stopPropagation();">Assignment</button>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endfor %}
+
+<!-- Секция "Без компании" -->
+{% set no_company_trucks = trucks | selectattr("owning_company_id", "equalto", "") | list %}
+{% if no_company_trucks %}
+  <div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center"
+         style="cursor: pointer;"
+         onclick="toggleCompanySection('no-company')">
+      <h5 class="mb-0">Без компании</h5>
+      <span class="toggle-icon" id="icon-no-company">&#9660;</span>
+    </div>
+    <div class="card-body company-section" id="section-no-company" style="display: block;">
+      <table class="table table-striped table-bordered">
+        <thead>
+          <tr>
+            <th>Unit Number</th>
+            <th>Описание</th>
+            <th>Тип</th>
+            <th>Компания-владелец</th>
+            <th>Назначенный водитель</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for truck in no_company_trucks %}
+            <tr id="truck-{{ truck.id }}">
+              <td>{{ truck.unit_number }}</td>
+              <td>{{ truck.description }}</td>
+              <td>{{ truck.type }}</td>
+              <td>{{ truck.company_owner }}</td>
+              <td>{{ truck.assigned_driver }}</td>
+              <td>
+                <button class="btn btn-info btn-sm" onclick="showUnitDetails('{{ truck.id }}'); event.stopPropagation();">Детали</button>
+                <button class="btn btn-danger btn-sm delete-btn" onclick="deleteTruck('{{ truck.id }}'); event.stopPropagation();">Удалить</button>
+                <button class="btn btn-warning btn-sm" onclick="openUnitAssignment(
+                    '{{ truck.id }}','{{ truck.assigned_driver_id or '' }}','{{ truck.owning_company_id or '' }}'); event.stopPropagation();">Assignment</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+<!-- Модальное окно -->
+<div class="custom-offcanvas custom-offcanvas-right" id="truckModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title" id="truckModalTitle">Добавить новый грузовик</h5>
+      <button type="button" class="close" onclick="closeTruckModal()"><span>&times;</span></button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <!-- Левая часть -->
+        <div class="load-modal-left">
+          <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+
+            <div class="form-group">
+              <label>Компания-владелец:</label>
+              <select class="form-control" name="owning_company">
+                <option value="">— Не указано —</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group"><label>Unit Number:</label><input type="text" class="form-control" name="unit_number" required></div>
+            <div class="form-group"><label>Make:</label><input type="text" class="form-control" name="make" required></div>
+            <div class="form-group"><label>Model:</label><input type="text" class="form-control" name="model" required></div>
+            <div class="form-group"><label>Year:</label><input type="text" class="form-control" name="year" required></div>
+            <div class="form-group"><label>Mileage:</label><input type="text" class="form-control" name="mileage" required></div>
+            <div class="form-group"><label>VIN:</label><input type="text" class="form-control" name="vin" required></div>
+            <div class="form-group">
+              <label>Unit Type:</label>
+              <select class="form-control" name="unit_type" id="unitTypeSelect" required>
+                {% for t in truck_types %}
+                  <option value="{{ t }}">{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Subtype:</label>
+              <select class="form-control" name="subtype" id="subtypeSelect" required>
+                {% for st in truck_subtypes %}
+                  <option value="{{ st }}">{{ st }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <hr><h5>Registration</h5>
+            <div class="form-group"><label>License Plate:</label><input type="text" class="form-control" name="registration_plate"></div>
+            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="registration_exp"></div>
+            <div class="form-group"><label>Registration File:</label><input type="file" class="form-control-file" name="registration_file"></div>
+
+            <hr><h5>Annual Inspection</h5>
+            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="inspection_exp"></div>
+            <div class="form-group"><label>Inspection File:</label><input type="file" class="form-control-file" name="inspection_file"></div>
+
+            <hr><h5>Power of Attorney</h5>
+            <div class="form-group"><label>File:</label><input type="file" class="form-control-file" name="power_of_attorney_file"></div>
+
+            <hr><h5>Liability Insurance</h5>
+            <div class="form-group"><label>Provider:</label><input type="text" class="form-control" name="insurance_provider"></div>
+            <div class="form-group"><label>Policy Number:</label><input type="text" class="form-control" name="insurance_policy"></div>
+            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="insurance_exp"></div>
+            <div class="form-group"><label>Insurance File:</label><input type="file" class="form-control-file" name="insurance_file"></div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeTruckModal()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Правая часть -->
+        <div class="load-modal-right">
+          <div class="upload-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <strong>Import Unit Document (PDF)</strong>
+            <p class="text-muted">Drag and drop or <label for="truckPdfInput">choose PDF</label> to upload</p>
+            <input type="file" id="truckPdfInput" accept="application/pdf">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="custom-offcanvas-backdrop" onclick="closeTruckModal()"></div>
+
+<!-- Модалка назначения -->
+<div class="custom-offcanvas custom-offcanvas-right" id="unitAssignment">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4>Assignment</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeUnitAssignment()">✖</button>
+    </div>
+
+    <div class="custom-offcanvas-body">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <form id="assignmentForm">
+            <input type="hidden" name="truck_id" id="assignmentTruckId">
+
+            <div class="form-group">
+              <label>Назначить водителя:</label>
+              <select name="driver_id" class="form-control" id="assignmentDriver">
+                  <option value="">—</option>
+                  {% for driver in drivers %}
+                    <option value="{{ driver._id }}">{{ driver.name }}</option>
+                  {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Назначить компанию-владельца:</label>
+              <select name="owning_company" class="form-control" id="assignmentCompany">
+                <option value="">—</option>
+                {% for company in companies %}
+                  <option value="{{ company._id }}">{{ company.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Комментарий:</label>
+              <textarea name="note" class="form-control" placeholder="Дополнительная информация..."></textarea>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-end">
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeUnitAssignment()">Отмена</button>
+              <button type="submit" class="btn btn-success">Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Фон -->
+<div class="custom-offcanvas-backdrop" onclick="closeUnitAssignment()"></div>
+
+<!-- Типи Грузовиков трейлеров -->
+<div id="subtypes-data"
+     data-truck-subtypes='{{ truck_subtypes | tojson | safe }}'
+     data-trailer-subtypes='{{ trailer_subtypes | tojson | safe }}'>
+</div>

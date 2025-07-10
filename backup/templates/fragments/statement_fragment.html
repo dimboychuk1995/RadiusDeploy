@@ -1,0 +1,58 @@
+<!-- 📦 Контейнер: Список стейтментов водителей -->
+<div id="driverStatementsContainerWrapper" class="p-3">
+
+  <!-- Кнопка открытия -->
+  <div class="p-3">
+    <button id="btn-open-driver-statement-modal" class="btn btn-primary mt-3" onclick="openDriverStatementModal()">
+      <i class="fas fa-file-invoice-dollar me-2"></i> Добавить стейтмент водителя
+    </button>
+  </div>
+
+  <h3>Сохраненные стейтменты водителей</h3>
+
+  <label for="statementWeekRangeSelect" class="form-label mt-3">Выберите неделю:</label>
+  <select id="statementWeekRangeSelect" class="form-select mb-3"></select>
+
+  <button class="btn btn-primary" onclick="loadDriverStatements()">
+    <i class="fas fa-database me-2"></i> Показать стейтменты
+  </button>
+
+  <div id="driverStatementsContainer" class="mt-4"></div>
+</div>
+
+<!-- 🚛 Модалка добавления стейтмента водителя -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverStatementModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Добавление стейтмента водителя</h5>
+      <button type="button" class="close" onclick="closeDriverStatementModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body" id="driverStatementModalBody">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <label for="driverSelect" class="form-label">Выберите водителя:</label>
+          <select id="driverSelect" class="form-select">
+            {% for driver in drivers %}
+              <option value="{{ driver.id }}">{{ driver.name }}</option>
+            {% endfor %}
+          </select>
+
+          <label for="driverWeekRangeSelect" class="form-label">Выберите неделю:</label>
+          <select id="driverWeekRangeSelect" class="form-select mb-3"></select>
+
+          <button class="btn btn-primary" onclick="calculateDriverStatement()">Рассчитать</button>
+
+          <div id="driverStatementResults" class="mt-4"></div>
+
+          <button class="btn btn-success mt-3" onclick="saveDriverStatement()">💾 Сохранить расчет</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Фон -->
+<div class="custom-offcanvas-backdrop" id="driverStatementBackdrop" onclick="closeDriverStatementModal()"></div>

@@ -1,0 +1,131 @@
+<h1>Детали груза</h1>
+
+<button class="btn btn-secondary mb-3" onclick="returnToLoads()">← Назад к списку грузов</button>
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Левая колонка -->
+    <div class="col-md-6">
+      <!-- Общая информация -->
+      <div class="card mb-4">
+        <div class="card-header">Общая информация</div>
+        <div class="card-body">
+          <p><strong>Load ID:</strong> {{ load.load_id or "—" }}</p>
+          <p><strong>Описание:</strong> {{ load.load_description or "—" }}</p>
+          <p><strong>Тип:</strong> {{ load.type or "—" }}</p>
+          <p><strong>Вес:</strong> {{ load.weight or "—" }}</p>
+          <p><strong>Общие мили:</strong> {{ load.total_miles or "—" }}</p>
+          <p><strong>Цена:</strong> ${{ load.price or "—" }}</p>
+          <p><strong>RPM:</strong> ${{ load.RPM or "—" }}</p>
+          <p><strong>Статус:</strong> {{ load.status or "—" }}</p>
+          <p><strong>Оплата:</strong> {{ load.payment_status or "—" }}</p>
+          <p><strong>Был добавлен в стейтмент:</strong> {{ "Да" if load.was_added_to_statement else "Нет" }}</p>
+        </div>
+      </div>
+
+      <!-- Информация о брокере -->
+      <div class="card mb-4">
+        <div class="card-header">Брокер</div>
+        <div class="card-body">
+          <p><strong>Название:</strong> {{ load.broker_load_id or "—" }}</p>
+          <p><strong>Тип:</strong> {{ load.broker_customer_type or "—" }}</p>
+          <p><strong>Email:</strong> {{ load.broker_email or "—" }}</p>
+          <p><strong>Телефон:</strong> {{ load.broker_phone_number or "—" }}</p>
+        </div>
+      </div>
+
+      <!-- Документы с предпросмотром -->
+      <div class="card mb-2">
+            <div class="card-header" data-bs-toggle="collapse" href="#rateConCollapse" role="button" aria-expanded="false" aria-controls="rateConCollapse">
+              📄 Rate Con
+            </div>
+            <div id="rateConCollapse" class="collapse">
+              <div class="card-body">
+                {% if load.rate_con %}
+                  <iframe src="/api/load/{{ load._id }}/ratecon" width="100%" height="1000px" style="border-radius: 8px; border: 1px solid #ccc;"></iframe>
+                {% else %}
+                  <p>Rate Con не загружен</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-2">
+            <div class="card-header" data-bs-toggle="collapse" href="#bolCollapse" role="button" aria-expanded="false" aria-controls="bolCollapse">
+              📄 BOL
+            </div>
+            <div id="bolCollapse" class="collapse">
+              <div class="card-body">
+                {% if load.bol %}
+                  <iframe src="/api/load/{{ load._id }}/bol" width="100%" height="1000px" style="border-radius: 8px; border: 1px solid #ccc;"></iframe>
+                {% else %}
+                  <p>BOL не загружен</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+    </div>
+
+    <!-- Правая колонка -->
+    <div class="col-md-6">
+      {% set pickups = [load.pickup] + (load.extra_pickup or []) %}
+      {% set deliveries = [load.delivery] + (load.extra_delivery or []) %}
+
+      {% for p in pickups %}
+      <div class="card mb-2">
+        <div class="card-header" data-bs-toggle="collapse" href="#pickupCollapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="pickupCollapse{{ loop.index }}">
+          Pickup {{ loop.index }} — {{ p.company or "—" }}, {{ p.address or "—" }}
+        </div>
+        <div id="pickupCollapse{{ loop.index }}" class="collapse">
+          <div class="card-body">
+            <p><strong>Компания:</strong> {{ p.company or "—" }}</p>
+            <p><strong>Адрес:</strong> {{ p.address or "—" }}</p>
+            <p><strong>Дата:</strong> {{ p.date or "—" }}</p>
+            <p><strong>Инструкции:</strong> {{ p.instructions or "—" }}</p>
+            <p><strong>Контакт:</strong> {{ p.contact_person or "—" }} / {{ p.contact_phone_number or "—" }}</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% for d in deliveries %}
+      <div class="card mb-2">
+        <div class="card-header" data-bs-toggle="collapse" href="#deliveryCollapse{{ loop.index }}" role="button" aria-expanded="false" aria-controls="deliveryCollapse{{ loop.index }}">
+          Delivery {{ loop.index }} — {{ d.company or "—" }}, {{ d.address or "—" }}
+        </div>
+        <div id="deliveryCollapse{{ loop.index }}" class="collapse">
+          <div class="card-body">
+            <p><strong>Компания:</strong> {{ d.company or "—" }}</p>
+            <p><strong>Адрес:</strong> {{ d.address or "—" }}</p>
+            <p><strong>Дата:</strong> {{ d.date or "—" }}</p>
+            <p><strong>Инструкции:</strong> {{ d.instructions or "—" }}</p>
+            <p><strong>Контакт:</strong> {{ d.contact_person or "—" }} / {{ d.contact_phone_number or "—" }}</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Карта -->
+      <div id="loadMapWrapper"
+           data-mapbox-token="{{ mapbox_token }}"
+           data-pickup-address="{{ load.pickup.address | escape }}"
+           data-delivery-address="{{ load.delivery.address | escape }}"
+           data-extra-pickups='{{ (load.extra_pickup or []) | tojson | safe }}'
+           data-extra-deliveries='{{ (load.extra_delivery or []) | tojson | safe }}'>
+
+        <div class="card mb-4">
+          <div class="card-header" data-bs-toggle="collapse" href="#mapCollapse" role="button" aria-expanded="true" aria-controls="mapCollapse">
+            Маршрут
+          </div>
+          <div id="mapCollapse" class="collapse show">
+            <div class="card-body">
+              <div id="loadMap" style="height: 400px; border-radius: 8px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

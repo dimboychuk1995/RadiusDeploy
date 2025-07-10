@@ -1,0 +1,130 @@
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4>Топливные карты</h4>
+    <div class="d-flex gap-2">
+      <button class="btn btn-success" onclick="openUploadTransactionsModal()">Загрузить транзакции</button>
+      <button class="btn btn-primary" id="btn-open-fuel-card-modal">Создать</button>
+      <button class="btn btn-secondary" id="btn-open-fuel-transactions">Транзакции</button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-bordered table-hover mt-3" id="fuel-cards-table">
+      <thead class="thead-light">
+        <tr>
+          <th>Provider</th>
+          <th>Card#</th>
+          <th>Driver ID</th>
+          <th>Vehicle ID</th>
+          <th>Assigned Driver</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Заполнение из JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- БЛОК: Транзакции -->
+  <div id="fuel-card-transactions-section" class="mt-5" style="display: none;">
+    <h4>Транзакции по топливным картам</h4>
+    <div class="table-responsive mt-3">
+      <table class="table table-bordered table-hover" id="transactions-table">
+        <thead class="thead-light">
+          <tr>
+            <th>Billing Range</th>
+            <th>Дата</th>
+            <th>Card#</th>
+            <th>Driver ID</th>
+            <th>Vehicle ID</th>
+            <th>Qty</th>
+            <th>Fuel $</th>
+            <th>Retail $</th>
+            <th>Invoice $</th>
+            <th>Водитель</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- строки подгрузятся через JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- МОДАЛКА: СОЗДАНИЕ КАРТЫ -->
+  <div class="custom-offcanvas custom-offcanvas-right" id="fuelCardModal">
+    <div class="custom-offcanvas-content">
+      <div class="custom-offcanvas-header">
+        <h5 class="modal-title">Создание топливной карты</h5>
+        <button type="button" class="close" onclick="closeFuelCardModal()"><span>&times;</span></button>
+      </div>
+      <div class="custom-offcanvas-body">
+        <div class="load-modal-content">
+          <div class="load-modal-left">
+            <form id="fuel-card-form">
+              <div class="form-group">
+                <label for="provider">Provider</label>
+                <input type="text" class="form-control" id="provider" name="provider" required>
+              </div>
+              <div class="form-group">
+                <label for="card_number">Card#</label>
+                <input type="text" class="form-control" id="card_number" name="card_number" required>
+              </div>
+              <div class="form-group">
+                <label for="driver_id">Driver ID</label>
+                <input type="text" class="form-control" id="driver_id" name="driver_id">
+              </div>
+              <div class="form-group">
+                <label for="vehicle_id">Vehicle ID</label>
+                <input type="text" class="form-control" id="vehicle_id" name="vehicle_id">
+              </div>
+              <div class="form-group">
+                <label for="assigned_driver">Assigned Driver</label>
+                <select class="form-control" id="assigned_driver" name="assigned_driver">
+                  <!-- Водители из базы -->
+                </select>
+              </div>
+
+              <div class="mt-4 d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary mr-2" onclick="closeFuelCardModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛКА: ЗАГРУЗКА ТРАНЗАКЦИЙ -->
+  <div class="custom-offcanvas custom-offcanvas-right" id="uploadTransactionsModal">
+    <div class="custom-offcanvas-content">
+      <div class="custom-offcanvas-header">
+        <h5 class="modal-title">Загрузка транзакций</h5>
+        <button type="button" class="close" onclick="closeUploadTransactionsModal()"><span>&times;</span></button>
+      </div>
+      <div class="custom-offcanvas-body">
+        <div class="load-modal-content">
+          <div class="load-modal-left">
+            <form id="upload-transactions-form" enctype="multipart/form-data">
+              <div class="form-group">
+                <label for="transaction-file">Выберите PDF-файл</label>
+                <input type="file" class="form-control" id="transaction-file" name="file" accept=".pdf" required>
+              </div>
+
+              <div id="upload-summary-container" class="mt-4"></div>
+
+              <div class="mt-4 d-flex justify-content-end">
+                <button type="button" class="btn btn-secondary mr-2" onclick="closeUploadTransactionsModal()">Отмена</button>
+                <button type="submit" class="btn btn-success">Загрузить</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Затемнение -->
+  <div class="custom-offcanvas-backdrop" onclick="closeFuelCardModal(); closeUploadTransactionsModal();"></div>
+</div>

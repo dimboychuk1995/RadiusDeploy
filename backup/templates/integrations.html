@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Интеграции{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Integrations Marketplace</h2>
+        <button class="btn btn-primary">+ Request Integration</button>
+    </div>
+
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-secondary">All Categories</button>
+        <button class="btn btn-outline-secondary">Fuel</button>
+        <button class="btn btn-outline-secondary">ELD</button>
+        <button class="btn btn-outline-secondary">GPS</button>
+        <button class="btn btn-outline-secondary">Accounting</button>
+        <button class="btn btn-outline-secondary">Loadboard</button>
+        <button class="btn btn-outline-secondary">Brokers</button>
+        <button class="btn btn-outline-secondary">Customs</button>
+    </div>
+
+    <div class="mb-4">
+        <input type="search" class="form-control" placeholder="Search integrations...">
+    </div>
+
+    <h4 class="mt-4">Connected Integrations</h4>
+    <div class="row">
+        {% for integration in integrations %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-2">
+                        <img src="{{ integration.logo_url or '/static/img/default-logo.png' }}"
+                             alt="Provider Logo" style="height: 40px;">
+                    </div>
+                    <h5 class="card-title">{{ integration.name }}</h5>
+                    <p class="card-text">{{ integration.description or "Описание недоступно." }}</p>
+                    <input type="text" class="form-control mb-2"
+                           value="{{ integration.api_key or '' }}"
+                           placeholder="API Key"
+                           data-api-key-for="{{ integration.name }}">
+                    <button class="btn btn-outline-primary open-integration-modal"
+                            data-integration-name="{{ integration.name }}">
+                      Manage
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="integrationsContainer"></div>
+
+    <h4 class="mt-5">Available Integrations Catalog</h4>
+    <div class="row">
+        {% for item in catalog %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="mb-2">
+                        <img src="{{ item.logo_url or '/static/img/default-logo.png' }}"
+                             alt="Provider Logo" style="height: 40px;">
+                    </div>
+                    <h5 class="card-title">{{ item.name }}</h5>
+                    <p class="text-muted small mb-1">{{ item.category }}</p>
+                    <p class="card-text small text-muted">
+                        {{ item.description or "No description available." }}
+                    </p>
+                    <button class="btn btn-outline-success mt-auto" disabled>
+                        Install
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="custom-offcanvas custom-offcanvas-right" id="manageIntegrationModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h4 id="manageIntegrationModalTitle">Интеграция</h4>
+      <button class="btn btn-sm btn-secondary" onclick="closeIntegrationModal()">✖</button>
+    </div>
+    <div class="custom-offcanvas-body">
+      <form id="integrationForm" class="d-flex flex-column gap-3">
+        <div>
+          <label class="form-label">Name</label>
+          <input type="text" id="integrationNameInput" class="form-control" readonly>
+        </div>
+        <div>
+          <label class="form-label">Enabled</label>
+          <select id="integrationEnabledSelect" class="form-select">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">API Key</label>
+          <input type="text" id="integrationApiKeyInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Login</label>
+          <input type="text" id="integrationLoginInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Password</label>
+          <input type="password" id="integrationPasswordInput" class="form-control">
+        </div>
+        <div>
+          <label class="form-label">Parent Integration</label>
+          <select id="integrationParentSelect" class="form-select"></select>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Save</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="custom-offcanvas-backdrop" id="manageIntegrationBackdrop" onclick="closeIntegrationModal()"></div>
+
+<script>
+  window.integrations = {{ integrations | tojson | safe }};
+  window.catalog = {{ catalog | tojson | safe }};
+</script>
+
+{% endblock %}
+

@@ -13,6 +13,8 @@ from tools.db import fs
 from auth import requires_role
 from tools.db import db
 from tools.gpt_connection import get_openai_client
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -26,6 +28,27 @@ TRAILER_SUBTYPE = ["Dry Van","Flat Bed","Flat Bed Conestoga","Step Deck","Reefer
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def parse_utc_date(date_str):
+    try:
+        if not date_str:
+            return None
+
+        # Попробуем оба формата
+        try:
+            local = datetime.strptime(date_str, "%m/%d/%Y")
+        except ValueError:
+            local = datetime.strptime(date_str, "%Y-%m-%d")
+
+        company_tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+        tz_str = company_tz_doc["timezone"] if company_tz_doc and "timezone" in company_tz_doc else "America/Chicago"
+        local_dt = local.replace(tzinfo=ZoneInfo(tz_str))
+        return local_dt.astimezone(timezone.utc)
+
+    except Exception as e:
+        print(f"❌ parse_utc_date error: {e} for input: {date_str}")
+        return None
+
 
 @trucks_bp.route('/fragment/trucks')
 @login_required
@@ -141,19 +164,17 @@ def add_truck():
             "unit_type": request.form.get("unit_type"),
             "subtype": request.form.get("subtype"),
             "company": current_user.company,
-            "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get(
-                "assigned_driver_id") else None,
-            "owning_company": ObjectId(request.form.get("owning_company")) if request.form.get(
-                "owning_company") else None,
+            "assigned_driver_id": ObjectId(request.form.get("assigned_driver_id")) if request.form.get("assigned_driver_id") else None,
+            "owning_company": ObjectId(request.form.get("owning_company")) if request.form.get("owning_company") else None,
 
             "registration": {
                 "license_plate": request.form.get("registration_plate"),
-                "expiration_date": request.form.get("registration_exp"),
+                "expiration_date": parse_utc_date(request.form.get("registration_exp")),
                 "file": save_file_to_gridfs("registration_file")
             },
 
             "annual_inspection": {
-                "expiration_date": request.form.get("inspection_exp"),
+                "expiration_date": parse_utc_date(request.form.get("inspection_exp")),
                 "file": save_file_to_gridfs("inspection_file")
             },
 
@@ -164,9 +185,11 @@ def add_truck():
             "liability_insurance": {
                 "provider": request.form.get("insurance_provider"),
                 "policy_number": request.form.get("insurance_policy"),
-                "expiration_date": request.form.get("insurance_exp"),
+                "expiration_date": parse_utc_date(request.form.get("insurance_exp")),
                 "file": save_file_to_gridfs("insurance_file")
-            }
+            },
+
+            "created_at": datetime.utcnow().replace(tzinfo=timezone.utc)
         }
 
         trucks_collection.insert_one(truck_data)
@@ -176,7 +199,6 @@ def add_truck():
         logging.error(f"Error adding truck: {e}")
         logging.error(traceback.format_exc())
         return render_template('error.html', message="Failed to add truck")
-
 
 @trucks_bp.route('/delete_truck/<truck_id>', methods=['POST'])
 @requires_role('admin')

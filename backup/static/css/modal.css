@@ -1,0 +1,136 @@
+/* === Боковые модальные окна (offcanvas) === */
+.custom-offcanvas {
+    position: fixed;
+    top: 0;
+    height: 100%;
+    width: 100%;
+    max-width: 1440px;
+    background: #fff;
+    box-shadow: -4px 0 15px rgba(0, 0, 0, 0.25);
+    transform: translateX(100%);
+    transition: transform 0.4s ease;
+    z-index: 1050;
+    overflow: hidden;
+    border-top-left-radius: 1rem;
+    border-bottom-left-radius: 1rem;
+}
+
+
+
+.custom-offcanvas.open,
+.custom-offcanvas.show {
+    transform: translateX(0);
+}
+
+.custom-offcanvas.custom-offcanvas-right {
+    right: 0;
+    left: auto;
+}
+
+.custom-offcanvas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e0e0e0;
+    background-color: #f8f9fa;
+    font-weight: bold;
+}
+
+.custom-offcanvas-body {
+    padding: 0;
+    background-color: #ffffff;
+    height: calc(100vh - 60px);
+}
+
+/* Затемнение фона */
+.custom-offcanvas-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1040;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.custom-offcanvas.open ~ .custom-offcanvas-backdrop,
+.custom-offcanvas.show ~ .custom-offcanvas-backdrop {
+    display: block;
+}
+
+
+/* === Контент модалки: 2 колонки === */
+.load-modal-content {
+    display: flex;
+    height: 100%;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    gap: 0;
+}
+
+/* Левая часть: форма, прокручиваемая */
+.load-modal-left {
+    flex: 3;
+    min-width: 0;
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 2rem;
+}
+
+/* Правая часть: фиксирована */
+.load-modal-right {
+    flex: 2;
+    position: sticky;
+    top: 0;
+    height: 100%;
+    align-self: flex-start;
+    background: #f7f9fc;
+    border-left: 1px solid #dee2e6;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* === Блок загрузки PDF === */
+.load-modal-right .upload-box {
+    border: 2px dashed #1a3568;
+    border-radius: 12px;
+    background: #fff;
+    padding: 40px;
+    text-align: center;
+    width: 100%;
+    max-width: 400px;
+}
+
+.upload-box svg {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 15px;
+}
+
+.upload-box input {
+    display: none;
+}
+
+.upload-box label {
+    cursor: pointer;
+    color: #1a3568;
+    text-decoration: underline;
+}
+
+.upload-box strong {
+    display: block;
+    font-size: 1rem;
+    margin-bottom: 10px;
+}
+
+.custom-offcanvas-body {
+    max-height: calc(100vh - 70px); /* или 100% если offcanvas полностью фиксирован */
+    overflow-y: auto;
+    padding-right: 15px; /* для скролла */
+}

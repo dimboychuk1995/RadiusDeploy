@@ -1,0 +1,122 @@
+<div class="p-4">
+  <h4 class="mb-4">🛡️ Безопасность</h4>
+
+  <!-- Центрированная навигация -->
+  <div class="d-flex justify-content-center mb-3">
+    <div class="btn-group" role="group">
+      <button class="btn btn-outline-primary safety-tab active" data-target="#safety-inspections">Инспекции</button>
+      <button class="btn btn-outline-primary safety-tab" data-target="#safety-inspections-stats">Статистика инспекций</button>
+      <button class="btn btn-outline-primary safety-tab" data-target="#safety-accidents">Аварии</button>
+      <button class="btn btn-outline-primary safety-tab" data-target="#safety-accidents-stats">Статистика аварий</button>
+    </div>
+  </div>
+
+  <!-- Секции -->
+  <div id="safety-inspections" class="safety-section" style="display: block;">
+    <!-- Кнопка открытия модалки -->
+    <div class="mb-3">
+      <button class="btn btn-primary" onclick="openInspectionModal()">➕ Добавить инспекцию</button>
+    </div>
+
+
+    <div class="table-responsive mb-3">
+      <table class="table table-bordered table-sm" id="inspectionsTable">
+        <thead>
+          <tr>
+            <th>Дата </th>
+            <th>Водитель</th>
+            <th>Трак</th>
+            <th>Штат</th>
+            <th>Адрес</th>
+            <th>Чистая</th>
+            <th>Документ</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="custom-offcanvas custom-offcanvas-right" id="addInspectionModal">
+      <div class="custom-offcanvas-content">
+        <div class="custom-offcanvas-header">
+          <h4 class="mb-0">Добавить инспекцию</h4>
+          <button class="btn btn-sm btn-secondary" onclick="closeInspectionModal()">✖</button>
+        </div>
+        <div class="custom-offcanvas-body d-flex flex-column">
+          <form id="addInspectionForm" enctype="multipart/form-data" class="d-flex flex-column h-100">
+            <div class="load-modal-content">
+              <div class="load-modal-left">
+                <div class="form-group mb-3">
+                  <label>Водитель</label>
+                  <select name="driver" class="form-control" required></select>
+                </div>
+                <div class="form-group mb-3">
+                  <label>Трак</label>
+                  <select name="truck" class="form-control" required></select>
+                </div>
+                <div class="form-group mb-3">
+                  <label>Дата</label>
+                  <input type="date" name="date" class="form-control" required>
+                </div>
+                <div class="form-group mb-3">
+                  <label>Время начала</label>
+                  <input type="time" name="start_time" class="form-control">
+                </div>
+                <div class="form-group mb-3">
+                  <label>Время окончания</label>
+                  <input type="time" name="end_time" class="form-control">
+                </div>
+                <div class="form-group mb-3">
+                  <label>Штат</label>
+                  <input type="text" name="state" class="form-control">
+                </div>
+                <div class="form-group mb-3">
+                  <label>Адрес</label>
+                  <input type="text" name="address" class="form-control">
+                </div>
+
+                <div id="violations-container"></div>
+                <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addViolation()">➕ Добавить нарушение</button>
+
+                <div class="form-group mb-3">
+                  <label>Файл</label>
+                  <input type="file" name="file" class="form-control">
+                </div>
+
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" name="clean_inspection" id="cleanInspection">
+                  <label class="form-check-label" for="cleanInspection">Чистая инспекция</label>
+                </div>
+              </div>
+
+              <div class="load-modal-right">
+                <!-- Пусто пока -->
+              </div>
+            </div>
+
+            <!-- Кнопка сохранить внизу слева -->
+            <div class="mt-auto pt-3 d-flex justify-content-start">
+              <button type="submit" class="btn btn-success">💾 Сохранить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Затемнение -->
+    <div class="custom-offcanvas-backdrop" onclick="closeInspectionModal()"></div>
+
+  </div>
+
+  <div id="safety-inspections-stats" class="safety-section" style="display: none;">
+    <p>📊 Здесь будет статистика инспекций.</p>
+  </div>
+
+  <div id="safety-accidents" class="safety-section" style="display: none;">
+    <p>💥 Здесь будут аварии.</p>
+  </div>
+
+  <div id="safety-accidents-stats" class="safety-section" style="display: none;">
+    <p>📉 Здесь будет статистика аварий.</p>
+  </div>
+</div>
