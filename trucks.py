@@ -150,18 +150,35 @@ def trucks_fragment():
 
             status_color = check_expiry_color(reg_dt, insp_dt, ins_dt)
 
+            # Генерация тултипа ТОЛЬКО если есть документы <30 дней или просрочены
             tooltip_parts = []
+            show_tooltip = False
+            now = datetime.now(ZoneInfo("UTC"))
+
             for label, dt in [
                 ("Registration", reg_dt),
                 ("Inspection", insp_dt),
                 ("Power of Attorney", poa_dt),
                 ("Liability Insurance", ins_dt),
             ]:
-                msg = make_tooltip(label, dt)
-                if msg:
-                    tooltip_parts.append(msg)
+                if isinstance(dt, datetime):
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                    delta = (dt - now).days
 
-            tooltip_text = " | ".join(tooltip_parts)
+                    if delta < 0:
+                        show_tooltip = True
+                        tooltip_parts.append(f"{label}: просрочен на {abs(delta)} дней")
+                    elif delta <= 30:
+                        show_tooltip = True
+                        tooltip_parts.append(f"{label}: истекает через {delta} дней")
+                    elif delta <= 60:
+                        show_tooltip = True
+                        tooltip_parts.append(f"{label}: истекает через {delta} дней")
+                    # >60 дней — не добавляем
+
+            tooltip_text = " | ".join(tooltip_parts) if show_tooltip else ""
+
             print(f"\n🚛 Truck {truck.get('unit_number', '—')}:")
             print(f"   📌 Статус цвета: {status_color}")
             print(f"   🧷 Tooltip: {tooltip_text}")
