@@ -62,43 +62,34 @@ def drivers_fragment():
 
     def check_expiry_color(*dates):
         now = datetime.now(ZoneInfo("UTC"))
-        print(f"\n🧠 Текущая дата UTC: {now.isoformat()}")
         max_level = ""
         for dt in dates:
             if isinstance(dt, datetime):
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=ZoneInfo("UTC"))
                 delta = (dt - now).days
-                print(f"📅 Документ дата: {dt.isoformat()} | Разница: {delta} дней")
 
                 if delta < 0:
-                    print("❗ Просрочено → table-danger")
                     return "table-danger"
                 elif delta <= 30:
-                    print("⚠️ Менее 30 дней → table-warning")
                     max_level = "table-warning"
                 elif delta <= 60 and max_level != "table-warning":
-                    print("ℹ️ Менее 60 дней → table-info")
                     max_level = "table-info"
-        print(f"🎨 Цвет итоговый: {max_level or 'нет цвета'}")
         return max_level
 
     def build_tooltip(label_dt_map):
         parts = []
         now = datetime.now(ZoneInfo("UTC"))
-        print(f"\n📦 Tooltip для водителя:")
         for label, dt in label_dt_map.items():
             if isinstance(dt, datetime):
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=ZoneInfo("UTC"))
                 delta = (dt - now).days
-                print(f"📝 {label}: {dt.isoformat()} | Δ = {delta} дней")
                 if delta < 0:
                     parts.append(f"{label}: просрочен на {abs(delta)} дней")
                 elif delta <= 60:
                     parts.append(f"{label}: истекает через {delta} дней")
         tooltip = " | ".join(parts)
-        print(f"💬 Tooltip: {tooltip}")
         return tooltip
 
     try:
@@ -142,7 +133,6 @@ def drivers_fragment():
             driver['license_expiration_str'] = format_local_date(lic_exp)
             driver['medical_expiration_str'] = format_local_date(med_exp)
 
-            print(f"\n🔽 Водитель: {driver['name']}")
             driver['status_color'] = check_expiry_color(lic_exp, med_exp)
             driver['tooltip'] = build_tooltip({
                 "License": lic_exp,
@@ -185,7 +175,6 @@ def add_driver():
 
                 return utc_dt
             except Exception as e:
-                print(f"❌ parse_date_to_utc error: {e}")
                 return None
 
         def format_dob_string(date_str):
