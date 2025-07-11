@@ -12,7 +12,7 @@ from flask import send_file
 from flask_cors import cross_origin
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
-
+from zoneinfo import ZoneInfo
 from auth import requires_role, users_collection
 from tools.db import db
 from tools.gpt_connection import get_openai_client
@@ -97,13 +97,31 @@ def add_driver():
     try:
         fs = gridfs.GridFS(db)
 
-        def to_mmddyyyy(date_str):
-            if not date_str:
-                return ""
+        def parse_date_to_utc(date_str):
             try:
-                return datetime.strptime(date_str, "%Y-%m-%d").strftime("%m/%d/%Y")
+                # 1. Получаем локальный часовой пояс компании
+                company_tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+                tz_str = company_tz_doc[
+                    "timezone"] if company_tz_doc and "timezone" in company_tz_doc else "America/Chicago"
+                local_tz = ZoneInfo(tz_str)
+
+                # 2. Преобразуем в локальное время
+                local_dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=local_tz)
+
+                # 3. Переводим в UTC и убираем tzinfo (Mongo не принимает aware datetime)
+                utc_dt = local_dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+                return utc_dt
+            except Exception as e:
+                print(f"❌ parse_date_to_utc error: {e}")
+                return None
+
+        def format_dob_string(date_str):
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+                return dt.strftime("%m/%d/%Y")
             except Exception:
-                return date_str
+                return date_str  # Если уже в нужном формате
 
         def save_file_to_gridfs(field_name):
             file = request.files.get(field_name)
@@ -117,13 +135,12 @@ def add_driver():
             return None
 
         email = request.form.get('email')
-
         driver_data = {
             'name': request.form.get('name'),
             'contact_number': request.form.get('contact_number'),
             'address': request.form.get('address'),
             'email': email,
-            'dob': to_mmddyyyy(request.form.get('dob')),
+            'dob': format_dob_string(request.form.get('dob')),
             'driver_type': request.form.get('driver_type'),
             'status': request.form.get('status', 'В процессе принятия'),
             'truck': ObjectId(request.form.get('truck')) if request.form.get('truck') else None,
@@ -135,23 +152,23 @@ def add_driver():
                 'class': request.form.get('license_class'),
                 'state': request.form.get('license_state'),
                 'address': request.form.get('license_address'),
-                'issued_date': to_mmddyyyy(request.form.get('license_issued_date')),
-                'expiration_date': to_mmddyyyy(request.form.get('license_expiration_date')),
+                'issued_date': parse_date_to_utc(request.form.get('license_issued_date')),
+                'expiration_date': parse_date_to_utc(request.form.get('license_expiration_date')),
                 'restrictions': request.form.get('license_restrictions'),
                 'file': save_file_to_gridfs('license_file')
             },
             'medical_card': {
-                'issued_date': to_mmddyyyy(request.form.get('med_issued_date')),
-                'expiration_date': to_mmddyyyy(request.form.get('med_expiration_date')),
+                'issued_date': parse_date_to_utc(request.form.get('med_issued_date')),
+                'expiration_date': parse_date_to_utc(request.form.get('med_expiration_date')),
                 'restrictions': request.form.get('med_restrictions'),
                 'file': save_file_to_gridfs('med_file')
             },
             'drug_test': {
-                'issued_date': to_mmddyyyy(request.form.get('drug_issued_date')),
+                'issued_date': parse_date_to_utc(request.form.get('drug_issued_date')),
                 'file': save_file_to_gridfs('drug_file')
             },
             'mvr': {
-                'expiration_date': to_mmddyyyy(request.form.get('mvr_expiration_date')),
+                'expiration_date': parse_date_to_utc(request.form.get('mvr_expiration_date')),
                 'file': save_file_to_gridfs('mvr_file')
             },
             'psp': {
@@ -190,7 +207,22 @@ def add_driver():
 @login_required
 def driver_details_fragment(driver_id):
     try:
-        # Загружаем все поля, кроме тяжелых файлов
+        from zoneinfo import ZoneInfo
+        from datetime import datetime
+
+        # Получение часового пояса компании
+        def get_company_timezone():
+            tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+            return tz_doc["timezone"] if tz_doc and "timezone" in tz_doc else "America/Chicago"
+
+        # Преобразование UTC datetime в локальное представление mm/dd/yyyy
+        def format_local_date(dt):
+            if not isinstance(dt, datetime):
+                return ""
+            tz = ZoneInfo(get_company_timezone())
+            return dt.astimezone(tz).strftime("%m/%d/%Y")
+
+        # Загружаем все поля, кроме файлов
         driver = drivers_collection.find_one(
             {'_id': ObjectId(driver_id)},
             {
@@ -207,6 +239,22 @@ def driver_details_fragment(driver_id):
         if not driver:
             return render_template('error.html', message="Driver not found")
 
+        # Форматируем даты в driver
+        if "license" in driver:
+            driver["license"]["issued_date"] = format_local_date(driver["license"].get("issued_date"))
+            driver["license"]["expiration_date"] = format_local_date(driver["license"].get("expiration_date"))
+
+        if "medical_card" in driver:
+            driver["medical_card"]["issued_date"] = format_local_date(driver["medical_card"].get("issued_date"))
+            driver["medical_card"]["expiration_date"] = format_local_date(driver["medical_card"].get("expiration_date"))
+
+        if "drug_test" in driver:
+            driver["drug_test"]["issued_date"] = format_local_date(driver["drug_test"].get("issued_date"))
+
+        if "mvr" in driver:
+            driver["mvr"]["expiration_date"] = format_local_date(driver["mvr"].get("expiration_date"))
+
+        # dob оставляем как есть (string, mm/dd/yyyy)
         driver = convert_to_str_id(driver)
 
         truck = trucks_collection.find_one({'_id': ObjectId(driver.get('truck'))}) if driver.get('truck') else None
