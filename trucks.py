@@ -46,7 +46,6 @@ def parse_utc_date(date_str):
         return local_dt.astimezone(timezone.utc)
 
     except Exception as e:
-        print(f"❌ parse_utc_date error: {e} for input: {date_str}")
         return None
 
 def format_local_date(dt):
@@ -83,7 +82,6 @@ def trucks_fragment():
     def check_expiry_color(*dates):
         try:
             now = datetime.now(ZoneInfo("UTC"))
-            print(f"\n📅 Проверка сроков (now = {now.isoformat()}):")
             max_level = ""
 
             for dt in dates:
@@ -92,19 +90,14 @@ def trucks_fragment():
                         dt = dt.replace(tzinfo=ZoneInfo("UTC"))
                     delta = dt - now
                     days = delta.days
-                    print(f"  ▶️ {dt.isoformat()} — осталось {days} дней")
 
                     if days < 0:
-                        print("    🔴 ПРОСРОЧЕНО")
                         return "table-danger"
                     elif days <= 30:
-                        print("    🟠 ИСТЕКАЕТ ≤ 30 ДНЕЙ")
                         max_level = "table-warning"
                     elif days <= 60 and max_level != "table-warning":
-                        print("    🟡 ИСТЕКАЕТ ≤ 60 ДНЕЙ")
                         max_level = "table-info"
 
-            print(f"    ✅ Цвет строки: {max_level}")
             return max_level
         except Exception as e:
             logging.warning(f"Ошибка в check_expiry_color: {e}")
@@ -179,10 +172,6 @@ def trucks_fragment():
 
             tooltip_text = " | ".join(tooltip_parts) if show_tooltip else ""
 
-            print(f"\n🚛 Truck {truck.get('unit_number', '—')}:")
-            print(f"   📌 Статус цвета: {status_color}")
-            print(f"   🧷 Tooltip: {tooltip_text}")
-
             trucks.append({
                 'id': truck_id_str,
                 'unit_number': truck.get('unit_number', '—'),
@@ -212,7 +201,6 @@ def trucks_fragment():
             trailer_subtypes=TRAILER_SUBTYPE
         )
 
-        print(f"\n✅ Общая генерация: {time.time() - t0:.3f} сек\n")
         return rendered
 
     except Exception as e:

@@ -1,11 +1,14 @@
 import json
-
+from datetime import datetime
+from werkzeug.security import generate_password_hash
+from bson import ObjectId
+import gridfs
 import fitz
 from flask import Blueprint, render_template, request, redirect, url_for, jsonify, Response
 from bson.objectid import ObjectId
 from bson.binary import Binary
 import logging
-
+from flask import send_file
 from flask_cors import cross_origin
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -92,8 +95,7 @@ def drivers_fragment():
 @login_required
 def add_driver():
     try:
-        from datetime import datetime
-        from werkzeug.security import generate_password_hash
+        fs = gridfs.GridFS(db)
 
         def to_mmddyyyy(date_str):
             if not date_str:
@@ -103,13 +105,13 @@ def add_driver():
             except Exception:
                 return date_str
 
-        def save_file(field_name):
+        def save_file_to_gridfs(field_name):
             file = request.files.get(field_name)
             if file and file.filename:
-                content = file.read()
+                file_id = fs.put(file.stream, filename=secure_filename(file.filename), content_type=file.content_type)
                 return {
-                    'filename': secure_filename(file.filename),
-                    'content': Binary(content),
+                    'file_id': file_id,
+                    'filename': file.filename,
                     'content_type': file.content_type
                 }
             return None
@@ -136,39 +138,37 @@ def add_driver():
                 'issued_date': to_mmddyyyy(request.form.get('license_issued_date')),
                 'expiration_date': to_mmddyyyy(request.form.get('license_expiration_date')),
                 'restrictions': request.form.get('license_restrictions'),
-                'file': save_file('license_file')
+                'file': save_file_to_gridfs('license_file')
             },
             'medical_card': {
                 'issued_date': to_mmddyyyy(request.form.get('med_issued_date')),
                 'expiration_date': to_mmddyyyy(request.form.get('med_expiration_date')),
                 'restrictions': request.form.get('med_restrictions'),
-                'file': save_file('med_file')
+                'file': save_file_to_gridfs('med_file')
             },
             'drug_test': {
                 'issued_date': to_mmddyyyy(request.form.get('drug_issued_date')),
-                'file': save_file('drug_file')
+                'file': save_file_to_gridfs('drug_file')
             },
             'mvr': {
                 'expiration_date': to_mmddyyyy(request.form.get('mvr_expiration_date')),
-                'file': save_file('mvr_file')
+                'file': save_file_to_gridfs('mvr_file')
             },
             'psp': {
-                'file': save_file('psp_file')
+                'file': save_file_to_gridfs('psp_file')
             },
             'clearing_house': {
-                'file': save_file('clearing_house_file')
+                'file': save_file_to_gridfs('clearing_house_file')
             },
             'agreement': {
-                'file': save_file('agreement_file')
+                'file': save_file_to_gridfs('agreement_file')
             },
             'ssn': request.form.get('ssn')
         }
 
-        # Сохраняем водителя
         result = drivers_collection.insert_one(driver_data)
         driver_id = result.inserted_id
 
-        # Добавляем пользователя с ролью driver
         password = 'password'
         user_data = {
             'username': email,
@@ -238,52 +238,37 @@ def driver_details_fragment(driver_id):
         logging.error(f"Error fetching driver details: {e}")
         return render_template('error.html', message="Failed to retrieve driver details")
 
-@drivers_bp.route('/download_file/<driver_id>/<doc_type>', methods=['GET'])
+@drivers_bp.route('/driver_file/<file_id>')
 @login_required
-def download_driver_file(driver_id, doc_type):
+def get_driver_file(file_id):
     try:
-        driver = drivers_collection.find_one(
-            {'_id': ObjectId(driver_id)},
-            {f"{doc_type}.file": 1}
-        )
-
-        if not driver:
-            return "Driver not found", 404
-
-        # Пример: driver['license']['file'] или driver.get('license', {}).get('file')
-        file_data = driver.get(doc_type, {}).get('file')
-        if not file_data:
-            return "File not found", 404
-
-        return Response(
-            file_data['content'],
-            mimetype=file_data.get('content_type', 'application/octet-stream')
-        )
-
+        fs = gridfs.GridFS(db)
+        file = fs.get(ObjectId(file_id))
+        return send_file(file, mimetype=file.content_type, download_name=file.filename)
     except Exception as e:
-        print(f"❌ Ошибка при загрузке файла '{doc_type}' для водителя {driver_id}:", e)
-        return "Server error", 500
+        logging.error(f"Ошибка при получении файла водителя: {e}")
+        return f"Ошибка: файл не найден", 404
 
-@drivers_bp.route('/edit_driver/<driver_id>', methods=['POST'])
+@drivers_bp.route('/api/driver_file/<driver_id>/<doc_type>', methods=['GET'])
 @login_required
-def edit_driver(driver_id):
-    try:
-        updated_data = {
-            'name': request.form.get('name'),
-            'license_number': request.form.get('license_number'),
-            'contact_number': request.form.get('contact_number'),
-            'address': request.form.get('address'),
-            'email': request.form.get('email'),
-            'dob': request.form.get('dob'),
-            'driver_type': request.form.get('driver_type'),
-            'truck': request.form.get('truck'),
-            'dispatcher': request.form.get('dispatcher')
-        }
-        drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': updated_data})
-        return '', 200
-    except Exception as e:
-        logging.error(f"Error updating driver: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+def get_driver_file_metadata(driver_id, doc_type):
+    driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
+
+    if not driver:
+        return jsonify({"error": "Driver not found"}), 404
+
+    doc = driver.get(doc_type)
+    if not doc or not isinstance(doc, dict):
+        return jsonify({"error": "Document not found"}), 404
+
+    file_info = doc.get("file")
+    if not file_info:
+        return jsonify({"error": "File not attached"}), 404
+
+    return jsonify({
+        "filename": file_info.get("filename"),
+        "file_id": str(file_info.get("file_id"))
+    })
 
 @drivers_bp.route('/delete_driver/<driver_id>', methods=['POST'])
 @requires_role('admin')
@@ -553,6 +538,7 @@ def edit_driver_truck(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при обновлении трака для водителя {driver_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @drivers_bp.route('/api/drivers/<driver_id>/update_push_token', methods=['POST'])
