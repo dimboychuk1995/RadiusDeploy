@@ -257,16 +257,6 @@ tbody tr:hover {
   text-align: center;
 }
 
-table tr:first-child td:first-child,
-table tr:first-child th:first-child {
-  border-top-left-radius: 8px;
-}
-
-table tr:first-child td:last-child,
-table tr:first-child th:last-child {
-  border-top-right-radius: 8px;
-}
-
 /* === СПИСОК (LIST-GROUP) === */
 .list-group {
   border-radius: 6px;
@@ -583,4 +573,25 @@ table .driver-row {
 
 table .driver-row > td {
   display: table-cell !important;
+}
+
+/* === КАСТОМНЫЕ СТИЛИ ДЛЯ БЛОКОВ ГРУЗОВИКОВ === */
+.card.mb-3 {
+  border: none !important;
+  box-shadow: none !important;
+  background: none !important;
+}
+
+.card-header {
+  background-color: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid #ccc !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.card-body.company-section {
+  border: none !important;
+  padding-left: 0;
+  padding-right: 0;
 }
