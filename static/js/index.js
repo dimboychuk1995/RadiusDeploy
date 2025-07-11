@@ -12,6 +12,7 @@ function initNavigation() {
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
+      initDriverTooltips();
     },
     'dispatch_fragment': () => {
       initDispatcherCalendars?.();
@@ -144,4 +145,7 @@ function initNavigation() {
   });
 }
 
-document.addEventListener("DOMContentLoaded", initNavigation);
+document.addEventListener("DOMContentLoaded", () => {
+  initNavigation();
+  initGlobalTooltips();
+});

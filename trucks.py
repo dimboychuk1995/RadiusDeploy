@@ -103,18 +103,6 @@ def trucks_fragment():
             logging.warning(f"Ошибка в check_expiry_color: {e}")
             return ""
 
-    def make_tooltip(label, dt):
-        if not isinstance(dt, datetime):
-            return None
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=ZoneInfo("UTC"))
-        now = datetime.now(ZoneInfo("UTC"))
-        delta = (dt - now).days
-        if delta < 0:
-            return f"{label}: просрочен на {abs(delta)} дней"
-        else:
-            return f"{label}: осталось {delta} дней"
-
     try:
         companies = list(db['companies'].find({}, {"_id": 1, "name": 1}))
         drivers = list(db['drivers'].find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))

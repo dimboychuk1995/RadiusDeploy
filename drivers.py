@@ -44,8 +44,64 @@ def convert_to_str_id(data):
 @drivers_bp.route('/fragment/drivers', methods=['GET'])
 @login_required
 def drivers_fragment():
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+
+    def get_company_tz():
+        tz_doc = db["company_timezone"].find_one({"company": current_user.company})
+        return tz_doc["timezone"] if tz_doc and "timezone" in tz_doc else "America/Chicago"
+
+    def format_local_date(dt):
+        try:
+            if not isinstance(dt, datetime):
+                return ""
+            local_dt = dt.astimezone(ZoneInfo(get_company_tz()))
+            return local_dt.strftime("%m/%d/%Y")
+        except Exception:
+            return ""
+
+    def check_expiry_color(*dates):
+        now = datetime.now(ZoneInfo("UTC"))
+        print(f"\n🧠 Текущая дата UTC: {now.isoformat()}")
+        max_level = ""
+        for dt in dates:
+            if isinstance(dt, datetime):
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                delta = (dt - now).days
+                print(f"📅 Документ дата: {dt.isoformat()} | Разница: {delta} дней")
+
+                if delta < 0:
+                    print("❗ Просрочено → table-danger")
+                    return "table-danger"
+                elif delta <= 30:
+                    print("⚠️ Менее 30 дней → table-warning")
+                    max_level = "table-warning"
+                elif delta <= 60 and max_level != "table-warning":
+                    print("ℹ️ Менее 60 дней → table-info")
+                    max_level = "table-info"
+        print(f"🎨 Цвет итоговый: {max_level or 'нет цвета'}")
+        return max_level
+
+    def build_tooltip(label_dt_map):
+        parts = []
+        now = datetime.now(ZoneInfo("UTC"))
+        print(f"\n📦 Tooltip для водителя:")
+        for label, dt in label_dt_map.items():
+            if isinstance(dt, datetime):
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+                delta = (dt - now).days
+                print(f"📝 {label}: {dt.isoformat()} | Δ = {delta} дней")
+                if delta < 0:
+                    parts.append(f"{label}: просрочен на {abs(delta)} дней")
+                elif delta <= 60:
+                    parts.append(f"{label}: истекает через {delta} дней")
+        tooltip = " | ".join(parts)
+        print(f"💬 Tooltip: {tooltip}")
+        return tooltip
+
     try:
-        # Вытягиваем только нужные поля из drivers
         drivers = list(drivers_collection.find(
             {'company': current_user.company},
             {
@@ -57,27 +113,43 @@ def drivers_fragment():
                 "status": 1,
                 "truck": 1,
                 "dispatcher": 1,
-                "hiring_company": 1  # <== добавляем это
+                "hiring_company": 1,
+                "license.expiration_date": 1,
+                "medical_card.expiration_date": 1
             }
         ))
 
-        # Только нужные поля из trucks и dispatchers
         trucks = list(trucks_collection.find({'company': current_user.company}, {"_id": 1, "unit_number": 1}))
         dispatchers = list(users_collection.find({'company': current_user.company, 'role': 'dispatch'}, {"_id": 1, "username": 1}))
         companies = list(db['companies'].find({}, {"_id": 1, "name": 1}))
 
-        # Сопоставления по ID
         truck_units = {str(truck['_id']): truck['unit_number'] for truck in trucks}
         dispatcher_map = {str(dispatcher['_id']): dispatcher['username'] for dispatcher in dispatchers}
 
-        # Обогащаем данными
         for i in range(len(drivers)):
-            drivers[i] = convert_to_str_id(drivers[i])
-            # преобразуем hiring_company в строку, если есть
-            if drivers[i].get('hiring_company'):
-                drivers[i]['hiring_company'] = str(drivers[i]['hiring_company'])
-            drivers[i]['truck_unit'] = truck_units.get(str(drivers[i].get('truck')), 'Нет трака')
-            drivers[i]['dispatcher_name'] = dispatcher_map.get(str(drivers[i].get('dispatcher')), 'Нет диспетчера')
+            driver = drivers[i]
+            driver = convert_to_str_id(driver)
+
+            if driver.get('hiring_company'):
+                driver['hiring_company'] = str(driver['hiring_company'])
+
+            driver['truck_unit'] = truck_units.get(str(driver.get('truck')), 'Нет трака')
+            driver['dispatcher_name'] = dispatcher_map.get(str(driver.get('dispatcher')), 'Нет диспетчера')
+
+            lic_exp = driver.get('license', {}).get('expiration_date')
+            med_exp = driver.get('medical_card', {}).get('expiration_date')
+
+            driver['license_expiration_str'] = format_local_date(lic_exp)
+            driver['medical_expiration_str'] = format_local_date(med_exp)
+
+            print(f"\n🔽 Водитель: {driver['name']}")
+            driver['status_color'] = check_expiry_color(lic_exp, med_exp)
+            driver['tooltip'] = build_tooltip({
+                "License": lic_exp,
+                "Medical Card": med_exp
+            })
+
+            drivers[i] = driver
 
         return render_template(
             'fragments/drivers_fragment.html',

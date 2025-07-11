@@ -237,7 +237,65 @@ function initTruckAssignment() {
     });
 }
 
+function initGlobalTooltips() {
+  if (document.querySelector(".truck-tooltip")) return;
 
+  const style = document.createElement("style");
+  style.innerHTML = `
+    .truck-tooltip {
+      position: absolute;
+      background-color: rgba(50, 50, 50, 0.95);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 320px;
+      z-index: 9999;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      opacity: 0;
+      transition: opacity 0.2s ease-in-out;
+      white-space: pre-line;
+    }
+  `;
+  document.head.appendChild(style);
 
+  const tooltip = document.createElement("div");
+  tooltip.className = "truck-tooltip";
+  document.body.appendChild(tooltip);
 
+  let activeTarget = null;
+
+  document.body.addEventListener("mouseover", (e) => {
+    const el = e.target.closest("[data-tooltip]");
+    if (!el) return;
+
+    activeTarget = el;
+    const message = el.getAttribute("data-tooltip");
+    if (!message) return;
+
+    const lines = message.split(" | ").map(line => `<div>${line}</div>`).join("");
+    tooltip.innerHTML = lines;
+    tooltip.style.opacity = 1;
+
+    const rect = el.getBoundingClientRect();
+    tooltip.style.top = `${rect.top + window.scrollY - tooltip.offsetHeight - 8}px`;
+    tooltip.style.left = `${rect.left + window.scrollX + 8}px`;
+  });
+
+  document.body.addEventListener("mousemove", (e) => {
+    if (activeTarget) {
+      tooltip.style.top = `${e.pageY - tooltip.offsetHeight - 12}px`;
+      tooltip.style.left = `${e.pageX + 12}px`;
+    }
+  });
+
+  document.body.addEventListener("mouseout", (e) => {
+    if (e.target.closest("[data-tooltip]")) {
+      tooltip.style.opacity = 0;
+      activeTarget = null;
+    }
+  });
+}
 

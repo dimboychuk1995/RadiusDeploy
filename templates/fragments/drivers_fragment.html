@@ -32,6 +32,8 @@
           <tbody>
             {% for driver in company_drivers %}
               <tr id="driver-{{ driver._id }}"
+                  class="{{ driver.status_color }}"
+                  data-tooltip="{{ driver.tooltip }}"
                   data-truck-id="{{ driver.truck if driver.truck else '' }}"
                   data-dispatcher-id="{{ driver.dispatcher if driver.dispatcher else '' }}">
                 <td class="driver-name">{{ driver.name }}</td>
@@ -103,6 +105,8 @@
         <tbody>
           {% for driver in no_company_drivers %}
             <tr id="driver-{{ driver._id }}"
+                class="{{ driver.status_color }}"
+                data-tooltip="{{ driver.tooltip }}"
                 data-truck-id="{{ driver.truck if driver.truck else '' }}"
                 data-dispatcher-id="{{ driver.dispatcher if driver.dispatcher else '' }}">
               <td class="driver-name">{{ driver.name }}</td>
