@@ -5,10 +5,8 @@ function initNavigation() {
     'trucks': () => {
       initTruckModalActions?.();
       initTruckDetailsClick?.();
-      setTimeout(() => {
-        restoreOpenTruckSections();  
-        filterTrucks();// ⏱️ вызов после полной отрисовки HTML
-      }, 0);
+      restoreOpenTruckSections();  
+      filterTrucks();// ⏱️ вызов после полной отрисовки HTML
     },
     'drivers': () => {
       initDriverFilter?.();
