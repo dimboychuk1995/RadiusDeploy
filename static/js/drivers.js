@@ -360,3 +360,35 @@ function restoreOpenDriverSections() {
 
   localStorage.setItem("openDriverSections", JSON.stringify(validCompanyIds));
 }
+
+function filterDrivers() {
+  const searchValue = document.getElementById("driverSearchInput").value.trim().toLowerCase();
+  const showExpiring = document.getElementById("expiringDriversOnly").checked;
+
+  document.querySelectorAll("tr[id^='driver-']").forEach(row => {
+    const allText = row.textContent.toLowerCase();
+
+    // Содержит ли строка нужный текст
+    const matchesSearch = !searchValue || allText.includes(searchValue);
+
+    // Имеет ли класс просроченности
+    const hasExpiringClass =
+      row.classList.contains("table-warning") || row.classList.contains("table-danger");
+
+    // Финальная логика
+    const visible = matchesSearch && (!showExpiring || hasExpiringClass);
+    row.style.display = visible ? "" : "none";
+  });
+
+  // Если у компании не осталось видимых строк — скрываем всю секцию
+  document.querySelectorAll(".company-section").forEach(section => {
+    const visibleRows = section.querySelectorAll("tr[id^='driver-']:not([style*='display: none'])");
+    section.style.display = visibleRows.length > 0 ? "block" : "none";
+  });
+}
+
+function clearDriverSearch() {
+  document.getElementById("driverSearchInput").value = "";
+  document.getElementById("expiringDriversOnly").checked = false;
+  filterDrivers();
+}

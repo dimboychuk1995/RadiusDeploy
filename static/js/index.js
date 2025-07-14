@@ -13,9 +13,8 @@ function initNavigation() {
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
-      setTimeout(() => {
-        restoreOpenDriverSections();
-      }, 0);
+      restoreOpenDriverSections();
+      filterDrivers();
     },
     'dispatch_fragment': () => {
       initDispatcherCalendars?.();

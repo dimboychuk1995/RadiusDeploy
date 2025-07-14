@@ -4,6 +4,19 @@
   <button class="btn btn-primary" onclick="openDriverModal()">➕ Добавить водителя</button>
 </div>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="input-group" style="max-width: 500px;">
+    <input type="text" id="driverSearchInput" class="form-control" placeholder="Поиск по имени, email, траку, диспетчеру..." oninput="filterDrivers()">
+    <div class="input-group-append">
+      <button class="btn btn-outline-secondary" type="button" onclick="clearDriverSearch()">✖</button>
+    </div>
+  </div>
+  <div class="form-check ml-3">
+    <input type="checkbox" class="form-check-input" id="expiringDriversOnly" onchange="filterDrivers()">
+    <label class="form-check-label" for="expiringDriversOnly">Показать с истекающими сроками</label>
+  </div>
+</div>
+
 <!-- Группировка по компаниям -->
 {% for company in companies %}
   {% set company_drivers = drivers | selectattr("hiring_company", "equalto", company._id|string) | list %}
