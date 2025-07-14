@@ -3,6 +3,19 @@
   <button class="btn btn-primary" onclick="openTruckModal()">➕ Добавить грузовик</button>
 </div>
 
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="input-group" style="max-width: 500px;">
+    <input type="text" id="truckSearchInput" class="form-control" placeholder="Поиск по Unit #, Make, VIN, Driver..." oninput="filterTrucks()">
+    <div class="input-group-append">
+      <button class="btn btn-outline-secondary" type="button" onclick="clearTruckSearch()">✖</button>
+    </div>
+  </div>
+  <div class="form-check ml-3">
+    <input type="checkbox" class="form-check-input" id="expiringOnly" onchange="filterTrucks()">
+    <label class="form-check-label" for="expiringOnly">Показать с истекающими сроками</label>
+  </div>
+</div>
+
 <!-- Секции по компаниям -->
 {% for company in companies %}
   {% set company_trucks = trucks | selectattr("owning_company_id", "equalto", company._id|string) | list %}

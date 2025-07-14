@@ -6,7 +6,8 @@ function initNavigation() {
       initTruckModalActions?.();
       initTruckDetailsClick?.();
       setTimeout(() => {
-        restoreOpenTruckSections();  // ⏱️ вызов после полной отрисовки HTML
+        restoreOpenTruckSections();  
+        filterTrucks();// ⏱️ вызов после полной отрисовки HTML
       }, 0);
     },
     'drivers': () => {

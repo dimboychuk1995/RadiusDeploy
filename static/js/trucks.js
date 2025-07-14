@@ -193,3 +193,35 @@ function restoreOpenTruckSections() {
   // Очистка от несуществующих ID
   localStorage.setItem("openTruckSections", JSON.stringify(validCompanyIds));
 }
+
+  // Динамический поиск 
+function filterTrucks() {
+  const searchValue = document.getElementById("truckSearchInput").value.trim().toLowerCase();
+  const showExpiring = document.getElementById("expiringOnly").checked;
+
+  document.querySelectorAll("tbody tr").forEach(row => {
+    const unitNumber = row.children[0]?.textContent?.toLowerCase() || "";
+    const description = row.children[1]?.textContent?.toLowerCase() || "";
+    const vin = row.children[4]?.textContent?.toLowerCase() || "";  // если VIN в "Описание", можно изменить
+    const assignedDriver = row.children[4]?.textContent?.toLowerCase() || "";
+    const truckId = row.id || "";
+
+    const allText = row.textContent.toLowerCase();
+
+    // Проверка на VIN (последние 6 символов)
+    const matchVinLast6 = vin.slice(-6).includes(searchValue);
+    const matchFull = allText.includes(searchValue) || matchVinLast6;
+
+    // Проверка на истекающий статус
+    const hasExpiringClass = row.classList.contains("table-warning") || row.classList.contains("table-danger");
+
+    const visible = (!searchValue || matchFull) && (!showExpiring || hasExpiringClass);
+    row.style.display = visible ? "" : "none";
+  });
+}
+
+function clearTruckSearch() {
+  document.getElementById("truckSearchInput").value = "";
+  document.getElementById("expiringOnly").checked = false;
+  filterTrucks();
+}
