@@ -105,6 +105,9 @@ def trucks_fragment():
 
     try:
         companies = list(db['companies'].find({}, {"_id": 1, "name": 1}))
+        for company in companies:
+            company["_id_str"] = str(company["_id"])
+            
         drivers = list(db['drivers'].find({'company': current_user.company}, {'_id': 1, 'name': 1, 'truck': 1}))
 
         company_map = {str(c['_id']): c.get('name', '—') for c in companies}

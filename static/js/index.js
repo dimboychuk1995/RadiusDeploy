@@ -5,14 +5,15 @@ function initNavigation() {
     'trucks': () => {
       initTruckModalActions?.();
       initTruckDetailsClick?.();
-      initTruckTooltips?.();
+      setTimeout(() => {
+        restoreOpenTruckSections();  // ⏱️ вызов после полной отрисовки HTML
+      }, 0);
     },
     'drivers': () => {
       initDriverFilter?.();
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
-      initDriverTooltips();
     },
     'dispatch_fragment': () => {
       initDispatcherCalendars?.();

@@ -147,3 +147,49 @@ function closeUnitAssignment() {
   document.getElementById("unitAssignment")?.classList.remove("show");
   document.querySelector("#unitAssignment + .custom-offcanvas-backdrop")?.classList.remove("show");
 }
+
+
+// === две функции для того чтобы блоки всегда были открыты ===
+function toggleCompanySection(companyId) {
+  const section = document.getElementById("section-" + companyId);
+  const icon = document.getElementById("icon-" + companyId);
+
+  if (!section || !icon) return;
+
+  const isVisible = section.style.display === "block";
+  section.style.display = isVisible ? "none" : "block";
+  icon.innerHTML = isVisible ? "&#9654;" : "&#9660;";
+
+  const openSections = JSON.parse(localStorage.getItem("openTruckSections") || "[]");
+
+  if (!isVisible) {
+    if (!openSections.includes(companyId)) openSections.push(companyId);
+  } else {
+    const index = openSections.indexOf(companyId);
+    if (index !== -1) openSections.splice(index, 1);
+  }
+
+  localStorage.setItem("openTruckSections", JSON.stringify(openSections));
+}
+
+function restoreOpenTruckSections() {
+  const openSections = JSON.parse(localStorage.getItem("openTruckSections") || "[]");
+  const validCompanyIds = [];
+
+  openSections.forEach(companyId => {
+    const section = document.getElementById("section-" + companyId);
+    const icon = document.getElementById("icon-" + companyId);
+
+    if (section) {
+      section.style.display = "block";
+      if (icon) icon.innerHTML = "&#9660;";
+      console.log("✅ Открыта секция:", companyId);
+      validCompanyIds.push(companyId);
+    } else {
+      console.warn("⚠️ Секция не найдена — скорее всего, компания без грузов:", companyId);
+    }
+  });
+
+  // Очистка от несуществующих ID
+  localStorage.setItem("openTruckSections", JSON.stringify(validCompanyIds));
+}
