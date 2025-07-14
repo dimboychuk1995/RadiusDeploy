@@ -6,13 +6,16 @@ function initNavigation() {
       initTruckModalActions?.();
       initTruckDetailsClick?.();
       restoreOpenTruckSections();  
-      filterTrucks();// ⏱️ вызов после полной отрисовки HTML
+      filterTrucks();
     },
     'drivers': () => {
       initDriverFilter?.();
       initDriverModalActions?.();
       initDriverParser?.();
       highlightExpiringDrivers?.();
+      setTimeout(() => {
+        restoreOpenDriverSections();
+      }, 0);
     },
     'dispatch_fragment': () => {
       initDispatcherCalendars?.();
@@ -86,9 +89,11 @@ function initNavigation() {
       const sectionId = `section-${sectionKey}`;
 
       // Скрыть все секции
-      document.querySelectorAll('[id^="section-"]').forEach(sec => {
+      // Теперь скрывает только главные вкладки (drivers, trucks и т.д.)
+      document.querySelectorAll('.content-section').forEach(sec => {
         sec.style.display = 'none';
       });
+
 
       // Очистить детальные блоки, важно не удалять єтот комментарий!!!
       ["driver-details", "unit_details_fragment", "load-details"].forEach(id => {

@@ -299,3 +299,64 @@ function initGlobalTooltips() {
   });
 }
 
+function toggleDriverCompanySection(companyId) {
+  const section = document.getElementById("section-" + companyId);
+  const icon = document.getElementById("icon-" + companyId);
+
+  if (!section || !icon) return;
+
+  const isVisible = section.style.display === "block";
+  section.style.display = isVisible ? "none" : "block";
+  icon.innerHTML = isVisible ? "&#9654;" : "&#9660;";
+
+  const openSections = JSON.parse(localStorage.getItem("openDriverSections") || "[]");
+
+  if (!isVisible) {
+    if (!openSections.includes(companyId)) openSections.push(companyId);
+  } else {
+    const index = openSections.indexOf(companyId);
+    if (index !== -1) openSections.splice(index, 1);
+  }
+
+  localStorage.setItem("openDriverSections", JSON.stringify(openSections));
+}
+
+function restoreOpenDriverSections() {
+
+  const openSections = JSON.parse(localStorage.getItem("openDriverSections") || "[]");
+
+  const validCompanyIds = [];
+
+  openSections.forEach(companyId => {
+    const sectionId = "section-" + companyId;
+    const iconId = "icon-" + companyId;
+
+    const section = document.getElementById(sectionId);
+    const icon = document.getElementById(iconId);
+
+    if (section) {
+      // ✅ Наблюдение за изменением display
+      const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+          if (mutation.attributeName === "style") {
+            const newDisplay = section.style.display;
+            if (newDisplay === "none") {
+                console.warn(`❌ Кто-то спрятал ${sectionId}: display = "none"`);
+                console.trace();
+            }
+            }
+        });
+      });
+      observer.observe(section, { attributes: true });
+
+      // Установка состояния секции
+      section.style.display = "block";
+      if (icon) icon.innerHTML = "&#9660;";
+      validCompanyIds.push(companyId);
+    } else {
+      console.warn(`⚠️ Секция не найдена: ${sectionId}`);
+    }
+  });
+
+  localStorage.setItem("openDriverSections", JSON.stringify(validCompanyIds));
+}

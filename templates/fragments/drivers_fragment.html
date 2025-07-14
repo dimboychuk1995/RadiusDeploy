@@ -11,7 +11,7 @@
     <div class="card mb-3">
       <div class="card-header d-flex justify-content-between align-items-center"
            style="cursor: pointer;"
-           onclick="toggleCompanySection('{{ company._id }}')">
+           onclick="toggleDriverCompanySection('{{ company._id }}')">
         <h5 class="mb-0">{{ company.name }}</h5>
         <span class="toggle-icon" id="icon-{{ company._id }}">&#9660;</span>
       </div>
@@ -84,7 +84,7 @@
   <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center"
          style="cursor: pointer;"
-         onclick="toggleCompanySection('no-company')">
+         onclick="toggleDriverCompanySection('no-company')">
       <h5 class="mb-0">Без компании</h5>
       <span class="toggle-icon" id="icon-no-company">&#9660;</span>
     </div>

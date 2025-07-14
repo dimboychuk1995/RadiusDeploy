@@ -183,7 +183,6 @@ function restoreOpenTruckSections() {
     if (section) {
       section.style.display = "block";
       if (icon) icon.innerHTML = "&#9660;";
-      console.log("✅ Открыта секция:", companyId);
       validCompanyIds.push(companyId);
     } else {
       console.warn("⚠️ Секция не найдена — скорее всего, компания без грузов:", companyId);
