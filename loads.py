@@ -71,12 +71,23 @@ def ask_gpt(content):
 You are a logistics assistant. Parse the following document (Rate Confirmation or BOL) into strict JSON format.
 
 📌 RULES:
-- Return **ONLY valid JSON**, without markdown or explanation.
+- Return ONLY valid JSON — no markdown, no explanations.
+- Use double quotes (") for all keys and values.
 - Use date format: MM/DD/YYYY.
-- Use price format: ####.## (two decimals).
+- Use time format: hh:mm AM/PM.
+- Use price format: ####.## (two decimals), without currency symbols.
 - Use empty strings for missing values.
-- Include only real pickups/deliveries.
 - Do NOT invent data — if something is missing, leave it blank.
+- Include each real pickup or delivery as a separate object in the list.
+- The Broker Name is usually found in the top-left or top-center area of the document — typically as a logo or heading.
+
+📌 SPECIAL INSTRUCTIONS LOGIC:
+- Instructions may appear throughout the document — at the top, bottom, or near specific stops.
+- If an instruction clearly refers to a specific pickup or delivery stop, add it into that stop’s **Instructions** field.
+- In this case, also include it in the general **Load Description** field.
+- If instructions are general and not tied to a specific stop, include them only in **Load Description**.
+- If multiple instruction fragments refer to the same stop, append them to that stop’s **Instructions** field — do not overwrite.
+- Always collect all instruction texts found — don’t discard any valid instruction.
 
 🔁 OUTPUT FORMAT EXAMPLE:
 {{
