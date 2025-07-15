@@ -341,7 +341,6 @@ function restoreOpenDriverSections() {
           if (mutation.attributeName === "style") {
             const newDisplay = section.style.display;
             if (newDisplay === "none") {
-                console.warn(`❌ Кто-то спрятал ${sectionId}: display = "none"`);
                 console.trace();
             }
             }
@@ -354,7 +353,6 @@ function restoreOpenDriverSections() {
       if (icon) icon.innerHTML = "&#9660;";
       validCompanyIds.push(companyId);
     } else {
-      console.warn(`⚠️ Секция не найдена: ${sectionId}`);
     }
   });
 
