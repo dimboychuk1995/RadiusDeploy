@@ -280,3 +280,39 @@ function showMoreLoads(companyId) {
       console.error("Ошибка загрузки:", err);
     });
 }
+
+// search loads 
+  let globalSearchTimer = null;
+
+  function searchAllLoads() {
+    const query = document.getElementById("global-load-search").value.trim();
+    const container = document.getElementById("loads-result-container");
+
+    if (globalSearchTimer) {
+      clearTimeout(globalSearchTimer);
+    }
+
+    globalSearchTimer = setTimeout(() => {
+      if (query === "") {
+        // Перезагрузим фрагмент без фильтра — GET на loads_fragment
+        fetch('/fragment/loads_fragment')
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const fresh = doc.getElementById("loads-result-container");
+            if (fresh) container.innerHTML = fresh.innerHTML;
+          });
+        return;
+      }
+
+      fetch(`/fragment/search_all_loads?q=${encodeURIComponent(query)}`)
+        .then(res => res.text())
+        .then(html => {
+          container.innerHTML = html;
+        })
+        .catch(err => {
+          console.error("Ошибка при глобальном поиске:", err);
+        });
+    }, 300);  // debounce 300ms
+  }

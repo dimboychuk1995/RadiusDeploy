@@ -33,6 +33,8 @@ from bson import ObjectId
 from collections import defaultdict
 from flask import render_template_string
 
+
+
 loads_bp = Blueprint('loads', __name__)
 
 fs = gridfs.GridFS(db)
@@ -566,8 +568,6 @@ def loads_fragment():
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
 
 
-from flask import jsonify, render_template_string
-
 @loads_bp.route('/fragment/more_loads/<company_id>', methods=['GET'])
 @login_required
 def more_loads(company_id):
@@ -662,6 +662,142 @@ def more_loads(company_id):
         import traceback
         traceback.print_exc()
         return jsonify({"html": "<tr><td colspan='14'>Ошибка загрузки</td></tr>", "has_more": False}), 500
+
+
+@loads_bp.route('/fragment/search_all_loads', methods=['GET'])
+@login_required
+def search_all_loads():
+    from datetime import datetime, timezone
+    import pytz
+    from flask import request, render_template_string
+    from bson import ObjectId
+    import re
+
+    try:
+        query = request.args.get('q', '').strip()
+        if not query:
+            return "<div class='alert alert-info'>Введите запрос для поиска</div>"
+
+        local_tz = pytz.timezone("America/Chicago")
+        def to_local_str(dt):
+            if not dt or not isinstance(dt, datetime):
+                return ""
+            local_dt = dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
+            return local_dt.strftime("%m/%d/%Y")
+
+        query_regex = {"$regex": re.escape(query), "$options": "i"}
+
+        companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
+        company_map = {str(c["_id"]): c["name"] for c in companies}
+
+        drivers = list(drivers_collection.find(
+            {"company": current_user.company, "name": query_regex},
+            {"_id": 1, "name": 1}
+        ))
+        driver_ids = [d["_id"] for d in drivers]
+        driver_map = {str(d["_id"]): d["name"] for d in drivers}
+
+        # Грузы по текущей компании пользователя
+        loads = list(loads_collection.find({
+            "company": current_user.company,
+            "$or": [
+                {"load_id": query_regex},
+                {"broker_load_id": query_regex},
+                {"pickup.address": query_regex},
+                {"delivery.address": query_regex},
+                {"assigned_driver": {"$in": driver_ids}} if driver_ids else {"_id": None}
+            ]
+        }).sort("created_at", -1).limit(100))
+
+        # Группировка по company_sign
+        grouped = {}
+        for load in loads:
+            comp_id = str(load.get("company_sign"))
+            if comp_id not in grouped:
+                grouped[comp_id] = []
+            grouped[comp_id].append(load)
+
+        # Преобразование
+        for load in loads:
+            driver_id = str(load.get("assigned_driver"))
+            load["driver_name"] = driver_map.get(driver_id, "—")
+            load["pickup_date"] = to_local_str(load.get("pickup", {}).get("date"))
+            extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
+            if extra_deliveries:
+                load["delivery_address"] = extra_deliveries[-1].get("address", "—")
+                load["delivery_date"] = to_local_str(extra_deliveries[-1].get("date"))
+            else:
+                load["delivery_address"] = load.get("delivery", {}).get("address", "—")
+                load["delivery_date"] = to_local_str(load.get("delivery", {}).get("date"))
+
+        # HTML
+        html = render_template_string("""
+        {% for comp_id, comp_loads in grouped.items() %}
+          <div class="card mb-3">
+            <div class="card-header">
+              <h5 class="mb-0">{{ company_map[comp_id] }}</h5>
+            </div>
+            <div class="card-body">
+              <table class="table table-bordered table-sm">
+                <thead>
+                  <tr>
+                    <th>Load ID</th>
+                    <th>Broker</th>
+                    <th>Тип</th>
+                    <th>Водитель</th>
+                    <th>Pickup</th>
+                    <th>Pickup Дата</th>
+                    <th>Delivery</th>
+                    <th>Delivery Дата</th>
+                    <th>Цена</th>
+                    <th>RPM</th>
+                    <th>Статус</th>
+                    <th>Оплата</th>
+                    <th>Остановки</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for load in comp_loads %}
+                    <tr>
+                      <td>{{ load.load_id or '—' }}</td>
+                      <td>{{ load.broker_load_id or '—' }}</td>
+                      <td>{{ load.type or '—' }}</td>
+                      <td>{{ load.driver_name }}</td>
+                      <td>{{ load.pickup.address if load.pickup else '—' }}</td>
+                      <td>{{ load.pickup_date }}</td>
+                      <td>{{ load.delivery_address }}</td>
+                      <td>{{ load.delivery_date }}</td>
+                      <td>${{ load.price or '—' }}</td>
+                      <td>${{ load.RPM or '—' }}</td>
+                      <td>{{ load.status or '—' }}</td>
+                      <td>{{ load.payment_status or '—' }}</td>
+                      <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
+                      <td>
+                        <div class="btn-group btn-group-sm">
+                          <button class="btn btn-info" onclick="showLoadDetails('{{ load._id }}')">Детали</button>
+                          <button class="btn btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
+                          <button class="btn btn-warning" onclick="openAssignDriverModal('{{ load._id }}')">Назначить</button>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endfor %}
+        {% if grouped|length == 0 %}
+          <div class="alert alert-warning">Ничего не найдено</div>
+        {% endif %}
+        """, grouped=grouped, company_map=company_map)
+
+        return html
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return "<div class='alert alert-danger'>Ошибка при поиске</div>", 500
 
 
 @loads_bp.route("/api/get_mileage", methods=["POST"])
