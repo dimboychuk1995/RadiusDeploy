@@ -164,6 +164,13 @@
       </div>
       {% endif %}
 
+      <!-- Скрытый блок для передачи is_super_dispatch_order -->
+      <div id="photoData"
+          data-load-id="{{ load_id }}"
+          data-is-super-dispatch="{{ 'true' if load.is_super_dispatch_order else 'false' }}"
+          style="display: none;"></div>
+
+
     </div>
   </div>
 </div>

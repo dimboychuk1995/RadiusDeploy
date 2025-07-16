@@ -1003,8 +1003,19 @@ def load_details_fragment():
         mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
 
         # Проверка наличия фото
-        has_pickup_photos = bool(load.get("pickup_photo_ids"))
-        has_delivery_photos = bool(load.get("delivery_photo_ids"))
+        if load.get("is_super_dispatch_order"):
+            vehicles = load.get("vehicles", [])
+            has_pickup_photos = any(
+                photo.get("step") == "pickup" and photo.get("url")
+                for v in vehicles for photo in v.get("photos", [])
+            )
+            has_delivery_photos = any(
+                photo.get("step") == "delivery" and photo.get("url")
+                for v in vehicles for photo in v.get("photos", [])
+            )
+        else:
+            has_pickup_photos = bool(load.get("pickup_photo_ids"))
+            has_delivery_photos = bool(load.get("delivery_photo_ids"))
 
         return render_template(
             "fragments/load_details_fragment.html",
@@ -1070,6 +1081,45 @@ def get_load_photo_web(photo_id):
         return send_file(file, mimetype=file.content_type)
     except Exception:
         return "File not found", 404
+
+
+@loads_bp.route("/api/load/super_dispatch_photos", methods=["GET"])
+@login_required
+def get_super_dispatch_order_photos():
+    """
+    Возвращает список фото (URL) для заказов из Super Dispatch,
+    фильтруя по stage: pickup / delivery.
+    """
+    try:
+        load_id = request.args.get("id")
+        stage = request.args.get("stage")  # "pickup" или "delivery"
+
+        if not load_id or stage not in ["pickup", "delivery"]:
+            return jsonify({"error": "Missing or invalid parameters"}), 400
+
+        load = loads_collection.find_one({
+            "_id": ObjectId(load_id),
+            "company": current_user.company,
+            "is_super_dispatch_order": True
+        })
+
+        if not load:
+            return jsonify({"error": "Super Dispatch order not found"}), 404
+
+        vehicles = load.get("vehicles", [])
+        photo_urls = []
+
+        for vehicle in vehicles:
+            for photo in vehicle.get("photos", []):
+                if photo.get("step") == stage and photo.get("url"):
+                    photo_urls.append(photo["url"])
+
+        return jsonify({"photos": photo_urls})
+
+    except Exception as e:
+        logging.exception("Ошибка при получении фото из Super Dispatch")
+        return jsonify({"error": "Server error"}), 500
+
 
 import threading
 

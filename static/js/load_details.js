@@ -156,13 +156,23 @@ let currentPhotoIndex = 0;
 function loadStagePhotos(loadId, stage) {
   const containerId = stage + "PhotosContainer";
   const container = document.getElementById(containerId);
+  const photoData = document.getElementById("photoData");
 
-  if (container.dataset.loaded === "true") return;
+  if (!container || container.dataset.loaded === "true" || !photoData) return;
 
-  fetch(`/api/load/photos?id=${loadId}&stage=${stage}`)
+  const isSuperDispatch = photoData.dataset.isSuperDispatch === "true";
+
+  container.innerHTML = "<p>Загрузка фото...</p>";
+
+  const apiUrl = isSuperDispatch
+    ? `/api/load/super_dispatch_photos?id=${loadId}&stage=${stage}`
+    : `/api/load/photos?id=${loadId}&stage=${stage}`;
+
+  fetch(apiUrl)
     .then(res => res.json())
     .then(data => {
       container.innerHTML = "";
+
       if (data.photos && data.photos.length > 0) {
         currentPhotoUrls = data.photos;
 
@@ -184,15 +194,17 @@ function loadStagePhotos(loadId, stage) {
           container.appendChild(imgWrapper);
         });
       } else {
-        container.textContent = "Нет загруженных фото.";
+        container.textContent = "Фото не найдены.";
       }
+
       container.dataset.loaded = "true";
     })
     .catch(err => {
-      container.innerHTML = "Ошибка при загрузке фото";
-      console.error("Ошибка при загрузке фото:", err);
+      container.innerHTML = "Ошибка при загрузке фото.";
+      console.error("Ошибка загрузки фото:", err);
     });
 }
+
 
 // Инициализация клика по миниатюре
 function initPhotoPreviewModal() {
