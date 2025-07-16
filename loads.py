@@ -29,7 +29,9 @@ import pytz
 from utils.notifications import send_push_notification
 from tools.jwt_auth import jwt_required
 from datetime import datetime, timezone
-
+from bson import ObjectId
+from collections import defaultdict
+from flask import render_template_string
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -456,36 +458,29 @@ def customers_list():
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
 def loads_fragment():
-    from datetime import datetime, timezone
-    import pytz
-
     try:
         # Таймзона компании
-        local_tz = pytz.timezone("America/Chicago")  # можно заменить динамически
+        local_tz = pytz.timezone("America/Chicago")
 
-        # Функция преобразования даты из UTC → local → строка
         def to_local_str(dt):
             if not dt or not isinstance(dt, datetime):
                 return ""
             local_dt = dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
             return local_dt.strftime("%m/%d/%Y")
 
-        # Получаем все компании (если используется в шаблоне)
+        # Компании
         companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 
-        # Получаем всех водителей компании
+        # Водители компании
         all_drivers = list(drivers_collection.find(
             {'company': current_user.company},
             {"_id": 1, "name": 1, "dispatcher": 1, "status": 1, "truck": 1}
         ))
-
-        # Фильтрация: активные с траками
         filtered_drivers = [
             d for d in all_drivers
             if d.get('status') == 'Active' and d.get('truck')
         ]
 
-        # Если диспетчер — сортировка водителей
         if hasattr(current_user, 'role') and current_user.role == 'dispatch':
             dispatcher_id = ObjectId(current_user.get_id())
             own_drivers = [d for d in filtered_drivers if d.get('dispatcher') == dispatcher_id]
@@ -494,17 +489,16 @@ def loads_fragment():
         else:
             drivers = filtered_drivers
 
-        # Карта ID -> имя
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
-        # Все диспетчеры компании
+        # Диспетчеры
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
             {"_id": 1, "username": 1}
         ))
 
-        # Грузы
-        loads = list(loads_collection.find(
+        # Загружаем все грузы компании с датой создания
+        all_loads = list(loads_collection.find(
             {'company': current_user.company},
             {
                 "load_id": 1,
@@ -522,23 +516,34 @@ def loads_fragment():
                 "status": 1,
                 "payment_status": 1,
                 "extra_stops": 1,
-                "company_sign": 1
+                "company_sign": 1,
+                "created_at": 1
             }
         ))
 
+        # Группировка по company_sign
+        company_load_map = defaultdict(list)
+        for load in all_loads:
+            company_id = str(load.get("company_sign", "unknown"))
+            company_load_map[company_id].append(load)
+
+        # Отбор 5 последних по created_at
+        final_loads = []
+        for company_id, loads in company_load_map.items():
+            # Отсортировать по created_at DESC (по убыванию)
+            sorted_loads = sorted(loads, key=lambda x: x.get("created_at", datetime.min), reverse=True)
+            final_loads.extend(sorted_loads[:5])
+
         # Обогащение
-        for load in loads:
+        for load in final_loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
-
             if load.get("company_sign"):
                 load["company_sign"] = str(load["company_sign"])
 
-            # pickup date
             pickup_dt = load.get("pickup", {}).get("date")
             load["pickup_date"] = to_local_str(pickup_dt)
 
-            # delivery date
             extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
             if extra_deliveries:
                 last_delivery = extra_deliveries[-1]
@@ -550,7 +555,7 @@ def loads_fragment():
         return render_template(
             "fragments/loads_fragment.html",
             drivers=drivers,
-            loads=loads,
+            loads=final_loads,
             companies=companies,
             dispatchers=dispatchers,
             current_user=current_user,
@@ -559,6 +564,104 @@ def loads_fragment():
 
     except Exception as e:
         return render_template("error.html", message="Ошибка загрузки фрагмента грузов")
+
+
+from flask import jsonify, render_template_string
+
+@loads_bp.route('/fragment/more_loads/<company_id>', methods=['GET'])
+@login_required
+def more_loads(company_id):
+
+    try:
+        local_tz = pytz.timezone("America/Chicago")
+        def to_local_str(dt):
+            if not dt or not isinstance(dt, datetime):
+                return ""
+            local_dt = dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
+            return local_dt.strftime("%m/%d/%Y")
+
+        offset = int(request.args.get('offset', 0))
+        limit = 5
+        company_obj_id = ObjectId(company_id)
+
+        drivers = list(drivers_collection.find(
+            {"company": current_user.company},
+            {"_id": 1, "name": 1}
+        ))
+        driver_map = {str(d["_id"]): d["name"] for d in drivers}
+
+        cursor = loads_collection.find(
+            {"company": current_user.company, "company_sign": company_obj_id},
+            {
+                "load_id": 1,
+                "broker_load_id": 1,
+                "type": 1,
+                "assigned_driver": 1,
+                "pickup.address": 1,
+                "pickup.date": 1,
+                "delivery.address": 1,
+                "delivery.date": 1,
+                "extra_delivery": 1,
+                "extra_deliveries": 1,
+                "price": 1,
+                "RPM": 1,
+                "status": 1,
+                "payment_status": 1,
+                "extra_stops": 1,
+                "company_sign": 1,
+                "created_at": 1
+            }
+        ).sort("created_at", -1).skip(offset).limit(limit + 1)
+
+        loads = list(cursor)
+        has_more = len(loads) > limit
+        if has_more:
+            loads = loads[:limit]
+
+        for load in loads:
+            load["driver_name"] = driver_map.get(str(load.get("assigned_driver")), "—")
+            load["pickup_date"] = to_local_str(load.get("pickup", {}).get("date"))
+            extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
+            if extra_deliveries:
+                load["delivery_address"] = extra_deliveries[-1].get("address", "—")
+                load["delivery_date"] = to_local_str(extra_deliveries[-1].get("date"))
+            else:
+                load["delivery_address"] = load.get("delivery", {}).get("address", "—")
+                load["delivery_date"] = to_local_str(load.get("delivery", {}).get("date"))
+
+        html = render_template_string("""
+        {% for load in loads %}
+        <tr class="company-row-{{ company_id }}">
+          <td>{{ load.load_id or '—' }}</td>
+          <td>{{ load.broker_load_id or '—' }}</td>
+          <td>{{ load.type or '—' }}</td>
+          <td>{{ load.driver_name }}</td>
+          <td>{{ load.pickup.address if load.pickup else '—' }}</td>
+          <td>{{ load.pickup_date }}</td>
+          <td>{{ load.delivery_address }}</td>
+          <td>{{ load.delivery_date }}</td>
+          <td>${{ load.price or '—' }}</td>
+          <td>${{ load.RPM or '—' }}</td>
+          <td>{{ load.status or '—' }}</td>
+          <td>{{ load.payment_status or '—' }}</td>
+          <td>{{ load.extra_stops if load.extra_stops is not none else '—' }}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-info" onclick="showLoadDetails('{{ load._id }}')">Детали</button>
+              <button type="button" class="btn btn-danger" onclick="deleteLoad('{{ load._id }}')">Удалить</button>
+              <button type="button" class="btn btn-warning" onclick="openAssignDriverModal('{{ load._id }}')">Назначить</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        """, loads=loads, company_id=company_id)
+
+        return jsonify({"html": html, "has_more": has_more})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"html": "<tr><td colspan='14'>Ошибка загрузки</td></tr>", "has_more": False}), 500
 
 
 @loads_bp.route("/api/get_mileage", methods=["POST"])

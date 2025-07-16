@@ -260,3 +260,23 @@ function expandAllCompanySections() {
   });
 }
 
+// More loads
+function showMoreLoads(companyId) {
+  const rows = document.querySelectorAll(`.company-row-${companyId}`);
+  const offset = rows.length;
+
+  fetch(`/fragment/more_loads/${companyId}?offset=${offset}`)
+    .then(res => res.json())
+    .then(data => {
+      const tbody = document.querySelector(`#company-table-${companyId} tbody`);
+      tbody.insertAdjacentHTML("beforeend", data.html);
+
+      if (!data.has_more) {
+        const button = document.querySelector(`#show-more-btn-${companyId}`);
+        if (button) button.remove();
+      }
+    })
+    .catch(err => {
+      console.error("Ошибка загрузки:", err);
+    });
+}
