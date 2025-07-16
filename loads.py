@@ -1010,7 +1010,57 @@ def load_details_fragment():
     except Exception as e:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
         return "Server error", 500
+    
+# photos for load details
+@loads_bp.route("/api/load/photos", methods=["GET"])
+@login_required
+def get_load_photos():
+    """
+    Возвращает список URL фото из GridFS для pickup или delivery.
+    Используется в деталях груза при раскрытии секций "Фото с Pickup" / "Фото с Delivery".
+    """
+    try:
+        load_id = request.args.get("id")
+        stage = request.args.get("stage")  # "pickup" или "delivery"
 
+        if not load_id or stage not in ["pickup", "delivery"]:
+            return jsonify({"error": "Missing or invalid parameters"}), 400
+
+        load = loads_collection.find_one({
+            "_id": ObjectId(load_id),
+            "company": current_user.company
+        })
+
+        if not load:
+            return jsonify({"error": "Load not found"}), 404
+
+        # Если это заказ из Super Dispatch — фото здесь не хранятся
+        if load.get("is_super_dispatch_order"):
+            return jsonify({"error": "Photos for Super Dispatch orders are external"}), 400
+
+        photo_field = f"{stage}_photo_ids"
+        photo_ids = load.get(photo_field, [])
+
+        # Собираем ссылки на фото из GridFS
+        photo_urls = [
+            url_for('loads.get_load_photo_web', photo_id=str(photo_id), _external=True)
+            for photo_id in photo_ids
+        ]
+
+        return jsonify({"photos": photo_urls})
+
+    except Exception as e:
+        logging.exception("Ошибка при получении фото груза")
+        return jsonify({"error": "Server error"}), 500
+
+@loads_bp.route("/load/photo/<photo_id>")
+@login_required
+def get_load_photo_web(photo_id):
+    try:
+        file = fs.get(ObjectId(photo_id))
+        return send_file(file, mimetype=file.content_type)
+    except Exception:
+        return "File not found", 404
 
 import threading
 

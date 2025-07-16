@@ -147,3 +147,32 @@ function geocodeAddress(address, token) {
     });
 }
 
+function loadStagePhotos(loadId, stage) {
+  const containerId = stage + "PhotosContainer";
+  const container = document.getElementById(containerId);
+
+  // Не подгружать повторно
+  if (container.dataset.loaded === "true") return;
+
+  fetch(`/api/load/photos?id=${loadId}&stage=${stage}`)
+    .then(res => res.json())
+    .then(data => {
+      container.innerHTML = "";
+      if (data.photos && data.photos.length > 0) {
+        data.photos.forEach(url => {
+          const img = document.createElement("img");
+          img.src = url;
+          img.style.maxWidth = "100%";
+          img.className = "mb-3 img-thumbnail";
+          container.appendChild(img);
+        });
+      } else {
+        container.textContent = "Нет загруженных фото.";
+      }
+      container.dataset.loaded = "true";
+    })
+    .catch(err => {
+      container.innerHTML = "Ошибка при загрузке фото";
+      console.error("Ошибка при загрузке фото:", err);
+    });
+}

@@ -126,6 +126,40 @@
         </div>
       </div>
 
+      <!-- 🖼️ Фото Pickup -->
+      <div class="card mb-2">
+        <div class="card-header" role="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#pickupPhotosCollapse"
+            aria-expanded="false"
+            aria-controls="pickupPhotosCollapse"
+            onclick="loadStagePhotos('{{ load_id }}', 'pickup')">
+          🖼️ Фото с Pickup
+        </div>
+        <div id="pickupPhotosCollapse" class="collapse">
+          <div class="card-body">
+            <div id="pickupPhotosContainer">Загрузка...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🖼️ Фото Delivery -->
+      <div class="card mb-4">
+        <div class="card-header" role="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#deliveryPhotosCollapse"
+            aria-expanded="false"
+            aria-controls="deliveryPhotosCollapse"
+            onclick="loadStagePhotos('{{ load_id }}', 'delivery')">
+          🖼️ Фото с Delivery
+        </div>
+        <div id="deliveryPhotosCollapse" class="collapse">
+          <div class="card-body">
+            <div id="deliveryPhotosContainer">Загрузка...</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
