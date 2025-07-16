@@ -355,9 +355,15 @@ def import_super_dispatch_orders():
             if rpm:
                 load_doc["RPM"] = rpm
 
+            now = datetime.now(timezone.utc)
+            load_doc["updated_at"] = now
+
             result = loads_collection.update_one(
                 {"load_id": load_doc["load_id"]},
-                {"$set": load_doc},
+                {
+                    "$set": load_doc,
+                    "$setOnInsert": {"created_at": now}
+                },
                 upsert=True
             )
 
@@ -377,7 +383,6 @@ def import_super_dispatch_orders():
         socketio.emit("super_dispatch_done", result)
         print(result["message"])
         return result, 500
-
 
 
 @super_dispatch_bp.route('/test/super_dispatch_orders_list', methods=['GET'])
