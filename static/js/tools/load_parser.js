@@ -1,23 +1,17 @@
 function initLoadParser() {
-  console.log("✅ initLoadParser вызван");
-
   setTimeout(() => {
     const rateConInput = document.getElementById("rateConInput");
-    if (!rateConInput) {
-      console.warn("❌ rateConInput не найден (initLoadParser)");
-      return;
-    }
+    if (!rateConInput) return;
 
     rateConInput.addEventListener("change", () => {
       const file = rateConInput.files[0];
-      console.log("📁 Выбран файл:", file);
-
       if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
 
       const formData = new FormData();
       formData.append("file", file);
 
-      console.log("📤 Отправка на /api/parse_load_pdf...");
+      const overlay = document.getElementById("pdfOverlay");
+      if (overlay) overlay.classList.remove("d-none");
 
       fetch("/api/parse_load_pdf", {
         method: "POST",
@@ -25,16 +19,18 @@ function initLoadParser() {
       })
         .then(res => res.json())
         .then(data => {
-          console.log("✅ Ответ от API:", data);
           autofillLoadForm(data);
         })
-        .catch(err => {
-          console.error("❌ Ошибка при fetch:", err);
+        .catch(() => {
           alert("Ошибка при отправке файла на сервер.");
+        })
+        .finally(() => {
+          if (overlay) overlay.classList.add("d-none");
         });
     });
   }, 100);
 }
+
 
 function formatDateToInput(dateString) {
   if (!dateString) return "";

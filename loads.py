@@ -28,6 +28,8 @@ from flask import send_file
 import pytz
 from utils.notifications import send_push_notification
 from tools.jwt_auth import jwt_required
+from datetime import datetime, timezone
+
 
 loads_bp = Blueprint('loads', __name__)
 
@@ -227,6 +229,7 @@ def parse_load_pdf():
         logging.exception("Ошибка при OCR и обработке PDF")
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
 
+
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role(['admin', 'dispatch'])
 def add_load():
@@ -381,7 +384,8 @@ def add_load():
             "rate_con": rate_con_id,
             "bol": bol_id,
             "company": current_user.company,
-            "was_added_to_statement": False
+            "was_added_to_statement": False,
+            "created_at": datetime.now(timezone.utc)  # 🆕 поле для индексации и сортировки
         }
 
         print("📦 Собран load_data, вставляем в базу...")
