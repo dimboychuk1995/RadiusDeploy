@@ -985,26 +985,35 @@ def load_details_fragment():
         if not load_id:
             return "Missing load ID", 400
 
-        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        load = loads_collection.find_one({
+            "_id": ObjectId(load_id),
+            "company": current_user.company
+        })
+
         if not load:
             return "Load not found", 404
 
-        # Приведение потенциально отсутствующих полей к пустым спискам
         load["extra_pickups"] = load.get("extra_pickups") or []
         load["extra_deliveries"] = load.get("extra_deliveries") or []
 
         driver = None
         if load.get("assigned_driver"):
-            driver = drivers_collection.find_one({"_id": load.get("assigned_driver")})
+            driver = drivers_collection.find_one({"_id": load["assigned_driver"]})
 
         mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
+
+        # Проверка наличия фото
+        has_pickup_photos = bool(load.get("pickup_photo_ids"))
+        has_delivery_photos = bool(load.get("delivery_photo_ids"))
 
         return render_template(
             "fragments/load_details_fragment.html",
             load=load,
             driver=driver,
             mapbox_token=mapbox_token,
-            load_id=str(load["_id"])
+            load_id=str(load["_id"]),
+            has_pickup_photos=has_pickup_photos,
+            has_delivery_photos=has_delivery_photos
         )
 
     except Exception as e:

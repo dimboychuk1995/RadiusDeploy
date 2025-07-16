@@ -127,6 +127,7 @@
       </div>
 
       <!-- 🖼️ Фото Pickup -->
+      {% if has_pickup_photos %}
       <div class="card mb-2">
         <div class="card-header" role="button"
             data-bs-toggle="collapse"
@@ -142,8 +143,10 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       <!-- 🖼️ Фото Delivery -->
+      {% if has_delivery_photos %}
       <div class="card mb-4">
         <div class="card-header" role="button"
             data-bs-toggle="collapse"
@@ -159,7 +162,31 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
+    </div>
+  </div>
+</div>
+
+<!-- Модалка с переключением фото -->
+<div class="modal fade" id="photoPreviewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content bg-dark position-relative">
+      <div class="modal-body text-center">
+        <img id="modalPhoto" src="" class="img-fluid rounded" style="max-height: 90vh;">
+      </div>
+
+      <!-- Левая кнопка -->
+      <button class="btn btn-secondary position-absolute top-50 start-0 translate-middle-y"
+              style="z-index: 1051;" onclick="prevPhoto()">
+        ◀
+      </button>
+
+      <!-- Правая кнопка -->
+      <button class="btn btn-secondary position-absolute top-50 end-0 translate-middle-y"
+              style="z-index: 1051;" onclick="nextPhoto()">
+        ▶
+      </button>
     </div>
   </div>
 </div>

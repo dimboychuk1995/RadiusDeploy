@@ -17,6 +17,7 @@ function showLoadDetails(loadId) {
       // ✅ ВАЖНО: вызываем инициализацию карты после вставки HTML
       if (typeof initLoadDetails === "function") {
         initLoadDetails();
+        initPhotoPreviewModal();
       }
     })
     .catch(error => {
@@ -147,11 +148,15 @@ function geocodeAddress(address, token) {
     });
 }
 
+
+let currentPhotoUrls = [];
+let currentPhotoIndex = 0;
+
+// Загрузка фото pickup/delivery
 function loadStagePhotos(loadId, stage) {
   const containerId = stage + "PhotosContainer";
   const container = document.getElementById(containerId);
 
-  // Не подгружать повторно
   if (container.dataset.loaded === "true") return;
 
   fetch(`/api/load/photos?id=${loadId}&stage=${stage}`)
@@ -159,12 +164,24 @@ function loadStagePhotos(loadId, stage) {
     .then(data => {
       container.innerHTML = "";
       if (data.photos && data.photos.length > 0) {
-        data.photos.forEach(url => {
+        currentPhotoUrls = data.photos;
+
+        data.photos.forEach((url, index) => {
+          const imgWrapper = document.createElement("div");
+          imgWrapper.className = "d-inline-block m-1";
+
           const img = document.createElement("img");
           img.src = url;
-          img.style.maxWidth = "100%";
-          img.className = "mb-3 img-thumbnail";
-          container.appendChild(img);
+          img.style.width = "150px";
+          img.style.cursor = "pointer";
+          img.className = "img-thumbnail";
+          img.setAttribute("data-bs-toggle", "modal");
+          img.setAttribute("data-bs-target", "#photoPreviewModal");
+          img.setAttribute("data-full-url", url);
+          img.setAttribute("data-all-urls", JSON.stringify(data.photos));
+
+          imgWrapper.appendChild(img);
+          container.appendChild(imgWrapper);
         });
       } else {
         container.textContent = "Нет загруженных фото.";
@@ -175,4 +192,39 @@ function loadStagePhotos(loadId, stage) {
       container.innerHTML = "Ошибка при загрузке фото";
       console.error("Ошибка при загрузке фото:", err);
     });
+}
+
+// Инициализация клика по миниатюре
+function initPhotoPreviewModal() {
+  document.addEventListener("click", function (e) {
+    const target = e.target;
+    if (target.tagName === "IMG" && target.dataset.fullUrl && target.dataset.allUrls) {
+      try {
+        currentPhotoUrls = JSON.parse(target.dataset.allUrls);
+        currentPhotoIndex = currentPhotoUrls.indexOf(target.dataset.fullUrl);
+        showPhoto(currentPhotoIndex);
+      } catch (err) {
+        console.error("Ошибка парсинга URL массива:", err);
+      }
+    }
+  });
+}
+
+// Показать фото по индексу
+function showPhoto(index) {
+  const modalImg = document.getElementById("modalPhoto");
+  if (!modalImg || currentPhotoUrls.length === 0) return;
+
+  currentPhotoIndex = (index + currentPhotoUrls.length) % currentPhotoUrls.length;
+  modalImg.src = currentPhotoUrls[currentPhotoIndex];
+}
+
+// Следующее фото
+function nextPhoto() {
+  showPhoto(currentPhotoIndex + 1);
+}
+
+// Предыдущее фото
+function prevPhoto() {
+  showPhoto(currentPhotoIndex - 1);
 }
