@@ -92,7 +92,6 @@
   {% endfor %}
 </div>
 
-
 <!-- Выезжающее модальное окно -->
 <div class="custom-offcanvas custom-offcanvas-right" id="createLoadModal">
   <div class="custom-offcanvas-content">
@@ -153,62 +152,82 @@
                   <option value="">-- Выбрать диспетчера --</option>
                   {% for dispatcher in dispatchers %}
                     <option value="{{ dispatcher._id }}"
-                        {% if current_user.role == 'dispatch' and current_user_id == dispatcher._id|string %}selected{% endif %}>
-                        {{ dispatcher.username }}
+                      {% if current_user.role == 'dispatch' and current_user_id == dispatcher._id|string %}selected{% endif %}>
+                      {{ dispatcher.username }}
                     </option>
                   {% endfor %}
                 </select>
               </div>
             </div>
 
-            <div class="form-group"><label>Load ID</label><input type="text" class="form-control" name="load_id" required></div>
+            <!-- 🟦 Информация о грузе -->
+            <div class="border p-3 mb-4 rounded bg-light">
+              <h5 class="mb-3">Информация о грузе</h5>
 
-            <div class="form-group">
-              <label>Тип партнёра</label>
-              <select name="broker_customer_type" class="form-control">
-                <option value="broker" selected>Брокер</option>
-                <option value="customer">Кастомер</option>
-              </select>
-            </div>
+              <div class="form-group"><label>Load ID</label><input type="text" class="form-control" name="load_id" required></div>
 
-            <div class="form-group">
-              <label>Брокер / Кастомер</label>
-              <select class="form-control select2" id="brokerSelect" name="broker_load_id" style="width: 100%">
-                <option value="">Выберите...</option>
-              </select>
-            </div>
+              <div class="form-group">
+                <label>Тип груза</label>
+                <select name="type" class="form-control">
+                  <option value="">-- Выбрать тип --</option>
+                  <option value="general">General</option>
+                  <option value="flat bed">Flat Bed</option>
+                  <option value="reefer">Reefer</option>
+                  <option value="equipment">Equipment</option>
+                  <option value="vehicle">Vehicle</option>
+                </select>
+              </div>
 
-            <div class="form-group"><label>Broker Email</label><input type="email" class="form-control" name="broker_email"></div>
-            <div class="form-group"><label>Broker Phone Number</label><input type="text" class="form-control" name="broker_phone_number"></div>
-
-            <div class="form-group">
-              <label>Тип груза</label>
-              <select name="type" class="form-control">
-                <option value="">-- Выбрать тип --</option>
-                <option value="general">General</option>
-                <option value="flat bed">Flat Bed</option>
-                <option value="reefer">Reefer</option>
-                <option value="equipment">Equipment</option>
-                <option value="vehicle">Vehicle</option>
-              </select>
-            </div>
-            <div class="form-group"><label>Цена груза ($)</label><input type="text" class="form-control" name="price"></div>
-            <div class="form-group">
-              <label>Total Miles</label>
-              <input type="text" class="form-control" name="total_miles" readonly>
-            </div>
-            <div class="form-group"><label>Rate Per Mile</label><input type="text" class="form-control" name="RPM"></div>
-            <div class="form-group"><label>Вес груза (lbs)</label><input type="text" class="form-control" name="weight"></div>
-            <div id="description-block" style="display: none;">
               <div class="form-group"><label>Load Description</label><textarea class="form-control" name="load_description"></textarea></div>
             </div>
 
+            <!-- 🟦 Партнёр -->
+            <div class="border p-3 mb-4 rounded bg-light">
+              <h5 class="mb-3">Партнёр</h5>
+
+              <div class="form-group">
+                <label>Тип партнёра</label>
+                <select name="broker_customer_type" class="form-control">
+                  <option value="broker" selected>Брокер</option>
+                  <option value="customer">Кастомер</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Брокер / Кастомер</label>
+                <select class="form-control select2" id="brokerSelect" name="broker_load_id" style="width: 100%">
+                  <option value="">Выберите...</option>
+                </select>
+              </div>
+
+              <div class="form-group"><label>Broker Email</label><input type="email" class="form-control" name="broker_email"></div>
+              <div class="form-group"><label>Broker Phone Number</label><input type="text" class="form-control" name="broker_phone_number"></div>
+            </div>
+
+            <!-- 🟦 Финансовые параметры -->
+            <div class="border p-3 mb-4 rounded bg-light">
+              <h5 class="mb-3">Финансовые параметры</h5>
+
+              <div class="form-group"><label>Цена груза ($)</label><input type="text" class="form-control" name="price"></div>
+
+              <div class="form-group">
+                <label>Total Miles</label>
+                <input type="text" class="form-control" name="total_miles" readonly>
+              </div>
+
+              <div class="form-group"><label>Rate Per Mile</label><input type="text" class="form-control" name="RPM"></div>
+
+              <div class="form-group"><label>Вес груза (lbs)</label><input type="text" class="form-control" name="weight"></div>
+            </div>
+
+            <!-- Динамические блоки -->
             <div id="vehicles-block" style="display: none;">
               <h5>Информация об авто</h5>
               <div id="vehicle-entries"></div>
               <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addVehicle()">➕ Добавить авто</button>
             </div>
 
+            <!-- Pickup -->
             <hr><h5>Pickup</h5>
             <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="pickup_company"></div>
             <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="pickup_address"></div>
@@ -218,10 +237,12 @@
             <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="pickup_contact_phone_number"></div>
             <div class="form-group"><label>Email</label><input type="email" class="form-control" name="pickup_contact_email"></div>
 
+            <!-- Extra Pickup -->
             <hr><h5>Extra Pickup</h5>
             <div id="extra-pickups-container"></div>
             <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraPickup()">➕ Добавить Extra Pickup</button>
 
+            <!-- Delivery -->
             <hr><h5>Delivery</h5>
             <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="delivery_company"></div>
             <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="delivery_address"></div>
@@ -231,10 +252,12 @@
             <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="delivery_contact_phone_number"></div>
             <div class="form-group"><label>Email</label><input type="email" class="form-control" name="delivery_contact_email"></div>
 
+            <!-- Extra Delivery -->
             <hr><h5>Extra Delivery</h5>
             <div id="extra-deliveries-container"></div>
             <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraDelivery()">➕ Добавить Extra Delivery</button>
 
+            <!-- Статусы -->
             <div class="form-group mt-3">
               <label>Статус груза</label>
               <select class="form-control" name="status">
@@ -256,6 +279,7 @@
               </select>
             </div>
 
+            <!-- Файлы -->
             <div class="form-group"><label>Rate Con (PDF)</label><input type="file" class="form-control" name="rate_con"></div>
             <div class="form-group"><label>BOL (PDF)</label><input type="file" class="form-control" name="bol"></div>
 
@@ -269,7 +293,9 @@
         <!-- Правая часть -->
         <div class="load-modal-right">
           <div class="upload-box">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64">
+              <path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/>
+            </svg>
             <strong>Import Rate Confirmation Document</strong>
             <p class="text-muted">Drag and drop or <label for="rateConInput">choose PDF</label> to upload</p>
             <input type="file" id="rateConInput" accept="application/pdf">
@@ -279,6 +305,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- Затемнение -->
 <div class="custom-offcanvas-backdrop" onclick="closeLoadModal()"></div>
