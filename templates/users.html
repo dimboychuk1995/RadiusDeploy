@@ -25,8 +25,9 @@
                 <td>{{ user.role }}</td>
                 <td>{{ user.company }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('auth.delete_user', user_id=user._id) }}"
-                          onsubmit="return confirm('Вы уверены, что хотите удалить этого пользователя?')">
+                    <form method="post"
+                        action="{{ url_for('auth.delete_user', user_id=user._id) }}"
+                        class="delete-user-form">
                         <button type="submit" class="btn btn-danger btn-sm">Удалить</button>
                     </form>
                 </td>
@@ -35,4 +36,30 @@
         </tbody>
     </table>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.delete-user-form').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); // Остановим отправку
+
+      Swal.fire({
+        title: 'Удалить пользователя?',
+        text: 'Это действие нельзя отменить!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Да, удалить',
+        cancelButtonText: 'Отмена'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          form.submit(); // Отправим форму вручную
+        }
+      });
+    });
+  });
+});
+</script>
+
 {% endblock %}
