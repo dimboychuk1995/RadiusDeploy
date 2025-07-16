@@ -282,10 +282,11 @@ def import_super_dispatch_orders():
                 price = None
 
             load_doc = {
+                "is_super_dispatch_order": True,
                 "load_id": str(order["number"]),
                 "company_sign": company_sign_id,
                 "broker_load_id": order.get("customer", {}).get("name"),
-                "broker_customer_type": "customer",
+                "broker_customer_type": "broker",
                 "broker_email": order.get("customer", {}).get("contact", {}).get("email", ""),
                 "broker_phone_number": order.get("customer", {}).get("contact", {}).get("phone", ""),
                 "type": "Vehicle",
@@ -294,7 +295,6 @@ def import_super_dispatch_orders():
                 "load_description": order.get("instructions"),
                 "vehicles": order.get("vehicles", []),
                 "assigned_driver": assigned_driver_obj,
-                "assigned_driver_name": driver_name,
                 "assigned_dispatch": assigned_dispatch_obj,
                 "assigned_power_unit": assigned_power_unit_obj,
                 "pickup": {
