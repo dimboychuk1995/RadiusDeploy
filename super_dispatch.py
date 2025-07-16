@@ -10,6 +10,9 @@ from tools.socketio_instance import socketio
 from flask import request
 import threading
 import pytz
+from flask import Response
+import json
+
 super_dispatch_bp = Blueprint('super_dispatch', __name__)
 integrations_settings_collection = db['integrations_settings']
 loads_collection = db['loads']
@@ -151,7 +154,14 @@ def get_super_dispatch_drivers():
             all_drivers.extend(data.get("data", []))
             url = data.get("pagination", {}).get("next")
 
-        return jsonify({"success": True, "drivers": all_drivers, "count": len(all_drivers)})
+        return Response(
+            json.dumps({
+                "success": True,
+                "drivers": all_drivers,
+                "count": len(all_drivers)
+            }, indent=2, ensure_ascii=False),
+            mimetype="application/json"
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -171,7 +181,7 @@ def handle_fetch_super_dispatch_orders_socket(data=None):
 
     threading.Thread(target=run).start()
 
-
+@super_dispatch_bp.route('/test/super_dispatch_orders_insert', methods=['GET'])
 def import_super_dispatch_orders():
     try:
         integration = integrations_settings_collection.find_one({"name": "Super Dispatch SKF"})
@@ -272,7 +282,7 @@ def import_super_dispatch_orders():
                 price = None
 
             load_doc = {
-                "load_id": str(order["id"]),
+                "load_id": str(order["number"]),
                 "company_sign": company_sign_id,
                 "broker_load_id": order.get("customer", {}).get("name"),
                 "broker_customer_type": "customer",
@@ -295,7 +305,10 @@ def import_super_dispatch_orders():
                         order.get("pickup", {}).get("venue", {}).get("state"),
                         order.get("pickup", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": parse_date(order.get("pickup", {}).get("scheduled_at")),
+                    "date": parse_date(
+                        order.get("pickup", {}).get("completed_at") or
+                        order.get("pickup", {}).get("scheduled_at")
+                    ),
                     "instructions": order.get("pickup", {}).get("notes", ""),
                     "contact_person": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("pickup", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -309,7 +322,10 @@ def import_super_dispatch_orders():
                         order.get("delivery", {}).get("venue", {}).get("state"),
                         order.get("delivery", {}).get("venue", {}).get("zip")
                     ])),
-                    "date": parse_date(order.get("delivery", {}).get("scheduled_at")),
+                    "date": parse_date(
+                        order.get("delivery", {}).get("completed_at") or
+                        order.get("delivery", {}).get("scheduled_at")
+                    ),
                     "instructions": order.get("delivery", {}).get("notes", ""),
                     "contact_person": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("name", ""),
                     "contact_phone_number": order.get("delivery", {}).get("venue", {}).get("contact", {}).get("phone", ""),
@@ -452,11 +468,14 @@ def get_super_dispatch_orders_list():
             except Exception as dt_err:
                 print(f"⚠️ Ошибка даты у Order {order.get('id')}: {dt_err}")
 
-        return jsonify({
-            "success": True,
-            "count": len(filtered_orders),
-            "orders": filtered_orders
-        })
+        return Response(
+            json.dumps({
+                "success": True,
+                "count": len(filtered_orders),
+                "orders": filtered_orders
+            }, indent=2, ensure_ascii=False),
+            mimetype="application/json"
+        )
 
     except Exception as e:
         logging.exception("Ошибка при получении заказов:")
