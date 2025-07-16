@@ -125,10 +125,12 @@ function initBrokerCustomerSelect() {
       });
   }
 
+  // ✅ ИНИЦИАЛИЗАЦИЯ Select2 с bootstrap-5 темой и tags
   brokerSelect.select2({
+    theme: 'bootstrap-5',
     placeholder: "Введите или выберите...",
     allowClear: true,
-    tags: true,  // ✅ Разрешает ручной ввод
+    tags: true,
     width: '100%'
   });
 
