@@ -65,6 +65,9 @@ function initNavigation() {
     'safety_ifta': () => initIFTA?.(),
     'chat': () => initChat?.(),
     'documents': () => initDocuments?.(),
+    'factoring': () => {
+      console.log("📄 Factoring фрагмент загружен");
+    },
   };
 
   function loadFragment(sectionId, url, sectionKey) {

@@ -39,6 +39,7 @@ from dispatch_schedule import dispatch_schedule_bp
 from settings import settings_bp
 from dispatch_statements import dispatch_statements_bp
 from tools.mapbox_api import mapbox_api_bp
+from factoring import factoring_bp
 
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
@@ -126,6 +127,8 @@ app.register_blueprint(settings_bp)
 app.register_blueprint(dispatch_statements_bp)
 app.register_blueprint(mobile_chat_bp)
 app.register_blueprint(mapbox_api_bp)
+app.register_blueprint(factoring_bp)
+
 
 # Главная страница
 @app.route('/')
