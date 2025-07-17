@@ -38,7 +38,6 @@ function initNavigation() {
       initLoadParser?.();
       initLoads?.();
       initBrokerCustomerSelect?.();
-      initAddressAutocompleteNew();
     },
     'logbook': () => initLogbook?.(),
     'tolls': () => {
@@ -153,9 +152,12 @@ function initNavigation() {
   });
 }
 
+
+// Глобальные функции
 document.addEventListener("DOMContentLoaded", () => {
   initNavigation();
   initGlobalTooltips();
+  initAddressAutocompleteNew();
 });
 
 async function initAddressAutocompleteNew() {
@@ -170,46 +172,68 @@ async function initAddressAutocompleteNew() {
   const token = data.token;
   console.log("✅ Mapbox токен:", token);
 
-  setupAutocomplete("pickup-autocomplete", "pickup-suggestions", token);
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      if (mutation.type === "childList") {
+        mutation.addedNodes.forEach(node => {
+          if (!(node instanceof HTMLElement)) return;
+
+          const inputs = node.querySelectorAll('input[data-autocomplete="mapbox"]');
+          inputs.forEach(input => attachMapboxAutocomplete(input, token));
+        });
+      }
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Инициализируем уже существующие поля при загрузке
+  document.querySelectorAll('input[data-autocomplete="mapbox"]').forEach(input => {
+    attachMapboxAutocomplete(input, token);
+  });
 }
 
-function setupAutocomplete(inputId, suggestionBoxId, token) {
-  const input = document.getElementById(inputId);
-  const suggestions = document.getElementById(suggestionBoxId);
+function attachMapboxAutocomplete(input, token) {
+  if (input.dataset.autocompleteInitialized) return;
 
-  if (!input || !suggestions) {
-    console.error(`❌ Не найден элемент: ${inputId} или ${suggestionBoxId}`);
-    return;
+  let suggestionBox = null;
+
+  const boxId = input.dataset.suggestions || (input.id + "-suggestions");
+  suggestionBox = document.getElementById(boxId);
+
+  if (!suggestionBox) {
+    suggestionBox = document.createElement("div");
+    suggestionBox.className = "autocomplete-suggestions";
+    suggestionBox.id = boxId;
+    input.insertAdjacentElement("afterend", suggestionBox);
   }
 
   input.addEventListener("input", async () => {
     const query = input.value.trim();
     if (query.length < 3) {
-      suggestions.innerHTML = "";
+      suggestionBox.innerHTML = "";
       return;
     }
 
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-            `access_token=${token}&autocomplete=true&language=en&limit=5&country=us&proximity=-87.62,41.88`;
+                `access_token=${token}&autocomplete=true&language=en&limit=5&country=us&proximity=-87.62,41.88`;
 
     try {
       const res = await fetch(url);
       const data = await res.json();
-      suggestions.innerHTML = "";
+      suggestionBox.innerHTML = "";
 
-      if (!data.features) {
-        console.warn("⚠️ Нет features:", data);
-        return;
-      }
+      if (!data.features) return;
 
       data.features.forEach(feature => {
         const div = document.createElement("div");
         div.textContent = feature.place_name;
+        div.className = "autocomplete-suggestion-item";
         div.addEventListener("click", () => {
           input.value = feature.place_name;
-          suggestions.innerHTML = "";
+          suggestionBox.innerHTML = "";
         });
-        suggestions.appendChild(div);
+        suggestionBox.appendChild(div);
       });
     } catch (err) {
       console.error("❌ Ошибка при автозаполнении:", err);
@@ -217,8 +241,10 @@ function setupAutocomplete(inputId, suggestionBoxId, token) {
   });
 
   document.addEventListener("click", (e) => {
-    if (!suggestions.contains(e.target) && e.target !== input) {
-      suggestions.innerHTML = "";
+    if (!suggestionBox.contains(e.target) && e.target !== input) {
+      suggestionBox.innerHTML = "";
     }
   });
+
+  input.dataset.autocompleteInitialized = "true";
 }

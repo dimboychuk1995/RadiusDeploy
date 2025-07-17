@@ -333,27 +333,20 @@ function applyLoadStatusColors() {
   };
 
   const rows = document.querySelectorAll('#loads-result-container table tbody tr');
-  console.log(`🔍 Найдено строк: ${rows.length}`);
 
   rows.forEach((row, index) => {
     const statusCell = row.cells[10];
     if (!statusCell) {
-      console.log(`⚠️ Строка ${index} — нет statusCell`);
       return;
     }
 
     const statusRaw = statusCell.textContent.trim();
     const status = statusRaw.toLowerCase().replace(/\s+/g, '_');
 
-    console.log(`➡️ Строка ${index}: статус "${statusRaw}" → нормализовано "${status}"`);
-
     if (statusColors.hasOwnProperty(status)) {
       Array.from(row.cells).forEach(cell => {
         cell.style.backgroundColor = statusColors[status];
       });
-      console.log(`✅ Цвет применён: ${statusColors[status]}`);
-    } else {
-      console.log(`⛔ Неизвестный статус: "${status}"`);
-    }
+    } 
   });
 }
