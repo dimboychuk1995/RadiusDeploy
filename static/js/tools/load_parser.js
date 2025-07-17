@@ -77,7 +77,7 @@ function autofillLoadForm(data) {
   if (pickups.length > 0) {
     const p = pickups[0];
     document.querySelector('[name="pickup_company"]').value = p["Company"] || "";
-    document.querySelector('[name="pickup_address"]').value = p["Address"] || "";
+    document.getElementById("pickup-autocomplete").value = p["Address"] || "";
     document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["Date"]);
     document.querySelector('[name="pickup_instructions"]').value = p["Instructions"] || "";
     document.querySelector('[name="pickup_contact_person"]').value = p["Contact Person"] || "";
