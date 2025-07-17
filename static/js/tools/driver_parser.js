@@ -1,8 +1,6 @@
 // driver_parser.js
 
 function initDriverParser() {
-  console.log('✅ initDriverParser initialized');
-
   const driverPdfInput = document.getElementById("driverPdfInput");
 
   if (driverPdfInput) {
@@ -58,16 +56,25 @@ function autofillDriverForm(data) {
   }
 
   form.name.value = data["Name"] || "";
-  form.address.value = data["Address"] || "";
   form.dob.value = parseDate(data["DOB"]);
-
   form.license_number.value = data["License Number"] || "";
   form.license_class.value = data["License Class"] || "";
   form.license_state.value = data["License State"] || "";
-  form.license_address.value = data["Address"] || "";
   form.license_issued_date.value = parseDate(data["License Issued"]);
   form.license_expiration_date.value = parseDate(data["License Expiration"]);
   form.license_restrictions.value = data["License Restrictions"] || "";
+
+  // 📍 Заполняем адреса
+  const addressInput = document.getElementById("address-autocomplete");
+  const licenseAddressInput = document.getElementById("license_address_autocomplete");
+
+  if (addressInput) {
+    addressInput.value = data["Address"] || "";
+  }
+
+  if (licenseAddressInput) {
+    licenseAddressInput.value = data["Address"] || "";
+  }
 }
 
 function parseDate(dateStr) {

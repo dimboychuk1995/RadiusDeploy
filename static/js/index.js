@@ -170,7 +170,6 @@ async function initAddressAutocompleteNew() {
   }
 
   const token = data.token;
-  console.log("✅ Mapbox токен:", token);
 
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {

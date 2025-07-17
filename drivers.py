@@ -522,6 +522,54 @@ def get_salary_scheme(driver_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+def ask_driver_gpt(full_text):
+    client = get_openai_client()
+
+    prompt = f"""
+You are a logistics assistant. Extract driver license data from the document text below and return it strictly as a valid JSON object. Do not include any explanations or markdown — only the JSON.
+
+Use the following JSON schema:
+
+{{
+  "Name": "", 
+  "Address": "",
+  "DOB": "",
+  "License Number": "",
+  "License Class": "",
+  "License State": "",
+  "License Issued": "",
+  "License Expiration": "",
+  "License Restrictions": ""
+}}
+
+Document text:
+-----
+{full_text}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        if result.startswith("```json"):
+            result = result[len("```json"):].strip()
+        if result.startswith("```"):
+            result = result[len("```"):].strip()
+        if result.endswith("```"):
+            result = result[:-len("```")].strip()
+
+        json_result = json.loads(result)
+        return json_result
+
+    except Exception as e:
+        raise Exception(f"❌ Ошибка при обращении к OpenAI: {str(e)}")
+
+
 @drivers_bp.route('/api/parse_driver_pdf', methods=['POST'])
 @login_required
 def parse_driver_pdf():
@@ -546,58 +594,20 @@ def parse_driver_pdf():
         else:
             # обработка изображения
             img = Image.open(file.stream).convert('RGB')
+            img = img.resize((img.width * 2, img.height * 2), Image.LANCZOS)  # upscale
             full_text = pytesseract.image_to_string(img)
 
         if not full_text.strip():
             return jsonify({'error': 'Could not extract text from file'}), 400
 
-        client = get_openai_client()
-        prompt = f"""
-Extract the following driver information from the document. Return the result strictly as a JSON object, and leave any unknown fields empty. Do not include any explanations — only valid JSON.
-License State is on LOGO 
-License Issued usually mark as ISS
-License Class usually mark as CLASS or License Type
-License Expiration usually mark as EXP
-License Restrictions usually mark as RESTRICTIONS
-
-if you can find exact this values think by yourself
-
-{{
-  "Name": "", 
-  "Address": "",
-  "DOB": "",
-  "License Number": "",
-  "License Class": "",
-  "License State": "",
-  "License Issued": "",
-  "License Expiration": "",
-  "License Restrictions": ""
-}}
-
-Document text:
------
-{full_text}
-        """
-
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-
-        result = response.choices[0].message.content.strip()
-        if result.startswith("```json"):
-            result = result[len("```json"):].strip()
-        if result.startswith("```"):
-            result = result[len("```"):].strip()
-        if result.endswith("```"):
-            result = result[:-len("```")].strip()
-
-        return jsonify(json.loads(result))
+        result = ask_driver_gpt(full_text)
+        return jsonify(result)
 
     except Exception as e:
-        logging.error(f"Error parsing driver file: {e}")
+        logging.error(f"❌ Ошибка при обработке файла водителя: {e}")
         return jsonify({'error': 'Failed to process the file'}), 500
+
+
 
 
 @drivers_bp.route('/api/edit_driver_dispatch/<driver_id>', methods=['POST'])
