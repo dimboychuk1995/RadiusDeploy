@@ -38,6 +38,7 @@ function initNavigation() {
       initLoadParser?.();
       initLoads?.();
       initBrokerCustomerSelect?.();
+      initAddressAutocompleteNew();
     },
     'logbook': () => initLogbook?.(),
     'tolls': () => {
@@ -153,3 +154,52 @@ document.addEventListener("DOMContentLoaded", () => {
   initNavigation();
   initGlobalTooltips();
 });
+
+
+function initAfterMapLoad() {
+  const pickup = document.getElementById("pickup-autocomplete");
+  const pickupHidden = document.getElementById("pickup-address-hidden");
+
+  if (pickup && pickupHidden) {
+    pickup.addEventListener("gmp-placechange", () => {
+      pickupHidden.value = pickup.value;
+      console.log("📍 Pickup address:", pickup.value);
+    });
+  }
+
+  const delivery = document.getElementById("delivery-autocomplete");
+  const deliveryHidden = document.getElementById("delivery-address-hidden");
+
+  if (delivery && deliveryHidden) {
+    delivery.addEventListener("gmp-placechange", () => {
+      deliveryHidden.value = delivery.value;
+      console.log("📍 Delivery address:", delivery.value);
+    });
+  }
+}
+
+async function initAddressAutocompleteNew() {
+  const res = await fetch("/api/google_maps_key");
+  const data = await res.json();
+  if (!data.success) {
+    console.error("❌ Не удалось получить ключ Google API");
+    return;
+  }
+
+  const existing = document.querySelector("script[data-gmaps]");
+  if (existing) {
+    console.log("📦 Google Maps уже загружен");
+    initAfterMapLoad();
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places&modules=place_autocomplete&language=en`;
+  script.type = "module";
+  script.setAttribute("data-gmaps", "true");
+  script.onload = () => {
+    console.log("✅ Google Maps PlaceAutocompleteElement загружен");
+    initAfterMapLoad();
+  };
+  document.head.appendChild(script);
+}

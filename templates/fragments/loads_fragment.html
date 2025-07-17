@@ -230,7 +230,17 @@
             <!-- Pickup -->
             <hr><h5>Pickup</h5>
             <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="pickup_company"></div>
-            <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="pickup_address"></div>
+            
+            <div class="form-group">
+              <label>Адрес</label>
+              <gmp-place-autocomplete
+                id="pickup-autocomplete"
+                country="us"
+                style="width: 100%; display: block;">
+              </gmp-place-autocomplete>
+              <input type="hidden" name="pickup_address" id="pickup-address-hidden">
+            </div>
+
             <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="pickup_date"></div>
             <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="pickup_instructions"></textarea></div>
             <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="pickup_contact_person"></div>
