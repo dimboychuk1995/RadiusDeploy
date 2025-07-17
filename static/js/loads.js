@@ -31,6 +31,7 @@ function initLoads() {
   }
 
   expandAllCompanySections();
+  applyLoadStatusColors();
 
 }
 
@@ -272,6 +273,7 @@ function showMoreLoads(companyId) {
     .then(data => {
       const tbody = document.querySelector(`#company-table-${companyId} tbody`);
       tbody.insertAdjacentHTML("beforeend", data.html);
+      applyLoadStatusColors();
 
       if (!data.has_more) {
         const button = document.querySelector(`#show-more-btn-${companyId}`);
@@ -312,9 +314,46 @@ function showMoreLoads(companyId) {
         .then(res => res.text())
         .then(html => {
           container.innerHTML = html;
+          applyLoadStatusColors();
         })
         .catch(err => {
           console.error("Ошибка при глобальном поиске:", err);
         });
     }, 300);  // debounce 300ms
   }
+
+function applyLoadStatusColors() {
+  const statusColors = {
+    new: '#e0f7fa',
+    dispatch: '#fff9c4',
+    picked_up: '#c8e6c9',
+    delivered: '#d1c4e9',
+    canceled: '#ffcdd2',
+    tonu: '#ffe0b2'
+  };
+
+  const rows = document.querySelectorAll('#loads-result-container table tbody tr');
+  console.log(`🔍 Найдено строк: ${rows.length}`);
+
+  rows.forEach((row, index) => {
+    const statusCell = row.cells[10];
+    if (!statusCell) {
+      console.log(`⚠️ Строка ${index} — нет statusCell`);
+      return;
+    }
+
+    const statusRaw = statusCell.textContent.trim();
+    const status = statusRaw.toLowerCase().replace(/\s+/g, '_');
+
+    console.log(`➡️ Строка ${index}: статус "${statusRaw}" → нормализовано "${status}"`);
+
+    if (statusColors.hasOwnProperty(status)) {
+      Array.from(row.cells).forEach(cell => {
+        cell.style.backgroundColor = statusColors[status];
+      });
+      console.log(`✅ Цвет применён: ${statusColors[status]}`);
+    } else {
+      console.log(`⛔ Неизвестный статус: "${status}"`);
+    }
+  });
+}
