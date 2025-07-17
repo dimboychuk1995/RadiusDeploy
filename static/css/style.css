@@ -246,25 +246,20 @@ textarea {
 
 .autocomplete-suggestions {
   position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 9999;
-  width: 100%;
-  background: white;
+  background-color: white;
   border: 1px solid #ccc;
+  z-index: 1000;
+  width: 100%;
   max-height: 200px;
   overflow-y: auto;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.autocomplete-suggestions div {
-  padding: 10px 12px;
+.autocomplete-suggestion-item {
+  padding: 8px 12px;
   cursor: pointer;
-  font-size: 14px;
 }
 
-.autocomplete-suggestions div:hover {
+.autocomplete-suggestion-item:hover {
   background-color: #f0f0f0;
 }
 

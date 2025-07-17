@@ -107,7 +107,7 @@ function autofillLoadForm(data) {
   if (deliveries.length > 0) {
     const d = deliveries[0];
     document.querySelector('[name="delivery_company"]').value = d["Company"] || "";
-    document.querySelector('[name="delivery_address"]').value = d["Address"] || "";
+    document.getElementById("delivery-autocomplete").value = d["Address"] || "";
     document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["Date"]);
     document.querySelector('[name="delivery_instructions"]').value = d["Instructions"] || "";
     document.querySelector('[name="delivery_contact_person"]').value = d["Contact Person"] || "";

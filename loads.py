@@ -244,12 +244,9 @@ def add_load():
             return None
 
     try:
-        print("🟡 add_load() вызван")
-        print("🧩 Начинаем обработку формы")
 
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
-        print("✅ Обработаны файлы")
 
         rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
         bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
@@ -259,7 +256,6 @@ def add_load():
         partner_email = request.form.get("broker_email")
         partner_phone = request.form.get("broker_phone_number")
 
-        print(f"🧾 Broker/customer type: {partner_type}, name: {partner_name}")
 
         broker_id = None
         if partner_name:
@@ -279,7 +275,6 @@ def add_load():
                     "company": current_user.company
                 }).inserted_id
 
-        print("✅ Обработан брокер")
 
         extra_pickups = []
         for key in request.form:
@@ -295,7 +290,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
                 })
 
-        print("✅ Обработаны extra pickups")
 
         extra_deliveries = []
         for key in request.form:
@@ -311,7 +305,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
                 })
 
-        print("✅ Обработаны extra deliveries")
 
         vehicles = []
         for key in request.form:
@@ -326,10 +319,8 @@ def add_load():
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
 
-        print("✅ Обработаны vehicles")
 
         assigned_driver_id = request.form.get("assigned_driver")
-        print(f"👤 Получен assigned_driver: {assigned_driver_id}")
 
         assigned_power_unit = None
         if assigned_driver_id:
@@ -337,7 +328,6 @@ def add_load():
                 "_id": ObjectId(assigned_driver_id),
                 "company": current_user.company
             })
-            print(f"🔍 Найден водитель: {driver}")
             if driver and driver.get("truck"):
                 assigned_power_unit = driver["truck"]
 
@@ -392,13 +382,11 @@ def add_load():
             "created_at": datetime.now(timezone.utc)  # 🆕 поле для индексации и сортировки
         }
 
-        print("📦 Собран load_data, вставляем в базу...")
         loads_collection.insert_one(load_data)
 
         assigned_driver_obj_id = load_data.get("assigned_driver")
         if assigned_driver_obj_id:
             driver = drivers_collection.find_one({"_id": assigned_driver_obj_id})
-            print(f"👤 Водитель для push: {driver}")
             company = db["companies"].find_one({"name": "UWC"})
 
             if driver and driver.get("email") and company and company.get("email") and company.get("password"):
@@ -410,18 +398,17 @@ def add_load():
                         driver_name=driver["name"],
                         load_info=load_data
                     )
-                except Exception as e:
-                    print(f"❌ Ошибка email: {str(e)}")
+                except Exception as e: 
+                   print(f"❌ Ошибка email: {str(e)}")
 
             expo_token = driver.get("expo_push_token")
-            print(f"📱 expo_push_token: {expo_token}")
 
             if expo_token:
                 pickup = load_data["pickup"]["address"]
                 delivery = load_data["delivery"]["address"]
                 load_id_str = load_data.get("load_id", "Новый груз")
 
-                print("📤 Отправка PUSH...")
+
                 send_push_notification(
                     expo_token,
                     title=f"📦 Назначен новый груз {load_id_str}",
@@ -1180,9 +1167,6 @@ def assign_driver_to_load():
 @loads_bp.route("/api/loads/<load_id>/upload_photos", methods=["POST"])
 @cross_origin()
 def upload_load_photos(load_id):
-    print("📥 Получен upload для load_id:", load_id)
-    print("📥 request.form:", dict(request.form))
-    print("📥 request.files:", request.files)
 
     stage = request.form.get("stage")
     if stage not in ["pickup", "delivery"]:
