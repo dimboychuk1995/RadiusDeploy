@@ -263,6 +263,10 @@ textarea {
   background-color: #f0f0f0;
 }
 
+.autocomplete-suggestions:empty {
+  display: none;
+}
+
 /* === ТАБЛИЦЫ === */
 .table {
   width: 100%;
