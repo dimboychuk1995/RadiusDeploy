@@ -155,51 +155,67 @@ document.addEventListener("DOMContentLoaded", () => {
   initGlobalTooltips();
 });
 
+async function initAddressAutocompleteNew() {
+  const res = await fetch("/api/mapbox_token");
+  const data = await res.json();
 
-function initAfterMapLoad() {
-  const pickup = document.getElementById("pickup-autocomplete");
-  const pickupHidden = document.getElementById("pickup-address-hidden");
-
-  if (pickup && pickupHidden) {
-    pickup.addEventListener("gmp-placechange", () => {
-      pickupHidden.value = pickup.value;
-      console.log("📍 Pickup address:", pickup.value);
-    });
+  if (!data.success || !data.token) {
+    console.error("❌ Не удалось получить токен Mapbox");
+    return;
   }
 
-  const delivery = document.getElementById("delivery-autocomplete");
-  const deliveryHidden = document.getElementById("delivery-address-hidden");
+  const token = data.token;
+  console.log("✅ Mapbox токен:", token);
 
-  if (delivery && deliveryHidden) {
-    delivery.addEventListener("gmp-placechange", () => {
-      deliveryHidden.value = delivery.value;
-      console.log("📍 Delivery address:", delivery.value);
-    });
-  }
+  setupAutocomplete("pickup-autocomplete", "pickup-suggestions", token);
 }
 
-async function initAddressAutocompleteNew() {
-  const res = await fetch("/api/google_maps_key");
-  const data = await res.json();
-  if (!data.success) {
-    console.error("❌ Не удалось получить ключ Google API");
+function setupAutocomplete(inputId, suggestionBoxId, token) {
+  const input = document.getElementById(inputId);
+  const suggestions = document.getElementById(suggestionBoxId);
+
+  if (!input || !suggestions) {
+    console.error(`❌ Не найден элемент: ${inputId} или ${suggestionBoxId}`);
     return;
   }
 
-  const existing = document.querySelector("script[data-gmaps]");
-  if (existing) {
-    console.log("📦 Google Maps уже загружен");
-    initAfterMapLoad();
-    return;
-  }
+  input.addEventListener("input", async () => {
+    const query = input.value.trim();
+    if (query.length < 3) {
+      suggestions.innerHTML = "";
+      return;
+    }
 
-  const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${data.key}&libraries=places&modules=place_autocomplete&language=en`;
-  script.type = "module";
-  script.setAttribute("data-gmaps", "true");
-  script.onload = () => {
-    console.log("✅ Google Maps PlaceAutocompleteElement загружен");
-    initAfterMapLoad();
-  };
-  document.head.appendChild(script);
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
+            `access_token=${token}&autocomplete=true&language=en&limit=5&country=us&proximity=-87.62,41.88`;
+
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      suggestions.innerHTML = "";
+
+      if (!data.features) {
+        console.warn("⚠️ Нет features:", data);
+        return;
+      }
+
+      data.features.forEach(feature => {
+        const div = document.createElement("div");
+        div.textContent = feature.place_name;
+        div.addEventListener("click", () => {
+          input.value = feature.place_name;
+          suggestions.innerHTML = "";
+        });
+        suggestions.appendChild(div);
+      });
+    } catch (err) {
+      console.error("❌ Ошибка при автозаполнении:", err);
+    }
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!suggestions.contains(e.target) && e.target !== input) {
+      suggestions.innerHTML = "";
+    }
+  });
 }
