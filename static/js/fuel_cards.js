@@ -158,6 +158,10 @@ function populateFuelCardTable(cards) {
 function setupTransactionUpload() {
     document.getElementById('upload-transactions-form')?.addEventListener('submit', function (e) {
         e.preventDefault();
+
+        const overlay = document.getElementById("pdfOverlay");
+        overlay?.classList.remove("d-none"); // ⏳ Показать лоадер
+
         const formData = new FormData(this);
 
         fetch('/fuel_cards/upload_transactions', {
@@ -166,32 +170,52 @@ function setupTransactionUpload() {
         })
         .then(res => res.json())
         .then(result => {
-            if (result.success) {
-                let html = `<div class="alert alert-info mt-3"><strong>Загружено транзакций:</strong> ${result.count}</div>`;
-                if (result.summary_by_card?.length) {
-                    html += `<ul class="list-group mt-2">`;
-                    result.summary_by_card.forEach(entry => {
-                        html += `
-                            <li class="list-group-item">
-                                (Card ${entry.card_number} - ${entry.driver_name}) 
-                                Qty: ${entry.qty}, 
-                                Retail: $${entry.retail}, 
-                                Invoice: $${entry.invoice}
-                            </li>
-                        `;
+            try {
+                if (result.success) {
+                    let html = `<div class="alert alert-info mt-3"><strong>Загружено транзакций:</strong> ${result.count}</div>`;
+                    if (result.summary_by_card?.length) {
+                        html += `<ul class="list-group mt-2">`;
+                        result.summary_by_card.forEach(entry => {
+                            html += `
+                                <li class="list-group-item">
+                                    (Card ${entry.card_number} - ${entry.driver_name}) 
+                                    Qty: ${entry.qty}, 
+                                    Retail: $${entry.retail}, 
+                                    Invoice: $${entry.invoice}
+                                </li>
+                            `;
+                        });
+                        html += `</ul>`;
+                    }
+                    document.getElementById('upload-summary-container').innerHTML = html;
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Ошибка',
+                        text: result.error || 'Что-то пошло не так при загрузке'
                     });
-                    html += `</ul>`;
                 }
-                document.getElementById('upload-summary-container').innerHTML = html;
-            } else {
-                alert('Ошибка: ' + result.error);
+            } catch (parseError) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Ошибка обработки ответа',
+                    text: 'Не удалось корректно обработать данные от сервера.'
+                });
             }
         })
-        .catch(err => {
-            console.error('Ошибка загрузки файла:', err);
+        .catch(() => {
+            Swal.fire({
+                icon: 'error',
+                title: 'Сетевая ошибка',
+                text: 'Не удалось отправить файл. Проверьте соединение.'
+            });
+        })
+        .finally(() => {
+            overlay?.classList.add("d-none"); // ✅ Скрыть лоадер в любом случае
         });
     });
 }
+
 
 // === Загрузка транзакций из базы ===
 

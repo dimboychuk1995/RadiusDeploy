@@ -1,4 +1,4 @@
-<div class="container mt-4">
+
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4>Топливные карты</h4>
     <div class="d-flex gap-2">
@@ -64,7 +64,9 @@
             <form id="fuel-card-form">
               <div class="form-group">
                 <label for="provider">Provider</label>
-                <input type="text" class="form-control" id="provider" name="provider" required>
+                <select class="form-control" id="provider" name="provider" required>
+                  <option value="Pilot">Pilot</option>
+                </select>
               </div>
               <div class="form-group">
                 <label for="card_number">Card#</label>
@@ -127,4 +129,21 @@
 
   <!-- Затемнение -->
   <div class="custom-offcanvas-backdrop" onclick="closeFuelCardModal(); closeUploadTransactionsModal();"></div>
+
+
+
+<!-- Затемнение с лоадером -->
+<div id="pdfOverlay" class="pdf-overlay d-none">
+  <div class="grid-loader">
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+    <div class="cube"></div>
+  </div>
+  <div class="loader-text">Загрузка транзакций, не закрывайте это окно...</div>
 </div>
