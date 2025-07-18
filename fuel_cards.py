@@ -48,6 +48,7 @@ def extract_billing_date(text):
         return None
 
 
+
 def parse_pdf_transactions(file_storage):
     text = extract_text_from_pdf_file(file_storage)
     billing_date = extract_billing_date(text)
@@ -63,8 +64,8 @@ def parse_pdf_transactions(file_storage):
         r"(?P<card>\d{3})\s+"
         r"(?P<date>\d{1,2}/\d{1,2}/\d{4})\s+"
         r"(?P<transaction>\d+)\s+"
-        r"(?P<location>.+?)\s+(?P<state>[A-Z]{2})\s+"
-        r"(?P<product>[A-Za-z\s]+?)\s+"
+        r"(?P<location>[A-Za-z0-9\s\-,.]+?)\s+(?P<state>[A-Z]{2})\s+"
+        r"(?P<product>[\w\s\-\/]+?)\s+"
         r"(?P<driver_id>\d{6})\s+"
         r"(?P<vehicle_id>\d+)\s+"
         r"(?P<qty>\d+\.\d+)?\s*"
@@ -96,7 +97,8 @@ def parse_pdf_transactions(file_storage):
             "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}")
         })
 
-    return transactions
+    return transactions    
+
 
 @fuel_cards_bp.route('/fragment/fuel_cards')
 @login_required
