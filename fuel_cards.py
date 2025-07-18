@@ -180,6 +180,8 @@ def get_fuel_cards():
 @fuel_cards_bp.route('/fuel_cards/upload_transactions', methods=['POST'])
 @login_required
 def upload_transactions():
+    import hashlib
+
     try:
         file = request.files['file']
         if not file or not file.filename.lower().endswith('.pdf'):
@@ -190,10 +192,14 @@ def upload_transactions():
         if not transactions:
             return jsonify({'success': False, 'error': 'Нет транзакций в файле'})
 
+        fuel_cards_transactions_collection.create_index("hash", unique=True)
+
+        inserted_transactions = []
+        seen_hashes = set()
+
         for tx in transactions:
             tx['company'] = current_user.company
 
-            # Найдём карту по card_number
             card = fuel_cards_collection.find_one({
                 'company': current_user.company,
                 'card_number': tx.get('card_number')
@@ -206,39 +212,71 @@ def upload_transactions():
                 if driver and driver.get('truck'):
                     truck = trucks_collection.find_one({'_id': driver['truck']})
                     if truck:
-                        tx['unit_number'] = truck['_id']  # сохраняем как ObjectId
+                        tx['unit_number'] = truck['_id']
                         if 'owning_company' in truck:
                             tx['sing_company'] = truck['owning_company']
 
-        fuel_cards_transactions_collection.insert_many(transactions)
+            # Хеш
+            # 📌 Генерируем хеш по ВСЕМ полям
+            hash_input = "|".join([
+                str(tx.get("billing_date").strftime("%Y-%m-%d")) if tx.get("billing_date") else "",
+                str(tx.get("date").strftime("%Y-%m-%d")) if tx.get("date") else "",
+                tx.get("card_number", ""),
+                tx.get("transaction_number", ""),
+                tx.get("driver_id", ""),
+                tx.get("vehicle_id", ""),
+                str(tx.get("qty", 0)),
+                str(tx.get("fuel_total", 0)),
+                str(tx.get("retail_price", 0)),
+                str(tx.get("invoice_total", 0)),
+                tx.get("state", ""),
+                tx.get("driver_name", ""),
+                str(current_user.company)
+            ])
+            tx_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+            tx["hash"] = tx_hash
 
+            if tx_hash in seen_hashes:
+                continue
+            if fuel_cards_transactions_collection.count_documents({"hash": tx_hash}, limit=1) == 0:
+                inserted_transactions.append(tx)
+                seen_hashes.add(tx_hash)
+
+        if not inserted_transactions:
+            return jsonify({'success': False, 'error': 'Все транзакции уже существуют'})
+
+        fuel_cards_transactions_collection.insert_many(inserted_transactions, ordered=False)
+
+        # Сводка
         summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "driver_name": ""})
-        for tx in transactions:
+        for tx in inserted_transactions:
             card_key = tx["card_number"]
             summary[card_key]["qty"] += tx["qty"]
             summary[card_key]["retail"] += tx["retail_price"]
             summary[card_key]["invoice"] += tx["invoice_total"]
             summary[card_key]["driver_name"] = tx["driver_name"]
 
-        summary_list = []
-        for card, data in summary.items():
-            summary_list.append({
-                "card_number": card,
-                "driver_name": data["driver_name"],
-                "qty": round(data["qty"], 2),
-                "retail": round(data["retail"], 2),
-                "invoice": round(data["invoice"], 2)
-            })
+        summary_list = [{
+            "card_number": card,
+            "driver_name": data["driver_name"],
+            "qty": round(data["qty"], 2),
+            "retail": round(data["retail"], 2),
+            "invoice": round(data["invoice"], 2)
+        } for card, data in summary.items()]
 
         return jsonify({
             'success': True,
-            'count': len(transactions),
+            'count': len(inserted_transactions),
             'summary_by_card': summary_list
         })
 
     except Exception as e:
         logging.error(f"Ошибка при загрузке транзакций: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 
 @fuel_cards_bp.route('/fuel_cards/transactions')
 @login_required
