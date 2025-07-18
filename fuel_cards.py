@@ -60,6 +60,9 @@ def parse_pdf_transactions(file_storage):
         for match in re.finditer(r"Subtotal for Card (\d+) - (.+)", text)
     }
 
+    # 🔍 Соберём строки-кандидаты (где есть признаки транзакции)
+    candidate_lines = [line.strip() for line in text.split('\n') if re.search(r'\$\d+\.\d{2}', line)]
+
     pattern = re.compile(
         r"(?P<card>\d{3})\s+"
         r"(?P<date>\d{1,2}/\d{1,2}/\d{4})\s+"
@@ -76,13 +79,15 @@ def parse_pdf_transactions(file_storage):
     )
 
     transactions = []
+    matched_lines = []
+
     for m in pattern.finditer(text):
         try:
             date_obj = datetime.strptime(m.group("date"), "%m/%d/%Y")
         except Exception:
             continue
 
-        transactions.append({
+        transaction = {
             "billing_date": billing_date,
             "date": date_obj,
             "card_number": m.group("card"),
@@ -95,9 +100,30 @@ def parse_pdf_transactions(file_storage):
             "invoice_total": float(m.group("invoice")),
             "state": m.group("state"),
             "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}")
-        })
+        }
 
-    return transactions    
+        transactions.append(transaction)
+        matched_lines.append(m.group(0))
+
+    # 📌 Диагностика — что не сматчилось?
+    unmatched_lines = []
+    for line in candidate_lines:
+        if not any(line.strip() in matched for matched in matched_lines):
+            unmatched_lines.append(line)
+
+    print(f"📦 Всего строк с $: {len(candidate_lines)}")
+    print(f"✅ Успешно сматчено транзакций: {len(transactions)}")
+    print(f"❌ НЕ сматчено строк: {len(unmatched_lines)}")
+
+    for line in unmatched_lines[:50]:
+        print(f"❌ Не сматчено: {line}")
+
+    return transactions
+
+
+
+
+
 
 
 @fuel_cards_bp.route('/fragment/fuel_cards')
