@@ -69,10 +69,10 @@ def parse_pdf_transactions(file_storage):
         r"(?P<location>.+?)\s+"
         r"(?P<product>[\w\s\-\/]+?)\s+"
         r"(?P<driver_id>\d{6})\s+"
-        r"(?P<vehicle_id>\d+)\s+"
+        r"(?P<vehicle_id>\d+)?\s*"
         r"(?P<qty>\d+\.\d+)?\s*"
         r"\$(?P<fuel>\d+\.\d{2})\s+"
-        r"(?:\$\d+\.\d{2}\s+)?"  # optional merch
+        r"(?:\$\d+\.\d{2}\s+)?"  # optional Merch $
         r"\$(?P<retail>\d+\.\d{2})\s+"
         r"\$(?P<invoice>\d+\.\d{2})"
     )
@@ -92,7 +92,7 @@ def parse_pdf_transactions(file_storage):
             "card_number": m.group("card"),
             "transaction_number": m.group("transaction"),
             "driver_id": m.group("driver_id"),
-            "vehicle_id": m.group("vehicle_id"),
+            "vehicle_id": m.group("vehicle_id") or None,
             "qty": float(m.group("qty") or 0),
             "fuel_total": float(m.group("fuel")),
             "retail_price": float(m.group("retail")),
@@ -114,11 +114,8 @@ def parse_pdf_transactions(file_storage):
     print(f"✅ Успешно сматчено транзакций: {len(transactions)}")
     print(f"❌ НЕ сматчено строк: {len(unmatched_lines)}")
 
-    for line in unmatched_lines[:50]:
-        print(f"❌ Не сматчено: {line}")
 
     return transactions
-
 
 
 
