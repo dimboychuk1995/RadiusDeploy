@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 import logging
 from PyPDF2 import PdfReader
 import re
+import fitz  # PyMuPDF
 
 from tools.db import db
 
@@ -31,12 +32,11 @@ def format_week_range(billing_date):
 
 
 def extract_text_from_pdf_file(file_storage):
-    reader = PdfReader(file_storage)
     text = ''
-    for page in reader.pages:
-        text += page.extract_text() or ''
+    with fitz.open(stream=file_storage.read(), filetype="pdf") as doc:
+        for page in doc:
+            text += page.get_text()
     return text
-
 
 def extract_billing_date(text):
     match = re.search(r'Billing Date:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
@@ -46,7 +46,7 @@ def extract_billing_date(text):
         return datetime.strptime(match.group(1), "%m/%d/%Y")
     except Exception:
         return None
-
+    
 
 
 def parse_pdf_transactions(file_storage):
@@ -60,20 +60,19 @@ def parse_pdf_transactions(file_storage):
         for match in re.finditer(r"Subtotal for Card (\d+) - (.+)", text)
     }
 
-    # 🔍 Соберём строки-кандидаты (где есть признаки транзакции)
     candidate_lines = [line.strip() for line in text.split('\n') if re.search(r'\$\d+\.\d{2}', line)]
 
     pattern = re.compile(
         r"(?P<card>\d{3})\s+"
         r"(?P<date>\d{1,2}/\d{1,2}/\d{4})\s+"
         r"(?P<transaction>\d+)\s+"
-        r"(?P<location>[A-Za-z0-9\s\-,.]+?)\s+(?P<state>[A-Z]{2})\s+"
+        r"(?P<location>.+?)\s+"
         r"(?P<product>[\w\s\-\/]+?)\s+"
         r"(?P<driver_id>\d{6})\s+"
         r"(?P<vehicle_id>\d+)\s+"
         r"(?P<qty>\d+\.\d+)?\s*"
         r"\$(?P<fuel>\d+\.\d{2})\s+"
-        r"(?:\$\d+\.\d{2}\s+)?"
+        r"(?:\$\d+\.\d{2}\s+)?"  # optional merch
         r"\$(?P<retail>\d+\.\d{2})\s+"
         r"\$(?P<invoice>\d+\.\d{2})"
     )
@@ -98,14 +97,14 @@ def parse_pdf_transactions(file_storage):
             "fuel_total": float(m.group("fuel")),
             "retail_price": float(m.group("retail")),
             "invoice_total": float(m.group("invoice")),
-            "state": m.group("state"),
+            "location": m.group("location"),
+            "product": m.group("product"),
             "driver_name": driver_map.get(m.group("card"), f"Card {m.group('card')}")
         }
 
         transactions.append(transaction)
         matched_lines.append(m.group(0))
 
-    # 📌 Диагностика — что не сматчилось?
     unmatched_lines = []
     for line in candidate_lines:
         if not any(line.strip() in matched for matched in matched_lines):
@@ -119,9 +118,6 @@ def parse_pdf_transactions(file_storage):
         print(f"❌ Не сматчено: {line}")
 
     return transactions
-
-
-
 
 
 
