@@ -1,78 +1,88 @@
-<div id="editableDocument" contenteditable="true" class="border rounded p-4 bg-white" style="min-height: 600px; font-family: Arial, sans-serif; font-size: 14px;">
-  <h2 style="text-align: center;">LEASE AGREEMENT</h2>
-  <p><strong>Note:</strong> This Agreement should be maintained in the Equipment during the term of Agreement.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LEASE AGREEMENT</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      margin: 40px;
+    }
+    h1 {
+      text-align: center;
+      text-decoration: underline;
+    }
+    .section {
+      margin-top: 20px;
+    }
+    .field-label {
+      font-weight: bold;
+    }
+    .signature-block {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 40px;
+    }
+    .signature {
+      width: 45%;
+    }
+    .field {
+      margin-top: 5px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h1>LEASE AGREEMENT</h1>
 
-  <p>
-    I,
-    <select class="form-select d-inline w-auto" id="companySelect">
-      <option selected disabled>Select Company</option>
-    </select>
-    (Carrier/Registrant) located
-    <span data-fill="company_address">____________________</span>
-    and <strong contenteditable="true">____________________</strong> (Equipment Owner) are parties to a written Lease Agreement...
-  </p>
+  <div class="section">
+    <p><em>Note: This Agreement should be maintained in the Equipment during the term of Agreement.</em></p>
+  </div>
 
-  <p>
-    The Original Agreement is on file at the Carrier’s General Office. A copy of this Lease Agreement and receipt for the Equipment must be carried...
-  </p>
+  <div class="section">
+    <p>
+      I, <strong>UNIVERSAL WAYS CORP.</strong> (Carrier) located at 1141 E. Main Street, Suite 206, East Dundee, IL 60118 and <strong>DRUZHBA LOGISTICS INC.</strong> (Equipment Owner/Registrant) are parties to a written Lease Agreement (Agreement), whereby the Equipment Owner has leased to the Carrier certain motor vehicle equipment listed below, owned and controlled by the Equipment Owner, whereby the Equipment Owner is providing the Carrier as operator or operators of the Equipment for the purpose of loading, transporting and unloading freight.
+    </p>
 
-  <h5>III. Equipment Owner / Equipment Information</h5>
-  <p>
-    <strong>Name:</strong> <strong contenteditable="true">____________________</strong><br>
-    <strong>Address:</strong> <strong contenteditable="true">____________________</strong>
-  </p>
+    <p>
+      The Original Agreement is on file at the Carrier’s General Office. A copy of this Lease Agreement and receipt for the Equipment must be carried on the Equipment as required by 49 CFR § 376. Carrier verifies that the Equipment is being operated by the Carrier, pursuant to the terms of the Agreement.
+    </p>
+  </div>
 
-  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-bottom: 20px;">
-    <thead>
-      <tr style="background-color: #f0f0f0;">
-        <th>Make</th>
-        <th>Year</th>
-        <th>VIN</th>
-        <th>Unit</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td contenteditable="true">____________________</td>
-        <td contenteditable="true">____________________</td>
-        <td contenteditable="true">____________________</td>
-        <td contenteditable="true">____________________</td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="section">
+    <h3>Equipment Owner / Equipment Information</h3>
+    <div class="field"><span class="field-label">Name:</span> DRUZHBA LOGISTICS INC.</div>
+    <div class="field"><span class="field-label">Address:</span> 228 E, RIMINI CT., APT 2A, PALATINE, IL 60067</div>
+    <div class="field"><span class="field-label">Make:</span> FREIGHTLINER</div>
+    <div class="field"><span class="field-label">Year:</span> 2020</div>
+    <div class="field"><span class="field-label">VIN:</span> 3AKJHHDR2LSLR0071</div>
+    <div class="field"><span class="field-label">Unit:</span> 333</div>
+  </div>
 
-  <h5>IV. Duration of Lease Agreement and Termination</h5>
-  <p>
-    The Lease Agreement shall begin on the date below and remain in effect until terminated by either party...
-  </p>
+  <div class="section">
+    <h3>Duration of lease Agreement and Termination</h3>
+    <p>
+      The Lease Agreement shall begin on the date below and shall remain in effect until terminated by either party, giving one (1) day notice to that effect. Notice can be given personally, by mail or by fax machine at the address or fax number shown in the Lease Agreement.
+    </p>
+  </div>
 
-  <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; margin-top: 20px;">
-    <thead>
-      <tr style="background-color: #f0f0f0;">
-        <th style="width: 50%;">MOTOR CARRIER / REGISTRANT</th>
-        <th style="width: 50%;">EQUIPMENT OWNER</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong>By:</strong> <span data-fill="company_name">____________________</span></td>
-        <td><strong>By:</strong> <strong contenteditable="true">____________________</strong></td>
-      </tr>
-      <tr>
-        <td><strong>Date:</strong> <span data-fill="date">__/__/____</span></td>
-        <td><strong>Date:</strong> <span data-fill="date">__/__/____</span></td>
-      </tr>
-      <tr>
-        <td>
-          <strong>MC#:</strong> <span data-fill="mc">__________</span><br>
-          <strong>USDOT#:</strong> <span data-fill="dot">__________</span>
-        </td>
-        <td><strong>Signature:</strong> ____________________</td>
-      </tr>
-      <tr>
-        <td><strong>Signature:</strong> ____________________</td>
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+  <div class="signature-block">
+    <div class="signature">
+      <div class="field-label">MOTOR CARRIER</div>
+      <div class="field">By: UNIVERSAL WAYS CORP.</div>
+      <div class="field">Date: 06/17/2025</div>
+      <div class="field">MC#: 71069</div>
+      <div class="field">USDOT#: 3089385</div>
+      <div class="field">Signatures: __________________________</div>
+    </div>
+    <div class="signature">
+      <div class="field-label">EQUIPMENT OWNER</div>
+      <div class="field">By: DRUZHBA LOGISTICS INC.</div>
+      <div class="field">Date: 06/17/2025</div>
+      <div class="field">Signatures: __________________________</div>
+    </div>
+  </div>
+</body>
+</html>
