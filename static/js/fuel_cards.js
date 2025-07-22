@@ -1,11 +1,18 @@
+let lastCreatedAt = null;
+
 function initFuelCards() {
     console.log('init Fuel Cards called');
     setupOpenModalButton();
     setupFuelCardFormSubmit();
     loadFuelCards();
     setupTransactionUpload();
-    setupFuelCardTransactionsButton();
     setupUploadTransactionsModalButton();
+
+    // 🆕 Добавь это:
+    document.getElementById('btn-show-more')?.addEventListener('click', () => {
+        loadFuelCards(false);
+    });
+
 }
 
 // === Кнопки ===
@@ -26,18 +33,6 @@ function setupOpenModalButton() {
 function setupUploadTransactionsModalButton() {
     document.getElementById('btn-upload-transactions')?.addEventListener('click', () => {
         openUploadTransactionsModal();
-    });
-}
-
-function setupFuelCardTransactionsButton() {
-    document.getElementById('btn-open-fuel-transactions')?.addEventListener('click', () => {
-        const section = document.getElementById('fuel-card-transactions-section');
-        if (!section) {
-            console.error("❌ Блок транзакций не найден");
-            return;
-        }
-        section.style.display = 'block';
-        loadFuelCardTransactions();
     });
 }
 
@@ -125,20 +120,34 @@ function populateDriverSelect(drivers) {
 
 // === Загрузка и отображение списка карт ===
 
-function loadFuelCards() {
-    fetch('/fuel_cards/list')
+function loadFuelCards(isInitial = true) {
+    let url = '/fuel_cards/list';
+    if (!isInitial && lastCreatedAt) {
+        url += `?after=${encodeURIComponent(lastCreatedAt)}`;
+    }
+
+    fetch(url)
         .then(res => res.json())
         .then(cards => {
-            populateFuelCardTable(cards);
+            if (cards.length === 0 && !isInitial) {
+                document.getElementById('btn-show-more')?.classList.add("d-none");
+                return;
+            }
+
+            populateFuelCardTable(cards, isInitial);
+
+            // Обновим lastCreatedAt
+            const last = cards[cards.length - 1];
+            lastCreatedAt = last.created_at;
         })
         .catch(err => {
             console.error("Ошибка при загрузке карт:", err);
         });
 }
 
-function populateFuelCardTable(cards) {
+function populateFuelCardTable(cards, isInitial) {
     const tbody = document.querySelector('#fuel-cards-table tbody');
-    tbody.innerHTML = '';
+    if (isInitial) tbody.innerHTML = ''; // сброс если первый раз
 
     cards.forEach(card => {
         const row = document.createElement('tr');
@@ -151,6 +160,8 @@ function populateFuelCardTable(cards) {
         `;
         tbody.appendChild(row);
     });
+
+    document.getElementById('btn-show-more')?.classList.remove("d-none");
 }
 
 // === Загрузка PDF-транзакций ===
@@ -214,38 +225,6 @@ function setupTransactionUpload() {
             overlay?.classList.add("d-none"); // ✅ Скрыть лоадер в любом случае
         });
     });
-}
-
-
-// === Загрузка транзакций из базы ===
-
-function loadFuelCardTransactions() {
-    fetch('/fuel_cards/transactions')
-        .then(res => res.json())
-        .then(transactions => {
-            const tbody = document.querySelector('#transactions-table tbody');
-            tbody.innerHTML = '';
-
-            transactions.forEach(tx => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${tx.billing_range || ''}</td>
-                    <td>${tx.date || ''}</td>
-                    <td>${tx.card_number || ''}</td>
-                    <td>${tx.driver_id || ''}</td>
-                    <td>${tx.vehicle_id || ''}</td>
-                    <td>${tx.qty ?? ''}</td>
-                    <td>${tx.fuel_total ?? ''}</td>
-                    <td>${tx.retail_price ?? ''}</td>
-                    <td>${tx.invoice_total ?? ''}</td>
-                    <td>${tx.driver_name || ''}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        })
-        .catch(err => {
-            console.error('Ошибка загрузки транзакций:', err);
-        });
 }
 
 // === Модалки ===

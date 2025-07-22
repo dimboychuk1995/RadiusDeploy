@@ -2,9 +2,8 @@
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4>Топливные карты</h4>
     <div class="d-flex gap-2">
-      <button class="btn btn-success" onclick="openUploadTransactionsModal()">Загрузить транзакции</button>
-      <button class="btn btn-primary" id="btn-open-fuel-card-modal">Создать</button>
-      <button class="btn btn-secondary" id="btn-open-fuel-transactions">Транзакции</button>
+      <button class="btn btn-success" onclick="openUploadTransactionsModal()">Load Transactions</button>
+      <button class="btn btn-primary" id="btn-open-fuel-card-modal">Create Fuel Card</button>
     </div>
   </div>
 
@@ -23,33 +22,9 @@
         <!-- Заполнение из JS -->
       </tbody>
     </table>
+    <button id="btn-show-more" class="btn btn-sm btn-outline-secondary">Показать ещё</button>
   </div>
-
-  <!-- БЛОК: Транзакции -->
-  <div id="fuel-card-transactions-section" class="mt-5" style="display: none;">
-    <h4>Транзакции по топливным картам</h4>
-    <div class="table-responsive mt-3">
-      <table class="table table-bordered table-hover" id="transactions-table">
-        <thead class="thead-light">
-          <tr>
-            <th>Billing Range</th>
-            <th>Дата</th>
-            <th>Card#</th>
-            <th>Driver ID</th>
-            <th>Vehicle ID</th>
-            <th>Qty</th>
-            <th>Fuel $</th>
-            <th>Retail $</th>
-            <th>Invoice $</th>
-            <th>Водитель</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- строки подгрузятся через JS -->
-        </tbody>
-      </table>
-    </div>
-  </div>
+  
 
   <!-- МОДАЛКА: СОЗДАНИЕ КАРТЫ -->
   <div class="custom-offcanvas custom-offcanvas-right" id="fuelCardModal">
