@@ -1,4 +1,5 @@
 let lastCreatedAt = null;
+let currentSearch = '';
 
 function initFuelCards() {
     console.log('init Fuel Cards called');
@@ -11,6 +12,12 @@ function initFuelCards() {
     // 🆕 Добавь это:
     document.getElementById('btn-show-more')?.addEventListener('click', () => {
         loadFuelCards(false);
+    });
+
+    document.getElementById('fuel-card-search')?.addEventListener('input', function () {
+        currentSearch = this.value.trim();
+        lastCreatedAt = null; // сбрасываем пагинацию
+        loadFuelCards(true);
     });
 
 }
@@ -118,12 +125,24 @@ function populateDriverSelect(drivers) {
     console.log("✅ Водители добавлены в select");
 }
 
-// === Загрузка и отображение списка карт ===
 
+
+
+
+// === Загрузка и отображение списка карт ===
 function loadFuelCards(isInitial = true) {
     let url = '/fuel_cards/list';
+    const params = new URLSearchParams();
+
     if (!isInitial && lastCreatedAt) {
-        url += `?after=${encodeURIComponent(lastCreatedAt)}`;
+        params.append('after', lastCreatedAt);
+    }
+    if (currentSearch) {
+        params.append('search', currentSearch);
+    }
+
+    if ([...params].length > 0) {
+        url += '?' + params.toString();
     }
 
     fetch(url)
@@ -135,10 +154,8 @@ function loadFuelCards(isInitial = true) {
             }
 
             populateFuelCardTable(cards, isInitial);
-
-            // Обновим lastCreatedAt
             const last = cards[cards.length - 1];
-            lastCreatedAt = last.created_at;
+            lastCreatedAt = last?.created_at || null;
         })
         .catch(err => {
             console.error("Ошибка при загрузке карт:", err);

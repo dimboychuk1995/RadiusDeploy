@@ -157,6 +157,10 @@ def create_fuel_card():
         logging.error(f"Ошибка при создании карты: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+
+
+# Список карт с поиском
 @fuel_cards_bp.route('/fuel_cards/list')
 @login_required
 def get_fuel_cards():
@@ -165,13 +169,25 @@ def get_fuel_cards():
         t0 = time.time()
 
         after = request.args.get('after')
+        search = request.args.get('search', '').strip().lower()
+
         query = {'company': current_user.company}
+
         if after:
             try:
                 after_dt = datetime.fromisoformat(after)
                 query['created_at'] = {'$lt': after_dt}
             except Exception:
-                pass  # игнорируем, если невалидный
+                pass
+
+        if search:
+            regex = {"$regex": re.escape(search), "$options": "i"}
+            query["$or"] = [
+                {"card_number": regex},
+                {"driver_id": regex},
+                {"vehicle_id": regex},
+                {"provider": regex}
+            ]
 
         cards = list(fuel_cards_collection.find(
             query,
@@ -181,10 +197,7 @@ def get_fuel_cards():
         driver_ids = [card['assigned_driver'] for card in cards if card.get('assigned_driver')]
         drivers_map = {}
         if driver_ids:
-            drivers = drivers_collection.find(
-                {'_id': {'$in': driver_ids}},
-                {'_id': 1, 'name': 1}
-            )
+            drivers = drivers_collection.find({'_id': {'$in': driver_ids}}, {'_id': 1, 'name': 1})
             drivers_map = {d['_id']: d.get('name', '—') for d in drivers}
 
         result = []
@@ -204,8 +217,8 @@ def get_fuel_cards():
     except Exception as e:
         logging.error(f"Ошибка при получении списка карт: {e}")
         return jsonify([]), 500
-    
-    
+
+
 
 @fuel_cards_bp.route('/fuel_cards/upload_transactions', methods=['POST'])
 @login_required
