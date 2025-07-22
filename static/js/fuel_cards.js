@@ -324,12 +324,19 @@ function initFuelCardsDateRange(context) {
 
 function initFuelCardsSummary() {
   initFuelCardsDateRange('summary');
-}
 
-function initFuelCardTransactions() {
-  initFuelCardsDateRange('transactions');
-}
+  const input = document.getElementById('summarySearch');
+  if (input) {
+    input.addEventListener('input', (e) => {
+      summarySearchTerm = e.target.value.trim().toLowerCase();
+      showAll = false;
+      renderFuelSummaryTable();
+    });
+  }
 
+  // Загружаем начальную таблицу
+  fetchFuelSummaryData();
+}
 
 
 let showAll = false;
@@ -426,3 +433,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+
+
+
+function initFuelCardTransactions() {
+  initFuelCardsDateRange('transactions');
+}
