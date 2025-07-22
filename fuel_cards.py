@@ -368,26 +368,48 @@ def summary_by_driver():
     try:
         transactions = list(fuel_cards_transactions_collection.find({'company': current_user.company}))
 
-        summary = defaultdict(lambda: {"qty": 0.0, "retail": 0.0, "invoice": 0.0, "unit_number": ""})
+        # Группируем по driver_name
+        summary = defaultdict(lambda: {
+            "qty": 0.0,
+            "retail": 0.0,
+            "invoice": 0.0,
+            "truck_id": None
+        })
 
         for tx in transactions:
             driver_name = tx.get("driver_name", "—")
             summary[driver_name]["qty"] += tx.get("qty", 0)
             summary[driver_name]["retail"] += tx.get("retail_price", 0)
             summary[driver_name]["invoice"] += tx.get("invoice_total", 0)
-            summary[driver_name]["unit_number"] = str(tx.get("unit_number", ""))  # 👈 fix here
+            if tx.get("unit_number"):  # тут unit_number это ObjectId трака
+                summary[driver_name]["truck_id"] = tx["unit_number"]
 
         result = []
         for name, values in summary.items():
+            truck_info = ""
+            truck_id = values["truck_id"]
+            if truck_id:
+                truck = trucks_collection.find_one({
+                    "_id": truck_id,
+                    "company": current_user.company
+                })
+                if truck:
+                    unit = truck.get("unit_number", "")
+                    make = truck.get("make", "")
+                    model = truck.get("model", "")
+                    year = truck.get("year", "")
+                    truck_info = f"{unit} {make} {model} {year}".strip()
+
             result.append({
                 "driver_name": name,
-                "unit_number": values["unit_number"],
+                "unit_number": truck_info,
                 "qty": round(values["qty"], 2),
                 "retail": round(values["retail"], 2),
                 "invoice": round(values["invoice"], 2)
             })
 
         return jsonify(result)
+
     except Exception as e:
         logging.error(f"Ошибка при построении summary: {e}")
         return jsonify([]), 500
