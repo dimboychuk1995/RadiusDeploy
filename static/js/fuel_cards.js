@@ -334,15 +334,14 @@ function initFuelCardTransactions() {
 
 let showAll = false;
 let cachedFuelSummaryData = [];
+let summarySearchTerm = '';
 
 function fetchFuelSummaryData(startIso, endIso) {
   fetch('/fuel_cards/summary_by_driver')
     .then(res => res.json())
     .then(data => {
-      const container = document.getElementById("summaryResultsBody");
-      if (!container) return;
-
       cachedFuelSummaryData = data || [];
+      showAll = false;
       renderFuelSummaryTable();
     })
     .catch(err => {
@@ -354,12 +353,20 @@ function renderFuelSummaryTable() {
   const container = document.getElementById("summaryResultsBody");
   if (!container) return;
 
-  if (!cachedFuelSummaryData.length) {
+  const search = summarySearchTerm.toLowerCase();
+
+  let filtered = cachedFuelSummaryData.filter(row => {
+    const driver = row.driver_name?.toLowerCase() || '';
+    const truck = row.unit_number?.toLowerCase() || '';
+    return driver.includes(search) || truck.includes(search);
+  });
+
+  const dataToRender = showAll ? filtered : filtered.slice(0, 15);
+
+  if (!filtered.length) {
     container.innerHTML = `<div class="alert alert-warning">Нет данных</div>`;
     return;
   }
-
-  let dataToRender = showAll ? cachedFuelSummaryData : cachedFuelSummaryData.slice(0, 15);
 
   let html = `
     <table class="table table-bordered">
@@ -389,22 +396,33 @@ function renderFuelSummaryTable() {
 
   html += `</tbody></table>`;
 
-  // Если есть больше 15 записей и ещё не все показаны — добавляем кнопку
-  if (!showAll && cachedFuelSummaryData.length > 15) {
+  if (!showAll && filtered.length > 15) {
     html += `
       <div class="text-center mt-3">
-        <button id="btn-show-more-summary" class="btn btn-sm btn-outline-secondary">Показать ещё</button>
+        <button id="btn-show-more-summary" class="btn btn-primary">Показать ещё</button>
       </div>
     `;
   }
 
   container.innerHTML = html;
 
-  const showMoreBtn = document.getElementById("btn-show-more-summary");
-  if (showMoreBtn) {
-    showMoreBtn.addEventListener("click", () => {
+  const btn = document.getElementById("btn-show-more-summary");
+  if (btn) {
+    btn.addEventListener("click", () => {
       showAll = true;
       renderFuelSummaryTable();
     });
   }
 }
+
+// 🔍 Подключение поля поиска
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('summarySearch');
+  if (input) {
+    input.addEventListener('input', (e) => {
+      summarySearchTerm = e.target.value.trim();
+      showAll = false;
+      renderFuelSummaryTable();
+    });
+  }
+});
