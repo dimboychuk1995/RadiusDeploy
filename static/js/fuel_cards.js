@@ -330,6 +330,11 @@ function initFuelCardTransactions() {
   initFuelCardsDateRange('transactions');
 }
 
+
+
+let showAll = false;
+let cachedFuelSummaryData = [];
+
 function fetchFuelSummaryData(startIso, endIso) {
   fetch('/fuel_cards/summary_by_driver')
     .then(res => res.json())
@@ -337,41 +342,69 @@ function fetchFuelSummaryData(startIso, endIso) {
       const container = document.getElementById("summaryResultsBody");
       if (!container) return;
 
-      if (!data.length) {
-        container.innerHTML = `<div class="alert alert-warning">Нет данныхs</div>`;
-        return;
-      }
-
-      let html = `
-        <table class="table table-bordered">
-          <thead>
-            <tr>
-              <th>Водитель</th>
-              <th>Трак</th>
-              <th>Qty</th>
-              <th>Retail $</th>
-              <th>Invoice $</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      data.forEach(row => {
-        html += `
-          <tr>
-            <td>${row.driver_name}</td>
-            <td>${row.unit_number || '-'}</td>
-            <td>${row.qty}</td>
-            <td>$${row.retail}</td>
-            <td>$${row.invoice}</td>
-          </tr>
-        `;
-      });
-
-      html += `</tbody></table>`;
-      container.innerHTML = html;
+      cachedFuelSummaryData = data || [];
+      renderFuelSummaryTable();
     })
     .catch(err => {
       console.error("Ошибка при получении summary:", err);
     });
+}
+
+function renderFuelSummaryTable() {
+  const container = document.getElementById("summaryResultsBody");
+  if (!container) return;
+
+  if (!cachedFuelSummaryData.length) {
+    container.innerHTML = `<div class="alert alert-warning">Нет данных</div>`;
+    return;
+  }
+
+  let dataToRender = showAll ? cachedFuelSummaryData : cachedFuelSummaryData.slice(0, 15);
+
+  let html = `
+    <table class="table table-bordered">
+      <thead>
+        <tr>
+          <th>Водитель</th>
+          <th>Трак</th>
+          <th>Qty</th>
+          <th>Retail $</th>
+          <th>Invoice $</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  dataToRender.forEach(row => {
+    html += `
+      <tr>
+        <td>${row.driver_name}</td>
+        <td>${row.unit_number || '-'}</td>
+        <td>${row.qty}</td>
+        <td>$${row.retail}</td>
+        <td>$${row.invoice}</td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table>`;
+
+  // Если есть больше 15 записей и ещё не все показаны — добавляем кнопку
+  if (!showAll && cachedFuelSummaryData.length > 15) {
+    html += `
+      <div class="text-center mt-3">
+        <button id="btn-show-more-summary" class="btn btn-sm btn-outline-secondary">Показать ещё</button>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+
+  const showMoreBtn = document.getElementById("btn-show-more-summary");
+  if (showMoreBtn) {
+    showMoreBtn.addEventListener("click", () => {
+      showAll = true;
+      renderFuelSummaryTable();
+    });
+  }
 }
