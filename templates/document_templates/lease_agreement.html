@@ -32,9 +32,15 @@
       margin-top: 5px;
       margin-bottom: 15px;
     }
+    #companySelect {
+      font-size: 12pt;
+      padding: 2px 4px;
+      width: auto;
+    }
   </style>
 </head>
 <body>
+
   <h1>LEASE AGREEMENT</h1>
 
   <div class="section">
@@ -43,7 +49,14 @@
 
   <div class="section">
     <p>
-      I, <strong>UNIVERSAL WAYS CORP.</strong> (Carrier) located at 1141 E. Main Street, Suite 206, East Dundee, IL 60118 and <strong>DRUZHBA LOGISTICS INC.</strong> (Equipment Owner/Registrant) are parties to a written Lease Agreement (Agreement), whereby the Equipment Owner has leased to the Carrier certain motor vehicle equipment listed below, owned and controlled by the Equipment Owner, whereby the Equipment Owner is providing the Carrier as operator or operators of the Equipment for the purpose of loading, transporting and unloading freight.
+      I, 
+      <select id="companySelect">
+        <option value="">-- Choose a company --</option>
+      </select>
+      (Carrier) located at <span data-fill="company_address">{{ company_address }}</span> and 
+      <strong>DRUZHBA LOGISTICS INC.</strong> (Equipment Owner/Registrant) are parties to a written Lease Agreement (Agreement), 
+      whereby the Equipment Owner has leased to the Carrier certain motor vehicle equipment listed below, owned and controlled by the Equipment Owner, 
+      whereby the Equipment Owner is providing the Carrier as operator or operators of the Equipment for the purpose of loading, transporting and unloading freight.
     </p>
 
     <p>
@@ -64,25 +77,33 @@
   <div class="section">
     <h3>Duration of lease Agreement and Termination</h3>
     <p>
-      The Lease Agreement shall begin on the date below and shall remain in effect until terminated by either party, giving one (1) day notice to that effect. Notice can be given personally, by mail or by fax machine at the address or fax number shown in the Lease Agreement.
+      The Lease Agreement shall begin on the date below and shall remain in effect until terminated by either party, giving one (1) day notice to that effect. 
+      Notice can be given personally, by mail or by fax machine at the address or fax number shown in the Lease Agreement.
     </p>
   </div>
 
   <div class="signature-block">
     <div class="signature">
       <div class="field-label">MOTOR CARRIER</div>
-      <div class="field">By: UNIVERSAL WAYS CORP.</div>
-      <div class="field">Date: 06/17/2025</div>
-      <div class="field">MC#: 71069</div>
-      <div class="field">USDOT#: 3089385</div>
+      <div class="field">By: <span data-fill="company_name">{{ company_name }}</span></div>
+      <div class="field">Date: <span data-fill="date">{{ date }}</span></div>
+      <div class="field">MC#: <span data-fill="mc">{{ mc }}</span></div>
+      <div class="field">USDOT#: <span data-fill="dot">{{ dot }}</span></div>
       <div class="field">Signatures: __________________________</div>
     </div>
     <div class="signature">
       <div class="field-label">EQUIPMENT OWNER</div>
       <div class="field">By: DRUZHBA LOGISTICS INC.</div>
-      <div class="field">Date: 06/17/2025</div>
+      <div class="field">Date: <span data-fill="date">{{ date }}</span></div>
       <div class="field">Signatures: __________________________</div>
     </div>
   </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      initLeaseAgreement(document.body, document);
+    });
+  </script>
+
 </body>
 </html>
