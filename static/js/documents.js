@@ -71,6 +71,7 @@ function initDocuments() {
 function initLeaseAgreement(modalBody, modal) {
   const select = modalBody.querySelector("#companySelect");
 
+  // === Запрашиваем компании ===
   fetch('/api/companies')
     .then(res => res.json())
     .then(data => {
@@ -99,18 +100,55 @@ function initLeaseAgreement(modalBody, modal) {
       });
     });
 
+  // === Подгружаем список юнитов ===
+  fetch('/api/units')
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success) throw new Error("Ошибка загрузки юнитов");
+
+      const units = data.units || [];
+      modalBody.loadedUnits = units;
+
+      const unitSelect = modalBody.querySelector("#unitSelect");
+      if (!unitSelect) {
+        console.warn("❌ unitSelect не найден в DOM");
+        return;
+      }
+
+      units.forEach(unit => {
+        const opt = document.createElement("option");
+        opt.value = unit._id;
+        opt.textContent = unit.unit; // показываем только номер юнита
+        opt.dataset.make = unit.make;
+        opt.dataset.model = unit.model;
+        opt.dataset.year = unit.year;
+        opt.dataset.vin = unit.vin;
+        unitSelect.appendChild(opt);
+      });
+
+      unitSelect.addEventListener("change", () => {
+        const selected = unitSelect.selectedOptions[0];
+        modalBody.querySelector("#makeCell").textContent = selected.dataset.make || '';
+        modalBody.querySelector("#yearCell").textContent = selected.dataset.year || '';
+        modalBody.querySelector("#vinCell").textContent = selected.dataset.vin || '';
+      });
+    })
+    .catch(err => {
+      console.error("❌ Ошибка получения юнитов:", err);
+    });
+
+  // === Equipment Owner input связка ===
   const equipmentInput = modalBody.querySelector("#equipmentOwnerInput");
   const equipmentNameDisplay = modalBody.querySelector("#equipmentOwnerName");
 
   if (equipmentInput && equipmentNameDisplay) {
-    // Установить значение при первом открытии
     equipmentNameDisplay.textContent = equipmentInput.value || '';
-
     equipmentInput.addEventListener("input", () => {
       equipmentNameDisplay.textContent = equipmentInput.value || '';
     });
   }
 
+  // === Кнопка генерации PDF ===
   const downloadBtn = modal.querySelector("#downloadPdfBtn");
   if (downloadBtn) {
     downloadBtn.addEventListener("click", () => {
@@ -127,6 +165,7 @@ function initLeaseAgreement(modalBody, modal) {
     });
   }
 }
+
 
 
 function initTruckChecklist(modalBody, modal) {
