@@ -110,3 +110,26 @@ def serve_template(template_name):
         return "Not found", 404
 
 
+@document_bp.route("/api/units")
+@login_required
+def get_units():
+    try:
+        trucks = db.trucks.find(
+            {"company": current_user.company},
+            {"unit_number": 1, "make": 1, "model": 1, "year": 1, "vin": 1}
+        ).sort("unit_number")
+
+        result = []
+        for truck in trucks:
+            result.append({
+                "_id": str(truck["_id"]),
+                "unit": truck.get("unit_number", ""),
+                "make": truck.get("make", ""),
+                "model": truck.get("model", ""),
+                "year": truck.get("year", ""),
+                "vin": truck.get("vin", "")
+            })
+
+        return jsonify({"success": True, "units": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

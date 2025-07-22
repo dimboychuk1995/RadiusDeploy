@@ -99,6 +99,18 @@ function initLeaseAgreement(modalBody, modal) {
       });
     });
 
+  const equipmentInput = modalBody.querySelector("#equipmentOwnerInput");
+  const equipmentNameDisplay = modalBody.querySelector("#equipmentOwnerName");
+
+  if (equipmentInput && equipmentNameDisplay) {
+    // Установить значение при первом открытии
+    equipmentNameDisplay.textContent = equipmentInput.value || '';
+
+    equipmentInput.addEventListener("input", () => {
+      equipmentNameDisplay.textContent = equipmentInput.value || '';
+    });
+  }
+
   const downloadBtn = modal.querySelector("#downloadPdfBtn");
   if (downloadBtn) {
     downloadBtn.addEventListener("click", () => {
@@ -115,6 +127,7 @@ function initLeaseAgreement(modalBody, modal) {
     });
   }
 }
+
 
 function initTruckChecklist(modalBody, modal) {
   const select = modalBody.querySelector("#companySelect");

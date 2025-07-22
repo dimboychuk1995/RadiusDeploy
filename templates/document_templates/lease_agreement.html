@@ -36,7 +36,13 @@
       font-size: 12pt;
       padding: 2px 4px;
       width: auto;
+      border: 1px solid #9d9d9d;
     }
+    #equipmentOwnerInput {
+      border: 1px solid #9d9d9d !important; 
+      padding: 0;
+    }
+
   </style>
 </head>
 <body>
@@ -54,7 +60,8 @@
         <option value="">-- Choose a company --</option>
       </select>
       (Carrier) located at <span data-fill="company_address">{{ company_address }}</span> and 
-      <strong>DRUZHBA LOGISTICS INC.</strong> (Equipment Owner/Registrant) are parties to a written Lease Agreement (Agreement), 
+      <input type="text" id="equipmentOwnerInput" style="border: none; border-bottom: 1px solid #000; font-weight: bold; width: 300px;">
+     (Equipment Owner/Registrant) are parties to a written Lease Agreement (Agreement), 
       whereby the Equipment Owner has leased to the Carrier certain motor vehicle equipment listed below, owned and controlled by the Equipment Owner, 
       whereby the Equipment Owner is providing the Carrier as operator or operators of the Equipment for the purpose of loading, transporting and unloading freight.
     </p>
@@ -66,12 +73,27 @@
 
   <div class="section">
     <h3>Equipment Owner / Equipment Information</h3>
-    <div class="field"><span class="field-label">Name:</span> DRUZHBA LOGISTICS INC.</div>
+    <div class="field"><span class="field-label">Name:</span> <span id="equipmentOwnerName"></span></div>
     <div class="field"><span class="field-label">Address:</span> 228 E, RIMINI CT., APT 2A, PALATINE, IL 60067</div>
-    <div class="field"><span class="field-label">Make:</span> FREIGHTLINER</div>
-    <div class="field"><span class="field-label">Year:</span> 2020</div>
-    <div class="field"><span class="field-label">VIN:</span> 3AKJHHDR2LSLR0071</div>
-    <div class="field"><span class="field-label">Unit:</span> 333</div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+      <thead>
+        <tr>
+          <th style="border: 1px solid #000; padding: 5px;">Unit</th>
+          <th style="border: 1px solid #000; padding: 5px;">Make</th>
+          <th style="border: 1px solid #000; padding: 5px;">Year</th>
+          <th style="border: 1px solid #000; padding: 5px;">VIN</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="border: 1px solid #000; padding: 5px;">333</td>
+          <td style="border: 1px solid #000; padding: 5px;">FREIGHTLINER</td>
+          <td style="border: 1px solid #000; padding: 5px;">2020</td>
+          <td style="border: 1px solid #000; padding: 5px;">3AKJHHDR2LSLR0071</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 
   <div class="section">
@@ -98,12 +120,6 @@
       <div class="field">Signatures: __________________________</div>
     </div>
   </div>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      initLeaseAgreement(document.body, document);
-    });
-  </script>
 
 </body>
 </html>
