@@ -23,7 +23,7 @@ html, body {
   position: fixed;
   top: 56px;
   left: 0;
-  width: 200px;
+  width: 220px;
   height: calc(100% - 56px);
   background-color: #2c3e50;
   padding-top: 1rem;
@@ -52,6 +52,11 @@ html, body {
   background-color: #1abc9c;
   border: none;
 }
+
+.sidebar-divider {
+    border-top: 1px solid #ccc;
+    margin: 0.75rem 0;
+  }
 
 /* === КОНТЕНТ === */
 .main-content {

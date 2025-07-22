@@ -333,9 +333,6 @@ function initFuelCardsSummary() {
       renderFuelSummaryTable();
     });
   }
-
-  // Загружаем начальную таблицу
-  fetchFuelSummaryData();
 }
 
 
@@ -344,7 +341,11 @@ let cachedFuelSummaryData = [];
 let summarySearchTerm = '';
 
 function fetchFuelSummaryData(startIso, endIso) {
-  fetch('/fuel_cards/summary_by_driver')
+  const params = new URLSearchParams();
+  if (startIso) params.append('start', startIso);
+  if (endIso) params.append('end', endIso);
+
+  fetch('/fuel_cards/summary_by_driver?' + params.toString())
     .then(res => res.json())
     .then(data => {
       cachedFuelSummaryData = data || [];

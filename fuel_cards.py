@@ -366,9 +366,21 @@ def fuel_cards_transactions_fragment():
 @login_required
 def summary_by_driver():
     try:
-        transactions = list(fuel_cards_transactions_collection.find({'company': current_user.company}))
+        start_str = request.args.get("start")
+        end_str = request.args.get("end")
 
-        # Группируем по driver_name
+        query = {'company': current_user.company}
+
+        if start_str and end_str:
+            try:
+                start_dt = datetime.fromisoformat(start_str)
+                end_dt = datetime.fromisoformat(end_str)
+                query['billing_date'] = {'$gte': start_dt, '$lte': end_dt}
+            except Exception as parse_err:
+                logging.warning(f"Невозможно разобрать даты: {parse_err}")
+
+        transactions = list(fuel_cards_transactions_collection.find(query))
+
         summary = defaultdict(lambda: {
             "qty": 0.0,
             "retail": 0.0,
@@ -381,7 +393,7 @@ def summary_by_driver():
             summary[driver_name]["qty"] += tx.get("qty", 0)
             summary[driver_name]["retail"] += tx.get("retail_price", 0)
             summary[driver_name]["invoice"] += tx.get("invoice_total", 0)
-            if tx.get("unit_number"):  # тут unit_number это ObjectId трака
+            if tx.get("unit_number"):
                 summary[driver_name]["truck_id"] = tx["unit_number"]
 
         result = []
@@ -409,7 +421,6 @@ def summary_by_driver():
             })
 
         return jsonify(result)
-
     except Exception as e:
         logging.error(f"Ошибка при построении summary: {e}")
         return jsonify([]), 500
