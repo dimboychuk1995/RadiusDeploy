@@ -135,13 +135,14 @@ function initLeaseAgreement(modalBody, modal) {
           width: '100%',
           placeholder: '-- Select Unit --',
           minimumResultsForSearch: 0,
-          dropdownParent: $(modal)  // 🧠 вот это важно
+          dropdownParent: $(modal)
         });
         console.log("✅ Select2 применён к #unitSelect");
       } else {
         console.warn("❌ Select2 или jQuery не загружены");
       }
 
+      // === При выборе юнита — заполняем ячейки
       $(unitSelect).on('change', function () {
         const selectedValue = $(this).val();
         const selectedOption = unitSelect.querySelector(`option[value="${selectedValue}"]`);
@@ -160,11 +161,17 @@ function initLeaseAgreement(modalBody, modal) {
   // === Equipment Owner input связка ===
   const equipmentInput = modalBody.querySelector("#equipmentOwnerInput");
   const equipmentNameDisplay = modalBody.querySelector("#equipmentOwnerName");
+  const equipmentSignature = modalBody.querySelector("#equipmentOwnerSignature");
 
   if (equipmentInput && equipmentNameDisplay) {
-    equipmentNameDisplay.textContent = equipmentInput.value || '';
+    const updateOwnerFields = (val) => {
+      equipmentNameDisplay.textContent = val;
+      if (equipmentSignature) equipmentSignature.textContent = val;
+    };
+
+    updateOwnerFields(equipmentInput.value || '');
     equipmentInput.addEventListener("input", () => {
-      equipmentNameDisplay.textContent = equipmentInput.value || '';
+      updateOwnerFields(equipmentInput.value || '');
     });
   }
 
