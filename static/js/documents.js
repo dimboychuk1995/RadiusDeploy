@@ -118,7 +118,7 @@ function initLeaseAgreement(modalBody, modal) {
       units.forEach(unit => {
         const opt = document.createElement("option");
         opt.value = unit._id;
-        opt.textContent = unit.unit; // показываем только номер юнита
+        opt.textContent = unit.unit;
         opt.dataset.make = unit.make;
         opt.dataset.model = unit.model;
         opt.dataset.year = unit.year;
@@ -126,11 +126,27 @@ function initLeaseAgreement(modalBody, modal) {
         unitSelect.appendChild(opt);
       });
 
+      console.log(`📦 Загружено юнитов: ${units.length}`);
+
+      // 🆕 Инициализируем Select2 (если загружен)
+      if (typeof $ !== 'undefined' && $.fn.select2) {
+        $(unitSelect).select2({
+          theme: 'bootstrap-5',
+          width: '100%',
+          placeholder: '-- Select Unit --',
+          minimumResultsForSearch: 0,
+          dropdownParent: $(modal)  // 🧠 вот это важно
+        });
+        console.log("✅ Select2 применён к #unitSelect");
+      } else {
+        console.warn("❌ Select2 или jQuery не загружены");
+      }
+
       unitSelect.addEventListener("change", () => {
         const selected = unitSelect.selectedOptions[0];
-        modalBody.querySelector("#makeCell").textContent = selected.dataset.make || '';
-        modalBody.querySelector("#yearCell").textContent = selected.dataset.year || '';
-        modalBody.querySelector("#vinCell").textContent = selected.dataset.vin || '';
+        modalBody.querySelector("#makeCell").textContent = selected?.dataset.make || '';
+        modalBody.querySelector("#yearCell").textContent = selected?.dataset.year || '';
+        modalBody.querySelector("#vinCell").textContent = selected?.dataset.vin || '';
       });
     })
     .catch(err => {
