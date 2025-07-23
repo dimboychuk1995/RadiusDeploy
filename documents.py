@@ -133,3 +133,47 @@ def get_units():
         return jsonify({"success": True, "units": result})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    
+
+@document_bp.route("/api/units/upload_lease_agreement", methods=["POST"])
+@login_required
+def upload_lease_agreement():
+    from bson import ObjectId
+    from tools.db import db, fs  # fs — GridFS instance
+
+    file = request.files.get("file")
+    unit_id = request.form.get("unit_id")
+
+    if not file or not unit_id:
+        return jsonify({"success": False, "error": "Не указан файл или unit_id"}), 400
+
+    try:
+        unit = db.trucks.find_one({"_id": ObjectId(unit_id), "company": current_user.company})
+        if not unit:
+            return jsonify({"success": False, "error": "Юнит не найден"}), 404
+
+        # Защита от None
+        power_info = unit.get("power_of_attorney") or {}
+        file_info = power_info.get("file") or {}
+        old_file_id = file_info.get("file_id")
+
+        if old_file_id:
+            fs.delete(ObjectId(old_file_id))
+
+        # Сохраняем новый файл
+        gridout_id = fs.put(file, filename=file.filename, content_type=file.content_type)
+
+        db.trucks.update_one(
+            {"_id": ObjectId(unit_id)},
+            {"$set": {
+                "power_of_attorney.file": {
+                    "file_id": gridout_id,
+                    "filename": file.filename,
+                    "content_type": file.content_type
+                }
+            }}
+        )
+
+        return jsonify({"success": True, "file_id": str(gridout_id)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

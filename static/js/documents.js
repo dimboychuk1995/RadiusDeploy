@@ -1,5 +1,6 @@
+// === Заменить downloadBtn обработку в initDocuments() ===
 function initDocuments() {
-  console.log("\ud83d\udcc2 initDocuments() \u0437\u0430\u043f\u0443\u0449\u0435\u043d");
+  console.log("\ud83d\udcc2 initDocuments() запущен");
 
   document.querySelectorAll(".document-template-card").forEach(card => {
     card.addEventListener("click", () => {
@@ -12,7 +13,7 @@ function initDocuments() {
 
       fetch(`/templates/document_templates/${template}`)
         .then(response => {
-          if (!response.ok) throw new Error("\u274c \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0448\u0430\u0431\u043b\u043e\u043d");
+          if (!response.ok) throw new Error("\u274c Не удалось загрузить шаблон");
           return response.text();
         })
         .then(html => {
@@ -37,32 +38,10 @@ function initDocuments() {
             default:
               console.warn("⛔ Нет специфичной инициализации для:", template);
           }
-
-          const downloadBtn = modal.querySelector("#downloadPdfBtn");
-          if (downloadBtn) {
-            downloadBtn.addEventListener("click", async () => {
-              const doc = modalBody.querySelector("#editableDocument");
-              if (!doc) return alert("\u274c \u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0434\u043b\u044f \u043f\u0435\u0447\u0430\u0442\u0438");
-
-              try {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                await html2pdf().set({
-                  margin: 0.5,
-                  filename: `${template}_${Date.now()}.pdf`,
-                  image: { type: 'jpeg', quality: 0.98 },
-                  html2canvas: { scale: 2 },
-                  jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-                }).from(doc).save();
-              } catch (err) {
-                console.error("\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 PDF:", err);
-                alert("\u041e\u0448\u0438\u0431\u043a\u0430 \u043f\u0440\u0438 \u0441\u043e\u0437\u0434\u0430\u043d\u0438\u0438 PDF");
-              }
-            });
-          }
         })
         .catch(err => {
-          console.error("\u274c \u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0448\u0430\u0431\u043b\u043e\u043d\u0430:", err);
-          alert("\u041e\u0448\u0438\u0431\u043a\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0438 \u0448\u0430\u0431\u043b\u043e\u043d\u0430 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430");
+          console.error("\u274c Ошибка загрузки шаблона:", err);
+          alert("Ошибка загрузки шаблона документа");
         });
     });
   });
@@ -126,9 +105,6 @@ function initLeaseAgreement(modalBody, modal) {
         unitSelect.appendChild(opt);
       });
 
-      console.log(`📦 Загружено юнитов: ${units.length}`);
-
-      // 🆕 Инициализируем Select2 (если загружен)
       if (typeof $ !== 'undefined' && $.fn.select2) {
         $(unitSelect).select2({
           theme: 'bootstrap-5',
@@ -137,12 +113,8 @@ function initLeaseAgreement(modalBody, modal) {
           minimumResultsForSearch: 0,
           dropdownParent: $(modal)
         });
-        console.log("✅ Select2 применён к #unitSelect");
-      } else {
-        console.warn("❌ Select2 или jQuery не загружены");
       }
 
-      // === При выборе юнита — заполняем ячейки
       $(unitSelect).on('change', function () {
         const selectedValue = $(this).val();
         const selectedOption = unitSelect.querySelector(`option[value="${selectedValue}"]`);
@@ -175,25 +147,66 @@ function initLeaseAgreement(modalBody, modal) {
     });
   }
 
-  // === Кнопка генерации PDF ===
+  // === Кнопка генерации, сохранения и скачивания PDF ===
   const downloadBtn = modal.querySelector("#downloadPdfBtn");
   if (downloadBtn) {
-    downloadBtn.addEventListener("click", () => {
+    const newBtn = downloadBtn.cloneNode(true);
+    downloadBtn.parentNode.replaceChild(newBtn, downloadBtn);
+
+    newBtn.addEventListener("click", async () => {
       const doc = modalBody.querySelector("#editableDocument");
+      const unitSelect = modalBody.querySelector("#unitSelect");
+      const unitId = unitSelect?.value;
+
       if (!doc) return alert("❌ Не найден документ для печати");
-      
+      if (!unitId) return alert("❌ Выберите юнит перед загрузкой документа");
+
       replaceFormElementsWithText(doc);
-      
-      html2pdf().set({
-        margin: 0.5,
-        filename: `lease_agreement_${Date.now()}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-      }).from(doc).save();
+
+      try {
+        const filename = `lease_agreement_${Date.now()}.pdf`;
+
+        // 1. Генерация PDF → blob
+        const blob = await html2pdf().set({
+          margin: 0.5,
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+        }).from(doc).outputPdf('blob');
+
+        // 2. Отправка в базу
+        const formData = new FormData();
+        formData.append("file", new File([blob], filename, { type: "application/pdf" }));
+        formData.append("unit_id", unitId);
+
+        const res = await fetch("/api/units/upload_lease_agreement", {
+          method: "POST",
+          body: formData
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+
+        // 3. Скачивание на клиент
+        const downloadLink = document.createElement("a");
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = filename;
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        URL.revokeObjectURL(downloadLink.href);
+
+        alert("✅ Документ успешно сохранён и скачан");
+        console.log("📁 Новый file_id:", json.file_id);
+      } catch (err) {
+        console.error("❌ Ошибка при сохранении или скачивании PDF:", err);
+        alert("Ошибка при создании или загрузке PDF");
+      }
     });
   }
 }
+
 
 
 // Replace inputs and select to text
