@@ -142,11 +142,15 @@ function initLeaseAgreement(modalBody, modal) {
         console.warn("❌ Select2 или jQuery не загружены");
       }
 
-      unitSelect.addEventListener("change", () => {
-        const selected = unitSelect.selectedOptions[0];
-        modalBody.querySelector("#makeCell").textContent = selected?.dataset.make || '';
-        modalBody.querySelector("#yearCell").textContent = selected?.dataset.year || '';
-        modalBody.querySelector("#vinCell").textContent = selected?.dataset.vin || '';
+      $(unitSelect).on('change', function () {
+        const selectedValue = $(this).val();
+        const selectedOption = unitSelect.querySelector(`option[value="${selectedValue}"]`);
+        if (!selectedOption) return;
+
+        modalBody.querySelector("#makeCell").textContent = selectedOption.dataset.make || '';
+        modalBody.querySelector("#modelCell").textContent = selectedOption.dataset.model || '';
+        modalBody.querySelector("#yearCell").textContent = selectedOption.dataset.year || '';
+        modalBody.querySelector("#vinCell").textContent = selectedOption.dataset.vin || '';
       });
     })
     .catch(err => {
