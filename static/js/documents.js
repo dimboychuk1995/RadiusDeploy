@@ -181,7 +181,9 @@ function initLeaseAgreement(modalBody, modal) {
     downloadBtn.addEventListener("click", () => {
       const doc = modalBody.querySelector("#editableDocument");
       if (!doc) return alert("❌ Не найден документ для печати");
-
+      
+      replaceFormElementsWithText(doc);
+      
       html2pdf().set({
         margin: 0.5,
         filename: `lease_agreement_${Date.now()}.pdf`,
@@ -194,6 +196,28 @@ function initLeaseAgreement(modalBody, modal) {
 }
 
 
+// Replace inputs and select to text
+function replaceFormElementsWithText(container) {
+  // Удаляем .select2 DOM-обёртки, если есть
+  container.querySelectorAll('.select2-container').forEach(el => el.remove());
+  
+  // Заменяем <input>
+  container.querySelectorAll("input").forEach(input => {
+    const span = document.createElement("span");
+    span.textContent = input.value;
+    span.style.fontWeight = "bold";
+    input.replaceWith(span);
+  });
+
+  // Заменяем <select>
+  container.querySelectorAll("select").forEach(select => {
+    const selectedText = select.options[select.selectedIndex]?.textContent || '';
+    const span = document.createElement("span");
+    span.textContent = selectedText;
+    span.style.fontWeight = "bold";
+    select.replaceWith(span);
+  });
+}
 
 function initTruckChecklist(modalBody, modal) {
   const select = modalBody.querySelector("#companySelect");
