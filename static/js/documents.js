@@ -158,8 +158,15 @@ function initLeaseAgreement(modalBody, modal) {
       const unitSelect = modalBody.querySelector("#unitSelect");
       const unitId = unitSelect?.value;
 
-      if (!doc) return alert("❌ Не найден документ для печати");
-      if (!unitId) return alert("❌ Выберите юнит перед загрузкой документа");
+      if (!doc) {
+        Swal.fire("Ошибка", "Не найден документ для печати", "error");
+        return;
+      }
+
+      if (!unitId) {
+        Swal.fire("Ошибка", "Выберите юнит перед загрузкой документа", "warning");
+        return;
+      }
 
       replaceFormElementsWithText(doc);
 
@@ -197,16 +204,19 @@ function initLeaseAgreement(modalBody, modal) {
         document.body.removeChild(downloadLink);
         URL.revokeObjectURL(downloadLink.href);
 
-        alert("✅ Документ успешно сохранён и скачан");
+        // 4. Закрываем модалку и показываем подтверждение
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) bsModal.hide();
+
+        Swal.fire("Готово", "Документ сохранён и скачан", "success");
         console.log("📁 Новый file_id:", json.file_id);
       } catch (err) {
         console.error("❌ Ошибка при сохранении или скачивании PDF:", err);
-        alert("Ошибка при создании или загрузке PDF");
+        Swal.fire("Ошибка", "Ошибка при создании или загрузке PDF", "error");
       }
     });
   }
 }
-
 
 
 // Replace inputs and select to text
