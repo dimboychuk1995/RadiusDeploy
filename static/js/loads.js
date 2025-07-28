@@ -1,3 +1,8 @@
+document.addEventListener("DOMContentLoaded", () => {
+  initLoads();
+});
+
+
 // === initLoads ===
 function initLoads() {
   const typeSelect = document.querySelector('select[name="type"]');
@@ -87,6 +92,19 @@ function addVehicle() {
       <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить авто</button>
     </div>`;
   container.insertAdjacentHTML("beforeend", html);
+}
+
+let vehicleBlockShown = false;
+
+function handleAddVehicleClick() {
+  const block = document.getElementById("vehicles-block");
+
+  if (!vehicleBlockShown) {
+    block.style.display = "block";
+    vehicleBlockShown = true;
+  }
+
+  addVehicle(); // уже существует
 }
 
 // === Открытие/закрытие модалки ===
@@ -180,10 +198,6 @@ function deleteLoad(loadId) {
       alert("Произошла ошибка при удалении груза");
     });
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-  initLoads();
-});
 
 // === Назначение водителя ===
 function openAssignDriverModal(loadId, currentDriverId = null) {

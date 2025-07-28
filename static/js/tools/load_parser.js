@@ -73,6 +73,7 @@ function autofillLoadForm(data) {
   const totalMiles = document.querySelector('[name="total_miles"]');
   if (totalMiles) totalMiles.value = data["Total Miles"] || "";
 
+  // --- Автозаполнение Pickup Locations ---
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
     const p = pickups[0];
@@ -84,7 +85,6 @@ function autofillLoadForm(data) {
     document.querySelector('[name="pickup_contact_phone_number"]').value = p["Location Phone Number"] || "";
     document.querySelector('[name="pickup_contact_email"]').value = p["Contact Email"] || "";
   }
-
   if (pickups.length > 1) {
     const container = document.getElementById('extra-pickups-container');
     pickups.slice(1).forEach((p, index) => {
@@ -103,6 +103,7 @@ function autofillLoadForm(data) {
     });
   }
 
+  // --- Автозаполнение Delivery Locations ---
   const deliveries = data["Delivery Locations"] || [];
   if (deliveries.length > 0) {
     const d = deliveries[0];
@@ -114,7 +115,6 @@ function autofillLoadForm(data) {
     document.querySelector('[name="delivery_contact_phone_number"]').value = d["Location Phone Number"] || "";
     document.querySelector('[name="delivery_contact_email"]').value = d["Contact Email"] || "";
   }
-
   if (deliveries.length > 1) {
     const container = document.getElementById('extra-deliveries-container');
     deliveries.slice(1).forEach((d, index) => {
@@ -132,6 +132,30 @@ function autofillLoadForm(data) {
       container.insertAdjacentHTML("beforeend", html);
     });
   }
+
+  // --- Автозаполнение транспортных средств ---
+  const vehicles = data["vehicles"] || [];
+  if (vehicles.length > 0) {
+    const vehicleBlock = document.getElementById("vehicles-block");
+    if (vehicleBlock) vehicleBlock.style.display = "block";
+
+    for (let i = 0; i < vehicles.length; i++) {
+      addVehicle(); // добавляет пустой блок с правильным индексом
+    }
+
+    vehicles.forEach((v, i) => {
+      const vehicleDiv = document.querySelectorAll("#vehicle-entries > div")[i];
+      if (!vehicleDiv) return;
+
+      vehicleDiv.querySelector(`[name="vehicles[${i}][year]"]`).value = v["year"] || "";
+      vehicleDiv.querySelector(`[name="vehicles[${i}][make]"]`).value = v["make"] || "";
+      vehicleDiv.querySelector(`[name="vehicles[${i}][model]"]`).value = v["model"] || "";
+      vehicleDiv.querySelector(`[name="vehicles[${i}][vin]"]`).value = v["VIN"] || "";
+      vehicleDiv.querySelector(`[name="vehicles[${i}][mileage]"]`).value = v["mileage"] || "";
+      vehicleDiv.querySelector(`[name="vehicles[${i}][description]"]`).value = v["color"] || "";
+    });
+  }
+
   // === Расчёт Rate Per Mile ===
   const pickupAddrs = (data["Pickup Locations"] || []).map(p => p["Address"]);
   const deliveryAddrs = (data["Delivery Locations"] || []).map(d => d["Address"]);
@@ -159,11 +183,6 @@ function autofillLoadForm(data) {
       }
     });
   }
-
-  console.log("📍 Адреса для расчёта RPM:", allAddrs);
-  console.log("💲 Цена:", price);
-
-  console.log("✅ Все поля автозаполнены!");
 }
 
 

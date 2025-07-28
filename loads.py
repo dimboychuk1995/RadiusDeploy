@@ -95,6 +95,18 @@ You are a logistics assistant. Parse the following document (Rate Confirmation o
 - If multiple instruction fragments refer to the same stop, append them to that stop’s **Instructions** field — do not overwrite.
 - Always collect all instruction texts found — don’t discard any valid instruction.
 
+📌 VEHICLE EXTRACTION LOGIC:
+- If the document describes transport of one or more vehicles (e.g., cars, trucks, trailers), extract each vehicle into a list under **vehicles** field.
+- For each vehicle, attempt to extract the following fields:
+  - "make" (e.g., Toyota)
+  - "model" (e.g., Camry)
+  - "year" (e.g., 2022)
+  - "VIN" (Vehicle Identification Number)
+  - "mileage" (in miles, just the number)
+  - "color" (e.g., Red, Black)
+- If any of these fields are missing, leave them as empty strings.
+- If no vehicles are mentioned, return an empty list for **vehicles**.
+
 🔁 OUTPUT FORMAT EXAMPLE:
 {{
   "Load Number": "123456",
@@ -127,6 +139,24 @@ You are a logistics assistant. Parse the following document (Rate Confirmation o
       "Location Phone Number": "555-888-7777",
       "Contact Person": "Jane Smith",
       "Contact Email": "jane@example.com"
+    }}
+  ],
+  "vehicles": [
+    {{
+      "make": "Toyota",
+      "model": "Camry",
+      "year": "2022",
+      "VIN": "1HGCM82633A004352",
+      "mileage": "35000",
+      "color": "White"
+    }},
+    {{
+      "make": "Ford",
+      "model": "F-150",
+      "year": "2021",
+      "VIN": "1FTFW1E58MFA12345",
+      "mileage": "",
+      "color": "Black"
     }}
   ]
 }}
@@ -226,6 +256,27 @@ def parse_load_pdf():
 
         merged_result["Pickup Locations"] = remove_empty_stops(merged_result["Pickup Locations"])
         merged_result["Delivery Locations"] = remove_empty_stops(merged_result["Delivery Locations"])
+
+        # ✅ Добавим авто, если есть
+        vehicles = result.get("vehicles", [])
+        if not vehicles:
+            vehicles = []
+            for i in range(1, 10):
+                vin = result.get(f"VIN {i}") or result.get(f"VIN{i}")
+                if not vin:
+                    continue
+                vehicle = {
+                    "year": result.get(f"Year {i}", ""),
+                    "make": result.get(f"Make {i}", ""),
+                    "model": result.get(f"Model {i}", ""),
+                    "VIN": vin,
+                    "mileage": result.get(f"Mileage {i}", ""),
+                    "color": result.get(f"Color {i}", "")
+                }
+                vehicles.append(vehicle)
+
+        if vehicles:
+            merged_result["vehicles"] = vehicles
 
         return jsonify(merged_result)
 

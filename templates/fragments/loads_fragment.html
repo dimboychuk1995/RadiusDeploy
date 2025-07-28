@@ -220,11 +220,23 @@
               <div class="form-group"><label>Вес груза (lbs)</label><input type="text" class="form-control" name="weight"></div>
             </div>
 
+
+            
             <!-- Динамические блоки -->
+
+            <!-- Кнопка для показа блока автомобилей -->
+            <button
+              id="add-vehicle-btn"
+              type="button"
+              class="btn btn-outline-primary btn-sm mb-3"
+              onclick="handleAddVehicleClick()"
+            >
+              ➕ Добавить авто
+            </button>
+
             <div id="vehicles-block" style="display: none;">
               <h5>Информация об авто</h5>
               <div id="vehicle-entries"></div>
-              <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addVehicle()">➕ Добавить авто</button>
             </div>
 
             <!-- Pickup -->
