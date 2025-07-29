@@ -285,6 +285,32 @@ def parse_load_pdf():
         return jsonify({'error': f'Ошибка при обработке файла: {str(e)}'}), 500
 
 
+def get_or_create_partner(partner_type, partner_name, partner_email, partner_phone, company_id):
+    """
+    Получает или создаёт брокера/клиента и возвращает его ObjectId.
+    """
+    if not partner_name:
+        return None
+
+    collection = db["brokers"] if partner_type == "broker" else db["customers"]
+    existing = collection.find_one({
+        "name": partner_name,
+        "company": company_id
+    })
+
+    if existing:
+        return existing["_id"]
+
+    new_id = collection.insert_one({
+        "name": partner_name,
+        "email": partner_email,
+        "phone": partner_phone,
+        "company": company_id
+    }).inserted_id
+
+    return new_id
+
+
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role(['admin', 'dispatch'])
 def add_load():
@@ -295,7 +321,6 @@ def add_load():
             return None
 
     try:
-
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
 
@@ -307,25 +332,13 @@ def add_load():
         partner_email = request.form.get("broker_email")
         partner_phone = request.form.get("broker_phone_number")
 
-
-        broker_id = None
-        if partner_name:
-            collection = db["brokers"] if partner_type == "broker" else db["customers"]
-            existing = collection.find_one({
-                "name": partner_name,
-                "company": current_user.company
-            })
-
-            if existing:
-                broker_id = existing["_id"]
-            else:
-                broker_id = collection.insert_one({
-                    "name": partner_name,
-                    "email": partner_email,
-                    "phone": partner_phone,
-                    "company": current_user.company
-                }).inserted_id
-
+        broker_id = get_or_create_partner(
+            partner_type=partner_type,
+            partner_name=partner_name,
+            partner_email=partner_email,
+            partner_phone=partner_phone,
+            company_id=current_user.company
+        )
 
         extra_pickups = []
         for key in request.form:
@@ -341,7 +354,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
                 })
 
-
         extra_deliveries = []
         for key in request.form:
             if key.startswith("extra_delivery[") and key.endswith("][company]"):
@@ -356,7 +368,6 @@ def add_load():
                     "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
                 })
 
-
         vehicles = []
         for key in request.form:
             if key.startswith("vehicles[") and key.endswith("][year]"):
@@ -369,7 +380,6 @@ def add_load():
                     "mileage": request.form.get(f"vehicles[{idx}][mileage]"),
                     "description": request.form.get(f"vehicles[{idx}][description]")
                 })
-
 
         assigned_driver_id = request.form.get("assigned_driver")
 
@@ -430,7 +440,7 @@ def add_load():
             "bol": bol_id,
             "company": current_user.company,
             "was_added_to_statement": False,
-            "created_at": datetime.now(timezone.utc)  # 🆕 поле для индексации и сортировки
+            "created_at": datetime.now(timezone.utc)
         }
 
         loads_collection.insert_one(load_data)
@@ -449,8 +459,8 @@ def add_load():
                         driver_name=driver["name"],
                         load_info=load_data
                     )
-                except Exception as e: 
-                   print(f"❌ Ошибка email: {str(e)}")
+                except Exception as e:
+                    print(f"❌ Ошибка email: {str(e)}")
 
             expo_token = driver.get("expo_push_token")
 
@@ -458,7 +468,6 @@ def add_load():
                 pickup = load_data["pickup"]["address"]
                 delivery = load_data["delivery"]["address"]
                 load_id_str = load_data.get("load_id", "Новый груз")
-
 
                 send_push_notification(
                     expo_token,
