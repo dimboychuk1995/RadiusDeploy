@@ -76,27 +76,74 @@ def ask_gpt(content):
     prompt = f"""
 You are a logistics assistant. Parse the following document (Rate Confirmation or BOL) into strict JSON format.
 
-📌 RULES:
+📌 GENERAL RULES:
 - Return ONLY valid JSON — no markdown, no explanations.
 - Use double quotes (") for all keys and values.
-- Use date format: MM/DD/YYYY.
-- Use time format: hh:mm AM/PM.
 - Use price format: ####.## (two decimals), without currency symbols.
 - Use empty strings for missing values.
 - Do NOT invent data — if something is missing, leave it blank.
 - Include each real pickup or delivery as a separate object in the list.
-- The Broker Name is usually found in the top-left or top-center area of the document — typically as a logo or heading.
+
+🧾 BROKER INFO RULES:
+- The broker’s logo is usually at the top-left or top-center of the document.
+- The "Broker Name" almost always matches the logo name.
+- Look for the broker's information (name, phone, email, address) in the same area — usually near the logo or in a header block.
+- If the broker’s name is mentioned in plain text, the phone number, email, and address are often listed directly nearby.
+- Use only what is explicitly written — do not guess.
+
+📅 DATE AND TIME RULES:
+Use the following logic depending on what kind of date/time information is present for a stop:
+
+- If a single fixed date and time is provided:
+  - "date": "MM/DD/YYYY"
+  - "time_from": "hh:mm AM/PM"
+  - "appointment": true
+
+- If a time range is provided but only one date:
+  - "date": "MM/DD/YYYY"
+  - "time_from": "hh:mm AM/PM"
+  - "time_to": "hh:mm AM/PM"
+  - "appointment": false
+
+- If a date range is provided but only one time (or no time range):
+  - "date": "MM/DD/YYYY"
+  - "date_to": "MM/DD/YYYY"
+  - "time_from": "hh:mm AM/PM" (if available)
+  - "appointment": false
+
+- If both a date range and time range are provided:
+  - "date_from": "MM/DD/YYYY"
+  - "date_to": "MM/DD/YYYY"
+  - "time_from": "hh:mm AM/PM"
+  - "time_to": "hh:mm AM/PM"
+  - "appointment": false
+
+- If only a date is known and no time is given:
+  - "date": "MM/DD/YYYY"
+  - "appointment": false
+
+🛠 TIME RANGE EDGE CASE RULE:
+- If only time_to is extracted but time_from is missing or null:
+  - Use the value of time_to as time_from
+  - Omit time_to completely
+
+📌 DATE/TIME POSITIONING RULE:
+- Always extract the correct date and time specific to each pickup or delivery.
+- Do NOT confuse the general document date (e.g., date issued, usually near the top of the document) with the pickup/delivery dates.
+- Pickup and delivery dates/times are typically located next to each stop, and must be extracted separately for each.
+
+- Never use capitalized "Date" or "Time" — always use lowercase: date, date_to, date_from, time_from, time_to.
 
 📌 SPECIAL INSTRUCTIONS LOGIC:
 - Instructions may appear throughout the document — at the top, bottom, or near specific stops.
-- If an instruction clearly refers to a specific pickup or delivery stop, add it into that stop’s **Instructions** field.
-- In this case, also include it in the general **Load Description** field.
-- If instructions are general and not tied to a specific stop, include them only in **Load Description**.
-- If multiple instruction fragments refer to the same stop, append them to that stop’s **Instructions** field — do not overwrite.
+- If an instruction clearly refers to a specific pickup or delivery stop, add it into that stop’s Instructions field.
+- Also include such instructions in the general Load Description.
+- If instructions are general and not tied to a specific stop, include them only in Load Description.
+- If multiple instruction fragments refer to the same stop, append them to that stop’s Instructions field — do not overwrite.
 - Always collect all instruction texts found — don’t discard any valid instruction.
 
 📌 VEHICLE EXTRACTION LOGIC:
-- If the document describes transport of one or more vehicles (e.g., cars, trucks, trailers), extract each vehicle into a list under **vehicles** field.
+- If the document describes transport of one or more vehicles (e.g., cars, trucks, trailers), extract each vehicle into a list under vehicles field.
 - For each vehicle, attempt to extract the following fields:
   - "make" (e.g., Toyota)
   - "model" (e.g., Camry)
@@ -105,7 +152,7 @@ You are a logistics assistant. Parse the following document (Rate Confirmation o
   - "mileage" (in miles, just the number)
   - "color" (e.g., Red, Black)
 - If any of these fields are missing, leave them as empty strings.
-- If no vehicles are mentioned, return an empty list for **vehicles**.
+- If no vehicles are mentioned, return an empty list for vehicles.
 
 🔁 OUTPUT FORMAT EXAMPLE:
 {{
@@ -182,6 +229,8 @@ Document:
         if message.endswith("```"):
             message = message[:-len("```")].strip()
 
+        print("📤 GPT RAW RESPONSE:\n", message)  # 🔍 Вот сюда
+
         result = json.loads(message)
 
         # 🧹 Минимальная валидация и доп. очистка
@@ -206,6 +255,9 @@ Document:
 
     except Exception as e:
         raise Exception(f"❌ OpenAI error: {str(e)}")
+
+
+
 
 @loads_bp.route('/api/parse_load_pdf', methods=['POST'])
 def parse_load_pdf():
