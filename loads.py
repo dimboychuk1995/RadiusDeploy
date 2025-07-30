@@ -73,6 +73,99 @@ def allowed_file(filename):
 def ask_gpt(content):
     client = get_openai_client()
 
+    example_block = """
+{{
+  "Load Number": "123456",
+  "Broker Name": "ABC Logistics",
+  "Type Of Load": "Dry Van",
+  "Broker Phone Number": "555-123-4567",
+  "Broker Email": "abc@logistics.com",
+  "Price": "1500.00",
+  "Weight": "42000",
+  "Load Description": "Frozen food",
+  "Pickup Locations": [
+    {{
+      "Company": "Walmart",
+      "Address": "123 Main St, Dallas, TX",
+      "date": "06/01/2025",
+      "time_from": "08:00 AM",
+      "appointment": true,
+      "Instructions": "Go to dock 5",
+      "Location Phone Number": "555-999-1111",
+      "Contact Person": "John Doe",
+      "Contact Email": "john.doe@walmart.com"
+    }},
+    {{
+      "Company": "Target",
+      "Address": "456 Second St, Little Rock, AR",
+      "date": "06/02/2025",
+      "time_from": "09:00 AM",
+      "time_to": "12:00 PM",
+      "appointment": false,
+      "Instructions": "Check in with security",
+      "Location Phone Number": "555-888-2222",
+      "Contact Person": "Jane Smith",
+      "Contact Email": "jane.smith@target.com"
+    }}
+  ],
+  "Delivery Locations": [
+    {{
+      "Company": "Kroger",
+      "Address": "789 Oak Rd, Atlanta, GA",
+      "date": "06/03/2025",
+      "date_to": "06/04/2025",
+      "time_from": "07:00 AM",
+      "appointment": false,
+      "Instructions": "Call before arrival",
+      "Location Phone Number": "555-777-3333",
+      "Contact Person": "Mike Johnson",
+      "Contact Email": "mike.j@kroger.com"
+    }},
+    {{
+      "Company": "Costco",
+      "Address": "321 Pine Ave, Charlotte, NC",
+      "date_from": "06/05/2025",
+      "date_to": "06/06/2025",
+      "time_from": "10:00 AM",
+      "time_to": "02:00 PM",
+      "appointment": false,
+      "Instructions": "Use back dock",
+      "Location Phone Number": "555-666-4444",
+      "Contact Person": "Sarah Lee",
+      "Contact Email": "sarah.lee@costco.com"
+    }},
+    {{
+      "Company": "Publix",
+      "Address": "654 Cedar Blvd, Raleigh, NC",
+      "date": "06/07/2025",
+      "appointment": false,
+      "Instructions": "",
+      "Location Phone Number": "555-555-5555",
+      "Contact Person": "Robert Green",
+      "Contact Email": "robert.green@publix.com"
+    }}
+  ],
+  "vehicles": [
+    {{
+      "make": "Toyota",
+      "model": "Camry",
+      "year": "2022",
+      "VIN": "1HGCM82633A004352",
+      "mileage": "35000",
+      "color": "White"
+    }},
+    {{
+      "make": "Ford",
+      "model": "F-150",
+      "year": "2021",
+      "VIN": "1FTFW1E58MFA12345",
+      "mileage": "",
+      "color": "Black"
+    }}
+  ]
+}}
+"""
+
     prompt = f"""
 You are a logistics assistant. Parse the following document (Rate Confirmation or BOL) into strict JSON format.
 
@@ -89,6 +182,7 @@ You are a logistics assistant. Parse the following document (Rate Confirmation o
 - The "Broker Name" almost always matches the logo name.
 - Look for the broker's information (name, phone, email, address) in the same area — usually near the logo or in a header block.
 - If the broker’s name is mentioned in plain text, the phone number, email, and address are often listed directly nearby.
+- **Broker Email is a required field** — it is often used for communication and must be extracted if present anywhere in the document.
 - Use only what is explicitly written — do not guess.
 
 📅 DATE AND TIME RULES:
@@ -145,68 +239,12 @@ Use the following logic depending on what kind of date/time information is prese
 📌 VEHICLE EXTRACTION LOGIC:
 - If the document describes transport of one or more vehicles (e.g., cars, trucks, trailers), extract each vehicle into a list under vehicles field.
 - For each vehicle, attempt to extract the following fields:
-  - "make" (e.g., Toyota)
-  - "model" (e.g., Camry)
-  - "year" (e.g., 2022)
-  - "VIN" (Vehicle Identification Number)
-  - "mileage" (in miles, just the number)
-  - "color" (e.g., Red, Black)
+  - "make", "model", "year", "VIN", "mileage", "color"
 - If any of these fields are missing, leave them as empty strings.
 - If no vehicles are mentioned, return an empty list for vehicles.
 
 🔁 OUTPUT FORMAT EXAMPLE:
-{{
-  "Load Number": "123456",
-  "Broker Name": "ABC Logistics",
-  "Type Of Load": "Dry Van",
-  "Broker Phone Number": "555-123-4567",
-  "Broker Email": "abc@logistics.com",
-  "Price": "1500.00",
-  "Weight": "42000",
-  "Load Description": "Frozen food",
-  "Pickup Locations": [
-    {{
-      "Company": "Walmart",
-      "Address": "123 Main St, Dallas, TX",
-      "Date": "06/01/2025",
-      "Time": "08:00 AM",
-      "Instructions": "Go to dock 5",
-      "Location Phone Number": "555-999-8888",
-      "Contact Person": "John Doe",
-      "Contact Email": "john@example.com"
-    }}
-  ],
-  "Delivery Locations": [
-    {{
-      "Company": "Kroger",
-      "Address": "789 Oak Rd, Atlanta, GA",
-      "Date": "06/03/2025",
-      "Time": "02:00 PM",
-      "Instructions": "Call before arrival",
-      "Location Phone Number": "555-888-7777",
-      "Contact Person": "Jane Smith",
-      "Contact Email": "jane@example.com"
-    }}
-  ],
-  "vehicles": [
-    {{
-      "make": "Toyota",
-      "model": "Camry",
-      "year": "2022",
-      "VIN": "1HGCM82633A004352",
-      "mileage": "35000",
-      "color": "White"
-    }},
-    {{
-      "make": "Ford",
-      "model": "F-150",
-      "year": "2021",
-      "VIN": "1FTFW1E58MFA12345",
-      "mileage": "",
-      "color": "Black"
-    }}
-  ]
-}}
+{example_block}
 
 Document:
 -----
@@ -221,7 +259,6 @@ Document:
         )
         message = response.choices[0].message.content.strip()
 
-        # Очистка от markdown
         if message.startswith("```json"):
             message = message[len("```json"):].strip()
         if message.startswith("```"):
@@ -229,22 +266,19 @@ Document:
         if message.endswith("```"):
             message = message[:-len("```")].strip()
 
-        print("📤 GPT RAW RESPONSE:\n", message)  # 🔍 Вот сюда
+        print("📤 GPT RAW RESPONSE:\n", message)
 
         result = json.loads(message)
 
-        # 🧹 Минимальная валидация и доп. очистка
         expected_keys = [
             "Load Number", "Broker Name", "Type Of Load", "Broker Phone Number",
             "Broker Email", "Price", "Weight", "Load Description",
             "Pickup Locations", "Delivery Locations"
         ]
-
         for key in expected_keys:
             if key not in result:
                 result[key] = "" if "Locations" not in key else []
 
-        # Удаление пустых pickup/delivery
         def clean_stops(stops):
             return [s for s in stops if s.get("Address", "").strip()]
 
@@ -255,6 +289,8 @@ Document:
 
     except Exception as e:
         raise Exception(f"❌ OpenAI error: {str(e)}")
+
+
 
 
 
