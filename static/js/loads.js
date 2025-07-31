@@ -106,19 +106,58 @@ function addExtraPickup() {
   const html = `
     <div class="border p-3 mb-2 bg-light rounded">
       <h6>Extra Pickup #${index + 1}</h6>
+
       <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${index}][company]"></div>
       <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${index}][address]"></div>
 
-      <div class="form-group">
-        <div class="form-row">
-          <div class="form-group col-md-6"><label>Дата от</label><input type="date" class="form-control" name="extra_pickup[${index}][date]"></div>
-          <div class="form-group col-md-6"><label>Дата до</label><input type="date" class="form-control" name="extra_pickup[${index}][date_to]"></div>
+      <div class="time-block">
+        <div class="form-group">
+          <label>Тип времени</label>
+          <select class="form-control time-mode-select" onchange="handleTimeModeChange(this)">
+            <option value="appointment" selected>Appointment</option>
+            <option value="date">Только дата</option>
+            <option value="date_range">Диапазон дат</option>
+            <option value="date_time_range">Диапазон дат + времени</option>
+          </select>
         </div>
-      </div>
-      <div class="form-group">
-        <div class="form-row">
-          <div class="form-group col-md-6"><label>Время от</label><input type="time" class="form-control" name="extra_pickup[${index}][time_from]"></div>
-          <div class="form-group col-md-6"><label>Время до</label><input type="time" class="form-control" name="extra_pickup[${index}][time_to]"></div>
+
+        <div class="form-group time-control time-appointment">
+          <label><input type="checkbox" name="extra_pickup[${index}][appointment]" checked> Апойтмент</label>
+        </div>
+
+        <div class="form-group time-control time-date time-date_range time-date_time_range time-appointment-date">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Дата</label>
+              <input type="date" class="form-control" name="extra_pickup[${index}][date]">
+            </div>
+            <div class="form-group col-md-6 time-date_range time-date_time_range time-appointment-date_to">
+              <label>Дата до</label>
+              <input type="date" class="form-control" name="extra_pickup[${index}][date_to]">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group time-control time-appointment-time">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Время</label>
+              <input type="time" class="form-control" name="extra_pickup[${index}][time_from]">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group time-control time-date_time_range">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Время от</label>
+              <input type="time" class="form-control" name="extra_pickup[${index}][time_from]">
+            </div>
+            <div class="form-group col-md-6">
+              <label>Время до</label>
+              <input type="time" class="form-control" name="extra_pickup[${index}][time_to]">
+            </div>
+          </div>
         </div>
       </div>
 
@@ -129,7 +168,13 @@ function addExtraPickup() {
       <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
     </div>`;
   container.insertAdjacentHTML("beforeend", html);
+
+  // 💡 Сразу применяем режим времени
+  const lastBlock = container.lastElementChild;
+  const select = lastBlock.querySelector(".time-mode-select");
+  if (select) handleTimeModeChange(select);
 }
+
 
 
 // === Extra Delivery ===
@@ -139,19 +184,58 @@ function addExtraDelivery() {
   const html = `
     <div class="border p-3 mb-2 bg-light rounded">
       <h6>Extra Delivery #${index + 1}</h6>
+
       <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${index}][company]"></div>
       <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${index}][address]"></div>
 
-      <div class="form-group">
-        <div class="form-row">
-          <div class="form-group col-md-6"><label>Дата от</label><input type="date" class="form-control" name="extra_delivery[${index}][date]"></div>
-          <div class="form-group col-md-6"><label>Дата до</label><input type="date" class="form-control" name="extra_delivery[${index}][date_to]"></div>
+      <div class="time-block">
+        <div class="form-group">
+          <label>Тип времени</label>
+          <select class="form-control time-mode-select" onchange="handleTimeModeChange(this)">
+            <option value="appointment" selected>Appointment</option>
+            <option value="date">Только дата</option>
+            <option value="date_range">Диапазон дат</option>
+            <option value="date_time_range">Диапазон дат + времени</option>
+          </select>
         </div>
-      </div>
-      <div class="form-group">
-        <div class="form-row">
-          <div class="form-group col-md-6"><label>Время от</label><input type="time" class="form-control" name="extra_delivery[${index}][time_from]"></div>
-          <div class="form-group col-md-6"><label>Время до</label><input type="time" class="form-control" name="extra_delivery[${index}][time_to]"></div>
+
+        <div class="form-group time-control time-appointment">
+          <label><input type="checkbox" name="extra_delivery[${index}][appointment]" checked> Апойтмент</label>
+        </div>
+
+        <div class="form-group time-control time-date time-date_range time-date_time_range time-appointment-date">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Дата</label>
+              <input type="date" class="form-control" name="extra_delivery[${index}][date]">
+            </div>
+            <div class="form-group col-md-6 time-date_range time-date_time_range time-appointment-date_to">
+              <label>Дата до</label>
+              <input type="date" class="form-control" name="extra_delivery[${index}][date_to]">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group time-control time-appointment-time">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Время</label>
+              <input type="time" class="form-control" name="extra_delivery[${index}][time_from]">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group time-control time-date_time_range">
+          <div class="form-row">
+            <div class="form-group col-md-6">
+              <label>Время от</label>
+              <input type="time" class="form-control" name="extra_delivery[${index}][time_from]">
+            </div>
+            <div class="form-group col-md-6">
+              <label>Время до</label>
+              <input type="time" class="form-control" name="extra_delivery[${index}][time_to]">
+            </div>
+          </div>
         </div>
       </div>
 
@@ -162,8 +246,11 @@ function addExtraDelivery() {
       <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
     </div>`;
   container.insertAdjacentHTML("beforeend", html);
-}
 
+  const lastBlock = container.lastElementChild;
+  const select = lastBlock.querySelector(".time-mode-select");
+  if (select) handleTimeModeChange(select);
+}
 
 // === Vehicles ===
 function addVehicle() {
