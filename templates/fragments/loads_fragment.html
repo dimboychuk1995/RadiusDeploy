@@ -231,7 +231,7 @@
               class="btn btn-outline-primary btn-sm mb-3"
               onclick="handleAddVehicleClick()"
             >
-              ➕ Добавить авто
+              Добавить авто
             </button>
 
             <div id="vehicles-block" style="display: none;">
@@ -242,15 +242,60 @@
             <!-- Pickup -->
             <hr><h5>Pickup</h5>
             <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="pickup_company"></div>
-            
-            <!-- Pickup address-->
+
             <div class="form-group" style="position: relative;">
               <label>Pickup Address</label>
               <input type="text" id="pickup-autocomplete" name="pickup_address" class="form-control" data-autocomplete="mapbox">
               <div class="autocomplete-suggestions"></div>
             </div>
 
-            <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="pickup_date"></div>
+            <div class="time-block">
+            <!-- Режим -->
+            <div class="form-group">
+              <label>Тип времени</label>
+              <select class="form-control time-mode-select" onchange="handleTimeModeChange(this)">
+                <option value="appointment" selected>Appointment</option>
+                <option value="date">Только дата</option>
+                <option value="date_range">Диапазон дат</option>
+                <option value="date_time_range">Диапазон дат + времени</option>
+              </select>
+            </div>
+
+            <!-- Чекбокс appointment -->
+            <div class="form-group time-control time-appointment">
+              <label><input type="checkbox" name="pickup_appointment" checked> Апойтмент</label>
+            </div>
+
+            <!-- Дата -->
+            <div class="form-group time-control time-date time-date_range time-date_time_range time-appointment-date">
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label>Дата</label>
+                  <input type="date" class="form-control" name="pickup_date">
+                </div>
+                <div class="form-group col-md-6 time-date_range time-date_time_range time-appointment-date_to">
+                  <label>Дата до</label>
+                  <input type="date" class="form-control" name="pickup_date_to">
+                </div>
+              </div>
+            </div>
+
+            <!-- Время -->
+            <div class="form-group time-control time-date_time_range time-appointment-time">
+              <div class="form-row">
+                <div class="form-group col-md-6">
+                  <label>Время</label>
+                  <input type="time" class="form-control" name="pickup_time_from">
+                </div>
+                <div class="form-group col-md-6 time-date_time_range">
+                  <label>Время до</label>
+                  <input type="time" class="form-control" name="pickup_time_to">
+                </div>
+              </div>
+            </div>
+          </div>
+
+
             <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="pickup_instructions"></textarea></div>
             <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="pickup_contact_person"></div>
             <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="pickup_contact_phone_number"></div>
@@ -265,14 +310,58 @@
             <hr><h5>Delivery</h5>
             <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="delivery_company"></div>
 
-            <!-- Delivery address-->
             <div class="form-group" style="position: relative;">
               <label>Delivery Address</label>
               <input type="text" id="delivery-autocomplete" name="delivery_address" class="form-control" data-autocomplete="mapbox">
               <div class="autocomplete-suggestions"></div>
             </div>
 
-            <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="delivery_date"></div>
+            <div class="time-block">
+              <!-- Режим -->
+              <div class="form-group">
+                <label>Тип времени</label>
+                <select class="form-control time-mode-select" onchange="handleTimeModeChange(this)">
+                  <option value="appointment" selected>Appointment</option>
+                  <option value="date">Только дата</option>
+                  <option value="date_range">Диапазон дат</option>
+                  <option value="date_time_range">Диапазон дат + времени</option>
+                </select>
+              </div>
+
+              <!-- Чекбокс appointment -->
+              <div class="form-group time-control time-appointment">
+                <label><input type="checkbox" name="delivery_appointment" checked> Апойтмент</label>
+              </div>
+
+              <!-- Дата -->
+              <div class="form-group time-control time-date time-date_range time-date_time_range time-appointment-date">
+                <div class="form-row">
+                  <div class="form-group col-md-6">
+                    <label>Дата</label>
+                    <input type="date" class="form-control" name="delivery_date">
+                  </div>
+                  <div class="form-group col-md-6 time-date_range time-date_time_range time-appointment-date_to">
+                    <label>Дата до</label>
+                    <input type="date" class="form-control" name="delivery_date_to">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Время -->
+              <div class="form-group time-control time-date_time_range time-appointment-time">
+                <div class="form-row">
+                  <div class="form-group col-md-6">
+                    <label>Время</label>
+                    <input type="time" class="form-control" name="delivery_time_from">
+                  </div>
+                  <div class="form-group col-md-6 time-date_time_range">
+                    <label>Время до</label>
+                    <input type="time" class="form-control" name="delivery_time_to">
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="delivery_instructions"></textarea></div>
             <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="delivery_contact_person"></div>
             <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="delivery_contact_phone_number"></div>
@@ -282,6 +371,8 @@
             <hr><h5>Extra Delivery</h5>
             <div id="extra-deliveries-container"></div>
             <button type="button" class="btn btn-outline-primary btn-sm mb-3" onclick="addExtraDelivery()">➕ Добавить Extra Delivery</button>
+
+
 
             <!-- Статусы -->
             <div class="form-group mt-3">

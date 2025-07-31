@@ -38,7 +38,66 @@ function initLoads() {
   expandAllCompanySections();
   applyLoadStatusColors();
 
+
+  document.querySelectorAll(".time-mode-select").forEach(select => {
+    handleTimeModeChange(select);
+  });
+
 }
+
+function handleTimeModeChange(selectElement) {
+  const timeBlock = selectElement.closest(".time-block");
+  const mode = selectElement.value;
+
+  // Скрыть все time-control внутри этого блока (pickup или delivery)
+  timeBlock.querySelectorAll(".time-control").forEach(el => el.style.display = "none");
+
+  // Сбросить чекбокс appointment
+  const appointmentCheckbox = timeBlock.querySelector('input[name$="appointment"]');
+  if (appointmentCheckbox) {
+    appointmentCheckbox.checked = false;
+  }
+
+  if (mode === "appointment") {
+    showGroup(timeBlock, "time-appointment");
+    showGroup(timeBlock, "time-date");
+    showGroup(timeBlock, "time-appointment-date");
+    showGroup(timeBlock, "time-appointment-time");
+
+    // Скрыть "Дата до" и "Время до"
+    const dateTo = timeBlock.querySelector(".time-appointment-date_to");
+    const timeTo = timeBlock.querySelector('[name$="time_to"]')?.closest(".form-group");
+    if (dateTo) dateTo.style.display = "none";
+    if (timeTo) timeTo.style.display = "none";
+
+    if (appointmentCheckbox) appointmentCheckbox.checked = true;
+  }
+
+  else if (mode === "date") {
+    showGroup(timeBlock, "time-date");
+    const dateTo = timeBlock.querySelector('[name$="date_to"]')?.closest(".form-group");
+    if (dateTo) dateTo.style.display = "none";
+  }
+
+  else if (mode === "date_range") {
+    showGroup(timeBlock, "time-date");
+    showGroup(timeBlock, "time-date_range");
+  }
+
+  else if (mode === "date_time_range") {
+    showGroup(timeBlock, "time-date");
+    showGroup(timeBlock, "time-date_range");
+    showGroup(timeBlock, "time-date_time_range");
+  }
+}
+
+function showGroup(container, className) {
+  container.querySelectorAll(`.${className}`).forEach(el => {
+    el.style.display = "";
+  });
+}
+
+
 
 // === Extra Pickup ===
 function addExtraPickup() {
@@ -46,9 +105,23 @@ function addExtraPickup() {
   const index = container.children.length;
   const html = `
     <div class="border p-3 mb-2 bg-light rounded">
+      <h6>Extra Pickup #${index + 1}</h6>
       <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${index}][company]"></div>
       <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${index}][address]"></div>
-      <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${index}][date]"></div>
+
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-group col-md-6"><label>Дата от</label><input type="date" class="form-control" name="extra_pickup[${index}][date]"></div>
+          <div class="form-group col-md-6"><label>Дата до</label><input type="date" class="form-control" name="extra_pickup[${index}][date_to]"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-group col-md-6"><label>Время от</label><input type="time" class="form-control" name="extra_pickup[${index}][time_from]"></div>
+          <div class="form-group col-md-6"><label>Время до</label><input type="time" class="form-control" name="extra_pickup[${index}][time_to]"></div>
+        </div>
+      </div>
+
       <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${index}][instructions]"></textarea></div>
       <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_person]"></div>
       <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_phone_number]"></div>
@@ -58,15 +131,30 @@ function addExtraPickup() {
   container.insertAdjacentHTML("beforeend", html);
 }
 
+
 // === Extra Delivery ===
 function addExtraDelivery() {
   const container = document.getElementById("extra-deliveries-container");
   const index = container.children.length;
   const html = `
     <div class="border p-3 mb-2 bg-light rounded">
+      <h6>Extra Delivery #${index + 1}</h6>
       <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${index}][company]"></div>
       <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${index}][address]"></div>
-      <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${index}][date]"></div>
+
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-group col-md-6"><label>Дата от</label><input type="date" class="form-control" name="extra_delivery[${index}][date]"></div>
+          <div class="form-group col-md-6"><label>Дата до</label><input type="date" class="form-control" name="extra_delivery[${index}][date_to]"></div>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="form-row">
+          <div class="form-group col-md-6"><label>Время от</label><input type="time" class="form-control" name="extra_delivery[${index}][time_from]"></div>
+          <div class="form-group col-md-6"><label>Время до</label><input type="time" class="form-control" name="extra_delivery[${index}][time_to]"></div>
+        </div>
+      </div>
+
       <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${index}][instructions]"></textarea></div>
       <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_person]"></div>
       <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_phone_number]"></div>
@@ -75,6 +163,7 @@ function addExtraDelivery() {
     </div>`;
   container.insertAdjacentHTML("beforeend", html);
 }
+
 
 // === Vehicles ===
 function addVehicle() {

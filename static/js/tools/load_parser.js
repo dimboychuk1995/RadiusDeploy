@@ -79,7 +79,7 @@ function autofillLoadForm(data) {
     const p = pickups[0];
     document.querySelector('[name="pickup_company"]').value = p["Company"] || "";
     document.getElementById("pickup-autocomplete").value = p["Address"] || "";
-    document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["Date"]);
+    document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["date"] || p["Date"]);
     document.querySelector('[name="pickup_instructions"]').value = p["Instructions"] || "";
     document.querySelector('[name="pickup_contact_person"]').value = p["Contact Person"] || "";
     document.querySelector('[name="pickup_contact_phone_number"]').value = p["Location Phone Number"] || "";
@@ -92,7 +92,7 @@ function autofillLoadForm(data) {
         <div class="border p-3 mb-2 bg-light rounded">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${index}][company]" value="${p["Company"] || ""}"></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${index}][address]" value="${p["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${index}][date]" value="${formatDateToInput(p["Date"]) || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${index}][date]" value="${formatDateToInput(p["date"] || p["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${index}][instructions]">${p["Instructions"] || ""}</textarea></div>
           <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_person]" value="${p["Contact Person"] || ""}"></div>
           <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_phone_number]" value="${p["Location Phone Number"] || ""}"></div>
@@ -109,7 +109,7 @@ function autofillLoadForm(data) {
     const d = deliveries[0];
     document.querySelector('[name="delivery_company"]').value = d["Company"] || "";
     document.getElementById("delivery-autocomplete").value = d["Address"] || "";
-    document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["Date"]);
+    document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["date"] || d["Date"]);
     document.querySelector('[name="delivery_instructions"]').value = d["Instructions"] || "";
     document.querySelector('[name="delivery_contact_person"]').value = d["Contact Person"] || "";
     document.querySelector('[name="delivery_contact_phone_number"]').value = d["Location Phone Number"] || "";
@@ -122,7 +122,7 @@ function autofillLoadForm(data) {
         <div class="border p-3 mb-2 bg-light rounded">
           <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${index}][company]" value="${d["Company"] || ""}"></div>
           <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${index}][address]" value="${d["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${index}][date]" value="${formatDateToInput(d["Date"]) || ""}"></div>
+          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${index}][date]" value="${formatDateToInput(d["date"] || d["Date"]) || ""}"></div>
           <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${index}][instructions]">${d["Instructions"] || ""}</textarea></div>
           <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_person]" value="${d["Contact Person"] || ""}"></div>
           <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_phone_number]" value="${d["Location Phone Number"] || ""}"></div>
@@ -140,7 +140,7 @@ function autofillLoadForm(data) {
     if (vehicleBlock) vehicleBlock.style.display = "block";
 
     for (let i = 0; i < vehicles.length; i++) {
-      addVehicle(); // добавляет пустой блок с правильным индексом
+      addVehicle();
     }
 
     vehicles.forEach((v, i) => {
@@ -184,6 +184,9 @@ function autofillLoadForm(data) {
     });
   }
 }
+
+
+
 
 
 window.initLoadParser = initLoadParser;
