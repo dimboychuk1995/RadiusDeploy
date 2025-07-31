@@ -39,6 +39,34 @@ function formatDateToInput(dateString) {
   return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
 }
 
+function formatTimeToInput(timeStr) {
+  if (!timeStr) return "";
+  const [time, modifier] = timeStr.split(" ");
+  let [hours, minutes] = time.split(":");
+  if (modifier === "PM" && hours !== "12") hours = parseInt(hours) + 12;
+  if (modifier === "AM" && hours === "12") hours = "00";
+  return `${String(hours).padStart(2, "0")}:${minutes}`;
+}
+
+// === Вспомогательные функции ===
+function determineTimeMode(stop) {
+  if (stop.date_from && stop.date_to && stop.time_from && stop.time_to) return "date_time_range";
+  if (stop.date && stop.date_to && stop.time_from && !stop.time_to) return "date_range";
+  if (stop.date && stop.time_from && stop.time_to) return "date_time_range";
+  if (stop.date && stop.time_from) return stop.appointment ? "appointment" : "date";
+  if (stop.date) return "date";
+  return "appointment"; // fallback
+}
+
+function applyTimeModeToBlock(blockElement, stop) {
+  const select = blockElement.querySelector(".time-mode-select");
+  if (!select) return;
+
+  const mode = determineTimeMode(stop);
+  select.value = mode;
+  handleTimeModeChange(select);
+}
+
 function autofillLoadForm(data) {
   if (!data) return;
 
@@ -50,7 +78,6 @@ function autofillLoadForm(data) {
 
   const brokerSelect = $('#brokerSelect');
   const brokerName = data["Broker Name"] || "";
-
   if (brokerSelect.length && brokerName) {
     if (brokerSelect.find(`option[value="${brokerName}"]`).length === 0) {
       brokerSelect.append(new Option(brokerName, brokerName, true, true)).trigger("change");
@@ -63,85 +90,116 @@ function autofillLoadForm(data) {
   document.querySelector('[name="price"]').value = data["Price"] || "";
   document.querySelector('[name="weight"]').value = data["Weight"] || "";
   document.querySelector('[name="load_description"]').value = data["Load Description"] || "";
-
   const brokerPhone = document.querySelector('[name="broker_phone_number"]');
   if (brokerPhone) brokerPhone.value = data["Broker Phone Number"] || "";
-
   const brokerEmail = document.querySelector('[name="broker_email"]');
   if (brokerEmail) brokerEmail.value = data["Broker Email"] || "";
-
   const totalMiles = document.querySelector('[name="total_miles"]');
   if (totalMiles) totalMiles.value = data["Total Miles"] || "";
 
-  // --- Автозаполнение Pickup Locations ---
+  // --- Pickup ---
   const pickups = data["Pickup Locations"] || [];
   if (pickups.length > 0) {
     const p = pickups[0];
     document.querySelector('[name="pickup_company"]').value = p["Company"] || "";
     document.getElementById("pickup-autocomplete").value = p["Address"] || "";
     document.querySelector('[name="pickup_date"]').value = formatDateToInput(p["date"] || p["Date"]);
+    document.querySelector('[name="pickup_date_to"]').value = formatDateToInput(p["date_to"]);
+    document.querySelector('[name="pickup_time_from"]').value = formatTimeToInput(p["time_from"]);
+    document.querySelector('[name="pickup_time_to"]').value = formatTimeToInput(p["time_to"]);
     document.querySelector('[name="pickup_instructions"]').value = p["Instructions"] || "";
     document.querySelector('[name="pickup_contact_person"]').value = p["Contact Person"] || "";
     document.querySelector('[name="pickup_contact_phone_number"]').value = p["Location Phone Number"] || "";
     document.querySelector('[name="pickup_contact_email"]').value = p["Contact Email"] || "";
+
+    // Выбор режима времени
+    const mode = determineTimeMode(p);
+    const select = document.querySelector('[name="pickup_appointment"]').closest(".time-block").querySelector(".time-mode-select");
+    if (select) {
+      select.value = mode;
+      handleTimeModeChange(select);
+    }
   }
+
+  // --- Extra Pickup ---
   if (pickups.length > 1) {
     const container = document.getElementById('extra-pickups-container');
     pickups.slice(1).forEach((p, index) => {
-      const html = `
-        <div class="border p-3 mb-2 bg-light rounded">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_pickup[${index}][company]" value="${p["Company"] || ""}"></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_pickup[${index}][address]" value="${p["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_pickup[${index}][date]" value="${formatDateToInput(p["date"] || p["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_pickup[${index}][instructions]">${p["Instructions"] || ""}</textarea></div>
-          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_person]" value="${p["Contact Person"] || ""}"></div>
-          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_pickup[${index}][contact_phone_number]" value="${p["Location Phone Number"] || ""}"></div>
-          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_pickup[${index}][contact_email]" value="${p["Contact Email"] || ""}"></div>
-          <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
-        </div>`;
-      container.insertAdjacentHTML("beforeend", html);
+      addExtraPickup();  // добавляем блок через функцию
+      const block = container.children[index];
+      block.querySelector(`[name="extra_pickup[${index}][company]"]`).value = p["Company"] || "";
+      block.querySelector(`[name="extra_pickup[${index}][address]"]`).value = p["Address"] || "";
+      block.querySelector(`[name="extra_pickup[${index}][date]"]`).value = formatDateToInput(p["date"]);
+      block.querySelector(`[name="extra_pickup[${index}][date_to]"]`).value = formatDateToInput(p["date_to"]);
+      block.querySelector(`[name="extra_pickup[${index}][time_from]"]`).value = formatTimeToInput(p["time_from"]);
+      block.querySelector(`[name="extra_pickup[${index}][time_to]"]`).value = formatTimeToInput(p["time_to"]);
+      block.querySelector(`[name="extra_pickup[${index}][instructions]"]`).value = p["Instructions"] || "";
+      block.querySelector(`[name="extra_pickup[${index}][contact_person]"]`).value = p["Contact Person"] || "";
+      block.querySelector(`[name="extra_pickup[${index}][contact_phone_number]"]`).value = p["Location Phone Number"] || "";
+      block.querySelector(`[name="extra_pickup[${index}][contact_email]"]`).value = p["Contact Email"] || "";
+
+      const select = block.querySelector(".time-mode-select");
+      if (select) {
+        select.value = determineTimeMode(p);
+        handleTimeModeChange(select);
+      }
     });
   }
 
-  // --- Автозаполнение Delivery Locations ---
+  // --- Delivery ---
   const deliveries = data["Delivery Locations"] || [];
   if (deliveries.length > 0) {
     const d = deliveries[0];
     document.querySelector('[name="delivery_company"]').value = d["Company"] || "";
     document.getElementById("delivery-autocomplete").value = d["Address"] || "";
     document.querySelector('[name="delivery_date"]').value = formatDateToInput(d["date"] || d["Date"]);
+    document.querySelector('[name="delivery_date_to"]').value = formatDateToInput(d["date_to"]);
+    document.querySelector('[name="delivery_time_from"]').value = formatTimeToInput(d["time_from"]);
+    document.querySelector('[name="delivery_time_to"]').value = formatTimeToInput(d["time_to"]);
     document.querySelector('[name="delivery_instructions"]').value = d["Instructions"] || "";
     document.querySelector('[name="delivery_contact_person"]').value = d["Contact Person"] || "";
     document.querySelector('[name="delivery_contact_phone_number"]').value = d["Location Phone Number"] || "";
     document.querySelector('[name="delivery_contact_email"]').value = d["Contact Email"] || "";
+
+    const select = document.querySelector('[name="delivery_appointment"]').closest(".time-block").querySelector(".time-mode-select");
+    if (select) {
+      select.value = determineTimeMode(d);
+      handleTimeModeChange(select);
+    }
   }
+
+  // --- Extra Delivery ---
   if (deliveries.length > 1) {
     const container = document.getElementById('extra-deliveries-container');
     deliveries.slice(1).forEach((d, index) => {
-      const html = `
-        <div class="border p-3 mb-2 bg-light rounded">
-          <div class="form-group"><label>Компания</label><input type="text" class="form-control" name="extra_delivery[${index}][company]" value="${d["Company"] || ""}"></div>
-          <div class="form-group"><label>Адрес</label><input type="text" class="form-control" name="extra_delivery[${index}][address]" value="${d["Address"] || ""}"></div>
-          <div class="form-group"><label>Дата</label><input type="date" class="form-control" name="extra_delivery[${index}][date]" value="${formatDateToInput(d["date"] || d["Date"]) || ""}"></div>
-          <div class="form-group"><label>Инструкции</label><textarea class="form-control" name="extra_delivery[${index}][instructions]">${d["Instructions"] || ""}</textarea></div>
-          <div class="form-group"><label>Контактное лицо</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_person]" value="${d["Contact Person"] || ""}"></div>
-          <div class="form-group"><label>Телефон</label><input type="text" class="form-control" name="extra_delivery[${index}][contact_phone_number]" value="${d["Location Phone Number"] || ""}"></div>
-          <div class="form-group"><label>Email</label><input type="email" class="form-control" name="extra_delivery[${index}][contact_email]" value="${d["Contact Email"] || ""}"></div>
-          <button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">Удалить</button>
-        </div>`;
-      container.insertAdjacentHTML("beforeend", html);
+      addExtraDelivery();
+      const block = container.children[index];
+      block.querySelector(`[name="extra_delivery[${index}][company]"]`).value = d["Company"] || "";
+      block.querySelector(`[name="extra_delivery[${index}][address]"]`).value = d["Address"] || "";
+      block.querySelector(`[name="extra_delivery[${index}][date]"]`).value = formatDateToInput(d["date"]);
+      block.querySelector(`[name="extra_delivery[${index}][date_to]"]`).value = formatDateToInput(d["date_to"]);
+      block.querySelector(`[name="extra_delivery[${index}][time_from]"]`).value = formatTimeToInput(d["time_from"]);
+      block.querySelector(`[name="extra_delivery[${index}][time_to]"]`).value = formatTimeToInput(d["time_to"]);
+      block.querySelector(`[name="extra_delivery[${index}][instructions]"]`).value = d["Instructions"] || "";
+      block.querySelector(`[name="extra_delivery[${index}][contact_person]"]`).value = d["Contact Person"] || "";
+      block.querySelector(`[name="extra_delivery[${index}][contact_phone_number]"]`).value = d["Location Phone Number"] || "";
+      block.querySelector(`[name="extra_delivery[${index}][contact_email]"]`).value = d["Contact Email"] || "";
+
+      const select = block.querySelector(".time-mode-select");
+      if (select) {
+        select.value = determineTimeMode(d);
+        handleTimeModeChange(select);
+      }
     });
   }
 
-  // --- Автозаполнение транспортных средств ---
+  // --- Vehicles ---
   const vehicles = data["vehicles"] || [];
   if (vehicles.length > 0) {
     const vehicleBlock = document.getElementById("vehicles-block");
     if (vehicleBlock) vehicleBlock.style.display = "block";
 
-    for (let i = 0; i < vehicles.length; i++) {
-      addVehicle();
-    }
+    for (let i = 0; i < vehicles.length; i++) addVehicle();
 
     vehicles.forEach((v, i) => {
       const vehicleDiv = document.querySelectorAll("#vehicle-entries > div")[i];
@@ -156,22 +214,10 @@ function autofillLoadForm(data) {
     });
   }
 
-  // === Расчёт Rate Per Mile ===
-  const pickupAddrs = (data["Pickup Locations"] || []).map(p => p["Address"]);
-  const deliveryAddrs = (data["Delivery Locations"] || []).map(d => d["Address"]);
-  const allAddrs = [...pickupAddrs, ...deliveryAddrs];
+  // --- Расчёт RPM ---
+  const allAddrs = [...(pickups || []).map(p => p["Address"]), ...(deliveries || []).map(d => d["Address"])];
   const price = parseFloat(document.querySelector('[name="price"]').value);
   const rpmInput = document.querySelector('[name="RPM"]');
-
-  if (price && allAddrs.length >= 2 && rpmInput) {
-    calculateTotalMiles(allAddrs).then(totalMiles => {
-      if (totalMiles > 0) {
-        const rpm = price / totalMiles;
-        rpmInput.value = rpm.toFixed(2);
-      }
-    });
-  }
-
   const totalMilesInput = document.querySelector('[name="total_miles"]');
 
   if (price && allAddrs.length >= 2 && rpmInput && totalMilesInput) {
@@ -184,8 +230,6 @@ function autofillLoadForm(data) {
     });
   }
 }
-
-
 
 
 
