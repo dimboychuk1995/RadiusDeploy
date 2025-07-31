@@ -5,6 +5,23 @@ function initLoadParser() {
 
     rateConInput.addEventListener("change", () => {
       const file = rateConInput.files[0];
+
+      const pdfPreviewBox = document.getElementById("pdfPreviewContainer");
+      const pdfIframe = document.getElementById("pdfPreviewFrame");
+      const uploadBox = document.getElementById("rateConBox");
+
+      // Показать предпросмотр
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const pdfDataUrl = e.target.result;
+        if (pdfIframe && pdfPreviewBox && uploadBox) {
+          pdfIframe.src = pdfDataUrl;
+          pdfPreviewBox.classList.remove("d-none");
+          uploadBox.classList.add("d-none");
+        }
+      };
+      reader.readAsDataURL(file);
+
       if (!file || !file.name.toLowerCase().endsWith(".pdf")) return;
 
       const formData = new FormData();
@@ -266,5 +283,5 @@ async function calculateTotalMiles(addresses) {
 
   return Math.round(totalMiles);
 }
-
+а
 window.initLoadParser = initLoadParser;

@@ -2,9 +2,9 @@
 .custom-offcanvas {
     position: fixed;
     top: 0;
-    height: 100%;
+    height: 100vh;
     width: 100%;
-    max-width: 1440px;
+    max-width: 1656px; /* увеличено на 15% от 1440px */
     background: #fff;
     box-shadow: -4px 0 15px rgba(0, 0, 0, 0.25);
     transform: translateX(100%);
@@ -14,8 +14,6 @@
     border-top-left-radius: 1rem;
     border-bottom-left-radius: 1rem;
 }
-
-
 
 .custom-offcanvas.open,
 .custom-offcanvas.show {
@@ -37,10 +35,18 @@
     font-weight: bold;
 }
 
+.custom-offcanvas-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
 .custom-offcanvas-body {
-    padding: 0;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     background-color: #ffffff;
-    height: calc(100vh - 60px);
 }
 
 /* Затемнение фона */
@@ -60,41 +66,30 @@
     display: block;
 }
 
-
 /* === Контент модалки: 2 колонки === */
 .load-modal-content {
     display: flex;
-    height: 100%;
-    flex-wrap: nowrap;
-    flex-direction: row;
-    gap: 0;
+    flex: 1;
+    overflow: hidden;
 }
 
-/* Левая часть: форма, прокручиваемая */
 .load-modal-left {
-    flex: 3;
+    flex: 1;
     min-width: 0;
-    max-height: 100%;
     overflow-y: auto;
     padding: 2rem;
 }
 
-/* Правая часть: фиксирована */
 .load-modal-right {
-    flex: 2;
-    position: sticky;
-    top: 0;
-    height: 100%;
-    align-self: flex-start;
-    background: #f7f9fc;
-    border-left: 1px solid #dee2e6;
-    padding: 2rem;
+    flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    justify-content: center;        /* по вертикали */
+    align-items: center;            /* по горизонтали */
+    padding: 2rem;
+    background: #f7f9fc;
+    border-left: 1px solid #dee2e6;
 }
-
 
 /* === Блок загрузки PDF === */
 .load-modal-right .upload-box {
@@ -129,8 +124,17 @@
     margin-bottom: 10px;
 }
 
-.custom-offcanvas-body {
-    max-height: calc(100vh - 70px); /* или 100% если offcanvas полностью фиксирован */
-    overflow-y: auto;
-    padding-right: 15px; /* для скролла */
+#pdfPreviewContainer {
+    flex-grow: 1;
+    border: 1px solid #ccc;
+    margin-top: 1rem;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+#pdfPreviewFrame {
+    width: 100%;
+    height: 100%;
+    border: none;
 }
