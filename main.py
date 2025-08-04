@@ -66,7 +66,7 @@ app.config.update(
     SESSION_COOKIE_NAME='tms_session',
     SESSION_COOKIE_PATH='/',
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',  # или 'Strict' если н нужен cross-domain
+    SESSION_COOKIE_SAMESITE='Lax',  # или 'Strict' если не нужен cross-domain
     SESSION_COOKIE_SECURE=False,    # True если HTTPS
 )
 
