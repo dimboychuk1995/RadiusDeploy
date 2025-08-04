@@ -85,7 +85,7 @@ CORS(app,
      origins=[
          "http://localhost:8081",
          "http://192.168.0.229:8081",
-         "https://70195967c20c.ngrok-free.app"
+         "https://e141b9f64ba7.ngrok-free.app"
      ],
      expose_headers=["Authorization"])
 

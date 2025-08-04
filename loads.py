@@ -1338,7 +1338,6 @@ def assign_driver_to_load():
 @loads_bp.route("/api/loads/<load_id>/upload_photos", methods=["POST"])
 @cross_origin()
 def upload_load_photos(load_id):
-
     stage = request.form.get("stage")
     if stage not in ["pickup", "delivery"]:
         return jsonify({"success": False, "error": "Invalid stage"}), 400
@@ -1358,7 +1357,28 @@ def upload_load_photos(load_id):
                          metadata={"load_id": load_id, "stage": stage})
         saved_ids.append(file_id)
 
-    update_fields = {f"{stage}_photo_ids": saved_ids}
+    now = datetime.utcnow()
+    update_query = {
+        "$push": {f"{stage}_photo_ids": {"$each": saved_ids}},
+    }
+
+    if stage == "pickup":
+        update_query["$set"] = {
+            "pickup.picked_up": now
+        }
+        if load.get("status") in ["new", "dispatched"]:
+            update_query["$set"]["status"] = "picked_up"
+
+    elif stage == "delivery":
+        update_query["$set"] = {
+            "delivery.delivered_at": now
+        }
+        if load.get("status") == "picked_up":
+            update_query["$set"]["status"] = "delivered"
+
+    loads_collection.update_one({"_id": load["_id"]}, update_query)
+
+    return jsonify({"success": True, "photo_ids": [str(fid) for fid in saved_ids]})
 
     # Автообновление статуса
     status = str(load.get("status", "")).lower()

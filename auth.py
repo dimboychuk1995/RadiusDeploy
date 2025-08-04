@@ -11,6 +11,9 @@ from flask_cors import cross_origin
 from tools.user_wrapper import UserWrapper
 from tools.db import db
 
+from flask import has_request_context
+from werkzeug.local import LocalProxy
+
 logging.basicConfig(level=logging.ERROR)
 
 auth_bp = Blueprint('auth', __name__)
@@ -39,13 +42,24 @@ class User(UserMixin):
         except Exception as e:
             return None
 
+_user_cache = {}
+
+def get_cached_user(user_id):
+    if has_request_context():
+        if user_id in _user_cache:
+            return _user_cache[user_id]
+        user_data = users_collection.find_one({'_id': ObjectId(user_id)})
+        if user_data:
+            user_obj = User(user_data)
+            _user_cache[user_id] = user_obj
+            return user_obj
+    return None
+
 @login_manager.user_loader
 def load_user(user_id):
-    try:
-        user = users_collection.find_one({'_id': ObjectId(user_id)})
-        return User(user) if user else None
-    except Exception as e:
-        return None
+    return get_cached_user(user_id)
+
+
 
 def add_user(username, password, role="user", company=None):
     hashed_password = generate_password_hash(password)
