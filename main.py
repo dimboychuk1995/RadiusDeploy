@@ -63,8 +63,11 @@ logging.basicConfig(level=logging.INFO)
 
 # Куки для кросс-доменных запросов
 app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=False  # true, если HTTPS
+    SESSION_COOKIE_NAME='tms_session',
+    SESSION_COOKIE_PATH='/',
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',  # или 'Strict' если не нужен cross-domain
+    SESSION_COOKIE_SECURE=False,    # True если HTTPS
 )
 
 # Инициализация Flask-Login

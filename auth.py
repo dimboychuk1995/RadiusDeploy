@@ -1,39 +1,30 @@
 import datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app
-from flask import g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, g, current_app, session, jsonify
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 import logging
 from functools import wraps
 from bson.objectid import ObjectId
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask import jsonify
 from flask_cors import cross_origin
 from tools.user_wrapper import UserWrapper
+from tools.db import db
 
-from tools.db import db  # <-- Используем единое подключение к MongoDB
-
-# Настраиваем логирование
 logging.basicConfig(level=logging.ERROR)
 
-# Создаем Blueprint для аутентификации
 auth_bp = Blueprint('auth', __name__)
-
-# Коллекция пользователей
 users_collection = db['users']
 
-# Настраиваем Flask-Login
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message = "Пожалуйста, войдите для доступа к этой странице."
 
-# Роли
-USER_ROLES = ['admin', 'user', 'dispatch','driver']
+USER_ROLES = ['admin', 'user', 'dispatch', 'driver']
 
-# Класс User
 class User(UserMixin):
     def __init__(self, user_data):
+        print("User.__init__ →", user_data['username'])
         self.id = str(user_data['_id'])
         self.username = user_data['username']
         self.password = user_data['password']
@@ -42,29 +33,30 @@ class User(UserMixin):
 
     @staticmethod
     def get(user_id):
-        user = users_collection.find_one({'_id': ObjectId(user_id)})
-        if not user:
+        try:
+            user = users_collection.find_one({'_id': ObjectId(user_id)})
+            return User(user) if user else None
+        except Exception as e:
             return None
-        return User(user)
 
-# Flask-Login: загрузка пользователя
 @login_manager.user_loader
 def load_user(user_id):
-    return User.get(user_id)
+    try:
+        user = users_collection.find_one({'_id': ObjectId(user_id)})
+        return User(user) if user else None
+    except Exception as e:
+        return None
 
-# Создание пользователей по умолчанию
 def add_user(username, password, role="user", company=None):
     hashed_password = generate_password_hash(password)
     user = {'username': username, 'password': hashed_password, 'role': role, 'company': company}
     users_collection.insert_one(user)
 
-# Первичный запуск
 if users_collection.find_one({'username': 'admin'}) is None:
     add_user('admin', 'password', 'admin', 'UWC')
 if users_collection.find_one({'username': 'user'}) is None:
     add_user('user', 'password', 'user', 'UWC')
 
-# Декоратор для ограничения по роли
 def requires_role(roles):
     if isinstance(roles, str):
         roles = [roles]
@@ -84,29 +76,35 @@ def requires_role(roles):
 def load_user_context():
     g.user = current_user if current_user.is_authenticated else None
 
-# === ROUTES ===
-
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    print('desktop login')
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+
         user_data = users_collection.find_one({'username': username})
 
         if user_data and check_password_hash(user_data['password'], password):
+            logout_user()
+            session.clear()
+
             user = User(user_data)
             login_user(user)
+            session.permanent = True
+
             flash('Успешный вход!', 'success')
             return redirect(request.args.get('next') or url_for('index'))
         else:
             flash('Неверное имя пользователя или пароль', 'danger')
+            return redirect(url_for('auth.login'))
+
     return render_template('login.html')
 
 @auth_bp.route('/logout')
 @login_required
 def logout():
     logout_user()
+    session.clear()
     flash('Вы вышли из системы!', 'info')
     return redirect(url_for('auth.login'))
 
@@ -114,6 +112,7 @@ def logout():
 @login_required
 @requires_role('admin')
 def users_list():
+    print("users_list →", current_user.username, current_user.role)
     users = list(users_collection.find())
     for user in users:
         user['_id'] = str(user['_id'])
@@ -149,6 +148,8 @@ def delete_user(user_id):
     except Exception as e:
         flash(f'Ошибка при удалении пользователя: {e}', 'danger')
     return redirect(url_for('auth.users_list'))
+
+
 
 
 # ======================= API: Мобильный логин =======================
