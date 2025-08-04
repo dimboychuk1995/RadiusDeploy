@@ -399,6 +399,22 @@ def get_or_create_partner(partner_type, partner_name, partner_email, partner_pho
     return new_id
 
 
+def extract_time_block(form, prefix):
+    return {
+        "company": form.get(f"{prefix}_company"),
+        "address": form.get(f"{prefix}_address"),
+        "instructions": form.get(f"{prefix}_instructions"),
+        "contact_person": form.get(f"{prefix}_contact_person"),
+        "contact_phone_number": form.get(f"{prefix}_contact_phone_number"),
+        "contact_email": form.get(f"{prefix}_contact_email"),
+        "date": parse_date(form.get(f"{prefix}_date")),
+        "date_to": parse_date(form.get(f"{prefix}_date_to")),
+        "time_from": form.get(f"{prefix}_time_from"),
+        "time_to": form.get(f"{prefix}_time_to"),
+        "appointment": form.get(f"{prefix}_appointment") == "true"
+    }
+
+
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role(['admin', 'dispatch'])
 def add_load():
@@ -407,6 +423,21 @@ def add_load():
             return float(value)
         except (ValueError, TypeError):
             return None
+
+    def extract_time_block(form, prefix):
+        return {
+            "company": form.get(f"{prefix}_company"),
+            "address": form.get(f"{prefix}_address"),
+            "instructions": form.get(f"{prefix}_instructions"),
+            "contact_person": form.get(f"{prefix}_contact_person"),
+            "contact_phone_number": form.get(f"{prefix}_contact_phone_number"),
+            "contact_email": form.get(f"{prefix}_contact_email"),
+            "date": parse_date(form.get(f"{prefix}_date")),
+            "date_to": parse_date(form.get(f"{prefix}_date_to")),
+            "time_from": form.get(f"{prefix}_time_from"),
+            "time_to": form.get(f"{prefix}_time_to"),
+            "appointment": form.get(f"{prefix}_appointment") == "true"
+        }
 
     try:
         rate_con_file = request.files.get('rate_con')
@@ -435,11 +466,15 @@ def add_load():
                 extra_pickups.append({
                     "company": request.form.get(f"extra_pickup[{idx}][company]"),
                     "address": request.form.get(f"extra_pickup[{idx}][address]"),
-                    "date": parse_date(request.form.get(f"extra_pickup[{idx}][date]")),
                     "instructions": request.form.get(f"extra_pickup[{idx}][instructions]"),
                     "contact_person": request.form.get(f"extra_pickup[{idx}][contact_person]"),
                     "contact_phone_number": request.form.get(f"extra_pickup[{idx}][contact_phone_number]"),
-                    "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]")
+                    "contact_email": request.form.get(f"extra_pickup[{idx}][contact_email]"),
+                    "date": parse_date(request.form.get(f"extra_pickup[{idx}][date]")),
+                    "date_to": parse_date(request.form.get(f"extra_pickup[{idx}][date_to]")),
+                    "time_from": request.form.get(f"extra_pickup[{idx}][time_from]"),
+                    "time_to": request.form.get(f"extra_pickup[{idx}][time_to]"),
+                    "appointment": request.form.get(f"extra_pickup[{idx}][appointment]") == "true"
                 })
 
         extra_deliveries = []
@@ -449,11 +484,15 @@ def add_load():
                 extra_deliveries.append({
                     "company": request.form.get(f"extra_delivery[{idx}][company]"),
                     "address": request.form.get(f"extra_delivery[{idx}][address]"),
-                    "date": parse_date(request.form.get(f"extra_delivery[{idx}][date]")),
                     "instructions": request.form.get(f"extra_delivery[{idx}][instructions]"),
                     "contact_person": request.form.get(f"extra_delivery[{idx}][contact_person]"),
                     "contact_phone_number": request.form.get(f"extra_delivery[{idx}][contact_phone_number]"),
-                    "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]")
+                    "contact_email": request.form.get(f"extra_delivery[{idx}][contact_email]"),
+                    "date": parse_date(request.form.get(f"extra_delivery[{idx}][date]")),
+                    "date_to": parse_date(request.form.get(f"extra_delivery[{idx}][date_to]")),
+                    "time_from": request.form.get(f"extra_delivery[{idx}][time_from]"),
+                    "time_to": request.form.get(f"extra_delivery[{idx}][time_to]"),
+                    "appointment": request.form.get(f"extra_delivery[{idx}][appointment]") == "true"
                 })
 
         vehicles = []
@@ -470,7 +509,6 @@ def add_load():
                 })
 
         assigned_driver_id = request.form.get("assigned_driver")
-
         assigned_power_unit = None
         if assigned_driver_id:
             driver = drivers_collection.find_one({
@@ -501,24 +539,8 @@ def add_load():
             "assigned_driver": ObjectId(assigned_driver_id) if assigned_driver_id else None,
             "assigned_dispatch": ObjectId(request.form.get("assigned_dispatch")) if request.form.get("assigned_dispatch") else None,
             "assigned_power_unit": assigned_power_unit,
-            "pickup": {
-                "company": request.form.get("pickup_company"),
-                "address": request.form.get("pickup_address"),
-                "date": parse_date(request.form.get("pickup_date")),
-                "instructions": request.form.get("pickup_instructions"),
-                "contact_person": request.form.get("pickup_contact_person"),
-                "contact_phone_number": request.form.get("pickup_contact_phone_number"),
-                "contact_email": request.form.get("pickup_contact_email")
-            },
-            "delivery": {
-                "company": request.form.get("delivery_company"),
-                "address": request.form.get("delivery_address"),
-                "date": parse_date(request.form.get("delivery_date")),
-                "instructions": request.form.get("delivery_instructions"),
-                "contact_person": request.form.get("delivery_contact_person"),
-                "contact_phone_number": request.form.get("delivery_contact_phone_number"),
-                "contact_email": request.form.get("delivery_contact_email")
-            },
+            "pickup": extract_time_block(request.form, "pickup"),
+            "delivery": extract_time_block(request.form, "delivery"),
             "extra_pickup": extra_pickups if extra_pickups else None,
             "extra_delivery": extra_deliveries if extra_deliveries else None,
             "extra_stops": len(extra_pickups) + len(extra_deliveries),
@@ -551,7 +573,6 @@ def add_load():
                     print(f"❌ Ошибка email: {str(e)}")
 
             expo_token = driver.get("expo_push_token")
-
             if expo_token:
                 pickup = load_data["pickup"]["address"]
                 delivery = load_data["delivery"]["address"]
@@ -572,6 +593,8 @@ def add_load():
         print("❌ Ошибка в add_load:")
         traceback.print_exc()
         return render_template("error.html", message="Ошибка при сохранении груза")
+
+
 
 
 @loads_bp.route('/api/brokers_list')
