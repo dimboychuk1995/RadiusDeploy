@@ -15,7 +15,6 @@ expenses_collection = db["driver_expenses"]
 def upload_driver_expense():
     try:
         driver_id = g.user_id
-        company_id = g.company_id
 
         file = request.files.get("photo")
         if not file:
@@ -33,7 +32,6 @@ def upload_driver_expense():
 
         doc = {
             "driver_id": ObjectId(driver_id),
-            "company": ObjectId(company_id),
             "amount": amount,
             "category": category,
             "note": note,
@@ -46,6 +44,7 @@ def upload_driver_expense():
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @driver_expense_bp.route("/api/driver/expenses", methods=["GET"])
