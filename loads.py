@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from collections import defaultdict
 from flask import render_template_string
+from bson.errors import InvalidId
 
 
 
@@ -1218,15 +1219,19 @@ def load_details_fragment():
 @login_required
 def get_load_photos():
     """
-    Возвращает список URL фото из GridFS для pickup или delivery.
-    Используется в деталях груза при раскрытии секций "Фото с Pickup" / "Фото с Delivery".
+    Возвращает список URL фото из GridFS для заданного stop (по stage и stop_number).
+    Используется в деталях груза при раскрытии секций "Фото с Pickup" / "Фото с Delivery" и др.
     """
     try:
         load_id = request.args.get("id")
-        stage = request.args.get("stage")  # "pickup" или "delivery"
+        stage = request.args.get("stage")  # pickup, delivery, extra_pickup, extra_delivery
+        stop_number = request.args.get("stop_number", type=int)
 
-        if not load_id or stage not in ["pickup", "delivery"]:
+        if not load_id or not stage or stop_number is None:
             return jsonify({"error": "Missing or invalid parameters"}), 400
+
+        # Преобразование номера стопа к соответствию с Mongo (1-based)
+        stop_number += 1
 
         load = loads_collection.find_one({
             "_id": ObjectId(load_id),
@@ -1240,27 +1245,39 @@ def get_load_photos():
         if load.get("is_super_dispatch_order"):
             return jsonify({"error": "Photos for Super Dispatch orders are external"}), 400
 
-        photo_field = f"{stage}_photo_ids"
-        photo_ids = load.get(photo_field, [])
+        stop_photos = load.get("stop_photos", [])
 
-        # Собираем ссылки на фото из GridFS
+        block = next(
+            (s for s in stop_photos if s.get("stage") == stage and str(s.get("stop_number")) == str(stop_number)),
+            None
+        )
+
+        if not block:
+            return jsonify({"photos": []})  # нет фото — пустой массив
+
         photo_urls = [
             url_for('loads.get_load_photo_web', photo_id=str(photo_id), _external=True)
-            for photo_id in photo_ids
+            for photo_id in block.get("photo_ids", [])
         ]
 
         return jsonify({"photos": photo_urls})
 
-    except Exception as e:
+    except Exception:
         logging.exception("Ошибка при получении фото груза")
         return jsonify({"error": "Server error"}), 500
+
 
 @loads_bp.route("/load/photo/<photo_id>")
 @login_required
 def get_load_photo_web(photo_id):
     try:
-        file = fs.get(ObjectId(photo_id))
-        return send_file(file, mimetype=file.content_type)
+        photo_obj_id = ObjectId(photo_id)
+    except InvalidId:
+        return "Invalid photo ID", 400
+
+    try:
+        file = fs.get(photo_obj_id)
+        return send_file(file, mimetype=file.content_type, as_attachment=False)
     except Exception:
         return "File not found", 404
 

@@ -153,8 +153,8 @@ let currentPhotoUrls = [];
 let currentPhotoIndex = 0;
 
 // Загрузка фото pickup/delivery
-function loadStagePhotos(loadId, stage) {
-  const containerId = stage + "PhotosContainer";
+function loadStagePhotos(loadId, stage, stopNumber) {
+  const containerId = `${stage}PhotosContainer-${stopNumber}`;
   const container = document.getElementById(containerId);
   const photoData = document.getElementById("photoData");
 
@@ -165,8 +165,8 @@ function loadStagePhotos(loadId, stage) {
   container.innerHTML = "<p>Загрузка фото...</p>";
 
   const apiUrl = isSuperDispatch
-    ? `/api/load/super_dispatch_photos?id=${loadId}&stage=${stage}`
-    : `/api/load/photos?id=${loadId}&stage=${stage}`;
+    ? `/api/load/super_dispatch_photos?id=${loadId}&stage=${stage}&stop_number=${stopNumber}`
+    : `/api/load/photos?id=${loadId}&stage=${stage}&stop_number=${stopNumber}`;
 
   fetch(apiUrl)
     .then(res => res.json())
