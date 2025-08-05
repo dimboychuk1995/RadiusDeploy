@@ -40,6 +40,7 @@ from settings import settings_bp
 from dispatch_statements import dispatch_statements_bp
 from tools.mapbox_api import mapbox_api_bp
 from factoring import factoring_bp
+from driver_expenses import driver_expense_bp
 
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
@@ -131,6 +132,7 @@ app.register_blueprint(dispatch_statements_bp)
 app.register_blueprint(mobile_chat_bp)
 app.register_blueprint(mapbox_api_bp)
 app.register_blueprint(factoring_bp)
+app.register_blueprint(driver_expense_bp)
 
 
 # Главная страница
