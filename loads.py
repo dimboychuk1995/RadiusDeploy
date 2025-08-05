@@ -1374,25 +1374,26 @@ def upload_load_photos(load_id):
     if not files:
         return jsonify({"success": False, "error": "No files uploaded"}), 400
 
-    # Получаем stop_number точки, к которой загружаем фото
+    # Получаем stop_number из формы
+    try:
+        stop_number = int(request.form.get("stop_number"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "Missing or invalid stop_number"}), 400
+
+    # Проверяем, что такой stop существует в документе
     stop_data = None
-    if stage in ["pickup", "delivery"]:
-        stop_data = load.get(stage)
+    if stage == "pickup" and load.get("pickup", {}).get("stop_number") == stop_number:
+        stop_data = load["pickup"]
+    elif stage == "delivery" and load.get("delivery", {}).get("stop_number") == stop_number:
+        stop_data = load["delivery"]
     elif stage == "extra_pickup":
-        for stop in load.get("extra_pickup", []):
-            if stop.get("address") == request.form.get("address"):
-                stop_data = stop
-                break
+        stop_data = next((s for s in (load.get("extra_pickup") or []) if s.get("stop_number") == stop_number), None)
     elif stage == "extra_delivery":
-        for stop in load.get("extra_delivery", []):
-            if stop.get("address") == request.form.get("address"):
-                stop_data = stop
-                break
+        stop_data = next((s for s in (load.get("extra_delivery") or []) if s.get("stop_number") == stop_number), None)
 
-    if not stop_data or "stop_number" not in stop_data:
-        return jsonify({"success": False, "error": "Stop number not found for this stage"}), 400
+    if not stop_data:
+        return jsonify({"success": False, "error": "Stop not found with provided stop_number"}), 400
 
-    stop_number = stop_data["stop_number"]
     now = datetime.utcnow()
 
     # Сохраняем фото
@@ -1425,20 +1426,20 @@ def upload_load_photos(load_id):
         )
 
     # Обновление статуса в зависимости от номера stop
-    min_stop = min([
-        *(stop.get("stop_number", 999) for stop in (load.get("extra_pickup") or [])),
-        load.get("pickup", {}).get("stop_number", 999),
-        *(stop.get("stop_number", 999) for stop in (load.get("extra_delivery") or [])),
-        load.get("delivery", {}).get("stop_number", 999)
-    ])
+    all_stops = [
+        *(load.get("extra_pickup") or []),
+        load.get("pickup", {}),
+        *(load.get("extra_delivery") or []),
+        load.get("delivery", {})
+    ]
+    stop_numbers = [s.get("stop_number") for s in all_stops if s.get("stop_number") is not None]
 
-    max_stop = max([
-        *(stop.get("stop_number", 0) for stop in (load.get("extra_pickup") or [])),
-        load.get("pickup", {}).get("stop_number", 0),
-        *(stop.get("stop_number", 0) for stop in (load.get("extra_delivery") or [])),
-        load.get("delivery", {}).get("stop_number", 0)
-    ])
-    
+    if not stop_numbers:
+        return jsonify({"success": False, "error": "No stop_numbers found in load"}), 500
+
+    min_stop = min(stop_numbers)
+    max_stop = max(stop_numbers)
+
     status_update = {}
     if stop_number == min_stop and load.get("status") in ["new", "dispatched"]:
         status_update["status"] = "picked_up"
@@ -1455,11 +1456,6 @@ def upload_load_photos(load_id):
         "photo_ids": [str(fid) for fid in saved_ids],
         "stop_number": stop_number
     })
-
-
-
-
-
 
 
 @loads_bp.route("/api/loads", methods=["GET"])
@@ -1513,22 +1509,34 @@ def get_loads():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @loads_bp.route("/api/load/<load_id>", methods=["GET"])
 @cross_origin()
 @jwt_required
 def get_load_details(load_id):
     try:
         load = loads_collection.find_one({"load_id": load_id})
+        if not load:
+            return jsonify({"success": False, "error": "Load not found"}), 404
 
-        def photo_urls(field_name):
+        def make_photo_urls(photo_ids):
             return [
                 f"/api/load/photo/{str(photo_id)}"
-                for photo_id in load.get(field_name, [])
+                for photo_id in photo_ids
                 if ObjectId.is_valid(str(photo_id))
             ]
 
-        load["pickup_photo_urls"] = photo_urls("pickup_photo_ids")
-        load["delivery_photo_urls"] = photo_urls("delivery_photo_ids")
+        # Преобразуем stop_photos в stop_photos_with_urls
+        stop_photos_raw = load.get("stop_photos", [])
+        stop_photos_with_urls = []
+        for item in stop_photos_raw:
+            stop_photos_with_urls.append({
+                "stop_number": item.get("stop_number"),
+                "stage": item.get("stage"),
+                "photo_urls": make_photo_urls(item.get("photo_ids", []))
+            })
+
+        load["stop_photos"] = stop_photos_with_urls
         load["_id"] = str(load["_id"])
 
         return current_app.response_class(
@@ -1539,6 +1547,7 @@ def get_load_details(load_id):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 @loads_bp.route("/api/load/photo/<photo_id>", methods=["GET"])
