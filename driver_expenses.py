@@ -5,6 +5,7 @@ from bson import ObjectId
 from datetime import datetime
 from flask import send_file
 import gridfs
+from flask import request
 
 
 driver_expense_bp = Blueprint("driver_expense_bp", __name__)
@@ -52,7 +53,20 @@ def upload_driver_expense():
 def get_driver_expenses():
     try:
         driver_id = g.user_id
-        cursor = expenses_collection.find({"driver_id": ObjectId(driver_id)}).sort("date", -1)
+        limit = 10
+
+        after = request.args.get("after")  # ISO формат
+        query = { "driver_id": ObjectId(driver_id) }
+
+        if after:
+            from datetime import datetime
+            try:
+                after_dt = datetime.fromisoformat(after)
+                query["created_at"] = { "$lt": after_dt }
+            except Exception as e:
+                return jsonify({"error": "Invalid date format"}), 400
+
+        cursor = expenses_collection.find(query).sort("created_at", -1).limit(limit)
 
         results = []
         for doc in cursor:
@@ -62,6 +76,7 @@ def get_driver_expenses():
                 "category": doc["category"],
                 "note": doc.get("note", ""),
                 "date": doc["date"].strftime("%Y-%m-%d"),
+                "created_at": doc["created_at"].isoformat(),
                 "photo_url": f"/api/driver/expenses/photo/{doc['photo_id']}"
             })
 
