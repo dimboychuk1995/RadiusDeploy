@@ -459,11 +459,20 @@ def add_load():
             company_id=current_user.company
         )
 
+        # STOP NUMBER COUNTER
+        stop_number = 1
+
+        # PICKUP
+        pickup = extract_time_block(request.form, "pickup")
+        pickup["stop_number"] = stop_number
+        stop_number += 1
+
+        # EXTRA PICKUPS
         extra_pickups = []
         for key in request.form:
             if key.startswith("extra_pickup[") and key.endswith("][company]"):
                 idx = key.split("[")[1].split("]")[0]
-                extra_pickups.append({
+                block = {
                     "company": request.form.get(f"extra_pickup[{idx}][company]"),
                     "address": request.form.get(f"extra_pickup[{idx}][address]"),
                     "instructions": request.form.get(f"extra_pickup[{idx}][instructions]"),
@@ -474,14 +483,23 @@ def add_load():
                     "date_to": parse_date(request.form.get(f"extra_pickup[{idx}][date_to]")),
                     "time_from": request.form.get(f"extra_pickup[{idx}][time_from]"),
                     "time_to": request.form.get(f"extra_pickup[{idx}][time_to]"),
-                    "appointment": request.form.get(f"extra_pickup[{idx}][appointment]") == "true"
-                })
+                    "appointment": request.form.get(f"extra_pickup[{idx}][appointment]") == "true",
+                    "stop_number": stop_number
+                }
+                stop_number += 1
+                extra_pickups.append(block)
 
+        # DELIVERY
+        delivery = extract_time_block(request.form, "delivery")
+        delivery["stop_number"] = stop_number
+        stop_number += 1
+
+        # EXTRA DELIVERIES
         extra_deliveries = []
         for key in request.form:
             if key.startswith("extra_delivery[") and key.endswith("][company]"):
                 idx = key.split("[")[1].split("]")[0]
-                extra_deliveries.append({
+                block = {
                     "company": request.form.get(f"extra_delivery[{idx}][company]"),
                     "address": request.form.get(f"extra_delivery[{idx}][address]"),
                     "instructions": request.form.get(f"extra_delivery[{idx}][instructions]"),
@@ -492,8 +510,11 @@ def add_load():
                     "date_to": parse_date(request.form.get(f"extra_delivery[{idx}][date_to]")),
                     "time_from": request.form.get(f"extra_delivery[{idx}][time_from]"),
                     "time_to": request.form.get(f"extra_delivery[{idx}][time_to]"),
-                    "appointment": request.form.get(f"extra_delivery[{idx}][appointment]") == "true"
-                })
+                    "appointment": request.form.get(f"extra_delivery[{idx}][appointment]") == "true",
+                    "stop_number": stop_number
+                }
+                stop_number += 1
+                extra_deliveries.append(block)
 
         vehicles = []
         for key in request.form:
@@ -539,8 +560,8 @@ def add_load():
             "assigned_driver": ObjectId(assigned_driver_id) if assigned_driver_id else None,
             "assigned_dispatch": ObjectId(request.form.get("assigned_dispatch")) if request.form.get("assigned_dispatch") else None,
             "assigned_power_unit": assigned_power_unit,
-            "pickup": extract_time_block(request.form, "pickup"),
-            "delivery": extract_time_block(request.form, "delivery"),
+            "pickup": pickup,
+            "delivery": delivery,
             "extra_pickup": extra_pickups if extra_pickups else None,
             "extra_delivery": extra_deliveries if extra_deliveries else None,
             "extra_stops": len(extra_pickups) + len(extra_deliveries),
@@ -593,6 +614,9 @@ def add_load():
         print("❌ Ошибка в add_load:")
         traceback.print_exc()
         return render_template("error.html", message="Ошибка при сохранении груза")
+
+
+
 
 
 
