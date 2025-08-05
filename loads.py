@@ -1363,7 +1363,7 @@ def assign_driver_to_load():
 @cross_origin()
 def upload_load_photos(load_id):
     stage = request.form.get("stage")
-    if stage not in ["pickup", "delivery"]:
+    if stage not in ["pickup", "delivery", "extra_pickup", "extra_delivery"]:
         return jsonify({"success": False, "error": "Invalid stage"}), 400
 
     load = loads_collection.find_one({"load_id": load_id})
@@ -1374,50 +1374,91 @@ def upload_load_photos(load_id):
     if not files:
         return jsonify({"success": False, "error": "No files uploaded"}), 400
 
+    # Получаем stop_number точки, к которой загружаем фото
+    stop_data = None
+    if stage in ["pickup", "delivery"]:
+        stop_data = load.get(stage)
+    elif stage == "extra_pickup":
+        for stop in load.get("extra_pickup", []):
+            if stop.get("address") == request.form.get("address"):
+                stop_data = stop
+                break
+    elif stage == "extra_delivery":
+        for stop in load.get("extra_delivery", []):
+            if stop.get("address") == request.form.get("address"):
+                stop_data = stop
+                break
+
+    if not stop_data or "stop_number" not in stop_data:
+        return jsonify({"success": False, "error": "Stop number not found for this stage"}), 400
+
+    stop_number = stop_data["stop_number"]
+    now = datetime.utcnow()
+
+    # Сохраняем фото
     saved_ids = []
     for file in files:
         filename = secure_filename(file.filename)
         file_id = fs.put(file, filename=filename, content_type=file.content_type,
-                         metadata={"load_id": load_id, "stage": stage})
+                         metadata={"load_id": load_id, "stage": stage, "stop_number": stop_number})
         saved_ids.append(file_id)
 
-    now = datetime.utcnow()
-    update_query = {
-        "$push": {f"{stage}_photo_ids": {"$each": saved_ids}},
-    }
+    # Добавим или обновим блок в stop_photos
+    stop_photos = load.get("stop_photos", [])
+    existing = next((s for s in stop_photos if s["stop_number"] == stop_number and s["stage"] == stage), None)
 
-    if stage == "pickup":
-        update_query["$set"] = {
-            "pickup.picked_up": now
-        }
-        if load.get("status") in ["new", "dispatched"]:
-            update_query["$set"]["status"] = "picked_up"
+    if existing:
+        loads_collection.update_one(
+            {"_id": load["_id"], "stop_photos.stop_number": stop_number, "stop_photos.stage": stage},
+            {"$push": {"stop_photos.$.photo_ids": {"$each": saved_ids}}}
+        )
+    else:
+        loads_collection.update_one(
+            {"_id": load["_id"]},
+            {"$push": {
+                "stop_photos": {
+                    "stop_number": stop_number,
+                    "stage": stage,
+                    "photo_ids": saved_ids
+                }
+            }}
+        )
 
-    elif stage == "delivery":
-        update_query["$set"] = {
-            "delivery.delivered_at": now
-        }
-        if load.get("status") == "picked_up":
-            update_query["$set"]["status"] = "delivered"
+    # Обновление статуса в зависимости от номера stop
+    min_stop = min([
+        *(stop.get("stop_number", 999) for stop in (load.get("extra_pickup") or [])),
+        load.get("pickup", {}).get("stop_number", 999),
+        *(stop.get("stop_number", 999) for stop in (load.get("extra_delivery") or [])),
+        load.get("delivery", {}).get("stop_number", 999)
+    ])
 
-    loads_collection.update_one({"_id": load["_id"]}, update_query)
+    max_stop = max([
+        *(stop.get("stop_number", 0) for stop in (load.get("extra_pickup") or [])),
+        load.get("pickup", {}).get("stop_number", 0),
+        *(stop.get("stop_number", 0) for stop in (load.get("extra_delivery") or [])),
+        load.get("delivery", {}).get("stop_number", 0)
+    ])
+    
+    status_update = {}
+    if stop_number == min_stop and load.get("status") in ["new", "dispatched"]:
+        status_update["status"] = "picked_up"
+        status_update["pickup.picked_up"] = now
+    elif stop_number == max_stop and load.get("status") == "picked_up":
+        status_update["status"] = "delivered"
+        status_update["delivery.delivered_at"] = now
 
-    return jsonify({"success": True, "photo_ids": [str(fid) for fid in saved_ids]})
-
-    # Автообновление статуса
-    status = str(load.get("status", "")).lower()
-    if stage == "pickup" and status == "new":
-        update_fields["status"] = "picked_up"
-    elif stage == "delivery" and status == "picked_up":
-        update_fields["status"] = "delivered"
-
-    loads_collection.update_one({"_id": load["_id"]}, {"$set": update_fields})
+    if status_update:
+        loads_collection.update_one({"_id": load["_id"]}, {"$set": status_update})
 
     return jsonify({
         "success": True,
-        "message": "Photos uploaded",
-        "file_ids": [str(fid) for fid in saved_ids]
+        "photo_ids": [str(fid) for fid in saved_ids],
+        "stop_number": stop_number
     })
+
+
+
+
 
 
 
