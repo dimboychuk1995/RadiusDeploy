@@ -39,7 +39,23 @@ def trucks_dropdown():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@safety_bp.route('/api/driver_truck/<driver_id>')
+@login_required
+def get_driver_truck(driver_id):
+    try:
+        driver = db["drivers"].find_one({
+            "_id": ObjectId(driver_id),
+            "company": current_user.company
+        })
+        if not driver:
+            return jsonify({"error": "Водитель не найден"}), 404
 
+        truck_oid = driver.get("truck")
+        return jsonify({"truck_id": str(truck_oid) if truck_oid else None})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    
 @safety_bp.route('/api/add_inspection', methods=['POST'])
 @login_required
 def add_inspection():

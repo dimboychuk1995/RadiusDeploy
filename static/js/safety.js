@@ -18,9 +18,15 @@ function initSafety() {
 function openInspectionModal() {
   const modal = document.getElementById("addInspectionModal");
   const backdrop = document.querySelector(".custom-offcanvas-backdrop");
+
+  // Загружаем водителей и траки каждый раз при открытии
+  loadDriversAndTrucks();
+
   modal?.classList.add("show");
   backdrop?.classList.add("show");
 }
+
+
 
 function closeInspectionModal() {
   const modal = document.getElementById("addInspectionModal");
@@ -75,6 +81,24 @@ async function loadDriversAndTrucks() {
       option.textContent = t.number;
       truckSelect.appendChild(option);
     });
+
+    // Автозаполнение трака при выборе водителя
+    driverSelect.addEventListener("change", async () => {
+      const selectedDriverId = driverSelect.value;
+      if (!selectedDriverId) return;
+
+      try {
+        const res = await fetch(`/api/driver_truck/${selectedDriverId}`);
+        const data = await res.json();
+
+        if (data.truck_id) {
+          truckSelect.value = data.truck_id;
+        }
+      } catch (e) {
+        console.error("Ошибка при автозаполнении трака:", e);
+      }
+    });
+
   } catch (e) {
     console.error("Ошибка загрузки водителей или траков:", e);
   }
