@@ -170,13 +170,13 @@ async function loadInspections() {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${ins.date || ""}</td>
-        <td>${ins.driver || ""}</td>
-        <td>${ins.truck || ""}</td>
+        <td>${ins.driver?.name || "—"}</td>
+        <td>${ins.truck?.number || "—"}</td>
         <td>${ins.state || ""}</td>
         <td>${ins.address || ""}</td>
         <td>${ins.clean ? "✅" : "❌"}</td>
         <td>
-          ${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id}" download class="me-2">📄</a>` : ""}
+          ${ins.file_id ? `<a href="/api/get_inspection_file/${ins.file_id._id}" download class="me-2">📄</a>` : ""}
           <button class="btn btn-sm btn-info" onclick="showInspectionDetails('${ins._id}')">👁️</button>
           <button class="btn btn-sm btn-danger" onclick="deleteInspection('${ins._id}')">🗑</button>
         </td>

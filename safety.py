@@ -55,11 +55,13 @@ def get_driver_truck(driver_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-    
+
 @safety_bp.route('/api/add_inspection', methods=['POST'])
 @login_required
 def add_inspection():
     try:
+        from bson import ObjectId
+
         data = request.form.to_dict()
         data["company"] = current_user.company
         data["created_at"] = datetime.utcnow()
@@ -77,6 +79,20 @@ def add_inspection():
         data["end_time"] = data.get("end_time") or None
         data["clean_inspection"] = 'clean_inspection' in request.form
 
+        # Преобразуем driver и truck в ObjectId
+        driver_id = data.get("driver")
+        truck_id = data.get("truck")
+
+        if driver_id and ObjectId.is_valid(driver_id):
+            data["driver"] = ObjectId(driver_id)
+        else:
+            data["driver"] = None
+
+        if truck_id and ObjectId.is_valid(truck_id):
+            data["truck"] = ObjectId(truck_id)
+        else:
+            data["truck"] = None
+
         # Нарушения
         violations_json = request.form.get("violations_json", "[]")
         data["violations"] = json.loads(violations_json)
@@ -85,12 +101,15 @@ def add_inspection():
         file = request.files.get("file")
         if file and file.filename:
             file_id = fs.put(file.stream, filename=file.filename, content_type=file.content_type)
-            data["file_id"] = str(file_id)
+            data["file_id"] = file_id  # сохраняем как ObjectId напрямую
 
         db["inspections"].insert_one(data)
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    
+
 
 @safety_bp.route('/api/inspections_list')
 @login_required
@@ -99,37 +118,34 @@ def inspections_list():
         company = current_user.company
         inspections = list(db["inspections"].find({"company": company}).sort("created_at", -1))
 
-        # Собираем только валидные ObjectId
-        driver_ids = []
-        truck_ids = []
-
-        for i in inspections:
-            if i.get("driver") and ObjectId.is_valid(i["driver"]):
-                driver_ids.append(ObjectId(i["driver"]))
-            if i.get("truck") and ObjectId.is_valid(i["truck"]):
-                truck_ids.append(ObjectId(i["truck"]))
+        # Получаем уникальные ObjectId водителей и траков
+        driver_ids = list({i["driver"] for i in inspections if isinstance(i.get("driver"), ObjectId)})
+        truck_ids = list({i["truck"] for i in inspections if isinstance(i.get("truck"), ObjectId)})
 
         drivers_map = {
-            str(d["_id"]): d.get("name", "—")
+            d["_id"]: {"_id": str(d["_id"]), "name": d.get("name", "—")}
             for d in db["drivers"].find({"_id": {"$in": driver_ids}})
         }
 
         trucks_map = {
-            str(t["_id"]): t.get("unit_number", "—")
+            t["_id"]: {"_id": str(t["_id"]), "number": t.get("unit_number", "—")}
             for t in db["trucks"].find({"_id": {"$in": truck_ids}})
         }
 
         result = []
         for i in inspections:
+            driver_info = drivers_map.get(i.get("driver"), None)
+            truck_info = trucks_map.get(i.get("truck"), None)
+
             result.append({
                 "_id": str(i["_id"]),
-                "driver": drivers_map.get(i.get("driver"), i.get("driver")),
-                "truck": trucks_map.get(i.get("truck"), i.get("truck")),
+                "driver": driver_info or {"_id": str(i.get("driver")), "name": "—"},
+                "truck": truck_info or {"_id": str(i.get("truck")), "number": "—"},
                 "date": i.get("date", ""),
                 "state": i.get("state", ""),
                 "address": i.get("address", ""),
                 "clean": i.get("clean_inspection", False),
-                "file_id": str(i.get("file_id")) if i.get("file_id") else None
+                "file_id": {"_id": str(i["file_id"])} if i.get("file_id") else None
             })
 
         return jsonify(result)
@@ -166,6 +182,9 @@ def delete_inspection(inspection_id):
             return jsonify({"error": "Инспекция не найдена"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+
+
 
 @safety_bp.route('/fragment/inspection_details_fragment')
 @login_required
