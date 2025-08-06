@@ -8,6 +8,9 @@ import json
 from gridfs import GridFS
 from flask import send_file
 from io import BytesIO
+from tools.jwt_auth import jwt_required
+import gridfs
+
 
 fs = GridFS(db)
 safety_bp = Blueprint('safety', __name__)
@@ -115,8 +118,7 @@ def add_inspection():
 @login_required
 def inspections_list():
     try:
-        company = current_user.company
-        inspections = list(db["inspections"].find({"company": company}).sort("created_at", -1))
+        inspections = list(db["inspections"].find().sort("created_at", -1))
 
         # Получаем уникальные ObjectId водителей и траков
         driver_ids = list({i["driver"] for i in inspections if isinstance(i.get("driver"), ObjectId)})
@@ -151,6 +153,7 @@ def inspections_list():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @safety_bp.route('/api/get_inspection_file/<file_id>')
@@ -208,3 +211,123 @@ def inspection_details_fragment():
 
     return render_template("fragments/inspection_details_fragment.html", inspection=inspection)
 
+
+
+
+
+
+
+# MOBILE API
+
+@safety_bp.route('/api/mobile/inspections', methods=['GET'])
+@jwt_required
+def mobile_get_inspections():
+    from flask import g
+    try:
+        driver_id = ObjectId(g.user_id)
+        company = g.company
+        after = request.args.get("after")  # ISO datetime
+        limit = 10
+
+        query = {
+            "driver": driver_id,
+            "company": company
+        }
+
+        if after:
+            try:
+                after_dt = datetime.fromisoformat(after)
+                query["created_at"] = {"$lt": after_dt}
+            except ValueError:
+                return jsonify({"error": "Invalid date format"}), 400
+
+        inspections = db["inspections"].find(query).sort("created_at", -1).limit(limit)
+
+        result = []
+        for i in inspections:
+            result.append({
+                "_id": str(i["_id"]),
+                "date": i.get("date"),
+                "start_time": i.get("start_time"),
+                "end_time": i.get("end_time"),
+                "state": i.get("state"),
+                "address": i.get("address"),
+                "clean_inspection": i.get("clean_inspection", False),
+                "violations": i.get("violations", []),
+                "file_id": str(i["file_id"]) if i.get("file_id") else None,
+                "created_at": i.get("created_at").isoformat() if i.get("created_at") else None
+            })
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@safety_bp.route('/api/mobile/inspections', methods=['POST'])
+@jwt_required
+def mobile_add_inspection():
+    from flask import g
+    try:
+        driver_id = ObjectId(g.user_id)
+
+        # Найти документ водителя
+        driver_doc = db["drivers"].find_one({"_id": driver_id})
+        if not driver_doc:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
+
+        truck_id = driver_doc.get("truck")
+        company = driver_doc.get("company")
+
+        # Получить файл
+        file = request.files.get("file")
+        file_id = None
+        if file:
+            file_id = fs.put(file, filename=file.filename, content_type=file.content_type)
+
+        # Обработка даты
+        date_str = request.form.get("date")
+        date_formatted = None
+        if date_str:
+            try:
+                from datetime import datetime
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                date_formatted = date_obj.strftime("%m/%d/%Y")
+            except Exception:
+                date_formatted = date_str
+
+        start_time = request.form.get("start_time")
+        end_time = request.form.get("end_time")
+        state = request.form.get("state")
+        address = request.form.get("address")
+        clean_inspection = request.form.get("clean_inspection") == "null"
+
+        # Violations
+        violations_str = request.form.get("violations")
+        try:
+            violations_list = json.loads(violations_str) if violations_str else []
+            violations_json = json.dumps(violations_list)
+        except:
+            violations_list = []
+            violations_json = "[]"
+
+        inspection = {
+            "driver": driver_id,
+            "truck": truck_id,
+            "file_id": file_id,
+            "date": date_formatted,
+            "start_time": start_time,
+            "end_time": end_time,
+            "state": state,
+            "address": address,
+            "violations_json": violations_json,
+            "violations": violations_list,
+            "clean_inspection": clean_inspection,
+            "company": company,
+            "created_at": datetime.utcnow()
+        }
+
+        result = db["inspections"].insert_one(inspection)
+        return jsonify({"success": True, "id": str(result.inserted_id)})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
