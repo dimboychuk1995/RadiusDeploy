@@ -12,6 +12,7 @@ def decode_token(token):
         payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
         return {
             "user_id": payload["user_id"],
+            "driver_id": payload.get("driver_id"),
             "role": payload["role"],
             "username": payload.get("username", "")
         }
@@ -40,7 +41,8 @@ def jwt_required(f):
             jwt_secret = current_app.config["JWT_SECRET"]
             payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
 
-            g.user_id = payload['user_id']
+            g.user_id = payload['user_id']                    # _id пользователя
+            g.driver_id = payload.get('driver_id', None)      # driver_id, если есть
             g.role = payload['role']
             g.username = payload.get('username', '')
         except Exception as e:

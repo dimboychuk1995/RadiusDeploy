@@ -182,12 +182,13 @@ def api_login():
     if not user or not check_password_hash(user.get("password", ""), password):
         return jsonify({"success": False, "message": "Invalid credentials"}), 401
 
-    # 👇 берём driver_id, если есть
     role = user.get("role", "")
-    user_id = str(user.get("driver_id") or user["_id"]) if role == "driver" else str(user["_id"])
+    user_id = str(user["_id"])
+    driver_id = str(user["driver_id"]) if user.get("driver_id") else None
 
     payload = {
-        "user_id": user_id,  # 👈 Ключевой момент
+        "user_id": user_id,                   # ✅ _id пользователя
+        "driver_id": driver_id,               # ✅ driver_id если есть
         "username": user.get("username", ""),
         "role": role,
         "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
@@ -200,12 +201,13 @@ def api_login():
     return jsonify({
         "success": True,
         "token": token,
-        "user_id": user_id,  # 👈 Совпадает с user_id в токене
+        "user_id": user_id,
+        "driver_id": driver_id,
         "username": user.get("username", ""),
         "role": role,
-        "company": user.get("company", ""),
-        "driver_id": str(user.get("driver_id", "")) if user.get("driver_id") else None
+        "company": user.get("company", "")
     })
+
 
 
 

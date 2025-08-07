@@ -1486,16 +1486,17 @@ def get_loads():
         query = {}
 
         if g.role == "driver":
-            user = users_collection.find_one({"_id": ObjectId(g.user_id)})
-            if not user or "driver_id" not in user:
-                return jsonify({"success": False, "error": "Driver not found or missing driver_id"}), 404
-
-            query["assigned_driver"] = ObjectId(user["driver_id"])
+            if not g.driver_id:
+                return jsonify({"success": False, "error": "Missing driver_id in session"}), 400
+            try:
+                query["assigned_driver"] = ObjectId(g.driver_id)
+            except Exception as e:
+                return jsonify({"success": False, "error": f"Invalid driver_id: {str(e)}"}), 400
 
         total = loads_collection.count_documents(query)
         cursor = (
             loads_collection.find(query)
-            .sort("created_at", -1)  # ⬅️ сортировка по created_at по убыванию
+            .sort("created_at", -1)
             .skip((page - 1) * per_page)
             .limit(per_page)
         )
@@ -1529,7 +1530,7 @@ def get_loads():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-    
+
     
 
 @loads_bp.route("/api/load/<load_id>", methods=["GET"])
