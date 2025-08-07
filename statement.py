@@ -3,6 +3,10 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 from flask import Blueprint, render_template, request, jsonify
 from tools.db import db
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from bson.objectid import ObjectId
+
 
 statement_bp = Blueprint('statement', __name__)
 
@@ -47,25 +51,14 @@ def get_driver_statement_loads():
             ]
         }
 
-        print("\n=== [Driver Statement Debug] ===")
-        print(f"driver_id: {driver_id}")
-        print(f"week_range: {week_range}")
-        print(f"start_date (inclusive): {start_date.isoformat()}")
-        print(f"end_date (exclusive): {end_date.isoformat()}")
-        print("Mongo query:", query)
-
         loads = list(loads_collection.find(query))
-        print(f"Found loads: {len(loads)}")
+     
 
         # Печатаем даты delivery и extra_delivery найденных грузов
         for i, load in enumerate(loads[:10]):  # максимум 10 для отладки
             d = load.get("delivery", {}).get("date")
             ed = load.get("extra_delivery", {}).get("date")
-            print(f"Load {i+1}:")
-            print("  delivery.date:       ", d.isoformat() if d else None)
-            print("  extra_delivery.date: ", ed.isoformat() if ed else None)
 
-        print("=== End Debug ===\n")
 
         def serialize_load(load):
             def str_oid(val):
@@ -96,7 +89,6 @@ def get_driver_statement_loads():
 
     except Exception as e:
         import traceback
-        print("Exception in /api/driver_statement_loads:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
 
@@ -118,18 +110,12 @@ def get_driver_fuel_summary():
         start_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
 
-        print("\n=== [Fuel Summary Debug] ===")
-        print(f"driver_id: {driver_id}")
-        print(f"week_range: {week_range}")
-        print(f"start_date (inclusive): {start_date.isoformat()}")
-        print(f"end_date (exclusive): {end_date.isoformat()}")
 
         fuel_cards = list(fuel_cards_collection.find({
             "assigned_driver": ObjectId(driver_id)
         }))
 
         card_numbers = [c.get("card_number") for c in fuel_cards if c.get("card_number")]
-        print(f"Assigned card numbers: {card_numbers}")
 
         if not card_numbers:
             print("No cards found.")
@@ -147,10 +133,8 @@ def get_driver_fuel_summary():
             "card_number": {"$in": card_numbers},
             "date": {"$gte": start_date, "$lt": end_date}
         }
-        print("Mongo query for transactions:", query)
 
         transactions = list(fuel_cards_transactions_collection.find(query))
-        print(f"Found transactions: {len(transactions)}")
         for i, tx in enumerate(transactions[:10]):
             print(f"  Tx {i+1}: card {tx.get('card_number')} → date {tx.get('date')} | qty={tx.get('qty')}, retail={tx.get('retail_price')}, invoice={tx.get('invoice_total')}")
 
@@ -170,14 +154,11 @@ def get_driver_fuel_summary():
         fuel["retail"] = round(fuel["retail"], 2)
         fuel["invoice"] = round(fuel["invoice"], 2)
 
-        print("Total fuel summary:", fuel)
-        print("=== End Debug ===\n")
 
         return jsonify({"success": True, "fuel": fuel})
 
     except Exception as e:
         import traceback
-        print("Exception in /api/driver_fuel_summary:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
 
@@ -258,112 +239,217 @@ def get_driver_commission_scheme():
 @statement_bp.route("/api/driver_inspections_by_range", methods=["GET"])
 def get_driver_inspections_by_range():
     try:
-        driver_id = request.args.get("driver_id")
+        driver_id = request.args.get("driver_id")   # MM/DD/YYYY
         start_str = request.args.get("start_date")
-        end_str = request.args.get("end_date")
+        end_str   = request.args.get("end_date")
 
         if not driver_id or not start_str or not end_str:
             return jsonify({"success": False, "error": "Missing parameters"}), 400
 
-        start_date = datetime.strptime(start_str, "%m/%d/%Y")
-        end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+        # Таймзона из БД (или дефолт)
+        tz_doc  = db["company_timezone"].find_one({}) or {}
+        tz_name = tz_doc.get("timezone") or "America/Chicago"
+        local_tz = ZoneInfo(tz_name)
+        utc_tz   = timezone.utc
 
-        print("\n=== [Inspection Debug] ===")
+        # Локальные границы включительно по дням: [start_local 00:00, end_local + 1д 00:00)
+        start_local_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_local_date   = datetime.strptime(end_str, "%m/%d/%Y")
+        start_local = start_local_date.replace(tzinfo=local_tz)
+        end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
+
+        # В UTC для Mongo (и наивные UTC-границы для сравнения с наивными датами в БД)
+        start_utc = start_local.astimezone(utc_tz)
+        end_utc_exclusive = end_local_exclusive.astimezone(utc_tz)
+        start_bound_naive = start_utc.replace(tzinfo=None)
+        end_bound_naive   = end_utc_exclusive.replace(tzinfo=None)
+
+        print("\n=== [Driver Inspections Debug / TZ-Aware] ===")
         print(f"driver_id: {driver_id}")
-        print(f"start_date (inclusive): {start_date.isoformat()}")
-        print(f"end_date (exclusive): {end_date.isoformat()}")
+        print(f"company timezone: {tz_name}")
+        print("-- Local range --")
+        print(f"  start_local (inclusive): {start_local.isoformat()}")
+        print(f"  end_local   (exclusive): {end_local_exclusive.isoformat()}")
+        print("-- UTC range (aware) --")
+        print(f"  start_utc   (inclusive): {start_utc.isoformat()}")
+        print(f"  end_utc     (exclusive): {end_utc_exclusive.isoformat()}")
+        print("-- UTC range used in Mongo (naive) --")
+        print(f"  start_bound_naive: {start_bound_naive!r}")
+        print(f"  end_bound_naive:   {end_bound_naive!r}")
 
         query = {
             "driver": ObjectId(driver_id),
-            "created_at": {"$gte": start_date, "$lt": end_date}
+            "created_at": {"$gte": start_bound_naive, "$lt": end_bound_naive}
         }
-        print("Mongo query:", query)
+        print("Mongo query (UTC naive):", query)
 
-        inspections = list(db["inspections"].find(query))
-        print(f"Found inspections: {len(inspections)}")
-        for i, insp in enumerate(inspections[:10]):
-            print(f"  Inspection {i+1}: clean={insp.get('clean_inspection')} | created_at={insp.get('created_at')}")
+        inspections_raw = list(
+            db["inspections"]
+            .find(query)
+            .sort("created_at", 1)
+        )
+        print(f"Fetched by UTC bounds (raw count): {len(inspections_raw)}")
 
+        # Хелперы
+        def to_local(dt):
+            if not dt:
+                return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=utc_tz)  # трактуем наивное как UTC
+            return dt.astimezone(local_tz)
+
+        def to_utc_aware(dt):
+            if not dt:
+                return None
+            return dt if dt.tzinfo else dt.replace(tzinfo=utc_tz)
+
+        # Подробные принты по каждой записи: "DB time" и приведённые времена
+        inspections_out = []
+        print("---- Per-row debug (DB -> UTC aware -> UTC naive -> LOCAL) ----")
+        for insp in inspections_raw:
+            _id = insp.get("_id")
+            cat_db = insp.get("created_at")                         # как пришло из БД (обычно наивное UTC)
+            cat_type = type(cat_db).__name__
+            cat_utc_aw = to_utc_aware(cat_db)                       # UTC-aware
+            cat_utc_naive = cat_utc_aw.replace(tzinfo=None) if cat_utc_aw else None
+            cat_local = to_local(cat_db)                            # локальное
+
+            # Сопоставления по двум интервалам (UTC и LOCAL) для явной диагностики
+            match_utc_naive  = bool(cat_utc_naive and (start_bound_naive <= cat_utc_naive < end_bound_naive))
+            match_local_half = bool(cat_local and (start_local <= cat_local < end_local_exclusive))
+
+            print(
+                f"  • _id={_id} | "
+                f"created_at_DB={cat_db!r} (type={cat_type}) | "
+                f"created_at_utc_aw={cat_utc_aw.isoformat() if cat_utc_aw else '—'} | "
+                f"created_at_utc_naive={cat_utc_naive!r} | "
+                f"created_at_local={cat_local.isoformat() if cat_local else '—'} | "
+                f"IN_UTC={match_utc_naive} | IN_LOCAL={match_local_half}"
+            )
+
+            # Возвращаем по факту попадания в UTC-диапазон (это и есть корректный поиск)
+            # Дополнительно можно требовать и LOCAL, если нужно строго по локальным суткам
+            if match_utc_naive:
+                insp["_created_at_local"] = cat_local
+                insp["_created_at_utc_aw"] = cat_utc_aw
+                insp["_created_at_utc_naive"] = cat_utc_naive
+                inspections_out.append(insp)
+
+        print(f"Result after UTC range check (count): {len(inspections_out)}")
+        if inspections_out:
+            print("IDs:", [str(i["_id"]) for i in inspections_out])
         print("=== End Debug ===\n")
 
+        # Ответ (created_at отдаём в локальном времени)
         result = []
-        for i in inspections:
+        for i in inspections_out:
+            created_at_local = i.get("_created_at_local") or to_local(i.get("created_at"))
+            date_field = i.get("date", "")
+            if isinstance(date_field, datetime):
+                date_field = date_field.strftime("%m/%d/%Y")
+
             result.append({
                 "_id": str(i["_id"]),
-                "date": i.get("date", ""),
+                "date": date_field,
                 "start_time": i.get("start_time", ""),
                 "end_time": i.get("end_time", ""),
                 "state": i.get("state", ""),
                 "address": i.get("address", ""),
                 "clean_inspection": i.get("clean_inspection", False),
-                "created_at": i["created_at"].strftime("%m/%d/%Y %H:%M:%S") if i.get("created_at") else None
+                "created_at": created_at_local.strftime("%m/%d/%Y %H:%M:%S") if created_at_local else None
             })
 
-        return jsonify({
-            "success": True,
-            "inspections": result,
-            "count": len(result)
-        })
+        return jsonify({"success": True, "inspections": result, "count": len(result)})
 
     except Exception as e:
         import traceback
-        print("Exception in /api/driver_inspections_by_range:")
+        print("Exception in /api/driver_inspections_by_range (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
-    
 
-
-@statement_bp.route("/api/driver_expenses_by_range", methods=["GET"])
-def get_driver_expenses_by_range():
     try:
-        driver_id = request.args.get("driver_id")
+        driver_id = request.args.get("driver_id")   # MM/DD/YYYY
         start_str = request.args.get("start_date")
-        end_str = request.args.get("end_date")
+        end_str   = request.args.get("end_date")
 
         if not driver_id or not start_str or not end_str:
             return jsonify({"success": False, "error": "Missing parameters"}), 400
 
-        start_date = datetime.strptime(start_str, "%m/%d/%Y")
-        end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+        # Таймзона из БД (или дефолт)
+        tz_doc  = db["company_timezone"].find_one({}) or {}
+        tz_name = tz_doc.get("timezone") or "America/Chicago"
+        local_tz = ZoneInfo(tz_name)
+        utc_tz   = timezone.utc
 
-        print("\n=== [Driver Expenses Debug] ===")
+        # Локальные границы: [start_local 00:00, end_local + 1д 00:00)
+        start_local_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_local_date   = datetime.strptime(end_str, "%m/%d/%Y")
+        start_local = start_local_date.replace(tzinfo=local_tz)
+        end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
+
+        # В UTC для Mongo (и делаем наивные UTC-границы, если в БД наивные UTC)
+        start_utc = start_local.astimezone(utc_tz)
+        end_utc_exclusive = end_local_exclusive.astimezone(utc_tz)
+        start_bound = start_utc.replace(tzinfo=None)
+        end_bound   = end_utc_exclusive.replace(tzinfo=None)
+
+        print("\n=== [Driver Inspections Debug / TZ-Aware] ===")
         print(f"driver_id: {driver_id}")
-        print(f"start_date (inclusive): {start_date.isoformat()}")
-        print(f"end_date (exclusive): {end_date.isoformat()}")
+        print(f"company timezone: {tz_name}")
+        print("-- Local range --")
+        print(f"  start_local (inclusive): {start_local.isoformat()}")
+        print(f"  end_local   (exclusive): {end_local_exclusive.isoformat()}")
+        print("-- UTC range (used in Mongo) --")
+        print(f"  start_utc   (inclusive): {start_utc.isoformat()}")
+        print(f"  end_utc     (exclusive): {end_utc_exclusive.isoformat()}")
+        print("Mongo query (UTC naive):",
+              {"driver": ObjectId(driver_id), "created_at": {"$gte": start_bound, "$lt": end_bound}})
 
-        query = {
-            "driver_id": ObjectId(driver_id),
-            "created_at": {"$gte": start_date, "$lt": end_date}
-        }
-        print("Mongo query:", query)
+        inspections = list(
+            db["inspections"]
+            .find({
+                "driver": ObjectId(driver_id),
+                "created_at": {"$gte": start_bound, "$lt": end_bound}
+            })
+            .sort("created_at", 1)
+        )
 
-        expenses = list(db["driver_expenses"].find(query))
-        print(f"Found expenses: {len(expenses)}")
-        for i, e in enumerate(expenses[:10]):
-            print(f"  Expense {i+1}: ${e.get('amount')} | category={e.get('category')} | created_at={e.get('created_at')}")
+        # Для ответа показываем created_at в локальном времени
+        def to_local(dt):
+            if not dt:
+                return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=utc_tz)  # трактуем наивное как UTC
+            return dt.astimezone(local_tz)
+
+        print(f"Fetched {len(inspections)} rows by UTC bounds.")
+        ids = [str(i["_id"]) for i in inspections]
+        print("IDs:", ids)
+
+        result = []
+        for i in inspections:
+            created_at_local = to_local(i.get("created_at"))
+            date_field = i.get("date", "")
+            if isinstance(date_field, datetime):
+                date_field = date_field.strftime("%m/%d/%Y")
+
+            result.append({
+                "_id": str(i["_id"]),
+                "date": date_field,
+                "start_time": i.get("start_time", ""),
+                "end_time": i.get("end_time", ""),
+                "state": i.get("state", ""),
+                "address": i.get("address", ""),
+                "clean_inspection": i.get("clean_inspection", False),
+                "created_at": created_at_local.strftime("%m/%d/%Y %H:%M:%S") if created_at_local else None
+            })
 
         print("=== End Debug ===\n")
 
-        result = []
-        for e in expenses:
-            result.append({
-                "_id": str(e["_id"]),
-                "amount": e.get("amount", 0),
-                "category": e.get("category", ""),
-                "note": e.get("note", ""),
-                "date": e.get("date").strftime("%m/%d/%Y") if e.get("date") else "",
-                "created_at": e["created_at"].strftime("%m/%d/%Y %H:%M:%S") if e.get("created_at") else None,
-                "photo_id": str(e["photo_id"]) if e.get("photo_id") else None
-            })
-
-        return jsonify({
-            "success": True,
-            "expenses": result,
-            "count": len(result)
-        })
+        return jsonify({"success": True, "inspections": result, "count": len(result)})
 
     except Exception as e:
         import traceback
-        print("Exception in /api/driver_expenses_by_range:")
+        print("Exception in /api/driver_inspections_by_range (TZ-Aware):")
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)})                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+        return jsonify({"success": False, "error": str(e)})
