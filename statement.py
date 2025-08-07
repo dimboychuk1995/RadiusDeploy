@@ -48,14 +48,24 @@ def get_driver_statement_loads():
         }
 
         print("\n=== [Driver Statement Debug] ===")
-        print("Driver ID:", driver_id)
-        print("Start:", start_date)
-        print("End:", end_date)
-        print("Query:", query)
+        print(f"driver_id: {driver_id}")
+        print(f"week_range: {week_range}")
+        print(f"start_date (inclusive): {start_date.isoformat()}")
+        print(f"end_date (exclusive): {end_date.isoformat()}")
+        print("Mongo query:", query)
 
         loads = list(loads_collection.find(query))
-        print("Found loads:", len(loads))
-        print("===============================\n")
+        print(f"Found loads: {len(loads)}")
+
+        # Печатаем даты delivery и extra_delivery найденных грузов
+        for i, load in enumerate(loads[:10]):  # максимум 10 для отладки
+            d = load.get("delivery", {}).get("date")
+            ed = load.get("extra_delivery", {}).get("date")
+            print(f"Load {i+1}:")
+            print("  delivery.date:       ", d.isoformat() if d else None)
+            print("  extra_delivery.date: ", ed.isoformat() if ed else None)
+
+        print("=== End Debug ===\n")
 
         def serialize_load(load):
             def str_oid(val):
@@ -90,6 +100,11 @@ def get_driver_statement_loads():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
 
+
+
+
+
+
 @statement_bp.route("/api/driver_fuel_summary", methods=["GET"])
 def get_driver_fuel_summary():
     try:
@@ -103,14 +118,21 @@ def get_driver_fuel_summary():
         start_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
 
-        # 1. Find all cards assigned to driver
+        print("\n=== [Fuel Summary Debug] ===")
+        print(f"driver_id: {driver_id}")
+        print(f"week_range: {week_range}")
+        print(f"start_date (inclusive): {start_date.isoformat()}")
+        print(f"end_date (exclusive): {end_date.isoformat()}")
+
         fuel_cards = list(fuel_cards_collection.find({
             "assigned_driver": ObjectId(driver_id)
         }))
 
         card_numbers = [c.get("card_number") for c in fuel_cards if c.get("card_number")]
+        print(f"Assigned card numbers: {card_numbers}")
 
         if not card_numbers:
+            print("No cards found.")
             return jsonify({
                 "success": True,
                 "fuel": {
@@ -121,13 +143,16 @@ def get_driver_fuel_summary():
                 }
             })
 
-        # 2. Find transactions in range
         query = {
             "card_number": {"$in": card_numbers},
             "date": {"$gte": start_date, "$lt": end_date}
         }
+        print("Mongo query for transactions:", query)
 
         transactions = list(fuel_cards_transactions_collection.find(query))
+        print(f"Found transactions: {len(transactions)}")
+        for i, tx in enumerate(transactions[:10]):
+            print(f"  Tx {i+1}: card {tx.get('card_number')} → date {tx.get('date')} | qty={tx.get('qty')}, retail={tx.get('retail_price')}, invoice={tx.get('invoice_total')}")
 
         fuel = {
             "qty": 0.0,
@@ -145,6 +170,9 @@ def get_driver_fuel_summary():
         fuel["retail"] = round(fuel["retail"], 2)
         fuel["invoice"] = round(fuel["invoice"], 2)
 
+        print("Total fuel summary:", fuel)
+        print("=== End Debug ===\n")
+
         return jsonify({"success": True, "fuel": fuel})
 
     except Exception as e:
@@ -152,6 +180,7 @@ def get_driver_fuel_summary():
         print("Exception in /api/driver_fuel_summary:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
+
 
 
 @statement_bp.route("/api/driver_commission_scheme", methods=["GET"])
@@ -239,10 +268,23 @@ def get_driver_inspections_by_range():
         start_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
 
-        inspections = list(db["inspections"].find({
+        print("\n=== [Inspection Debug] ===")
+        print(f"driver_id: {driver_id}")
+        print(f"start_date (inclusive): {start_date.isoformat()}")
+        print(f"end_date (exclusive): {end_date.isoformat()}")
+
+        query = {
             "driver": ObjectId(driver_id),
             "created_at": {"$gte": start_date, "$lt": end_date}
-        }))
+        }
+        print("Mongo query:", query)
+
+        inspections = list(db["inspections"].find(query))
+        print(f"Found inspections: {len(inspections)}")
+        for i, insp in enumerate(inspections[:10]):
+            print(f"  Inspection {i+1}: clean={insp.get('clean_inspection')} | created_at={insp.get('created_at')}")
+
+        print("=== End Debug ===\n")
 
         result = []
         for i in inspections:
@@ -284,10 +326,23 @@ def get_driver_expenses_by_range():
         start_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
 
-        expenses = list(db["driver_expenses"].find({
+        print("\n=== [Driver Expenses Debug] ===")
+        print(f"driver_id: {driver_id}")
+        print(f"start_date (inclusive): {start_date.isoformat()}")
+        print(f"end_date (exclusive): {end_date.isoformat()}")
+
+        query = {
             "driver_id": ObjectId(driver_id),
             "created_at": {"$gte": start_date, "$lt": end_date}
-        }))
+        }
+        print("Mongo query:", query)
+
+        expenses = list(db["driver_expenses"].find(query))
+        print(f"Found expenses: {len(expenses)}")
+        for i, e in enumerate(expenses[:10]):
+            print(f"  Expense {i+1}: ${e.get('amount')} | category={e.get('category')} | created_at={e.get('created_at')}")
+
+        print("=== End Debug ===\n")
 
         result = []
         for e in expenses:
@@ -311,4 +366,4 @@ def get_driver_expenses_by_range():
         import traceback
         print("Exception in /api/driver_expenses_by_range:")
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)})                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+        return jsonify({"success": False, "error": str(e)})                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
