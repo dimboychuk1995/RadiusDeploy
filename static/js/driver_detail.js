@@ -2,22 +2,20 @@ console.log("🔧 driver_detail.js загружен");
 
 const perMileBlock = document.getElementById("perMileBlock");
 
+/** 🔁 Инициализация всех действий на странице деталей водителя */
 function initDriverDetailActions() {
-  console.log("🔧 initDriverDetailActions вызвана");
+  setupBackButton();
+  setupSalarySchemeForm();
+  setupCollapsePreview();
+  setupCommissionRowButtons();
+  setupAdditionalCharges();
+  setupCleanInspectionBonusToggle();
 
-  // Открытие/скрытие формы редактирования
-  const editBtn = document.getElementById('editBtn');
-  const saveBtn = document.getElementById('saveBtn');
-  const formElements = document.querySelectorAll('#editForm input, #editForm select');
+  if (window.lucide) lucide.createIcons();
+}
 
-  if (editBtn && saveBtn && formElements.length) {
-    editBtn.addEventListener('click', function () {
-      formElements.forEach(element => element.disabled = false);
-      editBtn.classList.add('d-none');
-      saveBtn.classList.remove('d-none');
-    });
-  }
-
+/** 🔙 Назад к списку водителей */
+function setupBackButton() {
   const backBtn = document.getElementById("backToDriversBtn");
   if (backBtn) {
     backBtn.addEventListener("click", () => {
@@ -25,39 +23,10 @@ function initDriverDetailActions() {
       window.location.href = "/";
     });
   }
+}
 
-  const form = document.getElementById("editForm");
-  if (form) {
-    form.addEventListener("submit", function (e) {
-      e.preventDefault();
-      const formData = new FormData(form);
-      const driverId = form.dataset.driverId;
-
-      if (!driverId) {
-        console.error("❌ driverId отсутствует в editForm");
-        alert("Ошибка: не удалось определить ID водителя");
-        return;
-      }
-
-      fetch(`/edit_driver/${driverId}`, {
-        method: "POST",
-        body: formData
-      })
-        .then(res => {
-          if (res.ok) {
-            localStorage.setItem("activeSection", "btn-drivers");
-            window.location.href = "/";
-          } else {
-            alert("❌ Ошибка при сохранении");
-          }
-        })
-        .catch(err => {
-          console.error("Ошибка запроса:", err);
-          alert("❌ Ошибка сети");
-        });
-    });
-  }
-
+/** 💰 Обработка смены типа зарплатной схемы и отправка формы */
+function setupSalarySchemeForm() {
   const schemeSelect = document.getElementById("schemeTypeSelect");
   const percentBlock = document.getElementById("percentSchemeBlock");
   const netBlock = document.getElementById("netPercentBlock");
@@ -73,7 +42,43 @@ function initDriverDetailActions() {
     });
   }
 
-  // collapse file preview (🔁 обновлённый блок GridFS)
+  const salaryForm = document.getElementById("salarySchemeForm");
+  if (salaryForm) {
+    salaryForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const driverId = salaryForm.dataset.driverId;
+
+      if (!driverId) {
+        alert("❌ Ошибка: не удалось получить ID водителя.");
+        return;
+      }
+
+      const formData = new FormData(salaryForm);
+
+      fetch(`/set_salary_scheme/${driverId}`, {
+        method: "POST",
+        body: formData
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert("✅ Схема зарплаты сохранена");
+            closeSalaryModal();
+            window.location.reload();
+          } else {
+            alert("❌ Ошибка при сохранении схемы");
+          }
+        })
+        .catch(err => {
+          console.error("Ошибка при отправке схемы:", err);
+          alert("❌ Сетевая ошибка");
+        });
+    });
+  }
+}
+
+/** 🧾 Предпросмотр файлов при раскрытии collapse (GridFS) */
+function setupCollapsePreview() {
   document.querySelectorAll('.collapse').forEach(collapse => {
     collapse.addEventListener('show.bs.collapse', async function () {
       const preview = this.querySelector('.collapse-loader');
@@ -113,8 +118,10 @@ function initDriverDetailActions() {
       }
     });
   });
+}
 
-  // Кнопки добавления строк в схемы зарплат
+/** ➕ Добавление строк в таблицу уровней (процент/чистая прибыль) */
+function setupCommissionRowButtons() {
   const addGrossRowBtn = document.getElementById("addCommissionRow");
   const commissionTable = document.getElementById("commissionTable");
   const addNetRowBtn = document.getElementById("addNetCommissionRow");
@@ -151,8 +158,10 @@ function initDriverDetailActions() {
       netCommissionTable.appendChild(row);
     });
   }
+}
 
-  // Additional charges
+/** 💳 Добавление блоков дополнительных списаний */
+function setupAdditionalCharges() {
   const additionalContainer = document.getElementById("additionalChargesContainer");
   const addChargeBtn = document.getElementById("addChargeBtn");
 
@@ -202,51 +211,27 @@ function initDriverDetailActions() {
       additionalContainer.appendChild(block);
     });
   }
-
-  // Отправка схемы зарплаты
-  const salaryForm = document.getElementById("salarySchemeForm");
-
-  if (salaryForm) {
-    salaryForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      const driverId = salaryForm.dataset.driverId;
-
-      if (!driverId) {
-        alert("❌ Ошибка: не удалось получить ID водителя.");
-        return;
-      }
-
-      const formData = new FormData(salaryForm);
-
-      fetch(`/set_salary_scheme/${driverId}`, {
-        method: "POST",
-        body: formData
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            alert("✅ Схема зарплаты сохранена");
-            closeSalaryModal();
-            window.location.reload();
-          } else {
-            alert("❌ Ошибка при сохранении схемы");
-          }
-        })
-        .catch(err => {
-          console.error("Ошибка при отправке схемы:", err);
-          alert("❌ Сетевая ошибка");
-        });
-    });
-  }
-
-  if (window.lucide) lucide.createIcons();
 }
 
+/** ✅ Обработка показа блока Clean Inspection Bonus */
+function setupCleanInspectionBonusToggle() {
+  const checkbox = document.getElementById("enableInspectionBonus");
+  const bonusBlock = document.getElementById("inspectionBonusBlock");
+
+  if (checkbox && bonusBlock) {
+    checkbox.addEventListener("change", () => {
+      bonusBlock.style.display = checkbox.checked ? "block" : "none";
+    });
+  }
+}
+
+/** 📤 Открытие модалки зарплаты */
 function openSalaryModal() {
   document.getElementById("salarySchemeModal")?.classList.add("open");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
 }
 
+/** ❌ Закрытие модалки зарплаты */
 function closeSalaryModal() {
   document.getElementById("salarySchemeModal")?.classList.remove("open");
   document.querySelector(".custom-offcanvas-backdrop")?.classList.remove("show");

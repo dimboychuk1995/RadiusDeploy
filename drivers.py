@@ -396,7 +396,6 @@ import base64
 def set_salary_scheme(driver_id):
     try:
         scheme_type = request.form.get('scheme_type')
-
         update_data = {}
 
         if scheme_type == 'percent':
@@ -420,7 +419,8 @@ def set_salary_scheme(driver_id):
             update_data.update({
                 'scheme_type': 'percent',
                 'commission_table': gross_table,
-                'net_commission_table': None
+                'net_commission_table': None,
+                'per_mile_rate': None
             })
 
         elif scheme_type == 'net_percent':
@@ -444,7 +444,8 @@ def set_salary_scheme(driver_id):
             update_data.update({
                 'scheme_type': 'net_percent',
                 'commission_table': None,
-                'net_commission_table': net_table
+                'net_commission_table': net_table,
+                'per_mile_rate': None
             })
 
         elif scheme_type == 'per_mile':
@@ -455,7 +456,6 @@ def set_salary_scheme(driver_id):
                 'commission_table': None,
                 'net_commission_table': None
             })
-
         else:
             return jsonify({'success': False, 'error': 'Неверный тип схемы'}), 400
 
@@ -479,7 +479,6 @@ def set_salary_scheme(driver_id):
                 'file': None
             }
 
-            # 📎 Добавим файл как base64
             if i < len(charge_files):
                 file = charge_files[i]
                 if file and file.filename:
@@ -494,12 +493,26 @@ def set_salary_scheme(driver_id):
 
         update_data['additional_charges'] = charges
 
+        # ✅ Бонус за чистую инспекцию
+        enable_bonus = request.form.get('enable_inspection_bonus') == 'on'
+        update_data['enable_inspection_bonus'] = enable_bonus
+
+        if enable_bonus:
+            update_data['bonus_level_1'] = float(request.form.get('bonus_level_1', 0))
+            update_data['bonus_level_2'] = float(request.form.get('bonus_level_2', 0))
+            update_data['bonus_level_3'] = float(request.form.get('bonus_level_3', 0))
+        else:
+            update_data['bonus_level_1'] = 0
+            update_data['bonus_level_2'] = 0
+            update_data['bonus_level_3'] = 0
+
         drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': update_data})
         return jsonify({'success': True})
 
     except Exception as e:
         logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
