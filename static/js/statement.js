@@ -28,13 +28,16 @@ async function calculateDriverStatement() {
 
   await fetchAndRenderDriverLoads(driverId, weekRange);
   fetchDriverFuelSummary(driverId, weekRange);
-  window.recalculateDriverSalary(); // 👉 вызывается всегда, даже если грузов нет
+  fetchDriverInspections(driverId, weekRange);
+  fetchDriverExpenses(driverId, weekRange);
+  window.recalculateDriverSalary();
 }
 
 function fetchAndRenderDriverLoads(driverId, weekRange) {
   return fetch(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
     .then(data => {
+      console.log("📦 Грузы:", data);
       const container = document.getElementById("driverStatementResults");
 
       if (!data.success || !data.loads.length) {
@@ -74,7 +77,6 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       container.innerHTML = "";
       container.appendChild(table);
 
-      // 👉 ВАЖНО: навешиваем обработчики после вставки
       const checkboxes = container.querySelectorAll(".load-checkbox");
       checkboxes.forEach(cb => {
         cb.addEventListener("change", recalculateDriverSalary);
@@ -83,7 +85,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       return totalAmount;
     })
     .catch(err => {
-      console.error("Ошибка при получении грузов:", err);
+      console.error("❌ Ошибка при получении грузов:", err);
       return 0;
     });
 }
@@ -92,6 +94,7 @@ function fetchDriverFuelSummary(driverId, weekRange) {
   fetch(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
     .then(data => {
+      console.log("⛽ Топливо:", data);
       const container = document.getElementById("driverStatementResults");
 
       if (!data.success || !data.fuel) {
@@ -115,7 +118,7 @@ function fetchDriverFuelSummary(driverId, weekRange) {
       container.insertAdjacentHTML("beforeend", fuelHtml);
     })
     .catch(err => {
-      console.error("Ошибка при получении дизеля:", err);
+      console.error("❌ Ошибка при получении дизеля:", err);
     });
 }
 
@@ -136,6 +139,8 @@ window.recalculateDriverSalary = async function () {
   try {
     const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
     const data = await res.json();
+
+    console.log("💰 Зарплатная схема:", data);
 
     if (!data.success) {
       console.warn("Ошибка схемы зарплаты:", data.error);
@@ -159,16 +164,13 @@ window.recalculateDriverSalary = async function () {
       }
     }
 
-    // Списания
     const deductions = data.deductions || [];
     const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount || 0), 0);
     const finalSalary = salary - totalDeductions;
 
-    // Удалим старый блок
     const old = container.querySelector("#driverSalaryBlock");
     if (old) old.remove();
 
-    // Формируем блок
     let html = `
       <div id="driverSalaryBlock" class="mt-4">
         <h5>💰 Зарплата водителя:</h5>
@@ -192,7 +194,81 @@ window.recalculateDriverSalary = async function () {
     container.insertAdjacentHTML("beforeend", html);
 
   } catch (err) {
-    console.error("Ошибка при расчёте зарплаты:", err);
+    console.error("❌ Ошибка при расчёте зарплаты:", err);
   }
 }
 
+function fetchDriverInspections(driverId, weekRange) {
+  const container = document.getElementById("driverStatementResults");
+  const [start, end] = weekRange.split("-").map(s => s.trim());
+
+  fetch(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`)
+    .then(res => res.json())
+    .then(data => {
+      console.log("🧾 Инспекции:", data);
+      if (!data.success || !data.inspections.length) return;
+
+      const html = `
+        <div class="mt-4">
+          <h5>🧾 Инспекции за период (${data.count}):</h5>
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Время</th>
+                <th>Адрес</th>
+                <th>Clean</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.inspections.map(i => `
+                <tr>
+                  <td>${i.date}</td>
+                  <td>${i.start_time}–${i.end_time}</td>
+                  <td>${i.address || "—"}</td>
+                  <td>${i.clean_inspection ? "✅" : "❌"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      container.insertAdjacentHTML("beforeend", html);
+    })
+    .catch(err => {
+      console.error("❌ Ошибка при получении инспекций:", err);
+    });
+}
+
+
+function fetchDriverExpenses(driverId, weekRange) {
+  const container = document.getElementById("driverStatementResults");
+  const [start, end] = weekRange.split("-").map(s => s.trim());
+
+  fetch(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`)
+    .then(res => res.json())
+    .then(data => {
+      console.log("📄 Инвойсы:", data);
+      if (!data.success || !data.expenses.length) return;
+
+      const total = data.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+
+      const html = `
+        <div class="mt-4">
+          <h5>📄 Инвойсы за период (${data.count}):</h5>
+          <ul>
+            ${data.expenses.map(e => `
+              <li>${e.date}: $${e.amount.toFixed(2)} (${e.category}) — ${e.note || "—"}</li>
+            `).join("")}
+          </ul>
+          <p><strong>Итого по инвойсам:</strong> $${total.toFixed(2)}</p>
+        </div>
+      `;
+
+      container.insertAdjacentHTML("beforeend", html);
+    })
+    .catch(err => {
+      console.error("❌ Ошибка при получении инвойсов:", err);
+    });
+}

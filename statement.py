@@ -158,7 +158,7 @@ def get_driver_fuel_summary():
 def get_driver_commission_scheme():
     try:
         driver_id = request.args.get("driver_id")
-        week_range = request.args.get("week_range")  # Добавим параметр
+        week_range = request.args.get("week_range")
 
         if not driver_id or not week_range:
             return jsonify({"success": False, "error": "Missing driver_id or week_range"}), 400
@@ -176,7 +176,7 @@ def get_driver_commission_scheme():
         scheme_type = scheme_info.get("type", "percent")
         commission_table = driver.get("commission_table", [])
 
-        # Списания (deductions)
+        # Списания
         additional_charges = driver.get("additional_charges", []) or []
         deductions = []
 
@@ -200,13 +200,23 @@ def get_driver_commission_scheme():
                             "type": charge_type,
                             "amount": amount
                         })
-                        break  # только одно совпадение нужно
+                        break
+
+        # Бонус за инспекцию (может отсутствовать)
+        enable_bonus = bool(driver.get("enable_inspection_bonus", False))
+        bonus_level_1 = float(driver.get("bonus_level_1", 0))
+        bonus_level_2 = float(driver.get("bonus_level_2", 0))
+        bonus_level_3 = float(driver.get("bonus_level_3", 0))
 
         return jsonify({
             "success": True,
             "scheme_type": scheme_type,
             "commission_table": commission_table,
-            "deductions": deductions
+            "deductions": deductions,
+            "enable_inspection_bonus": enable_bonus,
+            "bonus_level_1": bonus_level_1,
+            "bonus_level_2": bonus_level_2,
+            "bonus_level_3": bonus_level_3   
         })
 
     except Exception as e:
@@ -216,5 +226,89 @@ def get_driver_commission_scheme():
         return jsonify({"success": False, "error": str(e)})
 
 
+@statement_bp.route("/api/driver_inspections_by_range", methods=["GET"])
+def get_driver_inspections_by_range():
+    try:
+        driver_id = request.args.get("driver_id")
+        start_str = request.args.get("start_date")
+        end_str = request.args.get("end_date")
+
+        if not driver_id or not start_str or not end_str:
+            return jsonify({"success": False, "error": "Missing parameters"}), 400
+
+        start_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+
+        inspections = list(db["inspections"].find({
+            "driver": ObjectId(driver_id),
+            "created_at": {"$gte": start_date, "$lt": end_date}
+        }))
+
+        result = []
+        for i in inspections:
+            result.append({
+                "_id": str(i["_id"]),
+                "date": i.get("date", ""),
+                "start_time": i.get("start_time", ""),
+                "end_time": i.get("end_time", ""),
+                "state": i.get("state", ""),
+                "address": i.get("address", ""),
+                "clean_inspection": i.get("clean_inspection", False),
+                "created_at": i["created_at"].strftime("%m/%d/%Y %H:%M:%S") if i.get("created_at") else None
+            })
+
+        return jsonify({
+            "success": True,
+            "inspections": result,
+            "count": len(result)
+        })
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/driver_inspections_by_range:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
+    
 
 
+@statement_bp.route("/api/driver_expenses_by_range", methods=["GET"])
+def get_driver_expenses_by_range():
+    try:
+        driver_id = request.args.get("driver_id")
+        start_str = request.args.get("start_date")
+        end_str = request.args.get("end_date")
+
+        if not driver_id or not start_str or not end_str:
+            return jsonify({"success": False, "error": "Missing parameters"}), 400
+
+        start_date = datetime.strptime(start_str, "%m/%d/%Y")
+        end_date = datetime.strptime(end_str, "%m/%d/%Y") + timedelta(days=1)
+
+        expenses = list(db["driver_expenses"].find({
+            "driver_id": ObjectId(driver_id),
+            "created_at": {"$gte": start_date, "$lt": end_date}
+        }))
+
+        result = []
+        for e in expenses:
+            result.append({
+                "_id": str(e["_id"]),
+                "amount": e.get("amount", 0),
+                "category": e.get("category", ""),
+                "note": e.get("note", ""),
+                "date": e.get("date").strftime("%m/%d/%Y") if e.get("date") else "",
+                "created_at": e["created_at"].strftime("%m/%d/%Y %H:%M:%S") if e.get("created_at") else None,
+                "photo_id": str(e["photo_id"]) if e.get("photo_id") else None
+            })
+
+        return jsonify({
+            "success": True,
+            "expenses": result,
+            "count": len(result)
+        })
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/driver_expenses_by_range:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
