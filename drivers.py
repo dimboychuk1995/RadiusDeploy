@@ -526,8 +526,15 @@ def get_salary_scheme(driver_id):
         result = {
             'scheme_type': driver.get('scheme_type'),
             'commission_table': driver.get('commission_table', []),
-            'net_commission_table': driver.get('net_commission_table', [])
+            'net_commission_table': driver.get('net_commission_table', []),
+            'per_mile_rate': driver.get('per_mile_rate'),
+            'enable_inspection_bonus': driver.get('enable_inspection_bonus', False),
+            'bonus_level_1': driver.get('bonus_level_1', 0),
+            'bonus_level_2': driver.get('bonus_level_2', 0),
+            'bonus_level_3': driver.get('bonus_level_3', 0),
+            'additional_charges': driver.get('additional_charges', [])
         }
+
         return jsonify({'success': True, 'data': result})
 
     except Exception as e:

@@ -225,10 +225,46 @@ function setupCleanInspectionBonusToggle() {
   }
 }
 
+
 /** 📤 Открытие модалки зарплаты */
 function openSalaryModal() {
-  document.getElementById("salarySchemeModal")?.classList.add("open");
-  document.querySelector(".custom-offcanvas-backdrop")?.classList.add("show");
+  const modal = document.getElementById("salarySchemeModal");
+  const backdrop = document.querySelector(".custom-offcanvas-backdrop");
+  const form = document.getElementById("salarySchemeForm");
+  const driverId = form?.dataset.driverId;
+
+  modal?.classList.add("open");
+  backdrop?.classList.add("show");
+
+  if (!driverId) return;
+
+  // 🔄 Загрузить данные схемы
+  fetch(`/get_salary_scheme/${driverId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (!data.success || !data.data) return;
+
+      const scheme = data.data;
+
+      // ✅ Clean Inspection Bonus
+      const enableBonusCheckbox = document.getElementById("enableInspectionBonus");
+      const bonusBlock = document.getElementById("inspectionBonusBlock");
+      const level1 = document.querySelector('[name="bonus_level_1"]');
+      const level2 = document.querySelector('[name="bonus_level_2"]');
+      const level3 = document.querySelector('[name="bonus_level_3"]');
+
+      if (enableBonusCheckbox && bonusBlock) {
+        enableBonusCheckbox.checked = scheme.enable_inspection_bonus === true;
+        bonusBlock.style.display = enableBonusCheckbox.checked ? "block" : "none";
+      }
+
+      if (level1) level1.value = scheme.bonus_level_1 || '';
+      if (level2) level2.value = scheme.bonus_level_2 || '';
+      if (level3) level3.value = scheme.bonus_level_3 || '';
+    })
+    .catch(err => {
+      console.warn("Ошибка при загрузке схемы зарплаты:", err);
+    });
 }
 
 /** ❌ Закрытие модалки зарплаты */
