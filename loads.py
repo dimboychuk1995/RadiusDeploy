@@ -1396,7 +1396,7 @@ def upload_load_photos(load_id):
     except (TypeError, ValueError):
         return jsonify({"success": False, "error": "Missing or invalid stop_number"}), 400
 
-    # Определяем stop_data для проверки существования
+    # Проверяем, что такой стоп существует
     stop_data = None
     if stage == "pickup" and load.get("pickup", {}).get("stop_number") == stop_number:
         stop_data = load["pickup"]
@@ -1428,12 +1428,14 @@ def upload_load_photos(load_id):
         )
         saved_ids.append(file_id)
 
-    # Обновляем stop_photos
+    # Найдём существующую запись stop_photos для этого стопа/стейджа (смотрим на СНИМОК ДО апдейта)
     existing = next(
         (s for s in load.get("stop_photos", []) if s["stop_number"] == stop_number and s["stage"] == stage),
         None
     )
+    had_photos_before = bool(existing and existing.get("photo_ids"))
 
+    # Обновляем stop_photos (добавляем или создаём)
     if existing:
         loads_collection.update_one(
             {"_id": load["_id"], "stop_photos.stop_number": stop_number, "stop_photos.stage": stage},
@@ -1451,17 +1453,19 @@ def upload_load_photos(load_id):
             }}
         )
 
-    # Обновляем дату стопа в зависимости от stage
-    if stage in ["pickup", "delivery"]:
-        loads_collection.update_one(
-            {"_id": load["_id"]},
-            {"$set": {f"{stage}.date": now}}
-        )
-    elif stage in ["extra_pickup", "extra_delivery"]:
-        loads_collection.update_one(
-            {"_id": load["_id"], f"{stage}.stop_number": stop_number},
-            {"$set": {f"{stage}.$.date": now}}
-        )
+    # Устанавливаем дату стопа ТОЛЬКО если это ПЕРВАЯ загрузка фото на этот стоп (до этого фото не было)
+    is_first_upload_for_stop = not had_photos_before
+    if is_first_upload_for_stop:
+        if stage in ["pickup", "delivery"]:
+            loads_collection.update_one(
+                {"_id": load["_id"]},
+                {"$set": {f"{stage}.date": now}}
+            )
+        else:
+            loads_collection.update_one(
+                {"_id": load["_id"], f"{stage}.stop_number": stop_number},
+                {"$set": {f"{stage}.$.date": now}}
+            )
 
     # Логика изменения статуса груза
     all_stops = [
@@ -1492,10 +1496,9 @@ def upload_load_photos(load_id):
     return jsonify({
         "success": True,
         "photo_ids": [str(fid) for fid in saved_ids],
-        "stop_number": stop_number
+        "stop_number": stop_number,
+        "date_set": bool(is_first_upload_for_stop)  # для дебага фронтом
     })
-
-
 
 
 
