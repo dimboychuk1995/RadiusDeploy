@@ -1391,13 +1391,12 @@ def upload_load_photos(load_id):
     if not files:
         return jsonify({"success": False, "error": "No files uploaded"}), 400
 
-    # Получаем stop_number из формы
     try:
         stop_number = int(request.form.get("stop_number"))
     except (TypeError, ValueError):
         return jsonify({"success": False, "error": "Missing or invalid stop_number"}), 400
 
-    # Проверяем, что такой stop существует в документе
+    # Определяем stop_data для проверки существования
     stop_data = None
     if stage == "pickup" and load.get("pickup", {}).get("stop_number") == stop_number:
         stop_data = load["pickup"]
@@ -1413,17 +1412,27 @@ def upload_load_photos(load_id):
 
     now = datetime.utcnow()
 
-    # Сохраняем фото
+    # Сохраняем фото в GridFS
     saved_ids = []
     for file in files:
         filename = secure_filename(file.filename)
-        file_id = fs.put(file, filename=filename, content_type=file.content_type,
-                         metadata={"load_id": load_id, "stage": stage, "stop_number": stop_number})
+        file_id = fs.put(
+            file,
+            filename=filename,
+            content_type=file.content_type,
+            metadata={
+                "load_id": load_id,
+                "stage": stage,
+                "stop_number": stop_number
+            }
+        )
         saved_ids.append(file_id)
 
-    # Добавим или обновим блок в stop_photos
-    stop_photos = load.get("stop_photos", [])
-    existing = next((s for s in stop_photos if s["stop_number"] == stop_number and s["stage"] == stage), None)
+    # Обновляем stop_photos
+    existing = next(
+        (s for s in load.get("stop_photos", []) if s["stop_number"] == stop_number and s["stage"] == stage),
+        None
+    )
 
     if existing:
         loads_collection.update_one(
@@ -1442,7 +1451,19 @@ def upload_load_photos(load_id):
             }}
         )
 
-    # Обновление статуса в зависимости от номера stop
+    # Обновляем дату стопа в зависимости от stage
+    if stage in ["pickup", "delivery"]:
+        loads_collection.update_one(
+            {"_id": load["_id"]},
+            {"$set": {f"{stage}.date": now}}
+        )
+    elif stage in ["extra_pickup", "extra_delivery"]:
+        loads_collection.update_one(
+            {"_id": load["_id"], f"{stage}.stop_number": stop_number},
+            {"$set": {f"{stage}.$.date": now}}
+        )
+
+    # Логика изменения статуса груза
     all_stops = [
         *(load.get("extra_pickup") or []),
         load.get("pickup", {}),
@@ -1473,6 +1494,10 @@ def upload_load_photos(load_id):
         "photo_ids": [str(fid) for fid in saved_ids],
         "stop_number": stop_number
     })
+
+
+
+
 
 
 @loads_bp.route("/api/loads", methods=["GET"])
