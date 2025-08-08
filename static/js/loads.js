@@ -355,25 +355,50 @@ function initBrokerCustomerSelect() {
 }
 
 function deleteLoad(loadId) {
-  if (!confirm("Вы уверены, что хотите удалить этот груз?")) return;
-
-  fetch(`/api/delete_load/${loadId}`, {
-    method: 'DELETE'
-  })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert("Груз удалён");
-        location.reload();
-      } else {
-        alert("Ошибка: " + data.message);
-      }
-    })
-    .catch(err => {
-      console.error("Ошибка при удалении:", err);
-      alert("Произошла ошибка при удалении груза");
-    });
+  Swal.fire({
+    title: 'Вы уверены?',
+    text: "Вы хотите удалить этот груз?",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Да, удалить',
+    cancelButtonText: 'Отмена'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      fetch(`/api/delete_load/${loadId}`, {
+        method: 'DELETE'
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'Груз удалён',
+              confirmButtonText: 'OK'
+            }).then(() => {
+              location.reload();
+            });
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'Ошибка',
+              text: data.message || 'Не удалось удалить груз'
+            });
+          }
+        })
+        .catch(err => {
+          console.error("Ошибка при удалении:", err);
+          Swal.fire({
+            icon: 'error',
+            title: 'Ошибка',
+            text: 'Произошла ошибка при удалении груза'
+          });
+        });
+    }
+  });
 }
+
 
 // === Назначение водителя ===
 function openAssignDriverModal(loadId, currentDriverId = null) {
