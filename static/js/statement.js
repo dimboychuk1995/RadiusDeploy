@@ -439,3 +439,154 @@ async function loadDriversGroupedByCompany() {
     console.error("Ошибка загрузки водителей:", err);
   }
 }
+
+// 📅 получить выбранных драйверов из модалки "All Drivers"
+function getSelectedDriversFromModal() {
+  const container = document.getElementById("allDriversResults");
+  const cbs = container.querySelectorAll(".driver-select");
+  return Array.from(cbs)
+    .filter(cb => cb.checked)
+    .map(cb => cb.dataset.driverId);
+}
+
+// 🔁 утилита: запрос JSON
+async function apiGet(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
+  return await r.json();
+}
+
+// 👤 вытянуть все данные по одному водителю (5 запросов)
+async function fetchAllForDriver(driverId, weekRange) {
+  const [start, end] = weekRange.split("-").map(s => s.trim());
+
+  const [
+    loadsRes,
+    fuelRes,
+    schemeRes,
+    inspRes,
+    expRes
+  ] = await Promise.all([
+    apiGet(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
+    apiGet(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
+    apiGet(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
+    apiGet(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
+    apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`)
+  ]);
+
+  return {
+    driver_id: driverId,
+    week_range: weekRange,
+    loads: (loadsRes.success ? loadsRes.loads : []),
+    fuel: (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] }),
+    scheme: (schemeRes.success ? {
+      scheme_type: schemeRes.scheme_type,
+      commission_table: schemeRes.commission_table || [],
+      deductions: schemeRes.deductions || [],
+      enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
+      bonus_level_1: schemeRes.bonus_level_1 || 0,
+      bonus_level_2: schemeRes.bonus_level_2 || 0,
+      bonus_level_3: schemeRes.bonus_level_3 || 0
+    } : null),
+    inspections: (inspRes.success ? inspRes.inspections : []),
+    expenses: (expRes.success ? expRes.expenses : [])
+  };
+}
+
+// ▶️ главная кнопка "Рассчитать всем"
+async function calculateAllDriversStatements() {
+  const weekRange = document.getElementById("allDriversWeekRangeSelect").value;
+  if (!weekRange) {
+    Swal.fire("Внимание", "Выберите неделю.", "warning");
+    return;
+  }
+
+  const driverIds = getSelectedDriversFromModal();
+  if (!driverIds.length) {
+    Swal.fire("Внимание", "Выберите хотя бы одного водителя.", "warning");
+    return;
+  }
+
+  const out = document.getElementById("allDriversResults");
+  const progressId = "bulkProgress";
+  const existing = document.getElementById(progressId);
+  if (existing) existing.remove();
+
+  const progress = document.createElement("div");
+  progress.id = progressId;
+  progress.className = "mt-3";
+  progress.innerHTML = `<p><strong>Старт расчёта (${driverIds.length} водителей)...</strong></p>`;
+  out.prepend(progress);
+
+  const results = [];
+  let done = 0;
+
+  // последовательно, чтобы не завалить бэкенд
+  for (const driverId of driverIds) {
+    try {
+      const data = await fetchAllForDriver(driverId, weekRange);
+      results.push(data);
+      done += 1;
+      progress.innerHTML = `<p><strong>Готово ${done}/${driverIds.length}</strong></p>`;
+    } catch (e) {
+      console.error("Ошибка по водителю", driverId, e);
+      done += 1;
+      progress.innerHTML = `<p><strong>Готово ${done}/${driverIds.length} (с ошибками)</strong></p>`;
+    }
+  }
+
+  // сохраняем пачкой на сервере
+  try {
+    const r = await fetch("/api/statements/bulk_save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        week_range: weekRange,
+        items: results
+      })
+    });
+    const resp = await r.json();
+
+    if (!resp.success) {
+      console.warn("Bulk save error:", resp.error);
+      progress.insertAdjacentHTML(
+        "beforeend",
+        `<p class="text-danger">Ошибка сохранения: ${resp.error || "unknown"}</p>`
+      );
+      Swal.fire("Ошибка", resp.error || "Bulk save failed", "error");
+      return;
+    }
+
+    // ожидаем от бэка: { success: true, added, ignored, replaced }
+    const { added = 0, ignored = 0, replaced = 0 } = resp;
+
+    progress.insertAdjacentHTML(
+      "beforeend",
+      `<p class="text-success">Добавлено: ${added} • Перезаписано: ${replaced} • Проигнорировано: ${ignored}</p>`
+    );
+
+    await Swal.fire({
+      icon: "success",
+      title: "Массовый расчёт завершён",
+      html: `
+        <div style="text-align:left">
+          <div><b>Неделя:</b> ${weekRange}</div>
+          <div style="margin-top:8px">
+            <span style="color:#16a34a"><b>Добавлено:</b> ${added}</span><br>
+            <span style="color:#ca8a04"><b>Перезаписано:</b> ${replaced}</span><br>
+            <span style="color:#6b7280"><b>Проигнорировано (approved):</b> ${ignored}</span>
+          </div>
+          <div style="margin-top:8px"><b>Всего обработано:</b> ${results.length}</div>
+        </div>
+      `,
+      confirmButtonText: "Ок"
+    });
+  } catch (e) {
+    console.error("Bulk save request error:", e);
+    progress.insertAdjacentHTML(
+      "beforeend",
+      `<p class="text-danger">Ошибка запроса сохранения</p>`
+    );
+    Swal.fire("Ошибка", "Не удалось выполнить запрос сохранения.", "error");
+  }
+}

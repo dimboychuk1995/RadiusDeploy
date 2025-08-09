@@ -7,7 +7,8 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from bson.objectid import ObjectId
 from flask_login import login_required
-
+import hashlib
+from flask_login import login_required, current_user
 
 statement_bp = Blueprint('statement', __name__)
 
@@ -577,6 +578,8 @@ def get_driver_expenses_by_range():
 
 
 
+
+#Driver list for statement for all drivers 
 @statement_bp.route("/api/drivers/list_for_statements", methods=["GET"])
 @login_required
 def list_drivers_for_statements():
@@ -670,5 +673,149 @@ def list_drivers_for_statements():
     except Exception as e:
         import traceback
         print("Exception in /api/drivers/list_for_statements:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+    
+
+
+@statement_bp.route("/api/statements/bulk_save", methods=["POST"])
+@login_required
+def bulk_save_statements():
+    """
+    Сохраняет пачку стейтментов. Поведение по hash (driver_id|week_range):
+      - если запись с таким hash уже есть и approved == True → игнорируем (не трогаем)
+      - если запись с таким hash уже есть и approved == False → удаляем её и вставляем новую (переписываем)
+      - если записи нет → вставляем новую
+
+    Возвращает: {"success": True, "added": X, "ignored": Y, "replaced": Z}
+    """
+    try:
+        payload = request.get_json(force=True) or {}
+        week_range = payload.get("week_range") or ""
+        items = payload.get("items") or []
+        if not week_range or not isinstance(items, list):
+            return jsonify({"success": False, "error": "Invalid payload"}), 400
+
+        # TZ
+        tz_doc  = db["company_timezone"].find_one({}) or {}
+        tz_name = tz_doc.get("timezone") or "America/Chicago"
+        local_tz = ZoneInfo(tz_name)
+        utc_tz   = timezone.utc
+
+        def to_local_date_only(val):
+            if not val:
+                return None
+            if isinstance(val, datetime):
+                dt = val
+            else:
+                try:
+                    dt = datetime.fromisoformat(str(val).replace("Z","+00:00"))
+                except Exception:
+                    return None
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=utc_tz)
+            return dt.astimezone(local_tz).date()
+
+        def to_objectid(val):
+            try:
+                return ObjectId(val) if val else None
+            except Exception:
+                return None
+
+        try:
+            created_by_oid = current_user.id if isinstance(current_user.id, ObjectId) else ObjectId(str(current_user.id))
+        except Exception:
+            created_by_oid = None
+
+        added = 0
+        ignored = 0
+        replaced = 0
+
+        for it in items:
+            driver_oid = to_objectid(it.get("driver_id"))
+            if not driver_oid:
+                continue
+
+            loads = it.get("loads") or []
+            inspections = it.get("inspections") or []
+            expenses = it.get("expenses") or []
+
+            # monday_loads
+            monday_loads = 0
+            for ld in loads:
+                eff = ld.get("delivery_date")
+                if not eff:
+                    if isinstance(ld.get("extra_delivery"), list) and ld["extra_delivery"]:
+                        eff = ld["extra_delivery"][-1].get("date")
+                    elif isinstance(ld.get("extra_delivery"), dict):
+                        eff = ld["extra_delivery"].get("date")
+                    elif isinstance(ld.get("delivery"), dict):
+                        eff = ld["delivery"].get("date")
+                d_local = to_local_date_only(eff)
+                if d_local is not None and d_local.weekday() == 0:
+                    monday_loads += 1
+
+            invoices_num = len(expenses)
+            inspections_num = len(inspections)
+
+            # Конвертация *_id в ObjectId внутри snapshot
+            for ld in loads:
+                if "_id" in ld: ld["_id"] = to_objectid(ld["_id"])
+                if "assigned_driver" in ld: ld["assigned_driver"] = to_objectid(ld["assigned_driver"])
+                if "assigned_dispatch" in ld: ld["assigned_dispatch"] = to_objectid(ld["assigned_dispatch"])
+                if "assigned_power_unit" in ld: ld["assigned_power_unit"] = to_objectid(ld["assigned_power_unit"])
+                if "company_sign" in ld: ld["company_sign"] = to_objectid(ld["company_sign"])
+
+            for insp in inspections:
+                if "_id" in insp: insp["_id"] = to_objectid(insp["_id"])
+
+            for exp in expenses:
+                if "_id" in exp: exp["_id"] = to_objectid(exp["_id"])
+                if "photo_id" in exp: exp["photo_id"] = to_objectid(exp["photo_id"])
+
+            wr = it.get("week_range") or week_range
+            hash_hex = hashlib.sha256(f"{str(driver_oid)}|{wr}".encode("utf-8")).hexdigest()
+
+            doc = {
+                "driver_id": driver_oid,
+                "week_range": wr,
+                "snapshot": {
+                    "loads": loads,
+                    "fuel": it.get("fuel"),
+                    "scheme": it.get("scheme"),
+                    "inspections": inspections,
+                    "expenses": expenses
+                },
+                "monday_loads": monday_loads,
+                "invoices_num": invoices_num,
+                "inspections_num": inspections_num,
+                "approved": False,
+                "created_at": datetime.utcnow(),
+                "created_by": created_by_oid,
+                "hash": hash_hex
+            }
+
+            # Проверка существующей записи по hash
+            existing = statement_collection.find_one({"hash": hash_hex}, {"_id": 1, "approved": 1})
+            if existing:
+                if existing.get("approved") is True:
+                    # защищаем утверждённые — ничего не меняем
+                    ignored += 1
+                    continue
+                else:
+                    # удаляем старую (не утверждённую) и вставляем новую
+                    statement_collection.delete_one({"_id": existing["_id"]})
+                    statement_collection.insert_one(doc)
+                    replaced += 1
+            else:
+                # новой не было — добавляем
+                statement_collection.insert_one(doc)
+                added += 1
+
+        return jsonify({"success": True, "added": added, "ignored": ignored, "replaced": replaced})
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/statements/bulk_save:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
