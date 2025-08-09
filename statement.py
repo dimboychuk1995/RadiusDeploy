@@ -6,6 +6,7 @@ from tools.db import db
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from bson.objectid import ObjectId
+from flask_login import login_required
 
 
 statement_bp = Blueprint('statement', __name__)
@@ -572,3 +573,102 @@ def get_driver_expenses_by_range():
         print("Exception in /api/driver_expenses_by_range (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
+    
+
+
+
+@statement_bp.route("/api/drivers/list_for_statements", methods=["GET"])
+@login_required
+def list_drivers_for_statements():
+    """
+    Возвращает список водителей для массового расчёта стейтментов.
+    Группировка/сортировка идёт по hiring_company.
+    Дополнительно резолвим:
+      - truck_number (из trucks.unit_number)
+      - dispatcher_name (из users.name / username)
+    """
+    try:
+        status = request.args.get("status", "").strip()
+        query = {}
+
+        if status and status.lower() != "all":
+            query["status"] = status
+        elif not status or status.lower() != "all":
+            query["status"] = {"$in": ["Active", "ACTIVE", "active"]}
+
+        projection = {
+            "name": 1,
+            "status": 1,
+            "contact_number": 1,
+            "truck": 1,
+            "dispatcher": 1,
+            "hiring_company": 1
+        }
+
+        drivers_cur = db["drivers"].find(query, projection)
+        drivers = list(drivers_cur)
+
+        # Соберём справочники
+        truck_ids = [d["truck"] for d in drivers if isinstance(d.get("truck"), ObjectId)]
+        dispatcher_ids = [d["dispatcher"] for d in drivers if isinstance(d.get("dispatcher"), ObjectId)]
+        hiring_company_ids = [d["hiring_company"] for d in drivers if isinstance(d.get("hiring_company"), ObjectId)]
+
+        trucks_map = {}
+        if truck_ids:
+            for t in db["trucks"].find({"_id": {"$in": truck_ids}}, {"unit_number": 1, "make": 1, "model": 1, "year": 1}):
+                trucks_map[t["_id"]] = {
+                    "unit_number": t.get("unit_number") or "",
+                    "make": t.get("make") or "",
+                    "model": t.get("model") or "",
+                    "year": t.get("year") or ""
+                }
+
+        users_map = {}
+        if dispatcher_ids:
+            for u in db["users"].find({"_id": {"$in": dispatcher_ids}}, {"name": 1, "username": 1, "role": 1}):
+                users_map[u["_id"]] = u.get("name") or u.get("username") or ""
+
+        companies_map = {}
+        if hiring_company_ids:
+            for c in db["companies"].find({"_id": {"$in": hiring_company_ids}}, {"name": 1}):
+                companies_map[c["_id"]] = c.get("name", "—")
+
+        def str_oid(v):
+            return str(v) if isinstance(v, ObjectId) else (str(v) if v and type(v).__name__ == "ObjectId" else (str(v) if isinstance(v, str) else None))
+
+        result = []
+        for d in drivers:
+            truck_info = trucks_map.get(d.get("truck")) if isinstance(d.get("truck"), ObjectId) else None
+            dispatcher_name = users_map.get(d.get("dispatcher")) if isinstance(d.get("dispatcher"), ObjectId) else ""
+
+            hiring_company_id = d.get("hiring_company")
+            hiring_company_name = companies_map.get(hiring_company_id, "—") if isinstance(hiring_company_id, ObjectId) else "—"
+
+            result.append({
+                "id": str(d["_id"]),
+                "name": d.get("name", "—"),
+                "status": d.get("status") or "",
+                "phone": d.get("contact_number") or "",
+                "hiring_company_id": str_oid(hiring_company_id),
+                "hiring_company_name": hiring_company_name,
+
+                "truck_id": str_oid(d.get("truck")),
+                "truck_number": (truck_info or {}).get("unit_number", "") if truck_info else "",
+                "truck_make": (truck_info or {}).get("make", "") if truck_info else "",
+                "truck_model": (truck_info or {}).get("model", "") if truck_info else "",
+                "truck_year": (truck_info or {}).get("year", "") if truck_info else "",
+
+                "dispatcher_id": str_oid(d.get("dispatcher")),
+                "dispatcher_name": dispatcher_name or "",
+            })
+
+        # Сортировка по hiring_company_name, затем по name
+        result.sort(key=lambda x: ((x.get("hiring_company_name") or "").lower(), (x.get("name") or "").lower()))
+
+        return jsonify({"success": True, "count": len(result), "drivers": result})
+
+    except Exception as e:
+        import traceback
+        print("Exception in /api/drivers/list_for_statements:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

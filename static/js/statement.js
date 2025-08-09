@@ -314,3 +314,128 @@ function fetchDriverExpenses(driverId, weekRange) {
       console.error("❌ Ошибка при получении инвойсов:", err);
     });
 }
+
+
+
+
+// Statement for All drrivers 
+
+function openAllDriversStatementModal() {
+  document.getElementById("allDriversStatementModal").classList.add("show");
+  document.getElementById("allDriversStatementBackdrop").classList.add("show");
+
+  // генерируем список недель, как для обычной модалки
+  generateWeekRanges("allDriversWeekRangeSelect");
+  loadDriversGroupedByCompany();
+}
+
+function closeAllDriversStatementModal() {
+  document.getElementById("allDriversStatementModal").classList.remove("show");
+  document.getElementById("allDriversStatementBackdrop").classList.remove("show");
+}
+
+
+async function loadDriversGroupedByCompany() {
+  try {
+    const res = await fetch("/api/drivers/list_for_statements");
+    const data = await res.json();
+
+    if (!data.success) {
+      console.warn("Не удалось загрузить водителей:", data.error);
+      return;
+    }
+
+    // Группируем по hiring_company_name
+    const grouped = {};
+    data.drivers.forEach(d => {
+      const comp = d.hiring_company_name || "—";
+      if (!grouped[comp]) grouped[comp] = [];
+      grouped[comp].push(d);
+    });
+
+    // Сортировка компаний по алфавиту
+    const sortedCompanies = Object.keys(grouped).sort();
+
+    const container = document.getElementById("allDriversResults");
+    container.innerHTML = "";
+
+    // === Мастер-чекбокс ===
+    const masterDiv = document.createElement("div");
+    masterDiv.className = "mb-3";
+
+    const masterId = "masterDriverCheckbox";
+    const masterCb = document.createElement("input");
+    masterCb.type = "checkbox";
+    masterCb.className = "form-check-input me-2";
+    masterCb.id = masterId;
+    masterCb.checked = true;
+
+    const masterLabel = document.createElement("label");
+    masterLabel.className = "form-check-label fw-bold";
+    masterLabel.setAttribute("for", masterId);
+    masterLabel.textContent = "Выбрать/снять всех водителей";
+
+    masterDiv.appendChild(masterCb);
+    masterDiv.appendChild(masterLabel);
+    container.appendChild(masterDiv);
+
+    masterCb.addEventListener("change", () => {
+      const allDriverCbs = container.querySelectorAll(".driver-select");
+      allDriverCbs.forEach(cb => {
+        cb.checked = masterCb.checked;
+      });
+    });
+
+    // === Списки по компаниям ===
+    sortedCompanies.forEach(companyName => {
+      const drivers = grouped[companyName].sort((a, b) => a.name.localeCompare(b.name));
+
+      // Блок компании
+      const companyBlock = document.createElement("div");
+      companyBlock.className = "mb-3";
+
+      // Заголовок компании
+      const header = document.createElement("h5");
+      header.textContent = companyName;
+      companyBlock.appendChild(header);
+
+      // Список водителей с чекбоксами
+      const ul = document.createElement("ul");
+      ul.className = "list-unstyled";
+
+      drivers.forEach(d => {
+        const li = document.createElement("li");
+        li.className = "mb-1";
+
+        const cbId = `drv_${d.id}`;
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "form-check-input me-2 driver-select";
+        checkbox.id = cbId;
+        checkbox.checked = true; // по умолчанию выбраны
+        checkbox.dataset.driverId = d.id;
+
+        const label = document.createElement("label");
+        label.className = "form-check-label";
+        label.setAttribute("for", cbId);
+
+        // Строка с именем, траком и диспетчером
+        const truckStr = d.truck_number ? ` • Truck: ${d.truck_number}` : "";
+        const dispStr = d.dispatcher_name ? ` • Dispatcher: ${d.dispatcher_name}` : "";
+
+        label.textContent = `${d.name}${truckStr}${dispStr}`;
+
+        li.appendChild(checkbox);
+        li.appendChild(label);
+        ul.appendChild(li);
+      });
+
+      companyBlock.appendChild(ul);
+      container.appendChild(companyBlock);
+    });
+
+  } catch (err) {
+    console.error("Ошибка загрузки водителей:", err);
+  }
+}

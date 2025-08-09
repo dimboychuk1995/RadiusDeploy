@@ -1,10 +1,15 @@
 <!-- 📦 Контейнер: Список стейтментов водителей -->
 <div id="driverStatementsContainerWrapper" class="p-3">
 
-  <!-- Кнопка открытия -->
-  <div class="p-3">
+  <!-- Кнопки открытия -->
+  <div class="p-3 d-flex gap-2">
     <button id="btn-open-driver-statement-modal" class="btn btn-primary mt-3" onclick="openDriverStatementModal()">
       <i class="fas fa-file-invoice-dollar me-2"></i> Добавить стейтмент водителя
+    </button>
+
+    <!-- 🔢 Массовый расчёт для всех водителей -->
+    <button id="btn-open-all-drivers-statement-modal" class="btn btn-secondary mt-3" onclick="openAllDriversStatementModal()">
+      <i class="fas fa-users-cog me-2"></i> Make Statement for All Drivers
     </button>
   </div>
 
@@ -24,7 +29,7 @@
 <div class="custom-offcanvas custom-offcanvas-right" id="driverStatementModal">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
-      <h5 class="modal-title">Добавление стейтмента водител</h5>
+      <h5 class="modal-title">Добавление стейтмента водителя</h5>
       <button type="button" class="close" onclick="closeDriverStatementModal()">
         <span>&times;</span>
       </button>
@@ -54,5 +59,35 @@
   </div>
 </div>
 
-<!-- Фон -->
+<!-- 🔢 Модалка массового расчёта стейтментов (всем водителям) -->
+<div class="custom-offcanvas custom-offcanvas-right" id="allDriversStatementModal">
+  <div class="custom-offcanvas-content">
+    <div class="custom-offcanvas-header">
+      <h5 class="modal-title">Массовый расчёт стейтментов (все водители)</h5>
+      <button type="button" class="close" onclick="closeAllDriversStatementModal()">
+        <span>&times;</span>
+      </button>
+    </div>
+
+    <div class="custom-offcanvas-body" id="allDriversStatementModalBody">
+      <div class="load-modal-content">
+        <div class="load-modal-left">
+          <label for="allDriversWeekRangeSelect" class="form-label">Выберите неделю:</label>
+          <select id="allDriversWeekRangeSelect" class="form-select mb-3"></select>
+
+          <button class="btn btn-primary" onclick="calculateAllDriversStatements()">Рассчитать всем</button>
+
+          <!-- Результаты сводом по всем водителям -->
+          <div id="allDriversResults" class="mt-4"></div>
+
+          <!-- При необходимости добавим позже кнопку сохранения всего пакета -->
+          <!-- <button class="btn btn-success mt-3" onclick="saveAllDriversStatements()">💾 Сохранить все расчёты</button> -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Фоны -->
 <div class="custom-offcanvas-backdrop" id="driverStatementBackdrop" onclick="closeDriverStatementModal()"></div>
+<div class="custom-offcanvas-backdrop" id="allDriversStatementBackdrop" onclick="closeAllDriversStatementModal()"></div>
