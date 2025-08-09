@@ -45,6 +45,30 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
         return 0;
       }
 
+      const toDateOnly = (val) => {
+        if (!val) return "—";
+        const d = new Date(val);
+        if (isNaN(d)) return "—";
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        const yyyy = d.getFullYear();
+        return `${mm}/${dd}/${yyyy}`;
+      };
+
+      const getEffectiveDeliveryDate = (load) => {
+        // если extra_delivery массив — берём последнюю дату
+        if (Array.isArray(load.extra_delivery) && load.extra_delivery.length) {
+          const last = load.extra_delivery[load.extra_delivery.length - 1];
+          return last?.date || null;
+        }
+        // если extra_delivery один объект
+        if (load.extra_delivery && typeof load.extra_delivery === "object" && load.extra_delivery.date) {
+          return load.extra_delivery.date;
+        }
+        // иначе обычная delivery.date или уже рассчитанное поле delivery_date
+        return (load.delivery && load.delivery.date) || load.delivery_date || null;
+      };
+
       const totalAmount = data.loads.reduce((sum, load) => sum + (load.price || 0), 0);
 
       const table = document.createElement("table");
@@ -54,23 +78,40 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
           <tr>
             <th>✓</th>
             <th>Load ID</th>
-            <th>Pickup</th>
-            <th>Delivery</th>
+            <th>Pickup<br><small>Date</small></th>
+            <th>Delivery / Extra<br><small>Final Date</small></th>
             <th>Price</th>
           </tr>
         </thead>
         <tbody>
-          ${data.loads.map((load, index) => `
-            <tr>
-              <td>
-                <input type="checkbox" class="load-checkbox" data-price="${load.price}" checked>
-              </td>
-              <td>${load.load_id}</td>
-              <td>${load.pickup?.address || "—"}</td>
-              <td>${load.delivery?.address || "—"}</td>
-              <td>$${load.price.toFixed(2)}</td>
-            </tr>
-          `).join("")}
+          ${data.loads.map((load) => {
+            const checkedAttr = load.out_of_diap ? "" : "checked";
+
+            const pickupAddress = load.pickup?.address || "—";
+            const pickupDateStr = toDateOnly(load.pickup?.date);
+
+            const deliveryAddress = load.delivery?.address || "—";
+            const effectiveDeliveryDate = getEffectiveDeliveryDate(load);
+            const deliveryDateStr = toDateOnly(effectiveDeliveryDate);
+
+            return `
+              <tr>
+                <td>
+                  <input type="checkbox" class="load-checkbox" data-price="${load.price}" ${checkedAttr}>
+                </td>
+                <td>${load.load_id || "—"}</td>
+                <td>
+                  <div>${pickupAddress}</div>
+                  <div><strong>${pickupDateStr}</strong></div>
+                </td>
+                <td>
+                  <div>${deliveryAddress}</div>
+                  <div><strong>${deliveryDateStr}</strong></div>
+                </td>
+                <td>$${(load.price || 0).toFixed(2)}</td>
+              </tr>
+            `;
+          }).join("")}
         </tbody>
       `;
 
@@ -89,6 +130,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       return 0;
     });
 }
+
 
 function fetchDriverFuelSummary(driverId, weekRange) {
   fetch(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)

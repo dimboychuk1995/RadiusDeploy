@@ -50,48 +50,50 @@ def get_driver_statement_loads():
         local_tz = ZoneInfo(tz_name)
         utc_tz   = timezone.utc
 
-        # Локальные границы по дням: [start_local 00:00, end_local + 1д 00:00)
+        # Локальные границы по дням
+        extra_days = 1
         start_local_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_local_date   = datetime.strptime(end_str,   "%m/%d/%Y")
-        start_local = start_local_date.replace(tzinfo=local_tz)
-        end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
 
-        # Переводим в UTC и делаем наивные границы для Mongo
-        start_utc_aw = start_local.astimezone(utc_tz)
-        end_utc_aw_exclusive = end_local_exclusive.astimezone(utc_tz)
-        start_bound_naive = start_utc_aw.replace(tzinfo=None)
-        end_bound_naive   = end_utc_aw_exclusive.replace(tzinfo=None)
+        start_local = start_local_date.replace(tzinfo=local_tz)
+        base_end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)  # конец диапазона без extra
+        end_local_exclusive = (end_local_date + timedelta(days=1 + extra_days)).replace(tzinfo=local_tz)  # с extra
+
+        # UTC aware → naive for Mongo
+        start_bound_naive = start_local.astimezone(utc_tz).replace(tzinfo=None)
+        base_end_bound_naive = base_end_local_exclusive.astimezone(utc_tz).replace(tzinfo=None)
+        end_bound_naive   = end_local_exclusive.astimezone(utc_tz).replace(tzinfo=None)
 
         print("\n=== [Driver Statement Loads Debug / TZ-Aware] ===")
         print(f"driver_id: {driver_id}")
         print(f"company timezone: {tz_name}")
+        print(f"extra_days added to right boundary: {extra_days}")
         print("-- Local range --")
-        print(f"  start_local (inclusive): {start_local.isoformat()}")
-        print(f"  end_local   (exclusive): {end_local_exclusive.isoformat()}")
-        print("-- UTC range (aware) --")
-        print(f"  start_utc   (inclusive): {start_utc_aw.isoformat()}")
-        print(f"  end_utc     (exclusive): {end_utc_aw_exclusive.isoformat()}")
-        print("-- UTC range (naive for Mongo) --")
+        print(f"  start_local: {start_local.isoformat()}")
+        print(f"  base_end_local: {base_end_local_exclusive.isoformat()}")
+        print(f"  end_local+extra: {end_local_exclusive.isoformat()}")
+        print("-- UTC naive range for Mongo --")
         print(f"  start_bound_naive: {start_bound_naive!r}")
-        print(f"  end_bound_naive:   {end_bound_naive!r}")
+        print(f"  base_end_bound_naive: {base_end_bound_naive!r}")
+        print(f"  end_bound_naive: {end_bound_naive!r}")
 
-        # --- Aggregation: считаем effective_date = last(extra_delivery.date) или delivery.date ---
+        # --- Aggregation ---
         pipeline = [
             {"$match": {
                 "assigned_driver": ObjectId(driver_id),
                 "was_added_to_statement": False
             }},
-            # Нормализуем extra_delivery в массив extra_arr
+            # нормализуем extra_delivery в массив
             {"$addFields": {
                 "extra_arr": {
                     "$cond": [
-                        { "$isArray": "$extra_delivery" },
+                        {"$isArray": "$extra_delivery"},
                         "$extra_delivery",
                         {
                             "$cond": [
-                                { "$and": [
-                                    { "$ne": ["$extra_delivery", None] },
-                                    { "$eq": [ { "$type": "$extra_delivery" }, "object" ] }
+                                {"$and": [
+                                    {"$ne": ["$extra_delivery", None]},
+                                    {"$eq": [ {"$type": "$extra_delivery"}, "object" ]}
                                 ]},
                                 ["$extra_delivery"],
                                 []
@@ -100,96 +102,43 @@ def get_driver_statement_loads():
                     ]
                 }
             }},
-            # Берём последний элемент extra_arr, иначе delivery
+            # выбираем дату для фильтрации
             {"$addFields": {
                 "effective_date": {
                     "$cond": [
-                        { "$gt": [ { "$size": "$extra_arr" }, 0 ] },
-                        { "$let": {
-                            "vars": { "last": { "$arrayElemAt": ["$extra_arr", -1] } },
+                        {"$gt": [ {"$size": "$extra_arr"}, 0 ]},
+                        {"$let": {
+                            "vars": {"last": {"$arrayElemAt": ["$extra_arr", -1]}},
                             "in": "$$last.date"
                         }},
                         "$delivery.date"
                     ]
                 }
             }},
-            # Фильтруем по диапазону по effective_date
+            # фильтр по диапазону + extra день
             {"$match": {
-                "effective_date": { "$gte": start_bound_naive, "$lt": end_bound_naive }
+                "effective_date": {"$gte": start_bound_naive, "$lt": end_bound_naive}
             }},
-            # Для стабильно читаемого порядка
-            {"$sort": { "effective_date": 1 }}
+            {"$sort": {"effective_date": 1}}
         ]
-
-        print("Aggregation pipeline:")
-        for stage in pipeline:
-            print("  ", stage)
 
         cursor = loads_collection.aggregate(pipeline)
         loads = list(cursor)
-        print(f"Fetched loads by effective_date (count): {len(loads)}")
+        print(f"Fetched loads (count): {len(loads)}")
 
-        # --- Хелперы для печати ---
-        def to_local(dt):
-            if not dt:
-                return None
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=utc_tz)  # трактуем наивное как UTC
-            return dt.astimezone(local_tz)
-
-        def to_utc_aware(dt):
-            if not dt:
-                return None
-            return dt if dt.tzinfo else dt.replace(tzinfo=utc_tz)
-
-        # Отладка по каждому лоаду
-        print("---- Per-load debug (delivery / extra_delivery[] -> effective_date) ----")
-        for ld in loads[:20]:
-            _id = ld.get("_id")
-            delivery_date = (ld.get("delivery") or {}).get("date") if isinstance(ld.get("delivery"), dict) else None
-
-            # Соберём список extra_delivery дат (если массив)
-            extra_raw = ld.get("extra_delivery")
-            extra_dates = []
-            if isinstance(extra_raw, list):
-                extra_dates = [x.get("date") for x in extra_raw if isinstance(x, dict) and x.get("date")]
-            elif isinstance(extra_raw, dict):
-                extra_dates = [extra_raw.get("date")] if extra_raw.get("date") else []
-
-            eff = ld.get("effective_date")
-
-            def fmt_line(name, dt):
-                if not dt:
-                    return f"{name}=—"
-                dt_type = type(dt).__name__
-                dt_aw = to_utc_aware(dt)
-                dt_nv = dt_aw.replace(tzinfo=None) if dt_aw else None
-                dt_loc = to_local(dt)
-                in_utc   = bool(dt_nv  and (start_bound_naive <= dt_nv  < end_bound_naive))
-                in_local = bool(dt_loc and (start_local       <= dt_loc < end_local_exclusive))
-                return (f"{name}_DB={dt!r}(type={dt_type}) | "
-                        f"{name}_utc_aw={dt_aw.isoformat() if dt_aw else '—'} | "
-                        f"{name}_utc_naive={dt_nv!r} | "
-                        f"{name}_local={dt_loc.isoformat() if dt_loc else '—'} | "
-                        f"IN_UTC={in_utc} | IN_LOCAL={in_local}")
-
-            print(f"  • _id={_id}")
-            print(f"     {fmt_line('delivery', delivery_date)}")
-            if extra_dates:
-                for i, xdt in enumerate(extra_dates):
-                    print(f"     extra[{i}]: {fmt_line('extra', xdt)}")
-            else:
-                print("     extra=—")
-            print(f"     {fmt_line('effective', eff)}")
-
-        print("=== End Debug ===\n")
-
-        # Сериализация
         def str_oid(val):
             return str(val) if isinstance(val, ObjectId) else val
 
-        def serialize_load(load):
-            return {
+        serialized = []
+        for load in loads:
+            eff_date = load.get("effective_date")
+            out_of_diap = False
+            if eff_date and isinstance(eff_date, datetime):
+                naive_eff = eff_date if eff_date.tzinfo is None else eff_date.astimezone(utc_tz).replace(tzinfo=None)
+                if not (start_bound_naive <= naive_eff < base_end_bound_naive):
+                    out_of_diap = True
+
+            serialized.append({
                 "_id": str(load["_id"]),
                 "load_id": load.get("load_id", ""),
                 "company_sign": str_oid(load.get("company_sign")),
@@ -200,13 +149,13 @@ def get_driver_statement_loads():
                 "RPM": load.get("RPM", 0),
                 "pickup": load.get("pickup", {}),
                 "delivery": load.get("delivery", {}),
-                "extra_delivery": load.get("extra_delivery", {}),  # может быть list/obj — ок
+                "extra_delivery": load.get("extra_delivery", {}),
                 "extra_stops": load.get("extra_stops", 0),
                 "pickup_date": (load.get("pickup") or {}).get("date") if isinstance(load.get("pickup"), dict) else None,
-                "delivery_date": load.get("effective_date") or (load.get("delivery") or {}).get("date")
-            }
+                "delivery_date": eff_date or (load.get("delivery") or {}).get("date"),
+                "out_of_diap": out_of_diap
+            })
 
-        serialized = [serialize_load(l) for l in loads]
         return jsonify({"success": True, "loads": serialized, "count": len(serialized)})
 
     except Exception as e:
@@ -214,6 +163,7 @@ def get_driver_statement_loads():
         print("Exception in /api/driver_statement_loads (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
+
 
 
 
