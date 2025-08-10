@@ -1144,3 +1144,406 @@ async function loadDriverStatements() {
     container.innerHTML = `<p class="text-danger">Ошибка при загрузке стейтментов</p>`;
   }
 }
+
+
+
+
+// === Ниже важный блок нужен для кнопки review ===
+
+
+
+// === helper: убедиться, что нужный weekRange есть в select ===
+function ensureWeekRangeOption(selectEl, weekRange) {
+  if (!selectEl) return;
+  const exists = Array.from(selectEl.options).some(o => o.value === weekRange);
+  if (!exists && weekRange) {
+    const opt = document.createElement("option");
+    opt.value = weekRange;
+    opt.textContent = weekRange;
+    selectEl.appendChild(opt);
+  }
+}
+
+// === Открыть модалку в режиме REVIEW для уже созданного стейтмента ===
+async function openStatementReviewModal(item) {
+  // открыть модалку и фон
+  const modal = document.getElementById("driverStatementModal");
+  const backdrop = document.getElementById("driverStatementBackdrop");
+  modal.classList.add("show");
+  backdrop.classList.add("show");
+
+  // пометим режим
+  modal.dataset.mode = "review";
+  modal.dataset.statementId = item._id || "";
+
+  // элементы модалки
+  const title = modal.querySelector(".modal-title");
+  const driverLabel = modal.querySelector('label[for="driverSelect"]');
+  const driverSel = modal.querySelector("#driverSelect");
+  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
+  const weekSel = modal.querySelector("#driverWeekRangeSelect");
+  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
+  const results = modal.querySelector("#driverStatementResults");
+
+  // заголовок
+  if (title) title.textContent = "Просмотр стейтмента";
+
+  // спрячем выборы и кнопку расчёта/сохранения
+  [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
+  if (calcBtn) calcBtn.style.display = "none";
+  if (saveBtn) saveBtn.style.display = "none";
+
+  // добавим кнопку Confirm (если нет)
+  let confirmWrap = modal.querySelector("#reviewConfirmWrap");
+  if (!confirmWrap) {
+    confirmWrap = document.createElement("div");
+    confirmWrap.id = "reviewConfirmWrap";
+    confirmWrap.className = "mt-3 d-flex gap-2";
+    confirmWrap.innerHTML = `
+      <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
+      <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
+    `;
+    // вставим под результатами
+    results.parentElement.insertBefore(confirmWrap, results.nextSibling);
+  } else {
+    confirmWrap.style.display = "";
+  }
+
+  // заполним селекты нужными значениями "как будто выбраны"
+  // (weekRange добавим, если его нет в списке)
+  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) { /* если уже есть — ок */ }
+  ensureWeekRangeOption(weekSel, item.week_range);
+  if (driverSel) driverSel.value = item.driver_id || "";
+  if (weekSel) weekSel.value = item.week_range || "";
+
+  // посчитаем сразу
+  results.innerHTML = "<p>Загрузка...</p>";
+  await calculateDriverStatement();
+
+  // обработчики кнопок
+  const confirmBtn = modal.querySelector("#reviewConfirmBtn");
+  const closeBtn = modal.querySelector("#reviewCloseBtn");
+
+  confirmBtn.onclick = async () => {
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Confirming...";
+
+      const r = await fetch("/api/statements/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: modal.dataset.statementId })
+      });
+      const resp = await r.json();
+      if (!resp.success) throw new Error(resp.error || "Confirm failed");
+
+      // успех — закрыть и обновить список
+      closeDriverStatementModal();
+      if (typeof loadDriverStatements === "function") {
+        await loadDriverStatements();
+      }
+    } catch (err) {
+      console.error("Confirm error:", err);
+      if (typeof Swal !== "undefined") {
+        Swal.fire("Ошибка", err.message || "Не удалось подтвердить стейтмент.", "error");
+      } else {
+        alert("Не удалось подтвердить стейтмент.");
+      }
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Confirm";
+    }
+  };
+
+  closeBtn.onclick = () => closeDriverStatementModal();
+}
+
+// === Переопределяем закрытие: чистим режим REVIEW и возвращаем видимость ===
+function closeDriverStatementModal() {
+  const modal = document.getElementById("driverStatementModal");
+  const backdrop = document.getElementById("driverStatementBackdrop");
+  if (!modal) return;
+
+  // снять show
+  modal.classList.remove("show");
+  backdrop.classList.remove("show");
+
+  // если был режим review — вернуть всё как было
+  if (modal.dataset.mode === "review") {
+    const title = modal.querySelector(".modal-title");
+    if (title) title.textContent = "Добавление стейтмента водителя";
+
+    const driverLabel = modal.querySelector('label[for="driverSelect"]');
+    const driverSel = modal.querySelector("#driverSelect");
+    const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
+    const weekSel = modal.querySelector("#driverWeekRangeSelect");
+    const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+    const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
+    const reviewWrap = modal.querySelector("#reviewConfirmWrap");
+    const results = modal.querySelector("#driverStatementResults");
+
+    [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
+    if (calcBtn) calcBtn.style.display = "";
+    if (saveBtn) saveBtn.style.display = "";
+    if (reviewWrap) reviewWrap.style.display = "none";
+    if (results) results.innerHTML = ""; // чистим контент
+
+    delete modal.dataset.mode;
+    delete modal.dataset.statementId;
+  }
+}
+
+// === Обновлённая таблица: Review открывает модалку в режиме REVIEW ===
+async function loadDriverStatements() {
+  const weekRange = document.getElementById("statementWeekRangeSelect").value || "";
+  const container = document.getElementById("driverStatementsContainer");
+
+  container.innerHTML = `<p>Загрузка...</p>`;
+
+  let url = `/api/statements/list`;
+  if (weekRange) {
+    url += `?week_range=${encodeURIComponent(weekRange)}`;
+  }
+
+  const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const debounce = (fn, ms = 200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.success) {
+      container.innerHTML = `<p class="text-danger">Ошибка: ${data.error || "Не удалось получить список стейтментов"}</p>`;
+      return;
+    }
+    if (!data.items || data.items.length === 0) {
+      container.innerHTML = `<p>Стейтменты не найдены</p>`;
+      return;
+    }
+
+    // сортировка по компании, затем по имени
+    const items = [...data.items].sort((a,b)=>{
+      const c = (a.hiring_company_name||"").localeCompare(b.hiring_company_name||"", undefined, {sensitivity:"base"});
+      if (c!==0) return c;
+      return (a.driver_name||"").localeCompare(b.driver_name||"", undefined, {sensitivity:"base"});
+    });
+
+    const companies = Array.from(new Set(items.map(x => x.hiring_company_name || "—")))
+      .sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:"base"}));
+
+    const filterBar = `
+      <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-semibold">Фильтры</span>
+              <span class="badge bg-light text-secondary border">Неделя: ${weekRange || "—"}</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="stmtFiltersReset">Сбросить</button>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="stmtFilterDriver" class="form-label mb-1">Имя водителя</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">🔎</span>
+                <input type="text" id="stmtFilterDriver" class="form-control" placeholder="Например: John">
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <label for="stmtFilterCompany" class="form-label mb-1">Компания</label>
+              <select id="stmtFilterCompany" class="form-select form-select-sm">
+                <option value="">Все компании</option>
+                ${companies.map(c => `<option value="${c}">${c}</option>`).join("")}
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label mb-1 d-block">Активность</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="stmtFilterActiveOnly">
+                <label class="form-check-label" for="stmtFilterActiveOnly">
+                  Показать где Monday Loads / Invoices / Inspections ≥ 1
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const tableShell = `
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle" id="statementsTable">
+          <thead class="table-light">
+            <tr>
+              <th class="text-center" style="width:36px">
+                <input type="checkbox" class="form-check-input" id="stmtMasterCb">
+              </th>
+              <th>Status</th>
+              <th>Week</th>
+              <th>Driver</th>
+              <th>Company</th>
+              <th>Truck</th>
+              <th class="text-end">Monday Loads</th>
+              <th class="text-end">Invoices</th>
+              <th class="text-end">Inspections</th>
+              <th class="text-end">Salary</th>
+              <th class="text-nowrap">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="statementsTbody"></tbody>
+        </table>
+      </div>
+      <div class="mt-2 text-muted d-flex justify-content-between">
+        <div>Всего: <span id="stmtSummaryCount">0</span></div>
+        <div><strong>Сумма зарплат:</strong> <span id="stmtSummaryTotal">$0.00</span></div>
+      </div>
+    `;
+
+    container.innerHTML = filterBar + tableShell;
+
+    const tbody = container.querySelector("#statementsTbody");
+    const master = container.querySelector("#stmtMasterCb");
+    const sumCountEl = container.querySelector("#stmtSummaryCount");
+    const sumTotalEl = container.querySelector("#stmtSummaryTotal");
+
+    const buildRow = (it) => {
+      const approvedBadge = it.approved
+        ? `<span class="badge bg-success">Approved</span>`
+        : `<span class="badge bg-secondary">Pending</span>`;
+      const anyPositive = Number(it.monday_loads)>0 || Number(it.invoices_num)>0 || Number(it.inspections_num)>0;
+      const rowClass = it.approved ? "table-success" : (anyPositive ? "table-danger" : "table-warning");
+      const confirmDisabled = it.approved ? "disabled" : "";
+
+      return `
+        <tr class="${rowClass}" data-id="${it._id}">
+          <td class="text-center" style="width:36px">
+            <input type="checkbox" class="form-check-input stmt-cb" data-id="${it._id}">
+          </td>
+          <td class="status-cell">${approvedBadge}</td>
+          <td>${it.week_range || "—"}</td>
+          <td>${it.driver_name || "—"}</td>
+          <td>${it.hiring_company_name || "—"}</td>
+          <td>${it.truck_number || "—"}</td>
+          <td class="text-end">${it.monday_loads}</td>
+          <td class="text-end">${it.invoices_num}</td>
+          <td class="text-end">${it.inspections_num}</td>
+          <td class="text-end fw-semibold">${fmtMoney(it.salary)}</td>
+          <td class="text-nowrap" style="width:180px">
+            <button type="button" class="btn btn-sm btn-primary btn-stmt-confirm" data-id="${it._id}" ${confirmDisabled}>Confirm</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-1 btn-stmt-review" data-id="${it._id}">Review</button>
+          </td>
+        </tr>
+      `;
+    };
+
+    const renderRows = (arr) => {
+      tbody.innerHTML = arr.map(buildRow).join("");
+      sumCountEl.textContent = arr.length;
+      const totalSalary = arr.reduce((s, x) => s + (Number(x.salary)||0), 0);
+      sumTotalEl.textContent = fmtMoney(totalSalary);
+      if (master) master.checked = false;
+    };
+
+    // фильтры
+    const driverInput   = container.querySelector("#stmtFilterDriver");
+    const companySelect = container.querySelector("#stmtFilterCompany");
+    const activeOnlyCb  = container.querySelector("#stmtFilterActiveOnly");
+    const resetBtn      = container.querySelector("#stmtFiltersReset");
+
+    const applyFilters = () => {
+      const q = (driverInput.value||"").trim().toLowerCase();
+      const comp = companySelect.value||"";
+      const activeOnly = activeOnlyCb.checked;
+
+      const filtered = items.filter(it => {
+        if (q && !(it.driver_name||"").toLowerCase().includes(q)) return false;
+        if (comp && (it.hiring_company_name||"") !== comp) return false;
+        if (activeOnly) {
+          const anyPos = Number(it.monday_loads)>0 || Number(it.invoices_num)>0 || Number(it.inspections_num)>0;
+          if (!anyPos) return false;
+        }
+        return true;
+      });
+
+      renderRows(filtered);
+    };
+
+    renderRows(items);
+
+    driverInput.addEventListener("input", debounce(applyFilters, 200));
+    companySelect.addEventListener("change", applyFilters);
+    activeOnlyCb.addEventListener("change", applyFilters);
+    resetBtn.addEventListener("click", () => {
+      driverInput.value = "";
+      companySelect.value = "";
+      activeOnlyCb.checked = false;
+      applyFilters();
+      driverInput.focus();
+    });
+
+    // мастер чекбокс
+    if (master) {
+      master.addEventListener("change", () => {
+        tbody.querySelectorAll(".stmt-cb").forEach(cb => cb.checked = master.checked);
+      });
+    }
+
+    // делегирование: Confirm / Review
+    const table = container.querySelector("#statementsTable");
+    table.addEventListener("click", async (e) => {
+      const confirmBtn = e.target.closest(".btn-stmt-confirm");
+      const reviewBtn  = e.target.closest(".btn-stmt-review");
+      if (!confirmBtn && !reviewBtn) return;
+
+      const row = e.target.closest("tr[data-id]");
+      const id = row?.getAttribute("data-id");
+      if (!id) return;
+
+      const item = items.find(x => x._id === id);
+      if (!item) return;
+
+      if (reviewBtn) {
+        // открыть ту же модалку, но в режиме REVIEW
+        return openStatementReviewModal(item);
+      }
+
+      if (confirmBtn) {
+        try {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = "Confirming...";
+          const r = await fetch("/api/statements/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const resp = await r.json();
+          if (!resp.success) throw new Error(resp.error || "Confirm failed");
+
+          // обновить строку
+          item.approved = true;
+          const badge = row.querySelector(".status-cell .badge");
+          if (badge) {
+            badge.classList.remove("bg-secondary");
+            badge.classList.add("bg-success");
+            badge.textContent = "Approved";
+          }
+          row.classList.remove("table-warning", "table-danger");
+          row.classList.add("table-success");
+          confirmBtn.textContent = "Confirmed";
+        } catch (err) {
+          console.error(err);
+          if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить", "error");
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = "Confirm";
+        }
+      }
+    });
+
+  } catch (err) {
+    console.error("❌ Ошибка при загрузке стейтментов:", err);
+    container.innerHTML = `<p class="text-danger">Ошибка при загрузке стейтментов</p>`;
+  }
+}
