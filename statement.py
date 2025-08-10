@@ -682,12 +682,17 @@ def list_drivers_for_statements():
 @login_required
 def bulk_save_statements():
     """
-    Сохраняет пачку стейтментов. Поведение по hash (driver_id|week_range):
-      - если запись с таким hash уже есть и approved == True → игнорируем (не трогаем)
-      - если запись с таким hash уже есть и approved == False → удаляем её и вставляем новую (переписываем)
-      - если записи нет → вставляем новую
+    Сохраняет пачку стейтментов.
+    Дедупликация по hash(driver_id|week_range):
+      - есть и approved==True  -> игнорируем
+      - есть и approved==False -> удаляем и вставляем новую (replaced)
+      - нет -> вставляем (added)
 
-    Возвращает: {"success": True, "added": X, "ignored": Y, "replaced": Z}
+    Новое:
+      - сохраняем expenses с полями amount/action/removed/photo_id
+      - сервером пересчитываем calc (зарплату) по тем же правилам, что и фронт
+      - пишем week_start_utc / week_end_utc
+      - сохраняем агрегаты по инвойсам: invoices_included, expenses_totals
     """
     try:
         payload = request.get_json(force=True) or {}
@@ -696,11 +701,21 @@ def bulk_save_statements():
         if not week_range or not isinstance(items, list):
             return jsonify({"success": False, "error": "Invalid payload"}), 400
 
-        # TZ
         tz_doc  = db["company_timezone"].find_one({}) or {}
         tz_name = tz_doc.get("timezone") or "America/Chicago"
         local_tz = ZoneInfo(tz_name)
         utc_tz   = timezone.utc
+
+        def parse_week_range_to_bounds(wr: str):
+            # "MM/DD/YYYY - MM/DD/YYYY" -> (start_local@00:00, end_local_exclusive@00:00) -> UTC naive
+            s, e = [x.strip() for x in wr.split("-")]
+            start_local_date = datetime.strptime(s, "%m/%d/%Y")
+            end_local_date   = datetime.strptime(e, "%m/%d/%Y")
+            start_local = start_local_date.replace(tzinfo=local_tz)
+            end_local_excl = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
+            start_utc = start_local.astimezone(utc_tz).replace(tzinfo=None)
+            end_utc   = end_local_excl.astimezone(utc_tz).replace(tzinfo=None)
+            return start_utc, end_utc
 
         def to_local_date_only(val):
             if not val:
@@ -722,25 +737,41 @@ def bulk_save_statements():
             except Exception:
                 return None
 
+        def to_float(val, default=0.0):
+            try:
+                return float(val)
+            except Exception:
+                return float(default)
+
+        # created_by
         try:
             created_by_oid = current_user.id if isinstance(current_user.id, ObjectId) else ObjectId(str(current_user.id))
         except Exception:
             created_by_oid = None
 
-        added = 0
-        ignored = 0
-        replaced = 0
+        # допустимые действия по инвойсам
+        ALLOWED_EXPENSE_ACTIONS = {"keep", "deduct_salary", "add_salary", "deduct_gross", "add_gross"}
+
+        added = replaced = ignored = 0
 
         for it in items:
+            wr = it.get("week_range") or week_range
+            try:
+                week_start_utc, week_end_utc = parse_week_range_to_bounds(wr)
+            except Exception:
+                # если вдруг пришла кривая неделя — пропускаем элемент
+                continue
+
             driver_oid = to_objectid(it.get("driver_id"))
             if not driver_oid:
                 continue
 
             loads = it.get("loads") or []
             inspections = it.get("inspections") or []
-            expenses = it.get("expenses") or []
+            expenses_in = it.get("expenses") or []
+            scheme = it.get("scheme") or {}
 
-            # monday_loads
+            # --- monday_loads (по локальным суткам, понедельник) ---
             monday_loads = 0
             for ld in loads:
                 eff = ld.get("delivery_date")
@@ -755,10 +786,7 @@ def bulk_save_statements():
                 if d_local is not None and d_local.weekday() == 0:
                     monday_loads += 1
 
-            invoices_num = len(expenses)
-            inspections_num = len(inspections)
-
-            # Конвертация *_id в ObjectId внутри snapshot
+            # --- Конвертация *_id в loads/inspections ---
             for ld in loads:
                 if "_id" in ld: ld["_id"] = to_objectid(ld["_id"])
                 if "assigned_driver" in ld: ld["assigned_driver"] = to_objectid(ld["assigned_driver"])
@@ -769,46 +797,139 @@ def bulk_save_statements():
             for insp in inspections:
                 if "_id" in insp: insp["_id"] = to_objectid(insp["_id"])
 
-            for exp in expenses:
-                if "_id" in exp: exp["_id"] = to_objectid(exp["_id"])
-                if "photo_id" in exp: exp["photo_id"] = to_objectid(exp["photo_id"])
+            # --- Нормализация expenses с action/removed/amount ---
+            expenses = []
+            for exp in expenses_in:
+                action = str(exp.get("action") or "keep")
+                if action not in ALLOWED_EXPENSE_ACTIONS:
+                    action = "keep"
+                normalized = {
+                    "_id": to_objectid(exp.get("_id")),
+                    "amount": to_float(exp.get("amount"), 0.0),
+                    "category": exp.get("category") or "",
+                    "note": exp.get("note") or "",
+                    "date": exp.get("date") or "",
+                    "photo_id": to_objectid(exp.get("photo_id")),
+                    "action": action,
+                    "removed": bool(exp.get("removed", False)),
+                }
+                expenses.append(normalized)
 
-            wr = it.get("week_range") or week_range
+            invoices_num = len(expenses)
+            invoices_included = sum(1 for e in expenses if not e.get("removed", False))
+
+            # --- Расчёт зарплаты на бэке ---
+            # 1) гросс из грузов
+            loads_gross = 0.0
+            for ld in loads:
+                loads_gross += to_float(ld.get("price"), 0.0)
+
+            # 2) корректировки из инвойсов (только не удалённые)
+            gross_add = gross_deduct = salary_add = salary_deduct = 0.0
+            for e in expenses:
+                if e.get("removed", False):
+                    continue
+                amt = to_float(e.get("amount"), 0.0)
+                act = e.get("action") or "keep"
+                if act == "add_gross":
+                    gross_add += amt
+                elif act == "deduct_gross":
+                    gross_deduct += amt
+                elif act == "add_salary":
+                    salary_add += amt
+                elif act == "deduct_salary":
+                    salary_deduct += amt
+                # keep -> без влияния
+
+            gross_for_commission = loads_gross + gross_add - gross_deduct
+
+            # 3) комиссия по percent-схеме
+            commission = 0.0
+            scheme_type = (scheme.get("scheme_type") or scheme.get("type") or "percent")
+            if scheme_type == "percent":
+                table = scheme.get("commission_table") or []
+                # приводим числа
+                safe_table = []
+                for row in table:
+                    safe_table.append({
+                        "from_sum": to_float(row.get("from_sum"), 0.0),
+                        "percent": to_float(row.get("percent"), 0.0)
+                    })
+                if len(safe_table) == 1:
+                    commission = gross_for_commission * (safe_table[0]["percent"] / 100.0)
+                elif len(safe_table) > 1:
+                    safe_table.sort(key=lambda r: r["from_sum"], reverse=True)
+                    matched = next((r for r in safe_table if gross_for_commission >= r["from_sum"]), None)
+                    if matched:
+                        commission = gross_for_commission * (matched["percent"] / 100.0)
+
+            # 4) вычеты по схеме
+            scheme_deductions = scheme.get("deductions") or []
+            scheme_deductions_total = 0.0
+            for d in scheme_deductions:
+                scheme_deductions_total += to_float(d.get("amount"), 0.0)
+
+            # 5) итог к выплате
+            final_salary = commission - scheme_deductions_total - salary_deduct + salary_add
+
+            # агрегаты по расходам на всякий случай
+            expenses_totals = {
+                "visible_total": round(sum(to_float(e.get("amount"), 0.0) for e in expenses if not e.get("removed", False)), 2),
+                "gross_add": round(gross_add, 2),
+                "gross_deduct": round(gross_deduct, 2),
+                "salary_add": round(salary_add, 2),
+                "salary_deduct": round(salary_deduct, 2),
+            }
+
+            calc = {
+                "loads_gross": round(loads_gross, 2),
+                "gross_add_from_expenses": round(gross_add, 2),
+                "gross_deduct_from_expenses": round(gross_deduct, 2),
+                "gross_for_commission": round(gross_for_commission, 2),
+                "commission": round(commission, 2),
+                "scheme_deductions_total": round(scheme_deductions_total, 2),
+                "salary_add_from_expenses": round(salary_add, 2),
+                "salary_deduct_from_expenses": round(salary_deduct, 2),
+                "final_salary": round(final_salary, 2),
+            }
+
+            # hash
             hash_hex = hashlib.sha256(f"{str(driver_oid)}|{wr}".encode("utf-8")).hexdigest()
 
             doc = {
                 "driver_id": driver_oid,
                 "week_range": wr,
+                "week_start_utc": week_start_utc,
+                "week_end_utc":   week_end_utc,
                 "snapshot": {
                     "loads": loads,
                     "fuel": it.get("fuel"),
-                    "scheme": it.get("scheme"),
+                    "scheme": scheme,
                     "inspections": inspections,
                     "expenses": expenses
                 },
+                "expenses_totals": expenses_totals,   # агрегаты по инвойсам
+                "calc": calc,                         # серверный расчёт
                 "monday_loads": monday_loads,
                 "invoices_num": invoices_num,
-                "inspections_num": inspections_num,
+                "invoices_included": invoices_included,
+                "inspections_num": len(inspections),
                 "approved": False,
                 "created_at": datetime.utcnow(),
                 "created_by": created_by_oid,
                 "hash": hash_hex
             }
 
-            # Проверка существующей записи по hash
             existing = statement_collection.find_one({"hash": hash_hex}, {"_id": 1, "approved": 1})
             if existing:
                 if existing.get("approved") is True:
-                    # защищаем утверждённые — ничего не меняем
                     ignored += 1
                     continue
                 else:
-                    # удаляем старую (не утверждённую) и вставляем новую
                     statement_collection.delete_one({"_id": existing["_id"]})
                     statement_collection.insert_one(doc)
                     replaced += 1
             else:
-                # новой не было — добавляем
                 statement_collection.insert_one(doc)
                 added += 1
 
@@ -817,5 +938,160 @@ def bulk_save_statements():
     except Exception as e:
         import traceback
         print("Exception in /api/statements/bulk_save:")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    
+
+
+@statement_bp.route("/api/statements/list", methods=["GET"])
+@login_required
+def list_statements():
+    try:
+        wr = (request.args.get("week_range") or "").strip()
+        query = {}
+        if wr:
+            # если уже записаны нормализованные даты, ищем по ним
+            try:
+                tz_doc  = db["company_timezone"].find_one({}) or {}
+                tz_name = tz_doc.get("timezone") or "America/Chicago"
+                local_tz = ZoneInfo(tz_name)
+                utc_tz   = timezone.utc
+
+                s, e = [x.strip() for x in wr.split("-")]
+                s_local = datetime.strptime(s, "%m/%d/%Y").replace(tzinfo=local_tz)
+                e_local_excl = (datetime.strptime(e, "%m/%d/%Y") + timedelta(days=1)).replace(tzinfo=local_tz)
+                s_utc = s_local.astimezone(utc_tz).replace(tzinfo=None)
+                e_utc = e_local_excl.astimezone(utc_tz).replace(tzinfo=None)
+                query["week_start_utc"] = s_utc
+                query["week_end_utc"]   = e_utc
+            except Exception:
+                # fallback — по строке
+                query["week_range"] = wr
+
+        # добавили calc и snapshot чтобы либо забрать готовую зарплату, либо пересчитать
+        projection = {
+            "driver_id": 1, "week_range": 1,
+            "monday_loads": 1, "invoices_num": 1, "inspections_num": 1,
+            "approved": 1, "created_at": 1,
+            "calc": 1,
+            "snapshot.loads": 1,
+            "snapshot.expenses": 1,
+            "snapshot.scheme": 1
+        }
+        docs = list(statement_collection.find(query, projection).sort([("created_at", -1)]))
+
+        # справочники driver & truck
+        driver_ids = list({d["driver_id"] for d in docs if isinstance(d.get("driver_id"), ObjectId)})
+        drivers_map, trucks_map = {}, {}
+        if driver_ids:
+            for drv in db["drivers"].find({"_id": {"$in": driver_ids}}, {"name":1, "truck":1}):
+                drivers_map[drv["_id"]] = {"name": drv.get("name") or "—", "truck": drv.get("truck")}
+            truck_ids = list({v["truck"] for v in drivers_map.values() if isinstance(v.get("truck"), ObjectId)})
+            if truck_ids:
+                for t in db["trucks"].find({"_id": {"$in": truck_ids}}, {"unit_number":1}):
+                    trucks_map[t["_id"]] = t.get("unit_number") or ""
+
+        def to_float(val, default=0.0):
+            try:
+                return float(val)
+            except Exception:
+                return float(default)
+
+        def compute_final_salary_from_snapshot(snap: dict) -> float:
+            """
+            Быстрый пересчёт, если нет calc:
+              - loads_gross = sum(price)
+              - корректировки из expenses по action/removed
+              - percent-схема
+              - вычеты scheme.deductions
+            """
+            if not isinstance(snap, dict):
+                return 0.0
+            loads   = snap.get("loads") or []
+            scheme  = snap.get("scheme") or {}
+            expenses = snap.get("expenses") or []
+
+            # 1) гросс по грузам
+            loads_gross = 0.0
+            for ld in loads:
+                loads_gross += to_float((ld or {}).get("price"), 0.0)
+
+            # 2) корректировки по инвойсам (только не удалённые)
+            gross_add = gross_deduct = salary_add = salary_deduct = 0.0
+            for e in expenses:
+                if (e or {}).get("removed", False):
+                    continue
+                amt = to_float((e or {}).get("amount"), 0.0)
+                action = (e or {}).get("action") or "keep"
+                if action == "add_gross":
+                    gross_add += amt
+                elif action == "deduct_gross":
+                    gross_deduct += amt
+                elif action == "add_salary":
+                    salary_add += amt
+                elif action == "deduct_salary":
+                    salary_deduct += amt
+                # keep -> без влияния
+
+            gross_for_commission = loads_gross + gross_add - gross_deduct
+
+            # 3) комиссия по percent
+            commission = 0.0
+            scheme_type = scheme.get("scheme_type") or scheme.get("type") or "percent"
+            if scheme_type == "percent":
+                table = scheme.get("commission_table") or []
+                # нормализуем таблицу
+                safe_table = [{"from_sum": to_float(r.get("from_sum"), 0.0),
+                               "percent": to_float(r.get("percent"), 0.0)} for r in table]
+                if len(safe_table) == 1:
+                    commission = gross_for_commission * (safe_table[0]["percent"] / 100.0)
+                elif len(safe_table) > 1:
+                    safe_table.sort(key=lambda r: r["from_sum"], reverse=True)
+                    matched = next((r for r in safe_table if gross_for_commission >= r["from_sum"]), None)
+                    if matched:
+                        commission = gross_for_commission * (matched["percent"] / 100.0)
+
+            # 4) вычеты по схеме
+            scheme_deductions_total = 0.0
+            for d in (scheme.get("deductions") or []):
+                scheme_deductions_total += to_float(d.get("amount"), 0.0)
+
+            # 5) итог
+            final_salary = commission - scheme_deductions_total - salary_deduct + salary_add
+            return round(final_salary, 2)
+
+        items = []
+        for d in docs:
+            drv = drivers_map.get(d.get("driver_id"), {})
+            truck_oid = drv.get("truck") if isinstance(drv.get("truck"), ObjectId) else None
+
+            # берём salary: сначала calc.final_salary, иначе считаем из snapshot
+            calc = d.get("calc") or {}
+            if isinstance(calc, dict) and isinstance(calc.get("final_salary"), (int, float)):
+                final_salary = float(calc.get("final_salary"))
+            else:
+                snap = d.get("snapshot") or {}
+                final_salary = compute_final_salary_from_snapshot(snap)
+
+            items.append({
+                "_id": str(d["_id"]),
+                "week_range": d.get("week_range", ""),
+                "driver_id": str(d["driver_id"]) if isinstance(d.get("driver_id"), ObjectId) else (d.get("driver_id") or ""),
+                "driver_name": drv.get("name", "—"),
+                "truck_id": str(truck_oid) if isinstance(truck_oid, ObjectId) else "",
+                "truck_number": trucks_map.get(truck_oid, "") if truck_oid else "",
+                "monday_loads": int(d.get("monday_loads") or 0),
+                "invoices_num": int(d.get("invoices_num") or 0),
+                "inspections_num": int(d.get("inspections_num") or 0),
+                "approved": bool(d.get("approved", False)),
+                "salary": round(final_salary, 2),
+                "created_at": (d.get("created_at") or datetime.utcnow()).isoformat()
+            })
+
+        return jsonify({"success": True, "count": len(items), "items": items})
+    except Exception as e:
+        import traceback
+        print("Exception in /api/statements/list:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500

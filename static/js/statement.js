@@ -169,76 +169,152 @@ window.recalculateDriverSalary = async function () {
   const driverId = document.getElementById("driverSelect").value;
   const weekRange = document.getElementById("driverWeekRangeSelect").value;
 
+  // 1) Гросс из выбранных грузов
   const checkboxes = container.querySelectorAll(".load-checkbox");
-  let totalAmount = 0;
-
+  let loadsGross = 0;
   checkboxes.forEach(cb => {
-    if (cb.checked) {
-      totalAmount += parseFloat(cb.dataset.price || "0");
-    }
+    if (cb.checked) loadsGross += parseFloat(cb.dataset.price || "0");
   });
 
+  // 2) Инвойсы: берём только не удалённые, суммы — из инпутов
+  let grossAdd = 0;     // add_gross
+  let grossDeduct = 0;  // deduct_gross
+  let salaryAdd = 0;    // add_salary
+  let salaryDeduct = 0; // deduct_salary
+  let visibleTotal = 0; // сумма всех НЕ удалённых инвойсов (для отображения "Итого по инвойсам")
+
+  const expensesBlock = container.querySelector("#driverExpensesBlock");
+  if (expensesBlock) {
+    const items = expensesBlock.querySelectorAll(".expense-item");
+    items.forEach(item => {
+      const removed = item.getAttribute("data-removed") === "1";
+      const amountStr = (item.querySelector(".expense-amount")?.value || "0").trim();
+      const amount = Math.max(0, parseFloat(amountStr || "0"));
+      const action = item.querySelector(".expense-action")?.value || "keep";
+
+      if (!removed) {
+        visibleTotal += amount;
+
+        switch (action) {
+          case "add_gross":     grossAdd += amount; break;
+          case "deduct_gross":  grossDeduct += amount; break;
+          case "add_salary":    salaryAdd += amount; break;
+          case "deduct_salary": salaryDeduct += amount; break;
+          case "keep":
+          default: break;
+        }
+      }
+    });
+
+    // Обновим визуальный итог по инвойсам (с учётом удаления/правок)
+    const totalEl = expensesBlock.querySelector("#expensesTotalVal");
+    if (totalEl) totalEl.textContent = visibleTotal.toFixed(2);
+  }
+
+  const grossForCommission = loadsGross + grossAdd - grossDeduct;
+
   try {
+    // 3) Схема комиссии
     const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
     const data = await res.json();
-
-    console.log("💰 Зарплатная схема:", data);
-
     if (!data.success) {
       console.warn("Ошибка схемы зарплаты:", data.error);
       return;
     }
 
-    let salary = 0;
-
+    // 4) Комиссия от откорректированного гросса
+    let commission = 0;
     if (data.scheme_type === "percent") {
       const table = data.commission_table || [];
-
       if (table.length === 1) {
-        salary = totalAmount * (table[0].percent / 100);
-      } else {
+        commission = grossForCommission * (table[0].percent / 100);
+      } else if (table.length > 1) {
         const matched = table
-          .filter(row => totalAmount >= row.from_sum)
+          .filter(row => grossForCommission >= row.from_sum)
           .sort((a, b) => b.from_sum - a.from_sum)[0];
         if (matched) {
-          salary = totalAmount * (matched.percent / 100);
+          commission = grossForCommission * (matched.percent / 100);
         }
       }
     }
 
-    const deductions = data.deductions || [];
-    const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount || 0), 0);
-    const finalSalary = salary - totalDeductions;
+    // 5) Вычеты по схеме + корректировки ЗП из инвойсов
+    const schemeDeductions = data.deductions || [];
+    const schemeDeductionsTotal = schemeDeductions.reduce((sum, d) => sum + (d.amount || 0), 0);
 
+    const finalSalary =
+      commission
+      - schemeDeductionsTotal
+      - salaryDeduct
+      + salaryAdd;
+
+    // 6) Рендер блока
     const old = container.querySelector("#driverSalaryBlock");
     if (old) old.remove();
 
-    let html = `
+    const html = `
       <div id="driverSalaryBlock" class="mt-4">
         <h5>💰 Зарплата водителя:</h5>
-        <p><strong>Общая сумма выбранных грузов:</strong> $${totalAmount.toFixed(2)}</p>
-        <p><strong>Зарплата до вычетов:</strong> $${salary.toFixed(2)}</p>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <tbody>
+              <tr>
+                <th style="width:50%">Гросс по выбранным грузам</th>
+                <td class="text-end">$${loadsGross.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Корректировки гросса (инвойсы)</th>
+                <td class="text-end">
+                  +$${grossAdd.toFixed(2)} (add_gross)
+                  &nbsp;&nbsp;–$${grossDeduct.toFixed(2)} (deduct_gross)
+                </td>
+              </tr>
+              <tr class="table-light">
+                <th>Гросс для расчёта комиссии</th>
+                <td class="text-end"><strong>$${grossForCommission.toFixed(2)}</strong></td>
+              </tr>
+              <tr>
+                <th>Комиссия по схеме</th>
+                <td class="text-end">$${commission.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Списания по схеме</th>
+                <td class="text-end">–$${schemeDeductionsTotal.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Корректировки к зарплате (инвойсы)</th>
+                <td class="text-end">
+                  +$${salaryAdd.toFixed(2)} (add_salary)
+                  &nbsp;&nbsp;–$${salaryDeduct.toFixed(2)} (deduct_salary)
+                </td>
+              </tr>
+              <tr class="table-success">
+                <th>Итого к выплате</th>
+                <td class="text-end"><strong>$${finalSalary.toFixed(2)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        ${schemeDeductions.length > 0 ? `
+          <h6 class="mt-3">💸 Списания по схеме:</h6>
+          <ul>
+            ${schemeDeductions.map(d => `
+              <li>${d.type}: -$${(d.amount || 0).toFixed(2)}</li>
+            `).join("")}
+          </ul>
+        ` : ""}
+      </div>
     `;
 
-    if (deductions.length > 0) {
-      html += `
-        <h6 class="mt-3">💸 Списания:</h6>
-        <ul>
-          ${deductions.map(d => `
-            <li>${d.type}: -$${d.amount.toFixed(2)}</li>
-          `).join("")}
-        </ul>
-        <p><strong>Итого после вычетов:</strong> $${finalSalary.toFixed(2)}</p>
-      `;
-    }
-
-    html += `</div>`;
     container.insertAdjacentHTML("beforeend", html);
 
   } catch (err) {
     console.error("❌ Ошибка при расчёте зарплаты:", err);
   }
 }
+
+
 
 function fetchDriverInspections(driverId, weekRange) {
   const container = document.getElementById("driverStatementResults");
@@ -297,24 +373,90 @@ function fetchDriverExpenses(driverId, weekRange) {
       const total = data.expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
 
       const html = `
-        <div class="mt-4">
-          <h5>📄 Инвойсы за период (${data.count}):</h5>
-          <ul>
+        <div class="mt-4" id="driverExpensesBlock">
+          <h5>📄 Инвойсы за период (<span id="expensesCount">${data.count}</span>):</h5>
+          <ul class="list-unstyled mb-2" id="expensesList">
             ${data.expenses.map(e => `
-              <li>${e.date}: $${e.amount.toFixed(2)} (${e.category}) — ${e.note || "—"}</li>
+              <li
+                class="expense-item d-flex align-items-center gap-2 mb-2"
+                data-expense-id="${e._id}"
+                data-removed="0"
+              >
+                <div class="flex-grow-1">
+                  <div><strong>${e.date}</strong> • ${e.category || "—"} — ${e.note || "—"}</div>
+                  <div class="d-flex align-items-center gap-2 mt-1">
+                    <label class="form-label m-0">Сумма:</label>
+                    <input
+                      type="number"
+                      class="form-control form-control-sm expense-amount"
+                      step="0.01"
+                      min="0"
+                      value="${(e.amount || 0).toFixed(2)}"
+                      style="width:140px"
+                    />
+                    <select
+                      class="form-select form-select-sm expense-action"
+                      style="width:210px"
+                    >
+                      <option value="keep" selected>Оставить как есть</option>
+                      <option value="deduct_salary">Снять с зарплаты</option>
+                      <option value="add_salary">Добавить в зарплату</option>
+                      <option value="deduct_gross">Снять с гросса</option>
+                      <option value="add_gross">Добавить в гросс</option>
+                    </select>
+
+                    <button type="button" class="btn btn-sm btn-outline-danger expense-remove-btn">
+                      Удалить из стейтмента
+                    </button>
+                  </div>
+                </div>
+              </li>
             `).join("")}
           </ul>
-          <p><strong>Итого по инвойсам:</strong> $${total.toFixed(2)}</p>
+          <div class="text-muted">
+            <strong>Итого по инвойсам:</strong>
+            $<span id="expensesTotalVal">${total.toFixed(2)}</span>
+          </div>
         </div>
       `;
 
       container.insertAdjacentHTML("beforeend", html);
+
+      // Слушатели для пересчёта
+      const expensesBlock = container.querySelector("#driverExpensesBlock");
+      expensesBlock.querySelectorAll(".expense-action").forEach(sel => {
+        sel.addEventListener("change", window.recalculateDriverSalary);
+      });
+      expensesBlock.querySelectorAll(".expense-amount").forEach(inp => {
+        inp.addEventListener("input", window.recalculateDriverSalary);
+      });
+
+      // Удаление/восстановление инвойса (визуально и из расчёта)
+      expensesBlock.querySelectorAll(".expense-remove-btn").forEach(btn => {
+        btn.addEventListener("click", (ev) => {
+          const li = ev.currentTarget.closest(".expense-item");
+          const removed = li.getAttribute("data-removed") === "1";
+          if (!removed) {
+            li.setAttribute("data-removed", "1");
+            li.style.opacity = "0.5";
+            ev.currentTarget.classList.remove("btn-outline-danger");
+            ev.currentTarget.classList.add("btn-outline-secondary");
+            ev.currentTarget.textContent = "Вернуть в стейтмент";
+          } else {
+            li.setAttribute("data-removed", "0");
+            li.style.opacity = "1";
+            ev.currentTarget.classList.remove("btn-outline-secondary");
+            ev.currentTarget.classList.add("btn-outline-danger");
+            ev.currentTarget.textContent = "Удалить из стейтмента";
+          }
+          window.recalculateDriverSalary();
+        });
+      });
     })
     .catch(err => {
       console.error("❌ Ошибка при получении инвойсов:", err);
     });
 }
-
 
 
 
@@ -440,6 +582,8 @@ async function loadDriversGroupedByCompany() {
   }
 }
 
+
+
 // 📅 получить выбранных драйверов из модалки "All Drivers"
 function getSelectedDriversFromModal() {
   const container = document.getElementById("allDriversResults");
@@ -457,6 +601,7 @@ async function apiGet(url) {
 }
 
 // 👤 вытянуть все данные по одному водителю (5 запросов)
+// 👤 вытянуть все данные по одному водителю (5 запросов) + нормализация инвойсов и расчёт зарплаты
 async function fetchAllForDriver(driverId, weekRange) {
   const [start, end] = weekRange.split("-").map(s => s.trim());
 
@@ -474,22 +619,103 @@ async function fetchAllForDriver(driverId, weekRange) {
     apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`)
   ]);
 
+  // 1) Нормализуем данные
+  const loads = (loadsRes.success ? loadsRes.loads : []);
+  const fuel  = (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] });
+  const scheme = (schemeRes.success ? {
+    scheme_type: schemeRes.scheme_type,
+    commission_table: schemeRes.commission_table || [],
+    deductions: schemeRes.deductions || [],
+    enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
+    bonus_level_1: schemeRes.bonus_level_1 || 0,
+    bonus_level_2: schemeRes.bonus_level_2 || 0,
+    bonus_level_3: schemeRes.bonus_level_3 || 0
+  } : null);
+  const inspections = (inspRes.success ? inspRes.inspections : []);
+
+  // Инвойсы: по умолчанию — action: "keep", removed: false, amount как в базе
+  const expenses = (expRes.success ? expRes.expenses : []).map(e => ({
+    _id: e._id,
+    amount: Number(e.amount || 0),
+    category: e.category || "",
+    note: e.note || "",
+    date: e.date || "",
+    photo_id: e.photo_id || null,
+    action: "keep",     // по умолчанию — "Оставить как есть"
+    removed: false      // по умолчанию включён в стейтмент
+  }));
+
+  // 2) Расчёт зарплаты (на основе правил)
+  const loadsGross = loads.reduce((sum, ld) => sum + Number(ld.price || 0), 0);
+
+  // Корректировки от инвойсов: по умолчанию (keep) — нулевые эффекты
+  let grossAdd = 0;     // add_gross
+  let grossDeduct = 0;  // deduct_gross
+  let salaryAdd = 0;    // add_salary
+  let salaryDeduct = 0; // deduct_salary
+
+  for (const exp of expenses) {
+    if (exp.removed) continue; // если когда-то будем менять флаг — учтётся
+    const amt = Number(exp.amount || 0);
+    switch (exp.action) {
+      case "add_gross":     grossAdd += amt; break;
+      case "deduct_gross":  grossDeduct += amt; break;
+      case "add_salary":    salaryAdd += amt; break;
+      case "deduct_salary": salaryDeduct += amt; break;
+      case "keep":
+      default: break;
+    }
+  }
+
+  const grossForCommission = loadsGross + grossAdd - grossDeduct;
+
+  // Комиссия
+  let commission = 0;
+  if (scheme && scheme.scheme_type === "percent") {
+    const table = scheme.commission_table || [];
+    if (table.length === 1) {
+      commission = grossForCommission * (Number(table[0].percent || 0) / 100);
+    } else if (table.length > 1) {
+      const matched = table
+        .filter(row => grossForCommission >= Number(row.from_sum || 0))
+        .sort((a, b) => Number(b.from_sum || 0) - Number(a.from_sum || 0))[0];
+      if (matched) {
+        commission = grossForCommission * (Number(matched.percent || 0) / 100);
+      }
+    }
+  }
+
+  // Вычеты по схеме
+  const schemeDeductions = (scheme?.deductions || []);
+  const schemeDeductionsTotal = schemeDeductions.reduce((s, d) => s + Number(d.amount || 0), 0);
+
+  // Итог к выплате
+  const finalSalary = commission - schemeDeductionsTotal - salaryDeduct + salaryAdd;
+
+  // 3) Собираем расчётный блок для сохранения
+  const calc = {
+    loads_gross: Number(loadsGross.toFixed(2)),
+    gross_add_from_expenses: Number(grossAdd.toFixed(2)),
+    gross_deduct_from_expenses: Number(grossDeduct.toFixed(2)),
+    gross_for_commission: Number(grossForCommission.toFixed(2)),
+    commission: Number(commission.toFixed(2)),
+    scheme_deductions_total: Number(schemeDeductionsTotal.toFixed(2)),
+    salary_add_from_expenses: Number(salaryAdd.toFixed(2)),
+    salary_deduct_from_expenses: Number(salaryDeduct.toFixed(2)),
+    final_salary: Number(finalSalary.toFixed(2))
+  };
+
   return {
     driver_id: driverId,
     week_range: weekRange,
-    loads: (loadsRes.success ? loadsRes.loads : []),
-    fuel: (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] }),
-    scheme: (schemeRes.success ? {
-      scheme_type: schemeRes.scheme_type,
-      commission_table: schemeRes.commission_table || [],
-      deductions: schemeRes.deductions || [],
-      enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
-      bonus_level_1: schemeRes.bonus_level_1 || 0,
-      bonus_level_2: schemeRes.bonus_level_2 || 0,
-      bonus_level_3: schemeRes.bonus_level_3 || 0
-    } : null),
-    inspections: (inspRes.success ? inspRes.inspections : []),
-    expenses: (expRes.success ? expRes.expenses : [])
+    loads,
+    fuel,
+    scheme,
+    inspections,
+    // ВАЖНО: сохраняем инвойсы уже с action/removed/amount
+    expenses,
+    // И результаты расчёта
+    calc
   };
 }
 
@@ -588,5 +814,87 @@ async function calculateAllDriversStatements() {
       `<p class="text-danger">Ошибка запроса сохранения</p>`
     );
     Swal.fire("Ошибка", "Не удалось выполнить запрос сохранения.", "error");
+  }
+}
+
+
+
+async function loadDriverStatements() {
+  const weekRange = document.getElementById("statementWeekRangeSelect").value || "";
+  const container = document.getElementById("driverStatementsContainer");
+
+  container.innerHTML = `<p>Загрузка...</p>`;
+
+  let url = `/api/statements/list`;
+  if (weekRange) {
+    url += `?week_range=${encodeURIComponent(weekRange)}`;
+  }
+
+  const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.success) {
+      container.innerHTML = `<p class="text-danger">Ошибка: ${data.error || "Не удалось получить список стейтментов"}</p>`;
+      return;
+    }
+
+    if (!data.items || data.items.length === 0) {
+      container.innerHTML = `<p>Стейтменты не найдены</p>`;
+      return;
+    }
+
+    const totalSalary = data.items.reduce((sum, it) => sum + (Number(it.salary) || 0), 0);
+
+    const rows = data.items.map((it) => {
+      const approvedBadge = it.approved
+        ? `<span class="badge bg-success">Approved</span>`
+        : `<span class="badge bg-secondary">Pending</span>`;
+
+      return `
+        <tr>
+          <td>${approvedBadge}</td>
+          <td>${it.week_range || "—"}</td>
+          <td>${it.driver_name || "—"}</td>
+          <td>${it.truck_number || "—"}</td>
+          <td class="text-end">${it.monday_loads}</td>
+          <td class="text-end">${it.invoices_num}</td>
+          <td class="text-end">${it.inspections_num}</td>
+          <td class="text-end fw-semibold">${fmtMoney(it.salary)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const html = `
+      <div class="table-responsive mt-3">
+        <table class="table table-sm table-bordered align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Status</th>
+              <th>Week</th>
+              <th>Driver</th>
+              <th>Truck</th>
+              <th class="text-end">Monday Loads</th>
+              <th class="text-end">Invoices</th>
+              <th class="text-end">Inspections</th>
+              <th class="text-end">Salary</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="mt-2 text-muted d-flex justify-content-between">
+        <div>Всего: ${data.count}</div>
+        <div><strong>Сумма зарплат:</strong> ${fmtMoney(totalSalary)}</div>
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+  } catch (err) {
+    console.error("❌ Ошибка при загрузке стейтментов:", err);
+    container.innerHTML = `<p class="text-danger">Ошибка при загрузке стейтментов</p>`;
   }
 }
