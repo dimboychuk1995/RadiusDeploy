@@ -981,16 +981,31 @@ def list_statements():
         }
         docs = list(statement_collection.find(query, projection).sort([("created_at", -1)]))
 
-        # справочники driver & truck
+        # справочники driver -> name, truck, hiring_company
         driver_ids = list({d["driver_id"] for d in docs if isinstance(d.get("driver_id"), ObjectId)})
-        drivers_map, trucks_map = {}, {}
+        drivers_map, trucks_map, companies_map = {}, {}, {}
         if driver_ids:
-            for drv in db["drivers"].find({"_id": {"$in": driver_ids}}, {"name":1, "truck":1}):
-                drivers_map[drv["_id"]] = {"name": drv.get("name") or "—", "truck": drv.get("truck")}
+            for drv in db["drivers"].find(
+                {"_id": {"$in": driver_ids}},
+                {"name": 1, "truck": 1, "hiring_company": 1}
+            ):
+                drivers_map[drv["_id"]] = {
+                    "name": drv.get("name") or "—",
+                    "truck": drv.get("truck"),
+                    "hiring_company": drv.get("hiring_company")
+                }
+
+            # траки
             truck_ids = list({v["truck"] for v in drivers_map.values() if isinstance(v.get("truck"), ObjectId)})
             if truck_ids:
-                for t in db["trucks"].find({"_id": {"$in": truck_ids}}, {"unit_number":1}):
+                for t in db["trucks"].find({"_id": {"$in": truck_ids}}, {"unit_number": 1}):
                     trucks_map[t["_id"]] = t.get("unit_number") or ""
+
+            # компании найма
+            company_ids = list({v["hiring_company"] for v in drivers_map.values() if isinstance(v.get("hiring_company"), ObjectId)})
+            if company_ids:
+                for c in db["companies"].find({"_id": {"$in": company_ids}}, {"name": 1}):
+                    companies_map[c["_id"]] = c.get("name") or "—"
 
         def to_float(val, default=0.0):
             try:
@@ -1032,7 +1047,6 @@ def list_statements():
                     salary_add += amt
                 elif action == "deduct_salary":
                     salary_deduct += amt
-                # keep -> без влияния
 
             gross_for_commission = loads_gross + gross_add - gross_deduct
 
@@ -1041,7 +1055,6 @@ def list_statements():
             scheme_type = scheme.get("scheme_type") or scheme.get("type") or "percent"
             if scheme_type == "percent":
                 table = scheme.get("commission_table") or []
-                # нормализуем таблицу
                 safe_table = [{"from_sum": to_float(r.get("from_sum"), 0.0),
                                "percent": to_float(r.get("percent"), 0.0)} for r in table]
                 if len(safe_table) == 1:
@@ -1065,6 +1078,8 @@ def list_statements():
         for d in docs:
             drv = drivers_map.get(d.get("driver_id"), {})
             truck_oid = drv.get("truck") if isinstance(drv.get("truck"), ObjectId) else None
+            hiring_company_oid = drv.get("hiring_company") if isinstance(drv.get("hiring_company"), ObjectId) else None
+            hiring_company_name = companies_map.get(hiring_company_oid, "—") if hiring_company_oid else "—"
 
             # берём salary: сначала calc.final_salary, иначе считаем из snapshot
             calc = d.get("calc") or {}
@@ -1079,8 +1094,14 @@ def list_statements():
                 "week_range": d.get("week_range", ""),
                 "driver_id": str(d["driver_id"]) if isinstance(d.get("driver_id"), ObjectId) else (d.get("driver_id") or ""),
                 "driver_name": drv.get("name", "—"),
+
                 "truck_id": str(truck_oid) if isinstance(truck_oid, ObjectId) else "",
                 "truck_number": trucks_map.get(truck_oid, "") if truck_oid else "",
+
+                # новое: компания найма
+                "hiring_company_id": str(hiring_company_oid) if hiring_company_oid else "",
+                "hiring_company_name": hiring_company_name,
+
                 "monday_loads": int(d.get("monday_loads") or 0),
                 "invoices_num": int(d.get("invoices_num") or 0),
                 "inspections_num": int(d.get("inspections_num") or 0),

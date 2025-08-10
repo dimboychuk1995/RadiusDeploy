@@ -831,6 +831,10 @@ async function loadDriverStatements() {
   }
 
   const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const debounce = (fn, ms = 200) => {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  };
 
   try {
     const res = await fetch(url);
@@ -846,52 +850,294 @@ async function loadDriverStatements() {
       return;
     }
 
-    const totalSalary = data.items.reduce((sum, it) => sum + (Number(it.salary) || 0), 0);
+    // Сортировка по компании, затем по имени
+    const items = [...data.items].sort((a, b) => {
+      const aComp = (a.hiring_company_name || "").toString();
+      const bComp = (b.hiring_company_name || "").toString();
+      const byCompany = aComp.localeCompare(bComp, undefined, { sensitivity: "base" });
+      if (byCompany !== 0) return byCompany;
+      const aDrv = (a.driver_name || "").toString();
+      const bDrv = (b.driver_name || "").toString();
+      return aDrv.localeCompare(bDrv, undefined, { sensitivity: "base" });
+    });
 
-    const rows = data.items.map((it) => {
-      const approvedBadge = it.approved
-        ? `<span class="badge bg-success">Approved</span>`
-        : `<span class="badge bg-secondary">Pending</span>`;
+    // Уникальные компании для селекта
+    const companies = Array.from(new Set(items.map(x => x.hiring_company_name || "—")))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
-      return `
-        <tr>
-          <td>${approvedBadge}</td>
-          <td>${it.week_range || "—"}</td>
-          <td>${it.driver_name || "—"}</td>
-          <td>${it.truck_number || "—"}</td>
-          <td class="text-end">${it.monday_loads}</td>
-          <td class="text-end">${it.invoices_num}</td>
-          <td class="text-end">${it.inspections_num}</td>
-          <td class="text-end fw-semibold">${fmtMoney(it.salary)}</td>
-        </tr>
-      `;
-    }).join("");
+    // ——— красивый фильтр-блок ———
+    const filterBar = `
+      <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-body py-3">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-semibold">Фильтры</span>
+              <span class="badge bg-light text-secondary border">Неделя: ${weekRange || "—"}</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="stmtFiltersReset">Сбросить</button>
+          </div>
 
-    const html = `
-      <div class="table-responsive mt-3">
-        <table class="table table-sm table-bordered align-middle">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="stmtFilterDriver" class="form-label mb-1">Имя водителя</label>
+              <div class="input-group input-group-sm">
+                <span class="input-group-text">🔎</span>
+                <input type="text" id="stmtFilterDriver" class="form-control" placeholder="Например: John">
+              </div>
+            </div>
+
+            <div class="col-md-4">
+              <label for="stmtFilterCompany" class="form-label mb-1">Компания</label>
+              <select id="stmtFilterCompany" class="form-select form-select-sm">
+                <option value="">Все компании</option>
+                ${companies.map(c => `<option value="${c}">${c}</option>`).join("")}
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label mb-1 d-block">Активность</label>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="stmtFilterActiveOnly">
+                <label class="form-check-label" for="stmtFilterActiveOnly">
+                  Показать где Monday Loads / Invoices / Inspections ≥ 1
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const tableShell = `
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle" id="statementsTable">
           <thead class="table-light">
             <tr>
+              <th class="text-center" style="width:36px">
+                <input type="checkbox" class="form-check-input" id="stmtMasterCb">
+              </th>
               <th>Status</th>
               <th>Week</th>
               <th>Driver</th>
+              <th>Company</th>
               <th>Truck</th>
               <th class="text-end">Monday Loads</th>
               <th class="text-end">Invoices</th>
               <th class="text-end">Inspections</th>
               <th class="text-end">Salary</th>
+              <th class="text-nowrap">Actions</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody id="statementsTbody"></tbody>
         </table>
       </div>
       <div class="mt-2 text-muted d-flex justify-content-between">
-        <div>Всего: ${data.count}</div>
-        <div><strong>Сумма зарплат:</strong> ${fmtMoney(totalSalary)}</div>
+        <div>Всего: <span id="stmtSummaryCount">0</span></div>
+        <div><strong>Сумма зарплат:</strong> <span id="stmtSummaryTotal">$0.00</span></div>
       </div>
     `;
 
-    container.innerHTML = html;
+    container.innerHTML = filterBar + tableShell;
+
+    const tbody = container.querySelector("#statementsTbody");
+    const master = container.querySelector("#stmtMasterCb");
+    const sumCountEl = container.querySelector("#stmtSummaryCount");
+    const sumTotalEl = container.querySelector("#stmtSummaryTotal");
+
+    // Рендер одной строки
+    const buildRow = (it) => {
+      const approvedBadge = it.approved
+        ? `<span class="badge bg-success">Approved</span>`
+        : `<span class="badge bg-secondary">Pending</span>`;
+
+      const anyPositive =
+        Number(it.monday_loads) > 0 ||
+        Number(it.invoices_num) > 0 ||
+        Number(it.inspections_num) > 0;
+
+      let rowClass = "";
+      if (it.approved) {
+        rowClass = "table-success";           // approved -> зелёный
+      } else {
+        rowClass = anyPositive ? "table-danger" : "table-warning"; // pending -> красный/желтый
+      }
+
+      const confirmDisabled = it.approved ? "disabled" : "";
+
+      return `
+        <tr class="${rowClass}" data-id="${it._id}">
+          <td class="text-center" style="width:36px">
+            <input type="checkbox" class="form-check-input stmt-cb" data-id="${it._id}">
+          </td>
+          <td class="status-cell">${approvedBadge}</td>
+          <td>${it.week_range || "—"}</td>
+          <td>${it.driver_name || "—"}</td>
+          <td>${it.hiring_company_name || "—"}</td>
+          <td>${it.truck_number || "—"}</td>
+          <td class="text-end">${it.monday_loads}</td>
+          <td class="text-end">${it.invoices_num}</td>
+          <td class="text-end">${it.inspections_num}</td>
+          <td class="text-end fw-semibold">${fmtMoney(it.salary)}</td>
+          <td class="text-nowrap" style="width:180px">
+            <button type="button" class="btn btn-sm btn-primary btn-stmt-confirm" data-id="${it._id}" ${confirmDisabled}>Confirm</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary ms-1 btn-stmt-review" data-id="${it._id}">Review</button>
+          </td>
+        </tr>
+      `;
+    };
+
+    // Рендер по массиву + сводка
+    const renderRows = (arr) => {
+      tbody.innerHTML = arr.map(buildRow).join("");
+      sumCountEl.textContent = arr.length;
+      const totalSalary = arr.reduce((s, it) => s + (Number(it.salary) || 0), 0);
+      sumTotalEl.textContent = fmtMoney(totalSalary);
+      if (master) master.checked = false; // сбрасываем мастер при перерисовке
+    };
+
+    // Фильтрация
+    const driverInput   = container.querySelector("#stmtFilterDriver");
+    const companySelect = container.querySelector("#stmtFilterCompany");
+    const activeOnlyCb  = container.querySelector("#stmtFilterActiveOnly");
+    const resetBtn      = container.querySelector("#stmtFiltersReset");
+
+    const applyFilters = () => {
+      const q = (driverInput.value || "").trim().toLowerCase();
+      const company = companySelect.value || "";
+      const activeOnly = activeOnlyCb.checked;
+
+      const filtered = items.filter(it => {
+        if (q && !(it.driver_name || "").toLowerCase().includes(q)) return false;
+        if (company && (it.hiring_company_name || "") !== company) return false;
+        if (activeOnly) {
+          const anyPos =
+            Number(it.monday_loads) > 0 ||
+            Number(it.invoices_num) > 0 ||
+            Number(it.inspections_num) > 0;
+          if (!anyPos) return false;
+        }
+        return true;
+      });
+
+      renderRows(filtered);
+    };
+
+    // Первичный рендер
+    renderRows(items);
+
+    // Слушатели
+    driverInput.addEventListener("input", debounce(applyFilters, 200));
+    companySelect.addEventListener("change", applyFilters);
+    activeOnlyCb.addEventListener("change", applyFilters);
+    resetBtn.addEventListener("click", () => {
+      driverInput.value = "";
+      companySelect.value = "";
+      activeOnlyCb.checked = false;
+      applyFilters();
+      driverInput.focus();
+    });
+
+    // Мастер-чекбокс (работает по видимым строкам)
+    if (master) {
+      master.addEventListener("change", () => {
+        tbody.querySelectorAll(".stmt-cb").forEach(cb => {
+          cb.checked = master.checked;
+        });
+      });
+    }
+
+    // Делегирование событий: Confirm / Review
+    const table = container.querySelector("#statementsTable");
+    table.addEventListener("click", async (e) => {
+      const confirmBtn = e.target.closest(".btn-stmt-confirm");
+      const reviewBtn  = e.target.closest(".btn-stmt-review");
+      if (!confirmBtn && !reviewBtn) return;
+
+      const row = e.target.closest("tr[data-id]");
+      const id = row?.getAttribute("data-id");
+      if (!id) return;
+
+      // Ищем актуальный элемент по id в исходном массиве
+      const item = items.find(x => x._id === id);
+      if (!item) return;
+
+      if (reviewBtn) {
+        if (typeof Swal !== "undefined") {
+          await Swal.fire({
+            title: "Statement Review",
+            html: `
+              <div style="text-align:left">
+                <div><b>Driver:</b> ${item.driver_name || "—"}</div>
+                <div><b>Company:</b> ${item.hiring_company_name || "—"}</div>
+                <div><b>Week:</b> ${item.week_range || "—"}</div>
+                <div><b>Truck:</b> ${item.truck_number || "—"}</div>
+                <hr>
+                <div><b>Monday Loads:</b> ${item.monday_loads ?? 0}</div>
+                <div><b>Invoices:</b> ${item.invoices_num ?? 0}</div>
+                <div><b>Inspections:</b> ${item.inspections_num ?? 0}</div>
+                <div><b>Salary:</b> ${fmtMoney(item.salary)}</div>
+                <hr>
+                <div><b>Status:</b> ${item.approved ? "Approved" : "Pending"}</div>
+              </div>
+            `,
+            confirmButtonText: "OK"
+          });
+        } else {
+          alert(
+            `Driver: ${item.driver_name || "—"}\n` +
+            `Company: ${item.hiring_company_name || "—"}\n` +
+            `Week: ${item.week_range || "—"}\n` +
+            `Truck: ${item.truck_number || "—"}\n` +
+            `Monday Loads: ${item.monday_loads ?? 0}\n` +
+            `Invoices: ${item.invoices_num ?? 0}\n` +
+            `Inspections: ${item.inspections_num ?? 0}\n` +
+            `Salary: ${fmtMoney(item.salary)}\n` +
+            `Status: ${item.approved ? "Approved" : "Pending"}`
+          );
+        }
+        return;
+      }
+
+      if (confirmBtn) {
+        try {
+          confirmBtn.disabled = true;
+          confirmBtn.innerText = "Confirming...";
+
+          const r = await fetch("/api/statements/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id })
+          });
+          const resp = await r.json();
+
+          if (!resp.success) {
+            throw new Error(resp.error || "Confirm failed");
+          }
+
+          // Обновляем объект и UI
+          item.approved = true;
+
+          const badge = row.querySelector(".status-cell .badge");
+          if (badge) {
+            badge.classList.remove("bg-secondary");
+            badge.classList.add("bg-success");
+            badge.textContent = "Approved";
+          }
+          row.classList.remove("table-warning", "table-danger");
+          row.classList.add("table-success");
+          confirmBtn.innerText = "Confirmed";
+        } catch (err) {
+          console.error("Confirm error:", err);
+          if (typeof Swal !== "undefined") {
+            Swal.fire("Ошибка", err.message || "Не удалось подтвердить стейтмент.", "error");
+          } else {
+            alert("Не удалось подтвердить стейтмент.");
+          }
+          confirmBtn.disabled = false;
+          confirmBtn.innerText = "Confirm";
+        }
+      }
+    });
 
   } catch (err) {
     console.error("❌ Ошибка при загрузке стейтментов:", err);
