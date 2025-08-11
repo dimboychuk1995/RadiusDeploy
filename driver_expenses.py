@@ -15,7 +15,10 @@ expenses_collection = db["driver_expenses"]
 @jwt_required
 def upload_driver_expense():
     try:
-        driver_id = g.user_id
+        # ✅ Берём driver_id из g, который кладётся в JWT при логине
+        driver_id = getattr(g, "driver_id", None)
+        if not driver_id:
+            return jsonify({"error": "Driver ID not found in token"}), 400
 
         file = request.files.get("photo")
         if not file:
@@ -47,37 +50,53 @@ def upload_driver_expense():
         return jsonify({"error": str(e)}), 500
 
 
-
 @driver_expense_bp.route("/api/driver/expenses", methods=["GET"])
 @jwt_required
 def get_driver_expenses():
     try:
-        driver_id = g.user_id
+        # ✅ driver_id берём из токена
+        driver_id = getattr(g, "driver_id", None)
+        if not driver_id:
+            return jsonify({"error": "Driver ID not found in token"}), 400
+
+        try:
+            driver_oid = ObjectId(driver_id)
+        except Exception:
+            return jsonify({"error": "Invalid driver_id in token"}), 400
+
         limit = 10
+        query = {"driver_id": driver_oid}
 
-        after = request.args.get("after")  # ISO формат
-        query = { "driver_id": ObjectId(driver_id) }
-
+        # Пагинация по created_at (строго меньше переданного after)
+        after = request.args.get("after")  # ISO-строка; может быть с тайзоной
         if after:
-            from datetime import datetime
+            from datetime import datetime, timezone
             try:
                 after_dt = datetime.fromisoformat(after)
-                query["created_at"] = { "$lt": after_dt }
-            except Exception as e:
-                return jsonify({"error": "Invalid date format"}), 400
+                # Приведём к UTC-наивному, чтобы совпадало с created_at=datetime.utcnow()
+                if after_dt.tzinfo is not None:
+                    after_dt = after_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                query["created_at"] = {"$lt": after_dt}
+            except Exception:
+                return jsonify({"error": "Invalid date format for 'after' (use ISO 8601)"}), 400
 
-        cursor = expenses_collection.find(query).sort("created_at", -1).limit(limit)
+        cursor = (
+            expenses_collection
+            .find(query)
+            .sort("created_at", -1)
+            .limit(limit)
+        )
 
         results = []
         for doc in cursor:
             results.append({
                 "_id": str(doc["_id"]),
-                "amount": doc["amount"],
-                "category": doc["category"],
+                "amount": doc.get("amount", 0),
+                "category": doc.get("category", "other"),
                 "note": doc.get("note", ""),
-                "date": doc["date"].strftime("%Y-%m-%d"),
+                "date": (doc.get("date") or doc.get("created_at")).strftime("%Y-%m-%d"),
                 "created_at": doc["created_at"].isoformat(),
-                "photo_url": f"/api/driver/expenses/photo/{doc['photo_id']}"
+                "photo_url": f"/api/driver/expenses/photo/{str(doc['photo_id'])}"
             })
 
         return jsonify(results)
