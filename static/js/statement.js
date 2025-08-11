@@ -2,16 +2,77 @@ function initStatementEvents() {
   generateWeekRanges("statementWeekRangeSelect");
 }
 
+// ====== CREATE-МОДАЛКА (формирование нового стейтмента) ======
 function openDriverStatementModal() {
-  document.getElementById("driverStatementModal").classList.add("show");
-  document.getElementById("driverStatementBackdrop").classList.add("show");
+  const modal = document.getElementById("driverStatementModal");
+  const backdrop = document.getElementById("driverStatementBackdrop");
+  const title = modal.querySelector(".modal-title");
+  const driverLabel = modal.querySelector('label[for="driverSelect"]');
+  const driverSel = modal.querySelector("#driverSelect");
+  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
+  const weekSel = modal.querySelector("#driverWeekRangeSelect");
+  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
+  const results = modal.querySelector("#driverStatementResults");
+  const reviewWrap = modal.querySelector("#reviewConfirmWrap");
 
-  generateWeekRanges("driverWeekRangeSelect");
+  // показать модалку
+  modal.classList.add("show");
+  if (backdrop) backdrop.classList.add("show");
+
+  // режим: create
+  modal.dataset.mode = "create";
+  delete modal.dataset.statementId;
+
+  // базовый UI
+  if (title) title.textContent = "Добавление стейтмента водителя";
+  [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
+  if (calcBtn) calcBtn.style.display = "";
+  if (saveBtn) saveBtn.style.display = "";
+
+  // убрать ревью-кнопки, если вдруг остались
+  if (reviewWrap) reviewWrap.remove();
+
+  // очистить контент
+  if (results) results.innerHTML = "";
+
+  // обновить список недель
+  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
 }
 
+// ====== ЗАКРЫТИЕ МОДАЛКИ (полный ресет) ======
 function closeDriverStatementModal() {
-  document.getElementById("driverStatementModal").classList.remove("show");
-  document.getElementById("driverStatementBackdrop").classList.remove("show");
+  const modal = document.getElementById("driverStatementModal");
+  const backdrop = document.getElementById("driverStatementBackdrop");
+  if (!modal) return;
+
+  modal.classList.remove("show");
+  if (backdrop) backdrop.classList.remove("show");
+
+  const title = modal.querySelector(".modal-title");
+  const driverLabel = modal.querySelector('label[for="driverSelect"]');
+  const driverSel = modal.querySelector("#driverSelect");
+  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
+  const weekSel = modal.querySelector("#driverWeekRangeSelect");
+  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
+  const reviewWrap = modal.querySelector("#reviewConfirmWrap");
+  const results = modal.querySelector("#driverStatementResults");
+
+  // вернуть базовый вид
+  if (title) title.textContent = "Добавление стейтмента водителя";
+  [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
+  if (calcBtn) calcBtn.style.display = "";
+  if (saveBtn) saveBtn.style.display = "";
+
+  // удалить ревью-кнопки
+  if (reviewWrap) reviewWrap.remove();
+
+  // очистить результаты
+  if (results) results.innerHTML = "";
+
+  delete modal.dataset.mode;
+  delete modal.dataset.statementId;
 }
 
 async function calculateDriverStatement() {
@@ -1154,9 +1215,9 @@ async function loadDriverStatements() {
 
 // === helper: убедиться, что нужный weekRange есть в select ===
 function ensureWeekRangeOption(selectEl, weekRange) {
-  if (!selectEl) return;
+  if (!selectEl || !weekRange) return;
   const exists = Array.from(selectEl.options).some(o => o.value === weekRange);
-  if (!exists && weekRange) {
+  if (!exists) {
     const opt = document.createElement("option");
     opt.value = weekRange;
     opt.textContent = weekRange;
@@ -1165,18 +1226,12 @@ function ensureWeekRangeOption(selectEl, weekRange) {
 }
 
 // === Открыть модалку в режиме REVIEW для уже созданного стейтмента ===
+// ====== REVIEW-МОДАЛКА (для существующего стейтмента) ======
 async function openStatementReviewModal(item) {
-  // открыть модалку и фон
+  // сначала открываем как create, чтобы гарантированно сбросить всё лишнее
+  openDriverStatementModal();
+
   const modal = document.getElementById("driverStatementModal");
-  const backdrop = document.getElementById("driverStatementBackdrop");
-  modal.classList.add("show");
-  backdrop.classList.add("show");
-
-  // пометим режим
-  modal.dataset.mode = "review";
-  modal.dataset.statementId = item._id || "";
-
-  // элементы модалки
   const title = modal.querySelector(".modal-title");
   const driverLabel = modal.querySelector('label[for="driverSelect"]');
   const driverSel = modal.querySelector("#driverSelect");
@@ -1186,42 +1241,39 @@ async function openStatementReviewModal(item) {
   const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
   const results = modal.querySelector("#driverStatementResults");
 
-  // заголовок
+  // переключаемся в режим review
+  modal.dataset.mode = "review";
+  modal.dataset.statementId = item._id || "";
   if (title) title.textContent = "Просмотр стейтмента";
 
-  // спрячем выборы и кнопку расчёта/сохранения
+  // скрыть выборы и кнопки расчёта/сохранения
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
-  // добавим кнопку Confirm (если нет)
+  // создать блок Confirm/Закрыть
   let confirmWrap = modal.querySelector("#reviewConfirmWrap");
-  if (!confirmWrap) {
-    confirmWrap = document.createElement("div");
-    confirmWrap.id = "reviewConfirmWrap";
-    confirmWrap.className = "mt-3 d-flex gap-2";
-    confirmWrap.innerHTML = `
-      <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
-      <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
-    `;
-    // вставим под результатами
-    results.parentElement.insertBefore(confirmWrap, results.nextSibling);
-  } else {
-    confirmWrap.style.display = "";
-  }
+  if (confirmWrap) confirmWrap.remove();
+  confirmWrap = document.createElement("div");
+  confirmWrap.id = "reviewConfirmWrap";
+  confirmWrap.className = "mt-3 d-flex gap-2";
+  confirmWrap.innerHTML = `
+    <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
+    <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
+  `;
+  results.parentElement.insertBefore(confirmWrap, results.nextSibling);
 
-  // заполним селекты нужными значениями "как будто выбраны"
-  // (weekRange добавим, если его нет в списке)
-  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) { /* если уже есть — ок */ }
+  // выставить значения как «выбранные»
+  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
   ensureWeekRangeOption(weekSel, item.week_range);
   if (driverSel) driverSel.value = item.driver_id || "";
   if (weekSel) weekSel.value = item.week_range || "";
 
-  // посчитаем сразу
-  results.innerHTML = "<p>Загрузка...</p>";
+  // сразу рассчитать
+  if (results) results.innerHTML = "<p>Загрузка...</p>";
   await calculateDriverStatement();
 
-  // обработчики кнопок
+  // обработчики
   const confirmBtn = modal.querySelector("#reviewConfirmBtn");
   const closeBtn = modal.querySelector("#reviewCloseBtn");
 
@@ -1229,7 +1281,6 @@ async function openStatementReviewModal(item) {
     try {
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Confirming...";
-
       const r = await fetch("/api/statements/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1237,19 +1288,11 @@ async function openStatementReviewModal(item) {
       });
       const resp = await r.json();
       if (!resp.success) throw new Error(resp.error || "Confirm failed");
-
-      // успех — закрыть и обновить список
       closeDriverStatementModal();
-      if (typeof loadDriverStatements === "function") {
-        await loadDriverStatements();
-      }
+      if (typeof loadDriverStatements === "function") await loadDriverStatements();
     } catch (err) {
       console.error("Confirm error:", err);
-      if (typeof Swal !== "undefined") {
-        Swal.fire("Ошибка", err.message || "Не удалось подтвердить стейтмент.", "error");
-      } else {
-        alert("Не удалось подтвердить стейтмент.");
-      }
+      if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
       confirmBtn.disabled = false;
       confirmBtn.textContent = "Confirm";
     }
