@@ -194,7 +194,7 @@
 
 <div class="custom-offcanvas-backdrop" onclick="closeTruckModal()"></div>
 
-<!-- Модалка назначения -->
+<!-- Модалка назначения + привязка к Samsara -->
 <div class="custom-offcanvas custom-offcanvas-right" id="unitAssignment">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
@@ -205,6 +205,8 @@
     <div class="custom-offcanvas-body">
       <div class="load-modal-content">
         <div class="load-modal-left">
+
+          <!-- === ФОРМА НАЗНАЧЕНИЙ (как было) === -->
           <form id="assignmentForm">
             <input type="hidden" name="truck_id" id="assignmentTruckId">
 
@@ -238,6 +240,64 @@
               <button type="submit" class="btn btn-success">Сохранить</button>
             </div>
           </form>
+
+          <hr class="my-4">
+
+          <!-- === БЛОК ПРИВЯЗКИ К SAMSARA === -->
+          <div id="samsaraLinkSection">
+            <div class="d-flex align-items-center mb-2">
+              <h5 class="mb-0">Samsara</h5>
+              <span id="samsaraLinkedBadge" class="badge ml-2" style="display:none;"></span>
+            </div>
+
+            <!-- Текущая привязка -->
+            <div class="mb-3" id="samsaraCurrentLink" style="display:none;">
+              <div class="small text-muted">Текущая привязка:</div>
+              <div class="d-flex align-items-center">
+                <code id="samsaraCurrentLinkText"></code>
+                <button id="btnSamsaraUnlink" class="btn btn-sm btn-outline-danger ml-2">Unlink</button>
+              </div>
+            </div>
+
+            <!-- Поиск -->
+            <div class="form-group">
+              <label>Поиск по Samsara (VIN, Plate, Name, Serial, Tags):</label>
+              <div class="input-group">
+                <input type="text" id="samsaraSearch" class="form-control" placeholder="Например: 1FT8W..., TK282..., PU2205, GYD858...">
+                <div class="input-group-append">
+                  <button class="btn btn-outline-primary" id="btnSamsaraSearch">Поиск</button>
+                </div>
+              </div>
+              <small class="form-text text-muted">Если бэкенд не поддерживает серверный поиск — отфильтруем на клиенте.</small>
+            </div>
+
+            <!-- Список результатов -->
+            <div class="table-responsive border rounded">
+              <table class="table table-sm mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="width: 28%;">Name</th>
+                    <th style="width: 22%;">VIN</th>
+                    <th style="width: 15%;">Plate</th>
+                    <th style="width: 20%;">Serial</th>
+                    <th style="width: 15%; text-align:right;">Действие</th>
+                  </tr>
+                </thead>
+                <tbody id="samsaraList"></tbody>
+              </table>
+            </div>
+
+            <!-- Пагинация -->
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="small text-muted" id="samsaraCountInfo"></div>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-outline-secondary" id="btnSamsaraPrev" disabled>Назад</button>
+                <button class="btn btn-sm btn-outline-secondary" id="btnSamsaraNext" disabled>Вперёд</button>
+              </div>
+            </div>
+          </div>
+          <!-- === /БЛОК SAMSARA === -->
+
         </div>
       </div>
     </div>
