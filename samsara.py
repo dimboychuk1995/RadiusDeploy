@@ -192,3 +192,219 @@ def unlink_vehicle():
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@samsara_bp.route("/api/samsara/linked_vehicles", methods=["GET"])
+@login_required
+def api_samsara_linked_vehicles():
+    """
+    Возвращает ТОЛЬКО «наши» машины — те, чьи samsara_vehicle_id записаны в trucks.
+    Плюс добавляет текущие координаты/скорость/курс из Samsara (gps).
+    Ответ:
+      { "vehicles": [
+          {
+            "id": "<samsara_vehicle_id>",
+            "unit_id": "<mongo _id>",
+            "unit_number": "...",
+            "name": "<samsara name>",
+            "licensePlate": "...",
+            "vin": "...",
+            "coords": {"lon": -97.1, "lat": 32.8} | null,
+            "heading": 123.0 | null,
+            "speedMph": 55.4 | null,
+            "updatedAt": "2025-08-10T12:34:56Z" | null
+          }, ...
+        ] }
+    """
+    try:
+        # 1) Берём все связанные юниты текущей компании
+        linked = list(
+            trucks_collection.find(
+                {
+                    "company": current_user.company,
+                    "samsara_vehicle_id": {"$exists": True, "$ne": ""},
+                },
+                {"_id": 1, "unit_number": 1, "samsara_vehicle_id": 1},
+            )
+        )
+        if not linked:
+            return jsonify({"vehicles": []})
+
+        samsara_ids = [str(t["samsara_vehicle_id"]) for t in linked]
+        headers = get_samsara_headers()
+
+        # 2) Подтягиваем карточки машин (имя, VIN, номер)
+        #    (здесь простой вариант — тянем до 512 и фильтруем; при большом парке добавим пагинацию)
+        r1 = requests.get(f"{BASE_URL}/fleet/vehicles?limit=512", headers=headers, timeout=20)
+        vehicles_raw = r1.json().get("data", []) if r1.ok else []
+        veh_by_id = {str(v.get("id")): v for v in vehicles_raw if str(v.get("id")) in samsara_ids}
+
+        # 3) Подтягиваем GPS по этим машинам (одним запросом, если API принимает CSV-список)
+        gps_by_id = {}
+        try:
+            r2 = requests.get(
+                f"{BASE_URL}/fleet/vehicles/stats",
+                headers=headers,
+                params={"types": "gps", "vehicleIds": ",".join(samsara_ids)},
+                timeout=20,
+            )
+            if r2.ok:
+                data = r2.json().get("data", []) or []
+                # ожидаем объекты вида {"id": ..., "gps": {...}}
+                for item in data:
+                    sid = str(item.get("id"))
+                    gps = item.get("gps") or {}
+                    gps_by_id[sid] = gps
+        except Exception:
+            # не критично — просто вернём без координат
+            pass
+
+        # 4) Склеиваем и отдаём
+        result = []
+        for t in linked:
+            sid = str(t["samsara_vehicle_id"])
+            v = veh_by_id.get(sid, {})
+            gps = gps_by_id.get(sid) or {}
+
+            lat = gps.get("latitude")
+            lon = gps.get("longitude")
+            coords = {"lat": lat, "lon": lon} if (lat is not None and lon is not None) else None
+
+            result.append(
+                {
+                    "id": sid,
+                    "unit_id": str(t["_id"]),
+                    "unit_number": t.get("unit_number"),
+                    "name": v.get("name"),
+                    "licensePlate": v.get("licensePlate"),
+                    "vin": v.get("vin"),
+                    "coords": coords,
+                    "heading": gps.get("bearing"),
+                    "speedMph": gps.get("speedMilesPerHour") or gps.get("speedMph"),
+                    "updatedAt": gps.get("time"),
+                }
+            )
+
+        return jsonify({"vehicles": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@samsara_bp.route("/api/samsara/units_by_company", methods=["GET"])
+@login_required
+def api_units_by_company():
+    """
+    Возвращает юниты текущего тенанта (company=current_user.company),
+    сгруппированные по owning_company (ObjectId -> companies.name).
+
+    Ответ:
+    {
+      "success": true,
+      "companies": [
+        {
+          "company_id": "68532df6b61c37b5ed5d3dc7",
+          "company_name": "UWC",
+          "units": [
+            {
+              "_id": "68805f9afcb8f05986f744af",
+              "unit_number": "6784",
+              "vin": "534535",
+              "samsara_vehicle_id": "281474989434330",
+              "is_linked": true,
+              "driver_name": "Имя водителя" | null
+            },
+            ...
+          ]
+        },
+        {
+          "company_id": null,
+          "company_name": "Без компании",
+          "units": [ ... ]
+        }
+      ]
+    }
+    """
+    try:
+        trucks_col = db["trucks"]
+        drivers_col = db["drivers"]
+        companies_col = db["companies"]
+
+        # 1) Берём все юниты текущего тенанта
+        units = list(trucks_col.find(
+            {"company": current_user.company},
+            {
+                "_id": 1, "unit_number": 1, "vin": 1,
+                "samsara_vehicle_id": 1, "assigned_driver_id": 1,
+                "owning_company": 1
+            }
+        ))
+
+        if not units:
+            return jsonify({"success": True, "companies": []})
+
+        # 2) Подтягиваем имена водителей
+        def _to_oid(x):
+            if isinstance(x, ObjectId):
+                return x
+            try:
+                return ObjectId(x)
+            except Exception:
+                return None
+
+        driver_oids = { _to_oid(u.get("assigned_driver_id")) for u in units if u.get("assigned_driver_id") }
+        driver_oids.discard(None)
+
+        drivers_map = {}
+        if driver_oids:
+            for d in drivers_col.find({"_id": {"$in": list(driver_oids)}}, {"_id": 1, "name": 1}):
+                drivers_map[d["_id"]] = d.get("name")
+
+        # 3) Подтягиваем названия компаний по owning_company
+        comp_oids = { oc for oc in (u.get("owning_company") for u in units) if isinstance(oc, ObjectId) }
+        companies_map = {}
+        if comp_oids:
+            for c in companies_col.find({"_id": {"$in": list(comp_oids)}}, {"_id": 1, "name": 1, "owner_company": 1}):
+                # предпочитаем 'name', если пусто — 'owner_company'
+                companies_map[str(c["_id"])] = c.get("name") or c.get("owner_company") or "Без названия"
+
+        # 4) Группировка по owning_company
+        grouped = {}  # key: str(company_id) | "none" -> {company_id, company_name, units: []}
+
+        for u in units:
+            oc = u.get("owning_company") if isinstance(u.get("owning_company"), ObjectId) else None
+            key = str(oc) if oc else "none"
+            company_name = companies_map.get(str(oc)) if oc else "Без компании"
+
+            if key not in grouped:
+                grouped[key] = {
+                    "company_id": str(oc) if oc else None,
+                    "company_name": company_name,
+                    "units": []
+                }
+
+            driver_name = None
+            ad = u.get("assigned_driver_id")
+            ad_oid = _to_oid(ad) if ad else None
+            if ad_oid and ad_oid in drivers_map:
+                driver_name = drivers_map[ad_oid]
+
+            grouped[key]["units"].append({
+                "_id": str(u["_id"]),
+                "unit_number": u.get("unit_number", ""),
+                "vin": u.get("vin", ""),
+                "samsara_vehicle_id": u.get("samsara_vehicle_id") or None,
+                "is_linked": bool(u.get("samsara_vehicle_id")),
+                "driver_name": driver_name
+            })
+
+        # 5) Сортировка: компании по имени, юниты внутри — по unit_number (строковая)
+        groups = list(grouped.values())
+        for g in groups:
+            g["units"].sort(key=lambda x: (x["unit_number"] or "").lower())
+        groups.sort(key=lambda g: (g["company_name"] or "").lower())
+
+        return jsonify({"success": True, "companies": groups})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
