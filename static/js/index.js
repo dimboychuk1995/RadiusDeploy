@@ -33,7 +33,6 @@ function initNavigation() {
     'fuel_cards_summary': () => initFuelCardsSummary?.(),
     'fuel_cards_transactions': () => initFuelCardTransactions?.(),
     'samsara': () => initSamsara?.(),
-    'samsara_mileage': () => initSamsaraMileage?.(),
     'loads_fragment': () => {
       initLoadParser?.();
       initLoads?.();
