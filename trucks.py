@@ -428,88 +428,84 @@ Document:
 @login_required
 def assign_truck():
     """
-    Назначает трак водителю с устранением дубликатов:
-      - у всех других водителей, где стоит этот трак, снимает поле drivers.truck
-      - у всех других траков, где assigned_driver_id == этому водителю, снимает trucks.assigned_driver_id
-      - у текущего трака устанавливает/снимает assigned_driver_id
-      - опционально обновляет owning_company и assignment_note
-    В итоге: один трак ↔ один водитель (1:1), без повторов.
+    Назначает трак водителю по правилам 1:1, не трогая поля компании:
+      1) trucks: у текущего трака проставляет assigned_driver_id = driver_id,
+         у всех ДРУГИХ траков с таким же assigned_driver_id ставит null.
+      2) drivers: у выбранного водителя проставляет truck = truck_id,
+         у всех ДРУГИХ водителей с таким же truck ставит null.
+    Все ID сохраняем как ObjectId. Поля owning_company / assignment_note НЕ изменяем.
     """
     try:
         drivers_collection = db["drivers"]
         trucks_collection  = db["trucks"]
 
-        driver_id       = request.form.get("driver_id")  # может быть None/"" — тогда снимаем привязку
-        truck_id        = request.form.get("truck_id")
-        owning_company  = request.form.get("owning_company")
-        note            = request.form.get("note")
+        driver_id = request.form.get("driver_id")
+        truck_id  = request.form.get("truck_id")
 
-        if not truck_id:
-            return jsonify({"success": False, "message": "Не передан ID трака"}), 400
+        if not driver_id or not truck_id:
+            return jsonify({"success": False, "message": "Missing driver_id or truck_id"}), 400
 
-        truck_oid  = ObjectId(truck_id)
-        driver_oid = ObjectId(driver_id) if driver_id else None
+        try:
+            driver_oid = ObjectId(driver_id)
+            truck_oid  = ObjectId(truck_id)
+        except Exception:
+            return jsonify({"success": False, "message": "Invalid ObjectId format"}), 400
 
-        # Убедимся, что трак существует в компании пользователя
+        # --- проверяем, что трак существует в компании пользователя
         truck_doc = trucks_collection.find_one(
             {"_id": truck_oid, "company": current_user.company},
-            {"assigned_driver_id": 1}
+            {"_id": 1}
         )
         if not truck_doc:
             return jsonify({"success": False, "message": "Трак не найден"}), 404
 
-        # 1) Снять этот трак со всех других водителей (исключаем текущего, если он указан)
-        drivers_filter = {"truck": truck_oid}
-        if driver_oid:
-            drivers_filter["_id"] = {"$ne": driver_oid}
-        drivers_collection.update_many(drivers_filter, {"$unset": {"truck": ""}})
+        # --- проверяем, что водитель существует (и принадлежит той же компании, если поле есть)
+        driver_query = {"_id": driver_oid}
+        # Если в модели водителей есть company, защитимся от перекрёстных назначений
+        # (оставляем условие мягким — не ломаем, если поля нет).
+        driver_doc = drivers_collection.find_one(
+            {"_id": driver_oid, "company": current_user.company},
+            {"_id": 1}
+        ) or drivers_collection.find_one({"_id": driver_oid}, {"_id": 1})
+        if not driver_doc:
+            return jsonify({"success": False, "message": "Водитель не найден"}), 404
 
-        # 2) Если указан driver_id — снять его с других траков (кроме текущего)
-        if driver_oid:
-            trucks_collection.update_many(
-                {
-                    "assigned_driver_id": driver_oid,
-                    "_id": {"$ne": truck_oid},
-                    "company": current_user.company
-                },
-                {"$unset": {"assigned_driver_id": ""}}
-            )
-
-            # Назначить трак этому водителю
-            drivers_collection.update_one(
-                {"_id": driver_oid},
-                {"$set": {"truck": truck_oid}}
-            )
-        else:
-            # Если driver_id не передан — это разназначение:
-            # снять всех водителей с этого трака уже сделали (п.1);
-            # ниже снимем assigned_driver_id у самого трака.
-            pass
-
-        # 3) Обновить сам трак:
-        set_fields   = {}
-        unset_fields = {}
-
-        if driver_oid:
-            set_fields["assigned_driver_id"] = driver_oid
-        else:
-            unset_fields["assigned_driver_id"] = ""
-
-        # owning_company: сохраняем как ObjectId или None (как в исходном коде)
-        set_fields["owning_company"] = ObjectId(owning_company) if owning_company else None
-
-        if note:
-            set_fields["assignment_note"] = note
-
-        update_op = {}
-        if set_fields:
-            update_op["$set"] = set_fields
-        if unset_fields:
-            update_op["$unset"] = unset_fields
-
+        # ============== ШАГ 1. TRUCKS =================
+        # 1a) У текущего трака: assigned_driver_id = driver_oid
         trucks_collection.update_one(
             {"_id": truck_oid, "company": current_user.company},
-            update_op
+            {"$set": {"assigned_driver_id": driver_oid}}
+        )
+
+        # 1b) У всех других траков в этой же компании с таким же assigned_driver_id — обнуляем
+        trucks_collection.update_many(
+            {
+                "_id": {"$ne": truck_oid},
+                "company": current_user.company,
+                "assigned_driver_id": driver_oid
+            },
+            {"$set": {"assigned_driver_id": None}}
+        )
+
+        # ============== ШАГ 2. DRIVERS =================
+        # 2a) У выбранного водителя: truck = truck_oid
+        drivers_collection.update_one(
+            {"_id": driver_oid},
+            {"$set": {"truck": truck_oid}}
+        )
+
+        # 2b) У всех других водителей (в этой же компании, если поле есть) с таким же truck — обнуляем
+        other_drivers_filter = {
+            "_id": {"$ne": driver_oid},
+            "truck": truck_oid
+        }
+        # Если есть поле company — ограничим по компании:
+        if drivers_collection.find_one({"company": {"$exists": True}}):
+            other_drivers_filter["company"] = current_user.company
+
+        drivers_collection.update_many(
+            other_drivers_filter,
+            {"$set": {"truck": None}}
         )
 
         return jsonify({"success": True})
