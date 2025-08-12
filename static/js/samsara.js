@@ -57,6 +57,17 @@ async function loadUnitsSidebar() {
       return;
     }
     const data = await res.json();
+
+    console.log("units_by_company raw:", data);
+
+    const flat = [];
+    (Array.isArray(data.companies) ? data.companies : []).forEach(c => {
+    (c.units || []).forEach(u => flat.push({
+        company: c.company_name, unit: u.unit_number, driver: u.driver_name, samsara: u.samsara_vehicle_id
+    }));
+    });
+    console.table(flat);
+
     const companies = Array.isArray(data.companies) ? data.companies : [];
     renderUnitsSidebar(companies);
   } catch (e) {
@@ -86,8 +97,10 @@ function renderUnitsSidebar(companies) {
       row.style.padding = "4px 6px";
       row.style.cursor = "pointer";
 
-      const title = `${u.unit_number || "Unit"}${u.vin ? ` (VIN: ${u.vin})` : ""}`;
-      row.textContent = title;
+      // Текст строки: Unit + (VIN) + — Driver Name (если есть)
+      const unitLabel = `${u.unit_number || "Unit"}${u.vin ? ` (VIN: ${u.vin})` : ""}`;
+      const driverLabel = u.driver_name ? ` — ${u.driver_name}` : "";
+      row.textContent = `${unitLabel}${driverLabel}`;
 
       // Подсветка несвязанных
       if (!u.is_linked) {
@@ -112,9 +125,6 @@ function renderUnitsSidebar(companies) {
           const lngLat = rec.marker.getLngLat();
           __map.flyTo({ center: lngLat, zoom: Math.max(__map.getZoom(), 10), duration: 500 });
           try { rec.marker.togglePopup(); } catch (_) {}
-        } else {
-          // Связан, но координат нет (или ещё не подгружены)
-          // Можно показать уведомление, но не спамим консоль
         }
       });
 
@@ -158,7 +168,6 @@ async function loadSamsaraPositions(map) {
         .addTo(map);
 
       __markersBySamsaraId[samsaraId] = { marker, popup };
-
       bounds.extend([lon, lat]);
       plotted++;
     });

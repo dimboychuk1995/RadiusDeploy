@@ -427,47 +427,93 @@ Document:
 @trucks_bp.route("/api/driver/assign", methods=["POST"])
 @login_required
 def assign_truck():
+    """
+    Назначает трак водителю с устранением дубликатов:
+      - у всех других водителей, где стоит этот трак, снимает поле drivers.truck
+      - у всех других траков, где assigned_driver_id == этому водителю, снимает trucks.assigned_driver_id
+      - у текущего трака устанавливает/снимает assigned_driver_id
+      - опционально обновляет owning_company и assignment_note
+    В итоге: один трак ↔ один водитель (1:1), без повторов.
+    """
     try:
-        driver_id = request.form.get("driver_id")
-        truck_id = request.form.get("truck_id")
-        owning_company = request.form.get("owning_company")
-        note = request.form.get("note")
+        drivers_collection = db["drivers"]
+        trucks_collection  = db["trucks"]
+
+        driver_id       = request.form.get("driver_id")  # может быть None/"" — тогда снимаем привязку
+        truck_id        = request.form.get("truck_id")
+        owning_company  = request.form.get("owning_company")
+        note            = request.form.get("note")
 
         if not truck_id:
-            return jsonify({"success": False, "message": "Не передан ID трака"})
+            return jsonify({"success": False, "message": "Не передан ID трака"}), 400
 
-        # Очистить у всех водителей поле truck, где стоит этот трак
-        drivers_collection = db['drivers']
-        drivers_collection.update_many(
-            {"truck": ObjectId(truck_id)},
-            {"$unset": {"truck": ""}}
+        truck_oid  = ObjectId(truck_id)
+        driver_oid = ObjectId(driver_id) if driver_id else None
+
+        # Убедимся, что трак существует в компании пользователя
+        truck_doc = trucks_collection.find_one(
+            {"_id": truck_oid, "company": current_user.company},
+            {"assigned_driver_id": 1}
         )
+        if not truck_doc:
+            return jsonify({"success": False, "message": "Трак не найден"}), 404
 
-        # Назначить новому водителю, если указан
-        if driver_id:
-            drivers_collection.update_one(
-                {"_id": ObjectId(driver_id)},
-                {"$set": {"truck": ObjectId(truck_id)}}
+        # 1) Снять этот трак со всех других водителей (исключаем текущего, если он указан)
+        drivers_filter = {"truck": truck_oid}
+        if driver_oid:
+            drivers_filter["_id"] = {"$ne": driver_oid}
+        drivers_collection.update_many(drivers_filter, {"$unset": {"truck": ""}})
+
+        # 2) Если указан driver_id — снять его с других траков (кроме текущего)
+        if driver_oid:
+            trucks_collection.update_many(
+                {
+                    "assigned_driver_id": driver_oid,
+                    "_id": {"$ne": truck_oid},
+                    "company": current_user.company
+                },
+                {"$unset": {"assigned_driver_id": ""}}
             )
 
-        # Обновить owning_company в траке, если указано
-        update_fields = {}
-        if owning_company:
-            update_fields["owning_company"] = ObjectId(owning_company)
+            # Назначить трак этому водителю
+            drivers_collection.update_one(
+                {"_id": driver_oid},
+                {"$set": {"truck": truck_oid}}
+            )
         else:
-            update_fields["owning_company"] = None
+            # Если driver_id не передан — это разназначение:
+            # снять всех водителей с этого трака уже сделали (п.1);
+            # ниже снимем assigned_driver_id у самого трака.
+            pass
+
+        # 3) Обновить сам трак:
+        set_fields   = {}
+        unset_fields = {}
+
+        if driver_oid:
+            set_fields["assigned_driver_id"] = driver_oid
+        else:
+            unset_fields["assigned_driver_id"] = ""
+
+        # owning_company: сохраняем как ObjectId или None (как в исходном коде)
+        set_fields["owning_company"] = ObjectId(owning_company) if owning_company else None
 
         if note:
-            update_fields["assignment_note"] = note
+            set_fields["assignment_note"] = note
 
-        if update_fields:
-            trucks_collection.update_one(
-                {"_id": ObjectId(truck_id), "company": current_user.company},
-                {"$set": update_fields}
-            )
+        update_op = {}
+        if set_fields:
+            update_op["$set"] = set_fields
+        if unset_fields:
+            update_op["$unset"] = unset_fields
+
+        trucks_collection.update_one(
+            {"_id": truck_oid, "company": current_user.company},
+            update_op
+        )
 
         return jsonify({"success": True})
 
     except Exception as e:
         logging.error(f"Ошибка при назначении трака: {e}")
-        return jsonify({"success": False, "message": "Ошибка сервера"})
+        return jsonify({"success": False, "message": "Ошибка сервера"}), 500

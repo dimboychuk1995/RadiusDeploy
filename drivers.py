@@ -658,27 +658,102 @@ def edit_driver_dispatch(driver_id):
 @drivers_bp.route('/api/edit_driver_truck/<driver_id>', methods=['POST'])
 @login_required
 def edit_driver_truck(driver_id):
+    """
+    Единая точка консистентности:
+    - Обновляет у водителя поле truck (назначение/снятие).
+    - Зеркалит в trucks.assigned_driver_id.
+    - Удаляет конфликты:
+        • у любых других водителей, у которых стоит этот же трак -> снимает truck
+        • у любых других траков, где assigned_driver_id == этому водителю -> снимает assigned_driver_id
+    В итоге: 1 трак ↔ 1 водитель, без дубликатов.
+    """
     try:
-        truck_id = request.form.get('truck')
+        drivers_collection = db['drivers']
+        trucks_collection = db['trucks']
 
-        update_fields = {
-            'truck': ObjectId(truck_id) if truck_id else None
-        }
+        driver_oid = ObjectId(driver_id)
+        truck_id_raw = request.form.get('truck')  # может быть None/"" или валидный ObjectId
+        new_truck_oid = ObjectId(truck_id_raw) if truck_id_raw else None
 
-        result = drivers_collection.update_one(
-            {'_id': ObjectId(driver_id)},
-            {'$set': update_fields}
-        )
+        # Текущий водитель и его компания
+        driver_doc = drivers_collection.find_one({'_id': driver_oid}, {'truck': 1, 'company': 1})
+        if not driver_doc:
+            return jsonify({'success': False, 'message': 'Водитель не найден'}), 404
 
-        if result.modified_count == 0:
-            return jsonify({'success': False, 'message': 'Не удалось обновить трак'}), 400
+        company = driver_doc.get('company', getattr(current_user, 'company', None))
+        prev_truck_oid = driver_doc.get('truck')  # ObjectId | None
+
+        # --- 1) Очистить конфликты ---
+
+        # 1a) Если назначаем НОВЫЙ трак:
+        if new_truck_oid:
+            # • у других водителей, где стоит этот же трак — снять truck
+            drivers_collection.update_many(
+                {
+                    'truck': new_truck_oid,
+                    '_id': {'$ne': driver_oid},
+                    **({'company': company} if company else {})
+                },
+                {'$unset': {'truck': ''}}
+            )
+
+            # • у других траков, где assigned_driver_id = этот водитель — снять assigned_driver_id
+            trucks_collection.update_many(
+                {
+                    'assigned_driver_id': driver_oid,
+                    '_id': {'$ne': new_truck_oid},
+                    **({'company': company} if company else {})
+                },
+                {'$unset': {'assigned_driver_id': ''}}
+            )
+        else:
+            # Если снимаем трак с водителя: убрать все траки, которые ссылаются на этого водителя
+            trucks_collection.update_many(
+                {
+                    'assigned_driver_id': driver_oid,
+                    **({'company': company} if company else {})
+                },
+                {'$unset': {'assigned_driver_id': ''}}
+            )
+
+        # Также: если у водителя был СТАРЫЙ трак и он меняется/снимается — снять ссылку на водителя в этом траке
+        if prev_truck_oid and (new_truck_oid is None or prev_truck_oid != new_truck_oid):
+            trucks_collection.update_one(
+                {
+                    '_id': prev_truck_oid,
+                    'assigned_driver_id': driver_oid,
+                    **({'company': company} if company else {})
+                },
+                {'$unset': {'assigned_driver_id': ''}}
+            )
+
+        # --- 2) Обновить водителя ---
+        if new_truck_oid:
+            drivers_collection.update_one(
+                {'_id': driver_oid},
+                {'$set': {'truck': new_truck_oid}}
+            )
+        else:
+            # Снять поле (а не записывать None), чтобы не плодить "None"-ссылки
+            drivers_collection.update_one(
+                {'_id': driver_oid},
+                {'$unset': {'truck': ''}}
+            )
+
+        # --- 3) Обновить трак (новый) ---
+        if new_truck_oid:
+            trucks_collection.update_one(
+                {
+                    '_id': new_truck_oid,
+                    **({'company': company} if company else {})
+                },
+                {'$set': {'assigned_driver_id': driver_oid}}
+            )
 
         return jsonify({'success': True})
     except Exception as e:
         logging.error(f"Ошибка при обновлении трака для водителя {driver_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
+        return jsonify({'success': False, 'error': 'Ошибка сервера'}), 500
 
 @drivers_bp.route('/api/drivers/<driver_id>/update_push_token', methods=['POST'])
 @jwt_required

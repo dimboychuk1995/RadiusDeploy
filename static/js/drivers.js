@@ -67,16 +67,47 @@ function initDriverModalActions() {
         modal.classList.add("open");
     };
 
-    window.deleteDriver = function (driverId) {
-        if (confirm("Удалить водителя?")) {
-            fetch(`/delete_driver/${driverId}`, { method: "POST" }).then(res => {
-                if (res.ok) {
-                    document.getElementById(`driver-${driverId}`)?.remove();
-                } else {
-                    alert("Ошибка при удалении");
-                }
-            });
+    // Предполагается, что SweetAlert2 уже подключён (Swal)
+    window.deleteDriver = async function (driverId) {
+    const { isConfirmed } = await Swal.fire({
+        title: "Удалить водителя?",
+        text: "Это действие нельзя отменить.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Да, удалить",
+        cancelButtonText: "Отмена",
+        confirmButtonColor: "#d33"
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+        const res = await fetch(`/delete_driver/${driverId}`, { method: "POST" });
+        let data = null;
+        try { data = await res.clone().json(); } catch (_) {}
+
+        if (!res.ok || (data && data.success === false)) {
+        const msg = (data && (data.message || data.error)) || `HTTP ${res.status}`;
+        await Swal.fire({ title: "Ошибка при удалении", text: msg, icon: "error" });
+        return;
         }
+
+        document.getElementById(`driver-${driverId}`)?.remove();
+
+        await Swal.fire({
+        title: "Удалено",
+        text: "Водитель успешно удалён.",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false
+        });
+    } catch (err) {
+        await Swal.fire({
+        title: "Сетевая ошибка",
+        text: "Не удалось выполнить запрос. Попробуйте позже.",
+        icon: "error"
+        });
+    }
     };
 
     window.closeDriverModal = () => {

@@ -295,46 +295,20 @@ def api_samsara_linked_vehicles():
 @login_required
 def api_units_by_company():
     """
-    Возвращает юниты текущего тенанта (company=current_user.company),
-    сгруппированные по owning_company (ObjectId -> companies.name).
-
-    Ответ:
-    {
-      "success": true,
-      "companies": [
-        {
-          "company_id": "68532df6b61c37b5ed5d3dc7",
-          "company_name": "UWC",
-          "units": [
-            {
-              "_id": "68805f9afcb8f05986f744af",
-              "unit_number": "6784",
-              "vin": "534535",
-              "samsara_vehicle_id": "281474989434330",
-              "is_linked": true,
-              "driver_name": "Имя водителя" | null
-            },
-            ...
-          ]
-        },
-        {
-          "company_id": null,
-          "company_name": "Без компании",
-          "units": [ ... ]
-        }
-      ]
-    }
+    Возвращает юниты текущего тенанта, сгруппированные по owning_company,
+    с driver_name (если assigned_driver_id есть и найден в drivers).
     """
     try:
         trucks_col = db["trucks"]
         drivers_col = db["drivers"]
         companies_col = db["companies"]
 
-        # 1) Берём все юниты текущего тенанта
+        # 1) Берём все юниты этой компании
         units = list(trucks_col.find(
             {"company": current_user.company},
             {
                 "_id": 1, "unit_number": 1, "vin": 1,
+                "make": 1, "model": 1, "year": 1,
                 "samsara_vehicle_id": 1, "assigned_driver_id": 1,
                 "owning_company": 1
             }
@@ -343,38 +317,54 @@ def api_units_by_company():
         if not units:
             return jsonify({"success": True, "companies": []})
 
-        # 2) Подтягиваем имена водителей
-        def _to_oid(x):
+        # helper: безопасно привести к ObjectId
+        def to_oid(x):
+            from bson import ObjectId
             if isinstance(x, ObjectId):
                 return x
-            try:
-                return ObjectId(x)
-            except Exception:
-                return None
+            if isinstance(x, str) and len(x) == 24:
+                try:
+                    return ObjectId(x)
+                except Exception:
+                    return None
+            return None
 
-        driver_oids = { _to_oid(u.get("assigned_driver_id")) for u in units if u.get("assigned_driver_id") }
+        # 2) Собираем ID водителей (и как ObjectId, и как строки — приводим к OID)
+        driver_oids = {to_oid(u.get("assigned_driver_id")) for u in units if u.get("assigned_driver_id")}
         driver_oids.discard(None)
 
+        # 3) Готовим map: driver_id -> driver_name (поддержка разных схем полей)
         drivers_map = {}
         if driver_oids:
-            for d in drivers_col.find({"_id": {"$in": list(driver_oids)}}, {"_id": 1, "name": 1}):
-                drivers_map[d["_id"]] = d.get("name")
+            for d in drivers_col.find(
+                {"_id": {"$in": list(driver_oids)}},
+                {"_id": 1, "name": 1, "first_name": 1, "last_name": 1}
+            ):
+                name = d.get("name")
+                if not name:
+                    fn = d.get("first_name", "") or ""
+                    ln = d.get("last_name", "") or ""
+                    full = f"{fn} {ln}".strip()
+                    name = full or None
+                drivers_map[d["_id"]] = name
 
-        # 3) Подтягиваем названия компаний по owning_company
-        comp_oids = { oc for oc in (u.get("owning_company") for u in units) if isinstance(oc, ObjectId) }
+        # 4) Названия компаний по owning_company
+        from bson import ObjectId as _OID
+        comp_oids = {
+            oc for oc in (u.get("owning_company") for u in units)
+            if isinstance(oc, _OID)
+        }
         companies_map = {}
         if comp_oids:
             for c in companies_col.find({"_id": {"$in": list(comp_oids)}}, {"_id": 1, "name": 1, "owner_company": 1}):
-                # предпочитаем 'name', если пусто — 'owner_company'
-                companies_map[str(c["_id"])] = c.get("name") or c.get("owner_company") or "Без названия"
+                companies_map[str(c["_id"])] = c.get("name") or c.get("owner_company") or "Без компании"
 
-        # 4) Группировка по owning_company
-        grouped = {}  # key: str(company_id) | "none" -> {company_id, company_name, units: []}
-
+        # 5) Группировка
+        grouped = {}  # key: str(company_id) | "none"
         for u in units:
-            oc = u.get("owning_company") if isinstance(u.get("owning_company"), ObjectId) else None
+            oc = u.get("owning_company") if isinstance(u.get("owning_company"), _OID) else None
             key = str(oc) if oc else "none"
-            company_name = companies_map.get(str(oc)) if oc else "Без компании"
+            company_name = companies_map.get(str(oc), "Без компании")
 
             if key not in grouped:
                 grouped[key] = {
@@ -383,28 +373,27 @@ def api_units_by_company():
                     "units": []
                 }
 
-            driver_name = None
-            ad = u.get("assigned_driver_id")
-            ad_oid = _to_oid(ad) if ad else None
-            if ad_oid and ad_oid in drivers_map:
-                driver_name = drivers_map[ad_oid]
+            ad_oid = to_oid(u.get("assigned_driver_id"))
+            driver_name = drivers_map.get(ad_oid)
 
             grouped[key]["units"].append({
                 "_id": str(u["_id"]),
                 "unit_number": u.get("unit_number", ""),
                 "vin": u.get("vin", ""),
+                "make": u.get("make", ""),
+                "model": u.get("model", ""),
+                "year": u.get("year", ""),
                 "samsara_vehicle_id": u.get("samsara_vehicle_id") or None,
                 "is_linked": bool(u.get("samsara_vehicle_id")),
                 "driver_name": driver_name
             })
 
-        # 5) Сортировка: компании по имени, юниты внутри — по unit_number (строковая)
+        # 6) Сортировки
         groups = list(grouped.values())
         for g in groups:
             g["units"].sort(key=lambda x: (x["unit_number"] or "").lower())
         groups.sort(key=lambda g: (g["company_name"] or "").lower())
 
         return jsonify({"success": True, "companies": groups})
-
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
