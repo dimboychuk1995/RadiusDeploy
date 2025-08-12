@@ -186,6 +186,13 @@ def create_samsara_driver():
 @samsara_bp.route("/api/samsara/vehicle_mileage")
 @login_required
 def get_vehicle_mileage():
+    """
+    Возвращает пробег за диапазон:
+      1) Δ obdOdometerMeters (самый точный)
+      2) иначе Δ gpsOdometerMeters
+      3) иначе сумма gpsDistanceMeters
+    start/end — ISO 8601 (лучше с Z), например: 2025-08-04T05:00:00Z
+    """
     try:
         vehicle_id = request.args.get("vehicle_id")
         start = request.args.get("start")
@@ -196,40 +203,72 @@ def get_vehicle_mileage():
 
         headers = get_samsara_headers()
 
-        def fetch_odometer(time_point):
-            url = (
-                f"https://api.samsara.com/fleet/vehicles/stats?"
-                f"time={time_point}&types=obdOdometerMeters&vehicleIds={vehicle_id}"
-            )
-            print("Samsara URL:", url)
-            response = requests.get(url, headers=headers)
-            if not response.ok:
+        # --- 1 запрос на историю за период (надёжнее, чем два снапшота)
+        params = {
+            "vehicleIds": vehicle_id,
+            "types": "obdOdometerMeters,gpsOdometerMeters,gpsDistanceMeters",
+            "startTime": start,  # RFC3339/ISO8601
+            "endTime": end
+        }
+        url = f"{BASE_URL}/fleet/vehicles/stats/history"
+        resp = requests.get(url, headers=headers, params=params)
+        if not resp.ok:
+            return jsonify({"error": "Failed to fetch stats history"}), resp.status_code
+
+        data = resp.json().get("data", [])
+        if not data:
+            return jsonify({"skip": True}), 204
+
+        # Обычно data — список по машинам; берём первую/единственную
+        stats = data[0].get("statValues", {})
+
+        def first_last_delta(stat_list):
+            """Берём первую и последнюю метки внутри интервала и считаем дельту."""
+            if not stat_list:
                 return None
-
-            data = response.json().get("data", [])
-            if not data:
+            # stat_list ~ [{"time": "...", "value": <number>}, ...] уже по времени
+            values = [s.get("value") for s in stat_list if s.get("value") is not None]
+            if len(values) < 2:
                 return None
+            return values[-1] - values[0]
 
-            odometer = data[0].get("obdOdometerMeters")
-            if not odometer or "value" not in odometer:
-                return None
+        # Δ по OBD и GPS-одометру (в метрах)
+        delta_obd = first_last_delta(stats.get("obdOdometerMeters", []))
+        delta_gps_odom = first_last_delta(stats.get("gpsOdometerMeters", []))
 
-            return odometer["value"]
+        # Сумма gpsDistanceMeters (уже дистанция за промежутки)
+        gps_dist_list = stats.get("gpsDistanceMeters", [])
+        sum_gps_dist = None
+        if gps_dist_list:
+            vals = [s.get("value") for s in gps_dist_list if s.get("value") is not None]
+            if vals:
+                sum_gps_dist = sum(vals)
 
-        start_val = fetch_odometer(start)
-        end_val = fetch_odometer(end)
+        # Приоритеты
+        meters = None
+        source = None
+        if delta_obd is not None:
+            meters = delta_obd
+            source = "obdOdometerMeters"
+        elif delta_gps_odom is not None:
+            meters = delta_gps_odom
+            source = "gpsOdometerMeters"
+        elif sum_gps_dist is not None:
+            meters = sum_gps_dist
+            source = "gpsDistanceMeters"
 
-        if start_val is None or end_val is None:
-            return jsonify({"skip": True}), 204  # 👈 пустой ответ, клиент решает скрыть
+        if meters is None:
+            # Нет данных за период
+            return jsonify({"skip": True}), 204
 
-        start_miles = start_val / 1609.34
-        end_miles = end_val / 1609.34
-        total_miles = end_miles - start_miles
-
+        miles = meters / 1609.34
         return jsonify({
-            "start_miles": round(start_miles, 2),
-            "end_miles": round(end_miles, 2),
-            "total_miles": round(total_miles, 2)
+            "total_miles": round(miles, 2),
+            "meters": round(meters, 1),
+            "source": source,
+            "start": start,
+            "end": end,
+            "vehicle_id": vehicle_id
         })
 
     except Exception as e:
