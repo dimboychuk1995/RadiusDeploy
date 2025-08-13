@@ -361,7 +361,7 @@ function fetchDriverExpenses(driverId, weekRange) {
     });
 }
 
-/* ===================== ПРОБЕГ ВОДИТЕЛЯ ЗА ПЕРИОД ===================== */
+/* ===================== ПРОБЕГ ВОДИТЕЛЯ ЗА ПЕРИОД (одиночный расчёт) ===================== */
 async function fetchDriverMileage(driverId, weekRange) {
   const container = document.getElementById("driverStatementResults");
   const [start, end] = weekRange.split("-").map(s => s.trim());
@@ -394,7 +394,6 @@ async function fetchDriverMileage(driverId, weekRange) {
     const source = (data && (data.source ?? data.mileage?.source)) || "—";
     const truckNum = data && (data.unit_number || data.truck_number);
 
-    // кладём значения в dataset и state — для схемы per_mile
     const html = `
       <div id="driverMileageBlock" class="mt-4" data-miles="${miles}" data-source="${source}">
         <h5>🚚 Пробег за период:</h5>
@@ -407,7 +406,6 @@ async function fetchDriverMileage(driverId, weekRange) {
     window.__statementState.mileageByDriver = window.__statementState.mileageByDriver || {};
     window.__statementState.mileageByDriver[driverId] = { miles, source, raw: data };
 
-    // после появления пробега — пересчитаем (важно для per_mile)
     window.recalculateDriverSalary();
   } catch (err) {
     console.error("❌ Ошибка пробега:", err);
@@ -711,6 +709,16 @@ async function apiGet(url) {
   return await r.json();
 }
 
+// 🔁 утилита: «мягкий» запрос JSON. На 404 — НЕ бросаем исключение.
+async function apiGetSoft(url) {
+  const r = await fetch(url);
+  if (r.status === 404) {
+    return { success: false, _soft404: true };
+  }
+  if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
+  return await r.json();
+}
+
 /* ===================== Собрать данные по одному водителю (All drivers) ===================== */
 async function fetchAllForDriver(driverId, weekRange) {
   const [start, end] = weekRange.split("-").map(s => s.trim());
@@ -728,16 +736,18 @@ async function fetchAllForDriver(driverId, weekRange) {
     apiGet(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
     apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
-    apiGet(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&tz=America/Chicago`)
+    // 👇 пробег обрабатываем «мягко», и явно передаём tz
+    apiGetSoft(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&tz=America/Chicago`)
   ]);
 
+  // 1) Нормализация
   const loads = (loadsRes.success ? loadsRes.loads : []);
   const fuel  = (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] });
 
   const scheme = (schemeRes.success ? {
     scheme_type: schemeRes.scheme_type,
     commission_table: schemeRes.commission_table || [],
-    per_mile_rate: Number(schemeRes.per_mile_rate || 0),  // важно для per_mile
+    per_mile_rate: Number(schemeRes.per_mile_rate || 0),
     deductions: schemeRes.deductions || [],
     enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
     bonus_level_1: schemeRes.bonus_level_1 || 0,
@@ -758,6 +768,7 @@ async function fetchAllForDriver(driverId, weekRange) {
     removed: false
   }));
 
+  // 2) Пробег — если 404/ошибка, берём нули и продолжаем
   const mileage = (mileageRes && mileageRes.success)
     ? {
         miles:  Number((mileageRes.miles ?? mileageRes.mileage?.miles) || 0),
@@ -768,7 +779,7 @@ async function fetchAllForDriver(driverId, weekRange) {
       }
     : { miles: 0, meters: 0, source: null, truck_id: null, samsara_vehicle_id: null };
 
-  // Расчёт зарплаты
+  // 3) Расчёт зарплаты (учитываем и percent, и per_mile)
   const loadsGross = loads.reduce((sum, ld) => sum + Number(ld.price || 0), 0);
   let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
   for (const exp of expenses) {
@@ -779,6 +790,7 @@ async function fetchAllForDriver(driverId, weekRange) {
       case "deduct_gross":  grossDeduct += amt; break;
       case "add_salary":    salaryAdd += amt; break;
       case "deduct_salary": salaryDeduct += amt; break;
+      default: break;
     }
   }
   const grossForCommission = loadsGross + grossAdd - grossDeduct;

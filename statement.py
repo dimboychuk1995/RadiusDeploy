@@ -652,310 +652,197 @@ def list_drivers_for_statements():
     
 
 
+# --- Массовое сохранение стейтментов (insert / replace / ignore approved) ---
 @statement_bp.route("/api/statements/bulk_save", methods=["POST"])
 @login_required
 def bulk_save_statements():
     """
-    Массовое сохранение стейтментов за неделю для списка водителей.
+    Принимает расчёты по нескольким водителям и сохраняет их в коллекцию driver_statements.
 
-    Body(JSON):
-      - week_range: "MM/DD/YYYY - MM/DD/YYYY" (локальные даты компании; конец — инклюзивно)
-      - items: [
+    Тело запроса:
+      {
+        "week_range": "MM/DD/YYYY - MM/DD/YYYY",
+        "items": [
           {
-            driver_id, week_range?, loads[], fuel, scheme, inspections[], expenses[],
-            mileage: { miles, meters, source, truck_id, samsara_vehicle_id },
-            calc? (не обязателен, сервер пересчитает)
+            "driver_id": "...",
+            "week_range": "...",          # можно не передавать, берём из корня
+            "loads": [...],
+            "fuel": {...},
+            "inspections": [...],
+            "expenses": [...],            # с action/remove для UI
+            "scheme": {...},              # scheme_type, commission_table / per_mile_rate, deductions...
+            "mileage": {"miles": .., "meters": .., "source": "...", ...},
+            "calc": {
+              "loads_gross": ...,
+              "gross_add_from_expenses": ...,
+              "gross_deduct_from_expenses": ...,
+              "gross_for_commission": ...,
+              "commission": ...,
+              "scheme_deductions_total": ...,
+              "salary_add_from_expenses": ...,
+              "salary_deduct_from_expenses": ...,
+              "final_salary": ...
+            }
           }, ...
         ]
+      }
 
-    Логика расчёта:
-      loads_gross = sum(load.price)
-      gross_add / gross_deduct / salary_add / salary_deduct — из expenses по action (только не removed)
-      gross_for_commission = loads_gross + gross_add - gross_deduct
-
-      commission:
-        - percent: по таблице процентов
-        - per_mile: commission = (mileage.miles) * (scheme.per_mile_rate)
-
-      final_salary = commission - scheme_deductions_total - salary_deduct + salary_add
+    Логика сохранения:
+      - уникаем по (company, driver_id, week_range)
+      - если найден документ и approved=True -> игнорируем (ignored++)
+      - если найден документ и approved=False -> replace (replaced++)
+      - если не найден -> insert (added++)
     """
     from flask import request, jsonify
     from bson import ObjectId
-    from datetime import datetime, timedelta, timezone
-    from zoneinfo import ZoneInfo
-    import hashlib
-
-    statement_collection = db["statements"]
+    from datetime import datetime
 
     try:
-        payload = request.get_json(silent=True) or {}
-        week_range = (payload.get("week_range") or "").strip()
-        items = payload.get("items") or []
+        payload = request.get_json(force=True) or {}
+    except Exception:
+        payload = {}
 
-        # --- таймзона компании ---
-        tz_doc  = db["company_timezone"].find_one({}) or {}
-        tz_name = tz_doc.get("timezone") or "America/Chicago"
-        local_tz = ZoneInfo(tz_name)
-        utc_tz   = timezone.utc
+    week_range = payload.get("week_range") or ""
+    items = payload.get("items") or []
+    if not week_range or not isinstance(items, list):
+        return jsonify({"success": False, "error": "week_range and items[] required"}), 400
 
-        # --- парсим week_range → (UTC-границы) ---
-        def parse_week_range_to_bounds(wr: str):
-            # "MM/DD/YYYY - MM/DD/YYYY" → [start@00:00 local .. end@23:59:59 local] => [start_utc .. (end+1d)@00:00 utc)
-            s, e = [x.strip() for x in wr.split("-")]
-            start_local_date = datetime.strptime(s, "%m/%d/%Y")
-            end_local_date   = datetime.strptime(e, "%m/%d/%Y")
-            start_local = start_local_date.replace(tzinfo=local_tz)
-            end_local_excl = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
-            start_utc = start_local.astimezone(utc_tz).replace(tzinfo=None)
-            end_utc   = end_local_excl.astimezone(utc_tz).replace(tzinfo=None)
-            return start_utc, end_utc
+    col = db["driver_statements"]
+    drivers_col = db["drivers"]
+    trucks_col = db["trucks"]
 
-        # утилиты
-        def to_local_date_only(val):
-            if not val:
-                return None
-            if isinstance(val, datetime):
-                dt = val
-            else:
-                try:
-                    dt = datetime.fromisoformat(str(val).replace("Z", "+00:00"))
-                except Exception:
-                    return None
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=utc_tz)
-            return dt.astimezone(local_tz).date()
+    # Рекомендуемый уникальный индекс в Mongo (один раз в миграции):
+    # db.driver_statements.createIndex(
+    #   {"company":1,"driver_id":1,"week_range":1},
+    #   {"unique": True}
+    # )
 
-        def to_objectid(val):
-            try:
-                return ObjectId(val) if val else None
-            except Exception:
-                return None
+    added = 0
+    replaced = 0
+    ignored = 0
+    failed = 0
+    details = []
+    now = datetime.utcnow()
 
-        def to_float(val, default=0.0):
-            try:
-                return float(val)
-            except Exception:
-                return float(default)
-
-        # created_by
+    for raw in items:
         try:
-            created_by_oid = current_user.id if isinstance(current_user.id, ObjectId) else ObjectId(str(current_user.id))
-        except Exception:
-            created_by_oid = None
+            driver_id_str = (raw.get("driver_id") or "").strip()
+            if not driver_id_str:
+                failed += 1
+                details.append({"driver_id": None, "status": "failed", "reason": "missing driver_id"})
+                continue
 
-        # допустимые действия по инвойсам
-        ALLOWED_EXPENSE_ACTIONS = {"keep", "deduct_salary", "add_salary", "deduct_gross", "add_gross"}
-
-        added = replaced = ignored = 0
-
-        for it in items:
-            wr = it.get("week_range") or week_range
             try:
-                week_start_utc, week_end_utc = parse_week_range_to_bounds(wr)
+                driver_oid = ObjectId(driver_id_str)
             except Exception:
-                # кривой диапазон — пропускаем элемент
+                failed += 1
+                details.append({"driver_id": driver_id_str, "status": "failed", "reason": "bad driver_id"})
                 continue
 
-            driver_oid = to_objectid(it.get("driver_id"))
-            if not driver_oid:
+            # водитель в рамках компании
+            driver = drivers_col.find_one(
+                {"_id": driver_oid, "company": current_user.company},
+                {"name": 1, "truck": 1, "hiring_company": 1}
+            )
+            if not driver:
+                failed += 1
+                details.append({"driver_id": driver_id_str, "status": "failed", "reason": "driver not in company"})
                 continue
 
-            loads        = it.get("loads") or []
-            inspections  = it.get("inspections") or []
-            expenses_in  = it.get("expenses") or []
-            scheme       = it.get("scheme") or {}
-            mileage_in   = it.get("mileage") or {}  # 👈 добавлено
+            # номер трака (для отображения в списке)
+            truck_num = None
+            tr_id = driver.get("truck")
+            if tr_id:
+                tr = trucks_col.find_one({"_id": tr_id, "company": current_user.company}, {"unit_number": 1})
+                if tr:
+                    truck_num = tr.get("unit_number")
 
-            # --- monday_loads (подсчёт грузов с доставкой в понедельник по локальным суткам) ---
-            monday_loads = 0
-            for ld in loads:
-                eff = ld.get("delivery_date")
-                if not eff:
-                    if isinstance(ld.get("extra_delivery"), list) and ld["extra_delivery"]:
-                        eff = ld["extra_delivery"][-1].get("date")
-                    elif isinstance(ld.get("extra_delivery"), dict):
-                        eff = ld["extra_delivery"].get("date")
-                    elif isinstance(ld.get("delivery"), dict):
-                        eff = ld["delivery"].get("date")
-                d_local = to_local_date_only(eff)
-                if d_local is not None and d_local.weekday() == 0:
-                    monday_loads += 1
+            # исходные блоки
+            loads = raw.get("loads") or []
+            inspections = raw.get("inspections") or []
+            expenses = raw.get("expenses") or []
+            scheme = raw.get("scheme") or {}
+            mileage = raw.get("mileage") or {}
+            calc = raw.get("calc") or {}
+            fuel = raw.get("fuel") or {}
 
-            # --- нормализация *_id в loads/inspections ---
-            for ld in loads:
-                if "_id" in ld: ld["_id"] = to_objectid(ld["_id"])
-                if "assigned_driver" in ld: ld["assigned_driver"] = to_objectid(ld["assigned_driver"])
-                if "assigned_dispatch" in ld: ld["assigned_dispatch"] = to_objectid(ld["assigned_dispatch"])
-                if "assigned_power_unit" in ld: ld["assigned_power_unit"] = to_objectid(ld["assigned_power_unit"])
-                if "company_sign" in ld: ld["company_sign"] = to_objectid(ld["company_sign"])
-            for insp in inspections:
-                if "_id" in insp: insp["_id"] = to_objectid(insp["_id"])
+            # агрегаты для списка
+            monday_loads = sum(1 for ld in loads if not ld.get("out_of_diap"))
+            invoices_num = sum(1 for e in expenses if not e.get("removed"))
+            inspections_num = len(inspections)
 
-            # --- Нормализация expenses с action/removed/amount ---
-            expenses = []
-            for exp in expenses_in:
-                action = str(exp.get("action") or "keep")
-                if action not in ALLOWED_EXPENSE_ACTIONS:
-                    action = "keep"
-                normalized = {
-                    "_id": to_objectid(exp.get("_id")),
-                    "amount": to_float(exp.get("amount"), 0.0),
-                    "category": exp.get("category") or "",
-                    "note": exp.get("note") or "",
-                    "date": exp.get("date") or "",
-                    "photo_id": to_objectid(exp.get("photo_id")),
-                    "action": action,
-                    "removed": bool(exp.get("removed", False)),
-                }
-                expenses.append(normalized)
+            miles = float(mileage.get("miles") or 0.0)
+            salary = float(calc.get("final_salary") or 0.0)
+            commission = float(calc.get("commission") or 0.0)
 
-            invoices_num = len(expenses)
-            invoices_included = sum(1 for e in expenses if not e.get("removed", False))
-
-            # --- Расчёт зарплаты на бэке ---
-            # 1) гросс из грузов
-            loads_gross = 0.0
-            for ld in loads:
-                loads_gross += to_float(ld.get("price"), 0.0)
-
-            # 2) корректировки из инвойсов (только не удалённые)
-            gross_add = gross_deduct = salary_add = salary_deduct = 0.0
-            for e in expenses:
-                if e.get("removed", False):
-                    continue
-                amt = to_float(e.get("amount"), 0.0)
-                act = e.get("action") or "keep"
-                if act == "add_gross":
-                    gross_add += amt
-                elif act == "deduct_gross":
-                    gross_deduct += amt
-                elif act == "add_salary":
-                    salary_add += amt
-                elif act == "deduct_salary":
-                    salary_deduct += amt
-                # keep -> без влияния
-
-            gross_for_commission = loads_gross + gross_add - gross_deduct
-
-            # 3) комиссия по схеме
-            commission = 0.0
-            scheme_type = (scheme.get("scheme_type") or scheme.get("type") or "percent")
-
-            if scheme_type == "per_mile":
-                # 💡 новая схема: считаем по милям от Самсары
-                miles_total = to_float((mileage_in or {}).get("miles"), 0.0)
-                per_mile_rate = to_float(scheme.get("per_mile_rate"), 0.0)
-                commission = miles_total * per_mile_rate
-            else:
-                # percent (по умолчанию)
-                table = scheme.get("commission_table") or []
-                # привести числа
-                safe_table = []
-                for row in table:
-                    safe_table.append({
-                        "from_sum": to_float(row.get("from_sum"), 0.0),
-                        "percent": to_float(row.get("percent"), 0.0)
-                    })
-                if len(safe_table) == 1:
-                    commission = gross_for_commission * (safe_table[0]["percent"] / 100.0)
-                elif len(safe_table) > 1:
-                    safe_table.sort(key=lambda r: r["from_sum"], reverse=True)
-                    matched = next((r for r in safe_table if gross_for_commission >= r["from_sum"]), None)
-                    if matched:
-                        commission = gross_for_commission * (matched["percent"] / 100.0)
-
-            # 4) вычеты по схеме
-            scheme_deductions = scheme.get("deductions") or []
-            scheme_deductions_total = 0.0
-            for d in scheme_deductions:
-                scheme_deductions_total += to_float(d.get("amount"), 0.0)
-
-            # 5) итог к выплате
-            final_salary = commission - scheme_deductions_total - salary_deduct + salary_add
-
-            # агрегаты по расходам
-            expenses_totals = {
-                "visible_total": round(sum(to_float(e.get("amount"), 0.0) for e in expenses if not e.get("removed", False)), 2),
-                "gross_add": round(gross_add, 2),
-                "gross_deduct": round(gross_deduct, 2),
-                "salary_add": round(salary_add, 2),
-                "salary_deduct": round(salary_deduct, 2),
-            }
-
-            # calc (добавили ключи для per_mile)
-            calc = {
-                "loads_gross": round(loads_gross, 2),
-                "gross_add_from_expenses": round(gross_add, 2),
-                "gross_deduct_from_expenses": round(gross_deduct, 2),
-                "gross_for_commission": round(gross_for_commission, 2),
-                "commission": round(commission, 2),
-                "scheme_deductions_total": round(scheme_deductions_total, 2),
-                "salary_add_from_expenses": round(salary_add, 2),
-                "salary_deduct_from_expenses": round(salary_deduct, 2),
-                "final_salary": round(final_salary, 2),
-            }
-            # если передали mileage — приятно сохранить в calc для прозрачности
-            if mileage_in:
-                calc["miles_total"] = round(to_float(mileage_in.get("miles"), 0.0), 2)
-                if scheme_type == "per_mile":
-                    calc["per_mile_rate"] = round(to_float(scheme.get("per_mile_rate"), 0.0), 4)
-
-            # hash по драйверу и интервалу
-            hash_hex = hashlib.sha256(f"{str(driver_oid)}|{wr}".encode("utf-8")).hexdigest()
-
-            # итоговый документ
             doc = {
+                "company": current_user.company,
+                "week_range": week_range,
                 "driver_id": driver_oid,
-                "week_range": wr,
-                "week_start_utc": week_start_utc,
-                "week_end_utc":   week_end_utc,
-                "snapshot": {
+                "driver_name": driver.get("name"),
+                "hiring_company": driver.get("hiring_company"),
+
+                "truck_number": truck_num,
+
+                "salary": round(salary, 2),
+                "commission": round(commission, 2),
+                "miles": round(miles, 2),
+
+                "scheme_type": scheme.get("scheme_type"),
+                "per_mile_rate": scheme.get("per_mile_rate"),
+
+                "monday_loads": int(monday_loads),
+                "invoices_num": int(invoices_num),
+                "inspections_num": int(inspections_num),
+
+                "raw": {
                     "loads": loads,
-                    "fuel": it.get("fuel"),
-                    "scheme": scheme,
-                    "inspections": inspections,
+                    "fuel": fuel,
                     "expenses": expenses,
-                    "mileage": {
-                        "miles":  to_float((mileage_in or {}).get("miles"), 0.0),
-                        "meters": to_float((mileage_in or {}).get("meters"), 0.0),
-                        "source": (mileage_in or {}).get("source"),
-                        "truck_id": (mileage_in or {}).get("truck_id"),
-                        "samsara_vehicle_id": (mileage_in or {}).get("samsara_vehicle_id"),
-                    }
+                    "inspections": inspections,
+                    "scheme": scheme,
+                    "mileage": mileage,
+                    "calc": calc
                 },
-                "expenses_totals": expenses_totals,
-                "calc": calc,
-                "monday_loads": monday_loads,
-                "invoices_num": invoices_num,
-                "invoices_included": invoices_included,
-                "inspections_num": len(inspections),
+
                 "approved": False,
-                "created_at": datetime.utcnow(),
-                "created_by": created_by_oid,
-                "hash": hash_hex
+                "updated_at": now
             }
 
-            # upsert по hash; если approved — не трогаем
-            existing = statement_collection.find_one({"hash": hash_hex}, {"_id": 1, "approved": 1})
+            flt = {"company": current_user.company, "driver_id": driver_oid, "week_range": week_range}
+            existing = col.find_one(flt, {"approved": 1, "created_at": 1})
+
             if existing:
-                if existing.get("approved") is True:
+                if existing.get("approved"):
                     ignored += 1
+                    details.append({"driver_id": driver_id_str, "status": "ignored-approved"})
                     continue
-                else:
-                    statement_collection.delete_one({"_id": existing["_id"]})
-                    statement_collection.insert_one(doc)
-                    replaced += 1
+
+                # replace (сохраняем created_at)
+                doc["created_at"] = existing.get("created_at") or now
+                col.replace_one({"_id": existing["_id"]}, doc, upsert=False)
+                replaced += 1
+                details.append({"driver_id": driver_id_str, "status": "replaced"})
             else:
-                statement_collection.insert_one(doc)
+                # insert
+                doc["created_at"] = now
+                ins = col.insert_one(doc)
                 added += 1
+                details.append({"driver_id": driver_id_str, "status": "added", "_id": str(ins.inserted_id)})
 
-        return jsonify({"success": True, "added": added, "ignored": ignored, "replaced": replaced})
+        except Exception as e:
+            failed += 1
+            details.append({"driver_id": raw.get("driver_id"), "status": "failed", "reason": str(e)})
 
-    except Exception as e:
-        import traceback
-        print("Exception in /api/statements/bulk_save:")
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+    return jsonify({
+        "success": True,
+        "week_range": week_range,
+        "added": added,
+        "replaced": replaced,
+        "ignored": ignored,
+        "failed": failed,
+        "details": details
+    })
 
 
 
