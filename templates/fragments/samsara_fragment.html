@@ -1,17 +1,29 @@
 <div style="display: flex; height: 100vh; width: 100%;">
   <!-- Карта -->
-  <div id="samsara-map" 
-       data-mapbox-token="{{ mapbox_token }}" 
+  <div id="samsara-map"
+       data-mapbox-token="{{ mapbox_token }}"
        style="flex: 1 1 auto;">
   </div>
 
   <!-- Сайдбар -->
-  <div id="samsara-sidebar" 
-       style="width: 350px; max-width: 40vw; background: #f8f9fa; border-left: 1px solid #ddd; overflow-y: auto;">
-    <div class="sidebar-header" 
+  <div id="samsara-sidebar"
+       style="width: 380px; max-width: 40vw; background: #f8f9fa; border-left: 1px solid #ddd; overflow-y: auto; display:flex; flex-direction:column;">
+    <div class="sidebar-header"
          style="padding: 10px; font-weight: bold; border-bottom: 1px solid #ddd; background: #fff;">
       Наши юниты
     </div>
+
+    <!-- Панель управления треком -->
+    <div id="vh-controls" style="padding: 10px; border-bottom:1px solid #ddd; background:#fff;">
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <label for="vh-date" style="font-size:12px; color:#555;">Дата:</label>
+        <input id="vh-date" type="date" style="padding:6px; border:1px solid #ccc; border-radius:6px; font-size:14px;" />
+        <button id="vh-show" class="btn btn-sm btn-primary" style="padding:6px 10px;">Показать</button>
+        <button id="vh-clear" class="btn btn-sm btn-outline-secondary" style="padding:6px 10px;">Скрыть трек</button>
+      </div>
+      <div id="vh-current" style="margin-top:6px; font-size:12px; color:#666;">Юнит не выбран</div>
+    </div>
+
     <!-- Здесь будет список компаний и юнитов -->
     <div id="units-list" style="padding: 10px;"></div>
   </div>
