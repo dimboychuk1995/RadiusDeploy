@@ -397,3 +397,220 @@ def api_units_by_company():
         return jsonify({"success": True, "companies": groups})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@samsara_bp.route("/api/samsara/vehicle_history", methods=["GET"])
+@login_required
+def api_samsara_vehicle_history():
+    """
+    GET:
+      samsara_vehicle_id | vehicle_id (str, required)
+      date (str, optional)  — YYYY-MM-DD или MM/DD/YYYY; по умолчанию сегодня (таймзона компании)
+      force (str, optional) — 'stats' или 'locations' (принудительно выбрать источник)
+      debug (int, optional) — 1 = добавить диагностику
+
+    Ответ:
+      {
+        success, vehicle_id, date, start_time_utc, end_time_utc,
+        points: [{lat, lon, time, speedMph, heading}],  # по времени ASC
+        stops:  [{startTime, endTime, durationMinutes, lat, lon}],
+        source: "stats/history" | "locations/history",
+        debug?: {...}
+      }
+    """
+    import requests
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    def _parse_iso_aware(ts: str):
+        try:
+            if ts.endswith("Z"):
+                return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            return datetime.fromisoformat(ts).astimezone(timezone.utc)
+        except Exception:
+            return None
+
+    def _bounds_for_date(tz_name: str, date_str: str | None):
+        local_tz = ZoneInfo(tz_name or "America/Chicago")
+        if date_str:
+            try:
+                if "-" in date_str:
+                    d = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=local_tz)
+                else:
+                    d = datetime.strptime(date_str, "%m/%d/%Y").replace(tzinfo=local_tz)
+            except Exception:
+                return None, None, "Invalid date format"
+        else:
+            now_local = datetime.now(local_tz)
+            d = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_local = d.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_local = start_local + timedelta(days=1)
+        return start_local, end_local, None
+
+    def _fetch_stats_history_gps(headers, vehicle_id, start_iso, end_iso):
+        url = f"{BASE_URL}/fleet/vehicles/stats/history"
+        params = {"types": "gps", "startTime": start_iso, "endTime": end_iso, "vehicleIds": str(vehicle_id)}
+        points, pages, errors = [], 0, None
+        while True:
+            pages += 1
+            if pages > 60: break
+            r = requests.get(url, headers=headers, params=params, timeout=30)
+            if not r.ok:
+                errors = {"where": "stats/history", "code": r.status_code, "body": r.text}; break
+            payload = r.json() or {}
+            for veh in payload.get("data", []):
+                if str(veh.get("id")) != str(vehicle_id): continue
+                gps_arr = veh.get("gps") or []
+                if isinstance(gps_arr, dict):
+                    gps_arr = [gps_arr]
+                for g in gps_arr:
+                    lat, lon, t = g.get("latitude"), g.get("longitude"), g.get("time")
+                    if lat is None or lon is None or not t: continue
+                    heading = g.get("headingDegrees") if "headingDegrees" in g else g.get("bearing")
+                    speed = g.get("speedMilesPerHour") or g.get("speedMph")
+                    points.append({
+                        "lat": float(lat), "lon": float(lon), "time": t,
+                        "speedMph": float(speed) if speed is not None else None,
+                        "heading": float(heading) if heading is not None else None
+                    })
+            pag = (payload.get("pagination") or {})
+            if pag.get("hasNextPage"):
+                params["after"] = pag.get("endCursor")
+            else:
+                break
+        return {"pages": pages, "count": len(points), "error": errors}, points
+
+    def _fetch_locations_history(headers, vehicle_id, start_iso, end_iso):
+        # Старый эндпоинт, часто отдаёт то, что не пришло из stats/history
+        url = f"{BASE_URL}/fleet/vehicles/locations/history"
+        params = {"startTime": start_iso, "endTime": end_iso, "vehicleIds": str(vehicle_id)}
+        points, pages, errors = [], 0, None
+        while True:
+            pages += 1
+            if pages > 60: break
+            r = requests.get(url, headers=headers, params=params, timeout=30)
+            if not r.ok:
+                errors = {"where": "locations/history", "code": r.status_code, "body": r.text}; break
+            payload = r.json() or {}
+            for veh in payload.get("data", []):
+                if str(veh.get("id")) != str(vehicle_id): continue
+                for g in veh.get("locations") or []:
+                    lat, lon, t = g.get("latitude"), g.get("longitude"), g.get("time")
+                    if lat is None or lon is None or not t: continue
+                    points.append({"lat": float(lat), "lon": float(lon), "time": t, "speedMph": None, "heading": None})
+            pag = (payload.get("pagination") or {})
+            if pag.get("hasNextPage"):
+                params["after"] = pag.get("endCursor")
+            else:
+                break
+        return {"pages": pages, "count": len(points), "error": errors}, points
+
+    try:
+        samsara_vehicle_id = request.args.get("samsara_vehicle_id") or request.args.get("vehicle_id")
+        if not samsara_vehicle_id:
+            return jsonify({"success": False, "error": "Missing samsara_vehicle_id"}), 400
+
+        # Валидируем принадлежность компании
+        unit = trucks_collection.find_one(
+            {"company": current_user.company, "samsara_vehicle_id": str(samsara_vehicle_id)},
+            {"_id": 1, "unit_number": 1}
+        )
+        if not unit:
+            return jsonify({"success": False, "error": "Vehicle is not linked to your company"}), 403
+
+        # Таймзона компании
+        tz_doc = db["company_timezone"].find_one({"company": current_user.company}) or {}
+        tz_name = tz_doc.get("timezone") or "America/Chicago"
+        start_local, end_local, err = _bounds_for_date(tz_name, request.args.get("date"))
+        if err:
+            return jsonify({"success": False, "error": err}), 400
+
+        start_utc = start_local.astimezone(timezone.utc)
+        end_utc = end_local.astimezone(timezone.utc)
+        start_iso = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_iso   = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        headers = get_samsara_headers()
+        force = (request.args.get("force") or "").lower().strip()
+
+        debug_meta = {}
+        used = None
+        points = []
+
+        if force in ("stats", "s"):
+            used = "stats/history"
+            meta, points = _fetch_stats_history_gps(headers, samsara_vehicle_id, start_iso, end_iso)
+            debug_meta["stats"] = meta
+        elif force in ("locations", "l"):
+            used = "locations/history"
+            meta, points = _fetch_locations_history(headers, samsara_vehicle_id, start_iso, end_iso)
+            debug_meta["locations"] = meta
+        else:
+            # 1) основной путь
+            meta_stats, points = _fetch_stats_history_gps(headers, samsara_vehicle_id, start_iso, end_iso)
+            debug_meta["stats"] = meta_stats
+            used = "stats/history"
+            # 2) фоллбэк
+            if not points:
+                meta_loc, points = _fetch_locations_history(headers, samsara_vehicle_id, start_iso, end_iso)
+                debug_meta["locations"] = meta_loc
+                if points:
+                    used = "locations/history"
+
+        # сортировка + фильтр по валидным timestamp
+        points = [p for p in points if _parse_iso_aware(p["time"]) is not None]
+        points.sort(key=lambda p: _parse_iso_aware(p["time"]))
+
+        # Детекция «стопов»: ≤1 mph, ≥5 минут
+        STOP_SPEED_MPH = 1.0
+        STOP_MIN_SECONDS = 5 * 60
+        stops, in_stop, i0 = [], False, None
+        for i, p in enumerate(points):
+            spd = p["speedMph"] if p["speedMph"] is not None else 0.0
+            idle = spd <= STOP_SPEED_MPH
+            if idle and not in_stop:
+                in_stop, i0 = True, i
+            elif (not idle) and in_stop:
+                t0 = _parse_iso_aware(points[i0]["time"]); t1 = _parse_iso_aware(points[i-1]["time"])
+                dur = (t1 - t0).total_seconds() if (t0 and t1) else 0
+                if dur >= STOP_MIN_SECONDS:
+                    chunk = points[i0:i]
+                    avg_lat = sum(c["lat"] for c in chunk) / len(chunk)
+                    avg_lon = sum(c["lon"] for c in chunk) / len(chunk)
+                    stops.append({
+                        "startTime": t0.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "endTime":   t1.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "durationMinutes": round(dur/60.0, 1),
+                        "lat": round(avg_lat, 6), "lon": round(avg_lon, 6)
+                    })
+                in_stop, i0 = False, None
+        if in_stop and i0 is not None and points:
+            t0 = _parse_iso_aware(points[i0]["time"]); t1 = _parse_iso_aware(points[-1]["time"])
+            dur = (t1 - t0).total_seconds() if (t0 and t1) else 0
+            if dur >= STOP_MIN_SECONDS:
+                chunk = points[i0:]
+                avg_lat = sum(c["lat"] for c in chunk) / len(chunk)
+                avg_lon = sum(c["lon"] for c in chunk) / len(chunk)
+                stops.append({
+                    "startTime": t0.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "endTime":   t1.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "durationMinutes": round(dur/60.0, 1),
+                    "lat": round(avg_lat, 6), "lon": round(avg_lon, 6)
+                })
+
+        resp = {
+            "success": True,
+            "vehicle_id": str(samsara_vehicle_id),
+            "date": start_local.strftime("%Y-%m-%d"),
+            "start_time_utc": start_iso,
+            "end_time_utc": end_iso,
+            "points": points,
+            "stops": stops,
+            "source": used
+        }
+        if request.args.get("debug") == "1":
+            resp["debug"] = debug_meta | {"tz": tz_name}
+        return jsonify(resp)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
