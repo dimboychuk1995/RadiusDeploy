@@ -2,7 +2,7 @@ function initStatementEvents() {
   generateWeekRanges("statementWeekRangeSelect");
 }
 
-// ====== CREATE-МОДАЛКА (формирование нового стейтмента) ======
+/* ===================== CREATE-МОДАЛКА (формирование нового стейтмента) ===================== */
 function openDriverStatementModal() {
   const modal = document.getElementById("driverStatementModal");
   const backdrop = document.getElementById("driverStatementBackdrop");
@@ -16,31 +16,24 @@ function openDriverStatementModal() {
   const results = modal.querySelector("#driverStatementResults");
   const reviewWrap = modal.querySelector("#reviewConfirmWrap");
 
-  // показать модалку
   modal.classList.add("show");
   if (backdrop) backdrop.classList.add("show");
 
-  // режим: create
   modal.dataset.mode = "create";
   delete modal.dataset.statementId;
 
-  // базовый UI
   if (title) title.textContent = "Добавление стейтмента водителя";
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
   if (calcBtn) calcBtn.style.display = "";
   if (saveBtn) saveBtn.style.display = "";
 
-  // убрать ревью-кнопки, если вдруг остались
   if (reviewWrap) reviewWrap.remove();
-
-  // очистить контент
   if (results) results.innerHTML = "";
 
-  // обновить список недель
   try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
 }
 
-// ====== ЗАКРЫТИЕ МОДАЛКИ (полный ресет) ======
+/* ===================== ЗАКРЫТИЕ МОДАЛКИ (полный ресет) ===================== */
 function closeDriverStatementModal() {
   const modal = document.getElementById("driverStatementModal");
   const backdrop = document.getElementById("driverStatementBackdrop");
@@ -59,22 +52,18 @@ function closeDriverStatementModal() {
   const reviewWrap = modal.querySelector("#reviewConfirmWrap");
   const results = modal.querySelector("#driverStatementResults");
 
-  // вернуть базовый вид
   if (title) title.textContent = "Добавление стейтмента водителя";
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
   if (calcBtn) calcBtn.style.display = "";
   if (saveBtn) saveBtn.style.display = "";
-
-  // удалить ревью-кнопки
   if (reviewWrap) reviewWrap.remove();
-
-  // очистить результаты
   if (results) results.innerHTML = "";
 
   delete modal.dataset.mode;
   delete modal.dataset.statementId;
 }
 
+/* ===================== Расчёт одного стейтмента (модалка CREATE) ===================== */
 async function calculateDriverStatement() {
   const driverId = document.getElementById("driverSelect").value;
   const weekRange = document.getElementById("driverWeekRangeSelect").value;
@@ -87,19 +76,22 @@ async function calculateDriverStatement() {
 
   container.innerHTML = "<p>Загрузка...</p>";
 
-  // Сначала грузы (они же чекбоксы для пересчёта), потом параллельные блоки
+  // 1) Грузы
   await fetchAndRenderDriverLoads(driverId, weekRange);
+
+  // 2) Параллельные блоки
   fetchDriverFuelSummary(driverId, weekRange);
   fetchDriverInspections(driverId, weekRange);
   fetchDriverExpenses(driverId, weekRange);
 
-  // 👇 ДОБАВЛЕНО: пробег за период
+  // 3) Пробег за период (используется в per_mile)
   fetchDriverMileage(driverId, weekRange);
 
-  // Пересчёт зарплаты после появления всех блоков
+  // 4) Пересчёт зарплаты
   window.recalculateDriverSalary();
 }
 
+/* ===================== Грузы водителя ===================== */
 function fetchAndRenderDriverLoads(driverId, weekRange) {
   return fetch(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
@@ -123,16 +115,13 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       };
 
       const getEffectiveDeliveryDate = (load) => {
-        // если extra_delivery массив — берём последнюю дату
         if (Array.isArray(load.extra_delivery) && load.extra_delivery.length) {
           const last = load.extra_delivery[load.extra_delivery.length - 1];
           return last?.date || null;
         }
-        // если extra_delivery один объект
         if (load.extra_delivery && typeof load.extra_delivery === "object" && load.extra_delivery.date) {
           return load.extra_delivery.date;
         }
-        // иначе обычная delivery.date или уже рассчитанное поле delivery_date
         return (load.delivery && load.delivery.date) || load.delivery_date || null;
       };
 
@@ -198,7 +187,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
     });
 }
 
-
+/* ===================== Топливо ===================== */
 function fetchDriverFuelSummary(driverId, weekRange) {
   fetch(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
@@ -231,207 +220,7 @@ function fetchDriverFuelSummary(driverId, weekRange) {
     });
 }
 
-window.recalculateDriverSalary = async function () {
-  const container = document.getElementById("driverStatementResults");
-  const driverId = document.getElementById("driverSelect").value;
-  const weekRange = document.getElementById("driverWeekRangeSelect").value;
-
-  // 1) Гросс из выбранных грузов
-  const checkboxes = container.querySelectorAll(".load-checkbox");
-  let loadsGross = 0;
-  checkboxes.forEach(cb => {
-    if (cb.checked) loadsGross += parseFloat(cb.dataset.price || "0");
-  });
-
-  // 2) Инвойсы: берём только не удалённые, суммы — из инпутов
-  let grossAdd = 0;     // add_gross
-  let grossDeduct = 0;  // deduct_gross
-  let salaryAdd = 0;    // add_salary
-  let salaryDeduct = 0; // deduct_salary
-  let visibleTotal = 0; // сумма всех НЕ удалённых инвойсов (для отображения "Итого по инвойсам")
-
-  const expensesBlock = container.querySelector("#driverExpensesBlock");
-  if (expensesBlock) {
-    const items = expensesBlock.querySelectorAll(".expense-item");
-    items.forEach(item => {
-      const removed = item.getAttribute("data-removed") === "1";
-      const amountStr = (item.querySelector(".expense-amount")?.value || "0").trim();
-      const amount = Math.max(0, parseFloat(amountStr || "0"));
-      const action = item.querySelector(".expense-action")?.value || "keep";
-
-      if (!removed) {
-        visibleTotal += amount;
-
-        switch (action) {
-          case "add_gross":     grossAdd += amount; break;
-          case "deduct_gross":  grossDeduct += amount; break;
-          case "add_salary":    salaryAdd += amount; break;
-          case "deduct_salary": salaryDeduct += amount; break;
-          case "keep":
-          default: break;
-        }
-      }
-    });
-
-    // Обновим визуальный итог по инвойсам (с учётом удаления/правок)
-    const totalEl = expensesBlock.querySelector("#expensesTotalVal");
-    if (totalEl) totalEl.textContent = visibleTotal.toFixed(2);
-  }
-
-  const grossForCommission = loadsGross + grossAdd - grossDeduct;
-
-  try {
-    // 3) Схема комиссии
-    const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
-    const data = await res.json();
-    if (!data.success) {
-      console.warn("Ошибка схемы зарплаты:", data.error);
-      return;
-    }
-
-    // 4) Комиссия от откорректированного гросса
-    let commission = 0;
-    if (data.scheme_type === "percent") {
-      const table = data.commission_table || [];
-      if (table.length === 1) {
-        commission = grossForCommission * (table[0].percent / 100);
-      } else if (table.length > 1) {
-        const matched = table
-          .filter(row => grossForCommission >= row.from_sum)
-          .sort((a, b) => b.from_sum - a.from_sum)[0];
-        if (matched) {
-          commission = grossForCommission * (matched.percent / 100);
-        }
-      }
-    }
-
-    // 5) Вычеты по схеме + корректировки ЗП из инвойсов
-    const schemeDeductions = data.deductions || [];
-    const schemeDeductionsTotal = schemeDeductions.reduce((sum, d) => sum + (d.amount || 0), 0);
-
-    const finalSalary =
-      commission
-      - schemeDeductionsTotal
-      - salaryDeduct
-      + salaryAdd;
-
-    // 6) Рендер блока
-    const old = container.querySelector("#driverSalaryBlock");
-    if (old) old.remove();
-
-    const html = `
-      <div id="driverSalaryBlock" class="mt-4">
-        <h5>💰 Зарплата водителя:</h5>
-        <div class="table-responsive">
-          <table class="table table-sm table-bordered align-middle">
-            <tbody>
-              <tr>
-                <th style="width:50%">Гросс по выбранным грузам</th>
-                <td class="text-end">$${loadsGross.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <th>Корректировки гросса (инвойсы)</th>
-                <td class="text-end">
-                  +$${grossAdd.toFixed(2)} (add_gross)
-                  &nbsp;&nbsp;–$${grossDeduct.toFixed(2)} (deduct_gross)
-                </td>
-              </tr>
-              <tr class="table-light">
-                <th>Гросс для расчёта комиссии</th>
-                <td class="text-end"><strong>$${grossForCommission.toFixed(2)}</strong></td>
-              </tr>
-              <tr>
-                <th>Комиссия по схеме</th>
-                <td class="text-end">$${commission.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <th>Списания по схеме</th>
-                <td class="text-end">–$${schemeDeductionsTotal.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <th>Корректировки к зарплате (инвойсы)</th>
-                <td class="text-end">
-                  +$${salaryAdd.toFixed(2)} (add_salary)
-                  &nbsp;&nbsp;–$${salaryDeduct.toFixed(2)} (deduct_salary)
-                </td>
-              </tr>
-              <tr class="table-success">
-                <th>Итого к выплате</th>
-                <td class="text-end"><strong>$${finalSalary.toFixed(2)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        ${schemeDeductions.length > 0 ? `
-          <h6 class="mt-3">💸 Списания по схеме:</h6>
-          <ul>
-            ${schemeDeductions.map(d => `
-              <li>${d.type}: -$${(d.amount || 0).toFixed(2)}</li>
-            `).join("")}
-          </ul>
-        ` : ""}
-      </div>
-    `;
-
-    container.insertAdjacentHTML("beforeend", html);
-
-  } catch (err) {
-    console.error("❌ Ошибка при расчёте зарплаты:", err);
-  }
-}
-
-// === ПРОБЕГ ВОДИТЕЛЯ ЗА ПЕРИОД (через /api/statement/driver_mileage) =========================
-function fetchDriverMileage(driverId, weekRange) {
-  const container = document.getElementById("driverStatementResults");
-  const [start, end] = weekRange.split("-").map(s => s.trim());
-
-  // Ваш бэкенд принимает start/end в формате MM/DD/YYYY — это ок.
-  fetch(`/api/statement/driver_mileage?driver_id=${encodeURIComponent(driverId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
-    .then(async (res) => {
-      // Если 404 (нет samsara_vehicle_id/нет трака/нет водителя) — покажем понятный текст
-      let data = null;
-      try { data = await res.json(); } catch (_) { /* ignore */ }
-
-      const old = container.querySelector("#driverMileageBlock");
-      if (old) old.remove();
-
-      // Случай когда ответ не ОК (например 404 с сообщением)
-      if (!res.ok) {
-        const msg = (data && (data.error || data.reason)) || `HTTP ${res.status}`;
-        container.insertAdjacentHTML(
-          "beforeend",
-          `<div id="driverMileageBlock" class="mt-4 text-muted">🚚 Пробег: недоступен (${msg})</div>`
-        );
-        return;
-      }
-
-      // success === true
-      const miles = Number((data && (data.miles ?? data.mileage?.miles)) || 0);
-      const source = (data && (data.source ?? data.mileage?.source)) || "—";
-      const truckNum = data && (data.unit_number || data.truck_number);
-
-      const html = `
-        <div id="driverMileageBlock" class="mt-4">
-          <h5>🚚 Пробег за период:</h5>
-          <div><b>${miles.toFixed(2)}</b> mi <span class="text-muted">(${source})</span>${truckNum ? ` • Truck ${truckNum}` : ""}</div>
-        </div>
-      `;
-      container.insertAdjacentHTML("beforeend", html);
-    })
-    .catch(err => {
-      console.error("❌ Ошибка пробега:", err);
-      const old = container.querySelector("#driverMileageBlock");
-      if (old) old.remove();
-      container.insertAdjacentHTML(
-        "beforeend",
-        `<div id="driverMileageBlock" class="mt-4 text-danger">Не удалось получить пробег</div>`
-      );
-    });
-}
-
-
-
+/* ===================== Инспекции ===================== */
 function fetchDriverInspections(driverId, weekRange) {
   const container = document.getElementById("driverStatementResults");
   const [start, end] = weekRange.split("-").map(s => s.trim());
@@ -475,7 +264,7 @@ function fetchDriverInspections(driverId, weekRange) {
     });
 }
 
-
+/* ===================== Инвойсы ===================== */
 function fetchDriverExpenses(driverId, weekRange) {
   const container = document.getElementById("driverStatementResults");
   const [start, end] = weekRange.split("-").map(s => s.trim());
@@ -538,7 +327,6 @@ function fetchDriverExpenses(driverId, weekRange) {
 
       container.insertAdjacentHTML("beforeend", html);
 
-      // Слушатели для пересчёта
       const expensesBlock = container.querySelector("#driverExpensesBlock");
       expensesBlock.querySelectorAll(".expense-action").forEach(sel => {
         sel.addEventListener("change", window.recalculateDriverSalary);
@@ -547,7 +335,6 @@ function fetchDriverExpenses(driverId, weekRange) {
         inp.addEventListener("input", window.recalculateDriverSalary);
       });
 
-      // Удаление/восстановление инвойса (визуально и из расчёта)
       expensesBlock.querySelectorAll(".expense-remove-btn").forEach(btn => {
         btn.addEventListener("click", (ev) => {
           const li = ev.currentTarget.closest(".expense-item");
@@ -574,15 +361,237 @@ function fetchDriverExpenses(driverId, weekRange) {
     });
 }
 
+/* ===================== ПРОБЕГ ВОДИТЕЛЯ ЗА ПЕРИОД ===================== */
+async function fetchDriverMileage(driverId, weekRange) {
+  const container = document.getElementById("driverStatementResults");
+  const [start, end] = weekRange.split("-").map(s => s.trim());
 
+  const params = new URLSearchParams({
+    driver_id: driverId,
+    start: start,   // без времени -> сервер сделает 00:00 локали
+    end: end,       // без времени -> сервер сделает 23:59:59 локали
+    tz: "America/Chicago"
+  });
 
-// Statement for All drrivers 
+  try {
+    const res = await fetch(`/api/statement/driver_mileage?${params.toString()}`);
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
 
+    const old = container.querySelector("#driverMileageBlock");
+    if (old) old.remove();
+
+    if (!res.ok) {
+      const msg = (data && (data.error || data.reason)) || `HTTP ${res.status}`;
+      container.insertAdjacentHTML(
+        "beforeend",
+        `<div id="driverMileageBlock" class="mt-4 text-muted">🚚 Пробег: недоступен (${msg})</div>`
+      );
+      return;
+    }
+
+    const miles = Number((data && (data.miles ?? data.mileage?.miles)) || 0);
+    const source = (data && (data.source ?? data.mileage?.source)) || "—";
+    const truckNum = data && (data.unit_number || data.truck_number);
+
+    // кладём значения в dataset и state — для схемы per_mile
+    const html = `
+      <div id="driverMileageBlock" class="mt-4" data-miles="${miles}" data-source="${source}">
+        <h5>🚚 Пробег за период:</h5>
+        <div><b>${miles.toFixed(2)}</b> mi <span class="text-muted">(${source})</span>${truckNum ? ` • Truck ${truckNum}` : ""}</div>
+      </div>
+    `;
+    container.insertAdjacentHTML("beforeend", html);
+
+    window.__statementState = window.__statementState || {};
+    window.__statementState.mileageByDriver = window.__statementState.mileageByDriver || {};
+    window.__statementState.mileageByDriver[driverId] = { miles, source, raw: data };
+
+    // после появления пробега — пересчитаем (важно для per_mile)
+    window.recalculateDriverSalary();
+  } catch (err) {
+    console.error("❌ Ошибка пробега:", err);
+    const old = container.querySelector("#driverMileageBlock");
+    if (old) old.remove();
+    container.insertAdjacentHTML(
+      "beforeend",
+      `<div id="driverMileageBlock" class="mt-4 text-danger">Не удалось получить пробег</div>`
+    );
+  }
+}
+
+/* ===================== Пересчёт зарплаты (учёт percent и per_mile) ===================== */
+window.recalculateDriverSalary = async function () {
+  const container = document.getElementById("driverStatementResults");
+  const driverId = document.getElementById("driverSelect").value;
+  const weekRange = document.getElementById("driverWeekRangeSelect").value;
+
+  // 1) Гросс из выбранных грузов
+  const checkboxes = container.querySelectorAll(".load-checkbox");
+  let loadsGross = 0;
+  checkboxes.forEach(cb => {
+    if (cb.checked) loadsGross += parseFloat(cb.dataset.price || "0");
+  });
+
+  // 2) Инвойсы
+  let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0, visibleTotal = 0;
+  const expensesBlock = container.querySelector("#driverExpensesBlock");
+  if (expensesBlock) {
+    const items = expensesBlock.querySelectorAll(".expense-item");
+    items.forEach(item => {
+      const removed = item.getAttribute("data-removed") === "1";
+      const amountStr = (item.querySelector(".expense-amount")?.value || "0").trim();
+      const amount = Math.max(0, parseFloat(amountStr || "0"));
+      const action = item.querySelector(".expense-action")?.value || "keep";
+
+      if (!removed) {
+        visibleTotal += amount;
+        switch (action) {
+          case "add_gross":     grossAdd += amount; break;
+          case "deduct_gross":  grossDeduct += amount; break;
+          case "add_salary":    salaryAdd += amount; break;
+          case "deduct_salary": salaryDeduct += amount; break;
+        }
+      }
+    });
+
+    const totalEl = expensesBlock.querySelector("#expensesTotalVal");
+    if (totalEl) totalEl.textContent = visibleTotal.toFixed(2);
+  }
+
+  const grossForCommission = loadsGross + grossAdd - grossDeduct;
+
+  try {
+    // 3) Схема
+    const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
+    const data = await res.json();
+    if (!data.success) {
+      console.warn("Ошибка схемы зарплаты:", data.error);
+      return;
+    }
+
+    // 4) Комиссия
+    let commission = 0;
+    let perMileDetails = null;
+
+    if (data.scheme_type === "per_mile") {
+      // пробег берём из блока/стейта
+      let miles = 0;
+      const block = document.getElementById("driverMileageBlock");
+      if (block && block.dataset.miles) {
+        miles = Number(block.dataset.miles || 0);
+      } else {
+        const st = (window.__statementState?.mileageByDriver?.[driverId]) || {};
+        miles = Number(st.miles || 0);
+      }
+      const rate = Number(data.per_mile_rate || 0);
+      commission = miles * rate;
+      perMileDetails = { miles, rate, amount: commission };
+    } else {
+      // percent
+      const table = data.commission_table || [];
+      if (table.length === 1) {
+        commission = grossForCommission * (Number(table[0].percent || 0) / 100);
+      } else if (table.length > 1) {
+        const matched = table
+          .filter(row => grossForCommission >= Number(row.from_sum || 0))
+          .sort((a, b) => Number(b.from_sum || 0) - Number(a.from_sum || 0))[0];
+        if (matched) commission = grossForCommission * (Number(matched.percent || 0) / 100);
+      }
+    }
+
+    // 5) Вычеты по схеме + корректировки ЗП из инвойсов
+    const schemeDeductions = data.deductions || [];
+    const schemeDeductionsTotal = schemeDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+    const finalSalary =
+      commission
+      - schemeDeductionsTotal
+      - salaryDeduct
+      + salaryAdd;
+
+    // 6) Рендер
+    const old = container.querySelector("#driverSalaryBlock");
+    if (old) old.remove();
+
+    const perMileRow = perMileDetails ? `
+      <tr class="table-light">
+        <th>Per-mile</th>
+        <td class="text-end">
+          ${perMileDetails.miles.toLocaleString(undefined, {maximumFractionDigits:2})}
+          × $${perMileDetails.rate.toFixed(4)} = <strong>$${perMileDetails.amount.toFixed(2)}</strong>
+        </td>
+      </tr>
+    ` : "";
+
+    const html = `
+      <div id="driverSalaryBlock" class="mt-4">
+        <h5>💰 Зарплата водителя:</h5>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered align-middle">
+            <tbody>
+              <tr>
+                <th style="width:50%">Гросс по выбранным грузам</th>
+                <td class="text-end">$${loadsGross.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Корректировки гросса (инвойсы)</th>
+                <td class="text-end">
+                  +$${grossAdd.toFixed(2)} (add_gross)
+                  &nbsp;&nbsp;–$${grossDeduct.toFixed(2)} (deduct_gross)
+                </td>
+              </tr>
+              <tr class="table-light">
+                <th>Гросс для расчёта комиссии</th>
+                <td class="text-end"><strong>$${grossForCommission.toFixed(2)}</strong></td>
+              </tr>
+              ${perMileRow}
+              <tr>
+                <th>Комиссия по схеме</th>
+                <td class="text-end">$${commission.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Списания по схеме</th>
+                <td class="text-end">–$${schemeDeductionsTotal.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <th>Корректировки к зарплате (инвойсы)</th>
+                <td class="text-end">
+                  +$${salaryAdd.toFixed(2)} (add_salary)
+                  &nbsp;&nbsp;–$${salaryDeduct.toFixed(2)} (deduct_salary)
+                </td>
+              </tr>
+              <tr class="table-success">
+                <th>Итого к выплате</th>
+                <td class="text-end"><strong>$${finalSalary.toFixed(2)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        ${schemeDeductions.length > 0 ? `
+          <h6 class="mt-3">💸 Списания по схеме:</h6>
+          <ul>
+            ${schemeDeductions.map(d => `
+              <li>${d.type}: -$${(Number(d.amount) || 0).toFixed(2)}</li>
+            `).join("")}
+          </ul>
+        ` : ""}
+      </div>
+    `;
+
+    container.insertAdjacentHTML("beforeend", html);
+
+  } catch (err) {
+    console.error("❌ Ошибка при расчёте зарплаты:", err);
+  }
+};
+
+/* ===================== Statement for All drivers ===================== */
 function openAllDriversStatementModal() {
   document.getElementById("allDriversStatementModal").classList.add("show");
   document.getElementById("allDriversStatementBackdrop").classList.add("show");
 
-  // генерируем список недель, как для обычной модалки
   generateWeekRanges("allDriversWeekRangeSelect");
   loadDriversGroupedByCompany();
 }
@@ -591,7 +600,6 @@ function closeAllDriversStatementModal() {
   document.getElementById("allDriversStatementModal").classList.remove("show");
   document.getElementById("allDriversStatementBackdrop").classList.remove("show");
 }
-
 
 async function loadDriversGroupedByCompany() {
   try {
@@ -603,7 +611,6 @@ async function loadDriversGroupedByCompany() {
       return;
     }
 
-    // Группируем по hiring_company_name
     const grouped = {};
     data.drivers.forEach(d => {
       const comp = d.hiring_company_name || "—";
@@ -611,13 +618,10 @@ async function loadDriversGroupedByCompany() {
       grouped[comp].push(d);
     });
 
-    // Сортировка компаний по алфавиту
     const sortedCompanies = Object.keys(grouped).sort();
-
     const container = document.getElementById("allDriversResults");
     container.innerHTML = "";
 
-    // === Мастер-чекбокс ===
     const masterDiv = document.createElement("div");
     masterDiv.className = "mb-3";
 
@@ -644,20 +648,15 @@ async function loadDriversGroupedByCompany() {
       });
     });
 
-    // === Списки по компаниям ===
     sortedCompanies.forEach(companyName => {
       const drivers = grouped[companyName].sort((a, b) => a.name.localeCompare(b.name));
-
-      // Блок компании
       const companyBlock = document.createElement("div");
       companyBlock.className = "mb-3";
 
-      // Заголовок компании
       const header = document.createElement("h5");
       header.textContent = companyName;
       companyBlock.appendChild(header);
 
-      // Список водителей с чекбоксами
       const ul = document.createElement("ul");
       ul.className = "list-unstyled";
 
@@ -671,14 +670,13 @@ async function loadDriversGroupedByCompany() {
         checkbox.type = "checkbox";
         checkbox.className = "form-check-input me-2 driver-select";
         checkbox.id = cbId;
-        checkbox.checked = true; // по умолчанию выбраны
+        checkbox.checked = true;
         checkbox.dataset.driverId = d.id;
 
         const label = document.createElement("label");
         label.className = "form-check-label";
         label.setAttribute("for", cbId);
 
-        // Строка с именем, траком и диспетчером
         const truckStr = d.truck_number ? ` • Truck: ${d.truck_number}` : "";
         const dispStr = d.dispatcher_name ? ` • Dispatcher: ${d.dispatcher_name}` : "";
 
@@ -698,9 +696,7 @@ async function loadDriversGroupedByCompany() {
   }
 }
 
-
-
-// 📅 получить выбранных драйверов из модалки "All Drivers"
+/* ===================== Helpers (All drivers) ===================== */
 function getSelectedDriversFromModal() {
   const container = document.getElementById("allDriversResults");
   const cbs = container.querySelectorAll(".driver-select");
@@ -709,15 +705,13 @@ function getSelectedDriversFromModal() {
     .map(cb => cb.dataset.driverId);
 }
 
-// 🔁 утилита: запрос JSON
 async function apiGet(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`GET ${url} -> ${r.status}`);
   return await r.json();
 }
 
-
-// 👤 вытянуть все данные по одному водителю (6 запросов: + mileage)
+/* ===================== Собрать данные по одному водителю (All drivers) ===================== */
 async function fetchAllForDriver(driverId, weekRange) {
   const [start, end] = weekRange.split("-").map(s => s.trim());
 
@@ -734,22 +728,23 @@ async function fetchAllForDriver(driverId, weekRange) {
     apiGet(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
     apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
-    // 👇 НОВОЕ: пробег берём по твоей ручке /api/statement/driver_mileage
-    apiGet(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+    apiGet(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&tz=America/Chicago`)
   ]);
 
-  // 1) Нормализация
   const loads = (loadsRes.success ? loadsRes.loads : []);
   const fuel  = (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] });
+
   const scheme = (schemeRes.success ? {
     scheme_type: schemeRes.scheme_type,
     commission_table: schemeRes.commission_table || [],
+    per_mile_rate: Number(schemeRes.per_mile_rate || 0),  // важно для per_mile
     deductions: schemeRes.deductions || [],
     enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
     bonus_level_1: schemeRes.bonus_level_1 || 0,
     bonus_level_2: schemeRes.bonus_level_2 || 0,
     bonus_level_3: schemeRes.bonus_level_3 || 0
   } : null);
+
   const inspections = (inspRes.success ? inspRes.inspections : []);
 
   const expenses = (expRes.success ? expRes.expenses : []).map(e => ({
@@ -763,7 +758,6 @@ async function fetchAllForDriver(driverId, weekRange) {
     removed: false
   }));
 
-  // 2) Пробег — приводим к единому виду
   const mileage = (mileageRes && mileageRes.success)
     ? {
         miles:  Number((mileageRes.miles ?? mileageRes.mileage?.miles) || 0),
@@ -774,7 +768,7 @@ async function fetchAllForDriver(driverId, weekRange) {
       }
     : { miles: 0, meters: 0, source: null, truck_id: null, samsara_vehicle_id: null };
 
-  // 3) Расчёт зарплаты
+  // Расчёт зарплаты
   const loadsGross = loads.reduce((sum, ld) => sum + Number(ld.price || 0), 0);
   let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
   for (const exp of expenses) {
@@ -785,21 +779,24 @@ async function fetchAllForDriver(driverId, weekRange) {
       case "deduct_gross":  grossDeduct += amt; break;
       case "add_salary":    salaryAdd += amt; break;
       case "deduct_salary": salaryDeduct += amt; break;
-      default: break;
     }
   }
   const grossForCommission = loadsGross + grossAdd - grossDeduct;
 
   let commission = 0;
-  if (scheme && scheme.scheme_type === "percent") {
-    const table = scheme.commission_table || [];
-    if (table.length === 1) {
-      commission = grossForCommission * (Number(table[0].percent || 0) / 100);
-    } else if (table.length > 1) {
-      const matched = table
-        .filter(row => grossForCommission >= Number(row.from_sum || 0))
-        .sort((a, b) => Number(b.from_sum || 0) - Number(a.from_sum || 0))[0];
-      if (matched) commission = grossForCommission * (Number(matched.percent || 0) / 100);
+  if (scheme) {
+    if (scheme.scheme_type === "per_mile") {
+      commission = (mileage.miles || 0) * (scheme.per_mile_rate || 0);
+    } else {
+      const table = scheme.commission_table || [];
+      if (table.length === 1) {
+        commission = grossForCommission * (Number(table[0].percent || 0) / 100);
+      } else if (table.length > 1) {
+        const matched = table
+          .filter(row => grossForCommission >= Number(row.from_sum || 0))
+          .sort((a, b) => Number(b.from_sum || 0) - Number(a.from_sum || 0))[0];
+        if (matched) commission = grossForCommission * (Number(matched.percent || 0) / 100);
+      }
     }
   }
 
@@ -819,7 +816,6 @@ async function fetchAllForDriver(driverId, weekRange) {
     final_salary: Number(finalSalary.toFixed(2))
   };
 
-  // 4) Возвращаем структуру для bulk_save (теперь с mileage)
   return {
     driver_id: driverId,
     week_range: weekRange,
@@ -828,14 +824,12 @@ async function fetchAllForDriver(driverId, weekRange) {
     scheme,
     inspections,
     expenses,
-    mileage,              // 👈 ДОБАВЛЕНО
+    mileage,
     calc
   };
 }
 
-
-
-// ▶️ главная кнопка "Рассчитать всем"
+/* ===================== ▶️ Рассчитать всем + Bulk Save ===================== */
 async function calculateAllDriversStatements() {
   const weekRange = document.getElementById("allDriversWeekRangeSelect").value;
   if (!weekRange) {
@@ -863,7 +857,6 @@ async function calculateAllDriversStatements() {
   const results = [];
   let done = 0;
 
-  // последовательно, чтобы не завалить бэкенд
   for (const driverId of driverIds) {
     try {
       const data = await fetchAllForDriver(driverId, weekRange);
@@ -877,7 +870,6 @@ async function calculateAllDriversStatements() {
     }
   }
 
-  // сохраняем пачкой на сервере
   try {
     const r = await fetch("/api/statements/bulk_save", {
       method: "POST",
@@ -899,7 +891,6 @@ async function calculateAllDriversStatements() {
       return;
     }
 
-    // ожидаем от бэка: { success: true, added, ignored, replaced }
     const { added = 0, ignored = 0, replaced = 0 } = resp;
 
     progress.insertAdjacentHTML(
@@ -933,465 +924,7 @@ async function calculateAllDriversStatements() {
   }
 }
 
-
-
-async function loadDriverStatements() {
-  const weekRange = document.getElementById("statementWeekRangeSelect").value || "";
-  const container = document.getElementById("driverStatementsContainer");
-
-  container.innerHTML = `<p>Загрузка...</p>`;
-
-  let url = `/api/statements/list`;
-  if (weekRange) {
-    url += `?week_range=${encodeURIComponent(weekRange)}`;
-  }
-
-  const fmtMoney = (n) => `$${Number(n || 0).toFixed(2)}`;
-  const debounce = (fn, ms = 200) => {
-    let t;
-    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-  };
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (!data.success) {
-      container.innerHTML = `<p class="text-danger">Ошибка: ${data.error || "Не удалось получить список стейтментов"}</p>`;
-      return;
-    }
-
-    if (!data.items || data.items.length === 0) {
-      container.innerHTML = `<p>Стейтменты не найдены</p>`;
-      return;
-    }
-
-    // Сортировка по компании, затем по имени
-    const items = [...data.items].sort((a, b) => {
-      const aComp = (a.hiring_company_name || "").toString();
-      const bComp = (b.hiring_company_name || "").toString();
-      const byCompany = aComp.localeCompare(bComp, undefined, { sensitivity: "base" });
-      if (byCompany !== 0) return byCompany;
-      const aDrv = (a.driver_name || "").toString();
-      const bDrv = (b.driver_name || "").toString();
-      return aDrv.localeCompare(bDrv, undefined, { sensitivity: "base" });
-    });
-
-    // Уникальные компании для селекта
-    const companies = Array.from(new Set(items.map(x => x.hiring_company_name || "—")))
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-    // ——— красивый фильтр-блок ———
-    const filterBar = `
-      <div class="card border-0 shadow-sm rounded-3 mb-3">
-        <div class="card-body py-3">
-          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-            <div class="d-flex align-items-center gap-2">
-              <span class="fw-semibold">Фильтры</span>
-              <span class="badge bg-light text-secondary border">Неделя: ${weekRange || "—"}</span>
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="stmtFiltersReset">Сбросить</button>
-          </div>
-
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label for="stmtFilterDriver" class="form-label mb-1">Имя водителя</label>
-              <div class="input-group input-group-sm">
-                <span class="input-group-text">🔎</span>
-                <input type="text" id="stmtFilterDriver" class="form-control" placeholder="Например: John">
-              </div>
-            </div>
-
-            <div class="col-md-4">
-              <label for="stmtFilterCompany" class="form-label mb-1">Компания</label>
-              <select id="stmtFilterCompany" class="form-select form-select-sm">
-                <option value="">Все компании</option>
-                ${companies.map(c => `<option value="${c}">${c}</option>`).join("")}
-              </select>
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label mb-1 d-block">Активность</label>
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="stmtFilterActiveOnly">
-                <label class="form-check-label" for="stmtFilterActiveOnly">
-                  Показать где Monday Loads / Invoices / Inspections ≥ 1
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const tableShell = `
-      <div class="table-responsive">
-        <table class="table table-sm table-bordered align-middle" id="statementsTable">
-          <thead class="table-light">
-            <tr>
-              <th class="text-center" style="width:36px">
-                <input type="checkbox" class="form-check-input" id="stmtMasterCb">
-              </th>
-              <th>Status</th>
-              <th>Week</th>
-              <th>Driver</th>
-              <th>Company</th>
-              <th>Truck</th>
-              <th class="text-end">Monday Loads</th>
-              <th class="text-end">Invoices</th>
-              <th class="text-end">Inspections</th>
-              <th class="text-end">Salary</th>
-              <th class="text-nowrap">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="statementsTbody"></tbody>
-        </table>
-      </div>
-      <div class="mt-2 text-muted d-flex justify-content-between">
-        <div>Всего: <span id="stmtSummaryCount">0</span></div>
-        <div><strong>Сумма зарплат:</strong> <span id="stmtSummaryTotal">$0.00</span></div>
-      </div>
-    `;
-
-    container.innerHTML = filterBar + tableShell;
-
-    const tbody = container.querySelector("#statementsTbody");
-    const master = container.querySelector("#stmtMasterCb");
-    const sumCountEl = container.querySelector("#stmtSummaryCount");
-    const sumTotalEl = container.querySelector("#stmtSummaryTotal");
-
-    // Рендер одной строки
-    const buildRow = (it) => {
-      const approvedBadge = it.approved
-        ? `<span class="badge bg-success">Approved</span>`
-        : `<span class="badge bg-secondary">Pending</span>`;
-
-      const anyPositive =
-        Number(it.monday_loads) > 0 ||
-        Number(it.invoices_num) > 0 ||
-        Number(it.inspections_num) > 0;
-
-      let rowClass = "";
-      if (it.approved) {
-        rowClass = "table-success";           // approved -> зелёный
-      } else {
-        rowClass = anyPositive ? "table-danger" : "table-warning"; // pending -> красный/желтый
-      }
-
-      const confirmDisabled = it.approved ? "disabled" : "";
-
-      return `
-        <tr class="${rowClass}" data-id="${it._id}">
-          <td class="text-center" style="width:36px">
-            <input type="checkbox" class="form-check-input stmt-cb" data-id="${it._id}">
-          </td>
-          <td class="status-cell">${approvedBadge}</td>
-          <td>${it.week_range || "—"}</td>
-          <td>${it.driver_name || "—"}</td>
-          <td>${it.hiring_company_name || "—"}</td>
-          <td>${it.truck_number || "—"}</td>
-          <td class="text-end">${it.monday_loads}</td>
-          <td class="text-end">${it.invoices_num}</td>
-          <td class="text-end">${it.inspections_num}</td>
-          <td class="text-end fw-semibold">${fmtMoney(it.salary)}</td>
-          <td class="text-nowrap" style="width:180px">
-            <button type="button" class="btn btn-sm btn-primary btn-stmt-confirm" data-id="${it._id}" ${confirmDisabled}>Confirm</button>
-            <button type="button" class="btn btn-sm btn-outline-secondary ms-1 btn-stmt-review" data-id="${it._id}">Review</button>
-          </td>
-        </tr>
-      `;
-    };
-
-    // Рендер по массиву + сводка
-    const renderRows = (arr) => {
-      tbody.innerHTML = arr.map(buildRow).join("");
-      sumCountEl.textContent = arr.length;
-      const totalSalary = arr.reduce((s, it) => s + (Number(it.salary) || 0), 0);
-      sumTotalEl.textContent = fmtMoney(totalSalary);
-      if (master) master.checked = false; // сбрасываем мастер при перерисовке
-    };
-
-    // Фильтрация
-    const driverInput   = container.querySelector("#stmtFilterDriver");
-    const companySelect = container.querySelector("#stmtFilterCompany");
-    const activeOnlyCb  = container.querySelector("#stmtFilterActiveOnly");
-    const resetBtn      = container.querySelector("#stmtFiltersReset");
-
-    const applyFilters = () => {
-      const q = (driverInput.value || "").trim().toLowerCase();
-      const company = companySelect.value || "";
-      const activeOnly = activeOnlyCb.checked;
-
-      const filtered = items.filter(it => {
-        if (q && !(it.driver_name || "").toLowerCase().includes(q)) return false;
-        if (company && (it.hiring_company_name || "") !== company) return false;
-        if (activeOnly) {
-          const anyPos =
-            Number(it.monday_loads) > 0 ||
-            Number(it.invoices_num) > 0 ||
-            Number(it.inspections_num) > 0;
-          if (!anyPos) return false;
-        }
-        return true;
-      });
-
-      renderRows(filtered);
-    };
-
-    // Первичный рендер
-    renderRows(items);
-
-    // Слушатели
-    driverInput.addEventListener("input", debounce(applyFilters, 200));
-    companySelect.addEventListener("change", applyFilters);
-    activeOnlyCb.addEventListener("change", applyFilters);
-    resetBtn.addEventListener("click", () => {
-      driverInput.value = "";
-      companySelect.value = "";
-      activeOnlyCb.checked = false;
-      applyFilters();
-      driverInput.focus();
-    });
-
-    // Мастер-чекбокс (работает по видимым строкам)
-    if (master) {
-      master.addEventListener("change", () => {
-        tbody.querySelectorAll(".stmt-cb").forEach(cb => {
-          cb.checked = master.checked;
-        });
-      });
-    }
-
-    // Делегирование событий: Confirm / Review
-    const table = container.querySelector("#statementsTable");
-    table.addEventListener("click", async (e) => {
-      const confirmBtn = e.target.closest(".btn-stmt-confirm");
-      const reviewBtn  = e.target.closest(".btn-stmt-review");
-      if (!confirmBtn && !reviewBtn) return;
-
-      const row = e.target.closest("tr[data-id]");
-      const id = row?.getAttribute("data-id");
-      if (!id) return;
-
-      // Ищем актуальный элемент по id в исходном массиве
-      const item = items.find(x => x._id === id);
-      if (!item) return;
-
-      if (reviewBtn) {
-        if (typeof Swal !== "undefined") {
-          await Swal.fire({
-            title: "Statement Review",
-            html: `
-              <div style="text-align:left">
-                <div><b>Driver:</b> ${item.driver_name || "—"}</div>
-                <div><b>Company:</b> ${item.hiring_company_name || "—"}</div>
-                <div><b>Week:</b> ${item.week_range || "—"}</div>
-                <div><b>Truck:</b> ${item.truck_number || "—"}</div>
-                <hr>
-                <div><b>Monday Loads:</b> ${item.monday_loads ?? 0}</div>
-                <div><b>Invoices:</b> ${item.invoices_num ?? 0}</div>
-                <div><b>Inspections:</b> ${item.inspections_num ?? 0}</div>
-                <div><b>Salary:</b> ${fmtMoney(item.salary)}</div>
-                <hr>
-                <div><b>Status:</b> ${item.approved ? "Approved" : "Pending"}</div>
-              </div>
-            `,
-            confirmButtonText: "OK"
-          });
-        } else {
-          alert(
-            `Driver: ${item.driver_name || "—"}\n` +
-            `Company: ${item.hiring_company_name || "—"}\n` +
-            `Week: ${item.week_range || "—"}\n` +
-            `Truck: ${item.truck_number || "—"}\n` +
-            `Monday Loads: ${item.monday_loads ?? 0}\n` +
-            `Invoices: ${item.invoices_num ?? 0}\n` +
-            `Inspections: ${item.inspections_num ?? 0}\n` +
-            `Salary: ${fmtMoney(item.salary)}\n` +
-            `Status: ${item.approved ? "Approved" : "Pending"}`
-          );
-        }
-        return;
-      }
-
-      if (confirmBtn) {
-        try {
-          confirmBtn.disabled = true;
-          confirmBtn.innerText = "Confirming...";
-
-          const r = await fetch("/api/statements/confirm", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id })
-          });
-          const resp = await r.json();
-
-          if (!resp.success) {
-            throw new Error(resp.error || "Confirm failed");
-          }
-
-          // Обновляем объект и UI
-          item.approved = true;
-
-          const badge = row.querySelector(".status-cell .badge");
-          if (badge) {
-            badge.classList.remove("bg-secondary");
-            badge.classList.add("bg-success");
-            badge.textContent = "Approved";
-          }
-          row.classList.remove("table-warning", "table-danger");
-          row.classList.add("table-success");
-          confirmBtn.innerText = "Confirmed";
-        } catch (err) {
-          console.error("Confirm error:", err);
-          if (typeof Swal !== "undefined") {
-            Swal.fire("Ошибка", err.message || "Не удалось подтвердить стейтмент.", "error");
-          } else {
-            alert("Не удалось подтвердить стейтмент.");
-          }
-          confirmBtn.disabled = false;
-          confirmBtn.innerText = "Confirm";
-        }
-      }
-    });
-
-  } catch (err) {
-    console.error("❌ Ошибка при загрузке стейтментов:", err);
-    container.innerHTML = `<p class="text-danger">Ошибка при загрузке стейтментов</p>`;
-  }
-}
-
-
-
-
-// === Ниже важный блок нужен для кнопки review ===
-
-
-
-// === helper: убедиться, что нужный weekRange есть в select ===
-function ensureWeekRangeOption(selectEl, weekRange) {
-  if (!selectEl || !weekRange) return;
-  const exists = Array.from(selectEl.options).some(o => o.value === weekRange);
-  if (!exists) {
-    const opt = document.createElement("option");
-    opt.value = weekRange;
-    opt.textContent = weekRange;
-    selectEl.appendChild(opt);
-  }
-}
-
-// === Открыть модалку в режиме REVIEW для уже созданного стейтмента ===
-// ====== REVIEW-МОДАЛКА (для существующего стейтмента) ======
-async function openStatementReviewModal(item) {
-  // сначала открываем как create, чтобы гарантированно сбросить всё лишнее
-  openDriverStatementModal();
-
-  const modal = document.getElementById("driverStatementModal");
-  const title = modal.querySelector(".modal-title");
-  const driverLabel = modal.querySelector('label[for="driverSelect"]');
-  const driverSel = modal.querySelector("#driverSelect");
-  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
-  const weekSel = modal.querySelector("#driverWeekRangeSelect");
-  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
-  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
-  const results = modal.querySelector("#driverStatementResults");
-
-  // переключаемся в режим review
-  modal.dataset.mode = "review";
-  modal.dataset.statementId = item._id || "";
-  if (title) title.textContent = "Просмотр стейтмента";
-
-  // скрыть выборы и кнопки расчёта/сохранения
-  [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
-  if (calcBtn) calcBtn.style.display = "none";
-  if (saveBtn) saveBtn.style.display = "none";
-
-  // создать блок Confirm/Закрыть
-  let confirmWrap = modal.querySelector("#reviewConfirmWrap");
-  if (confirmWrap) confirmWrap.remove();
-  confirmWrap = document.createElement("div");
-  confirmWrap.id = "reviewConfirmWrap";
-  confirmWrap.className = "mt-3 d-flex gap-2";
-  confirmWrap.innerHTML = `
-    <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
-    <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
-  `;
-  results.parentElement.insertBefore(confirmWrap, results.nextSibling);
-
-  // выставить значения как «выбранные»
-  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
-  ensureWeekRangeOption(weekSel, item.week_range);
-  if (driverSel) driverSel.value = item.driver_id || "";
-  if (weekSel) weekSel.value = item.week_range || "";
-
-  // сразу рассчитать
-  if (results) results.innerHTML = "<p>Загрузка...</p>";
-  await calculateDriverStatement();
-
-  // обработчики
-  const confirmBtn = modal.querySelector("#reviewConfirmBtn");
-  const closeBtn = modal.querySelector("#reviewCloseBtn");
-
-  confirmBtn.onclick = async () => {
-    try {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = "Confirming...";
-      const r = await fetch("/api/statements/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: modal.dataset.statementId })
-      });
-      const resp = await r.json();
-      if (!resp.success) throw new Error(resp.error || "Confirm failed");
-      closeDriverStatementModal();
-      if (typeof loadDriverStatements === "function") await loadDriverStatements();
-    } catch (err) {
-      console.error("Confirm error:", err);
-      if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = "Confirm";
-    }
-  };
-
-  closeBtn.onclick = () => closeDriverStatementModal();
-}
-
-// === Переопределяем закрытие: чистим режим REVIEW и возвращаем видимость ===
-function closeDriverStatementModal() {
-  const modal = document.getElementById("driverStatementModal");
-  const backdrop = document.getElementById("driverStatementBackdrop");
-  if (!modal) return;
-
-  // снять show
-  modal.classList.remove("show");
-  backdrop.classList.remove("show");
-
-  // если был режим review — вернуть всё как было
-  if (modal.dataset.mode === "review") {
-    const title = modal.querySelector(".modal-title");
-    if (title) title.textContent = "Добавление стейтмента водителя";
-
-    const driverLabel = modal.querySelector('label[for="driverSelect"]');
-    const driverSel = modal.querySelector("#driverSelect");
-    const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
-    const weekSel = modal.querySelector("#driverWeekRangeSelect");
-    const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
-    const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
-    const reviewWrap = modal.querySelector("#reviewConfirmWrap");
-    const results = modal.querySelector("#driverStatementResults");
-
-    [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = ""; });
-    if (calcBtn) calcBtn.style.display = "";
-    if (saveBtn) saveBtn.style.display = "";
-    if (reviewWrap) reviewWrap.style.display = "none";
-    if (results) results.innerHTML = ""; // чистим контент
-
-    delete modal.dataset.mode;
-    delete modal.dataset.statementId;
-  }
-}
-
-// === Обновлённая таблица: Review открывает модалку в режиме REVIEW ===
+/* ===================== Список стейтментов (таблица) + Review ===================== */
 async function loadDriverStatements() {
   const weekRange = document.getElementById("statementWeekRangeSelect").value || "";
   const container = document.getElementById("driverStatementsContainer");
@@ -1419,7 +952,6 @@ async function loadDriverStatements() {
       return;
     }
 
-    // сортировка по компании, затем по имени
     const items = [...data.items].sort((a,b)=>{
       const c = (a.hiring_company_name||"").localeCompare(b.hiring_company_name||"", undefined, {sensitivity:"base"});
       if (c!==0) return c;
@@ -1604,7 +1136,6 @@ async function loadDriverStatements() {
       if (!item) return;
 
       if (reviewBtn) {
-        // открыть ту же модалку, но в режиме REVIEW
         return openStatementReviewModal(item);
       }
 
@@ -1620,7 +1151,6 @@ async function loadDriverStatements() {
           const resp = await r.json();
           if (!resp.success) throw new Error(resp.error || "Confirm failed");
 
-          // обновить строку
           item.approved = true;
           const badge = row.querySelector(".status-cell .badge");
           if (badge) {
@@ -1644,4 +1174,83 @@ async function loadDriverStatements() {
     console.error("❌ Ошибка при загрузке стейтментов:", err);
     container.innerHTML = `<p class="text-danger">Ошибка при загрузке стейтментов</p>`;
   }
+}
+
+/* ===================== REVIEW-МОДАЛКА для существующего стейтмента ===================== */
+function ensureWeekRangeOption(selectEl, weekRange) {
+  if (!selectEl || !weekRange) return;
+  const exists = Array.from(selectEl.options).some(o => o.value === weekRange);
+  if (!exists) {
+    const opt = document.createElement("option");
+    opt.value = weekRange;
+    opt.textContent = weekRange;
+    selectEl.appendChild(opt);
+  }
+}
+
+async function openStatementReviewModal(item) {
+  openDriverStatementModal();
+
+  const modal = document.getElementById("driverStatementModal");
+  const title = modal.querySelector(".modal-title");
+  const driverLabel = modal.querySelector('label[for="driverSelect"]');
+  const driverSel = modal.querySelector("#driverSelect");
+  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
+  const weekSel = modal.querySelector("#driverWeekRangeSelect");
+  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
+  const results = modal.querySelector("#driverStatementResults");
+
+  modal.dataset.mode = "review";
+  modal.dataset.statementId = item._id || "";
+  if (title) title.textContent = "Просмотр стейтмента";
+
+  [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
+  if (calcBtn) calcBtn.style.display = "none";
+  if (saveBtn) saveBtn.style.display = "none";
+
+  let confirmWrap = modal.querySelector("#reviewConfirmWrap");
+  if (confirmWrap) confirmWrap.remove();
+  confirmWrap = document.createElement("div");
+  confirmWrap.id = "reviewConfirmWrap";
+  confirmWrap.className = "mt-3 d-flex gap-2";
+  confirmWrap.innerHTML = `
+    <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
+    <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
+  `;
+  results.parentElement.insertBefore(confirmWrap, results.nextSibling);
+
+  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
+  ensureWeekRangeOption(weekSel, item.week_range);
+  if (driverSel) driverSel.value = item.driver_id || "";
+  if (weekSel) weekSel.value = item.week_range || "";
+
+  if (results) results.innerHTML = "<p>Загрузка...</p>";
+  await calculateDriverStatement();
+
+  const confirmBtn = modal.querySelector("#reviewConfirmBtn");
+  const closeBtn = modal.querySelector("#reviewCloseBtn");
+
+  confirmBtn.onclick = async () => {
+    try {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Confirming...";
+      const r = await fetch("/api/statements/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: modal.dataset.statementId })
+      });
+      const resp = await r.json();
+      if (!resp.success) throw new Error(resp.error || "Confirm failed");
+      closeDriverStatementModal();
+      if (typeof loadDriverStatements === "function") await loadDriverStatements();
+    } catch (err) {
+      console.error("Confirm error:", err);
+      if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Confirm";
+    }
+  };
+
+  closeBtn.onclick = () => closeDriverStatementModal();
 }
