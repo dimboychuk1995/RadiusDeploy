@@ -614,3 +614,244 @@ def api_samsara_vehicle_history():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+@samsara_bp.route("/api/samsara/vehicle_mileage", methods=["GET"])
+@login_required
+def api_samsara_vehicle_mileage():
+    """
+    Считает, сколько миль проехал конкретный грузовик за интервал.
+
+    GET-параметры:
+      - samsara_vehicle_id | vehicle_id (str, required)
+      - date (str, optional) — YYYY-MM-DD или MM/DD/YYYY; если указана, берём сутки компании [00:00, 24:00)
+      - start (str, optional) — ISO 8601 или YYYY-MM-DD (тогда 00:00 локали компании)
+      - end   (str, optional) — ISO 8601 или YYYY-MM-DD (тогда 00:00 следующего дня локали компании)
+      - tz    (str, optional) — IANA timezone, по умолчанию таймзона компании
+      - pad   (int, optional) — минут «запаса» ДО start (по умолчанию 45), чтобы вытянуть первое значение до начала окна
+      - debug (int, optional) — 1 вернуть диагностику
+
+    Приоритет источников:
+      1) obdOdometerMeters (ECU)
+      2) gpsDistanceMeters  (накапливаемая дистанция от установки VG)
+      3) gpsOdometerMeters  (GPS-«одометр» с ручным оффсетом — как крайний случай)
+
+    Ответ:
+      {
+        "success": true,
+        "vehicle_id": "...",
+        "start_time_utc": "....Z",
+        "end_time_utc":   "....Z",
+        "miles": 123.45,                  # выбранный лучший источник
+        "meters": 198700.0,
+        "source": "obdOdometerMeters|gpsDistanceMeters|gpsOdometerMeters",
+        "breakdown": {                    # для прозрачности — все источники и их дельты
+          "obdOdometerMeters": {"meters": ..., "miles": ..., "samples": 12, "firstTime": "...", "lastTime": "..."},
+          "gpsDistanceMeters": {"meters": ..., "miles": ..., "samples": 20, "firstTime": "...", "lastTime": "..."},
+          "gpsOdometerMeters": {"meters": ..., "miles": ..., "samples": 7,  "firstTime": "...", "lastTime": "..."}
+        }
+      }
+    """
+    import requests
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+    from flask import request, jsonify
+
+    MILES_PER_METER = 0.000621371
+    TYPES = ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]
+
+    def _parse_any_ts_localfirst(s: str, local_tz: ZoneInfo):
+        """Поддержка ISO/offset/`YYYY-MM-DD`/`MM/DD/YYYY`."""
+        if not s:
+            return None
+        s = s.strip()
+        # Если просто дата — трактуем как 00:00 этой даты в local_tz
+        try:
+            if len(s) == 10 and s[4] == "-" and s[7] == "-":
+                return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=local_tz)
+        except Exception:
+            pass
+        try:
+            if "/" in s and len(s) >= 10:
+                return datetime.strptime(s[:10], "%m/%d/%Y").replace(tzinfo=local_tz)
+        except Exception:
+            pass
+        # Иначе пусть парсит из ISO (aware -> переведём в UTC позже)
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    def _to_utc_iso(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _pick_first_last(arr):
+        """Из массива [{time, value}] берём (first, last) по времени."""
+        arr = [x for x in arr if x and x.get("time") and (x.get("value") is not None)]
+        if not arr:
+            return None, None
+        arr.sort(key=lambda x: x["time"])
+        return arr[0], arr[-1]
+
+    def _ensure_list(obj):
+        """Samsara иногда отдаёт объект, иногда массив; приводим к массиву."""
+        if obj is None:
+            return []
+        if isinstance(obj, list):
+            return obj
+        if isinstance(obj, dict):
+            return [obj]  # одиночное значение
+        return []
+
+    try:
+        samsara_vehicle_id = request.args.get("samsara_vehicle_id") or request.args.get("vehicle_id")
+        if not samsara_vehicle_id:
+            return jsonify({"success": False, "error": "Missing samsara_vehicle_id"}), 400
+
+        # Валидация принадлежности компании
+        unit = trucks_collection.find_one(
+            {"company": current_user.company, "samsara_vehicle_id": str(samsara_vehicle_id)},
+            {"_id": 1, "unit_number": 1}
+        )
+        if not unit:
+            return jsonify({"success": False, "error": "Vehicle is not linked to your company"}), 403
+
+        # Таймзона компании (fallback America/Chicago)
+        tz_doc = db["company_timezone"].find_one({"company": current_user.company}) or {}
+        tz_name = request.args.get("tz") or tz_doc.get("timezone") or "America/Chicago"
+        local_tz = ZoneInfo(tz_name)
+
+        # Вычислим окно
+        date_str = request.args.get("date")
+        start_str = request.args.get("start")
+        end_str   = request.args.get("end")
+
+        if date_str and not (start_str or end_str):
+            # сутки компании
+            day_local = _parse_any_ts_localfirst(date_str, local_tz)
+            if not day_local:
+                return jsonify({"success": False, "error": "Invalid date format"}), 400
+            start_local = day_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local   = start_local + timedelta(days=1)
+        else:
+            # произвольные start/end
+            start_local = _parse_any_ts_localfirst(start_str, local_tz)
+            end_local   = _parse_any_ts_localfirst(end_str,   local_tz)
+            if not start_local:
+                return jsonify({"success": False, "error": "Provide either date or start/end"}), 400
+            if not end_local:
+                # если дали только start с датой без времени — считаем сутки
+                if len(start_str or "") == 10:
+                    end_local = start_local + timedelta(days=1)
+                else:
+                    return jsonify({"success": False, "error": "Missing end"}), 400
+
+        # Паддинг, чтобы захватить «первое» значение до начала окна
+        pad_min = int(request.args.get("pad") or 45)
+        start_local_padded = start_local - timedelta(minutes=max(0, pad_min))
+
+        # UTC ISO
+        start_iso = _to_utc_iso(start_local)
+        end_iso   = _to_utc_iso(end_local)
+        start_iso_padded = _to_utc_iso(start_local_padded)
+
+        headers = get_samsara_headers()
+
+        # История показаний за [start_pad, end]
+        url = f"{BASE_URL}/fleet/vehicles/stats/history"
+        params = {
+            "vehicleIds": str(samsara_vehicle_id),
+            "types": ",".join(TYPES),
+            "startTime": start_iso_padded,
+            "endTime": end_iso
+        }
+
+        # Пагинация
+        pages = 0
+        accum = {t: [] for t in TYPES}
+        names = {}
+        while True:
+            pages += 1
+            if pages > 60:
+                break
+            r = requests.get(url, headers=headers, params=params, timeout=30)
+            if not r.ok:
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to fetch stats history ({r.status_code})",
+                    "details": r.text
+                }), r.status_code
+            payload = r.json() or {}
+
+            for veh in payload.get("data", []):
+                if str(veh.get("id")) != str(samsara_vehicle_id):
+                    continue
+                names["vehicle"] = veh.get("name")
+                for t in TYPES:
+                    accum[t].extend(_ensure_list(veh.get(t)))
+
+            pag = (payload.get("pagination") or {})
+            if pag.get("hasNextPage"):
+                params["after"] = pag.get("endCursor")
+            else:
+                break
+
+        # Вычислим дельты по каждому источнику
+        breakdown = {}
+        best = None
+
+        for t in TYPES:
+            first, last = _pick_first_last(accum[t])
+            if not (first and last):
+                breakdown[t] = {"meters": 0.0, "miles": 0.0, "samples": len(accum[t])}
+                continue
+
+            delta_m = (float(last.get("value", 0)) - float(first.get("value", 0)))
+            # Защитимся от отрицательных скачков (смена VG/сброс одометра)
+            if delta_m < 0:
+                delta_m = 0.0
+
+            meters = delta_m
+            miles  = meters * MILES_PER_METER
+            breakdown[t] = {
+                "meters": round(meters, 3),
+                "miles": round(miles, 3),
+                "samples": len(accum[t]),
+                "firstTime": first.get("time"),
+                "lastTime": last.get("time")
+            }
+
+        # Выбираем лучший источник: obd → gpsDistance → gpsOdometer
+        order = ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]
+        for key in order:
+            if breakdown.get(key, {}).get("meters", 0) > 0:
+                best = (key, breakdown[key])
+                break
+        if not best:
+            # если все нули — вернём нули, но с раскладкой, чтобы было понятно почему
+            best = (order[0], breakdown.get(order[0], {"meters": 0.0, "miles": 0.0}))
+
+        resp = {
+            "success": True,
+            "vehicle_id": str(samsara_vehicle_id),
+            "date": (request.args.get("date") or None),
+            "start_time_utc": _to_utc_iso(start_local),
+            "end_time_utc": _to_utc_iso(end_local),
+            "meters": best[1]["meters"],
+            "miles": best[1]["miles"],
+            "source": best[0],
+            "breakdown": breakdown
+        }
+        if request.args.get("debug") == "1":
+            resp["debug"] = {
+                "pages": pages,
+                "tz": tz_name,
+                "pad_minutes": pad_min,
+                "queried_types": TYPES,
+                "vehicle_name": names.get("vehicle")
+            }
+        return jsonify(resp)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
