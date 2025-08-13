@@ -1087,3 +1087,259 @@ def list_statements():
         print("Exception in /api/statements/list:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+
+# --- Считаем мили водителя(На самом деле мы считаем мили трака, но через водителя, такой же метод есть в samsara.py) ---
+@statement_bp.route("/api/statement/driver_mileage", methods=["GET"])
+@login_required
+def api_samsara_driver_mileage():
+    """
+    Считает пробег за интервал ДЛЯ ВОДИТЕЛЯ:
+      - по driver_id → находим drivers.truck (ObjectId)
+      - по этому truck → находим trucks.samsara_vehicle_id
+      - дальше считаем пробег по Samsara, как в vehicle_mileage
+
+    GET-параметры:
+      - driver_id (str, required) — Mongo ObjectId водителя
+      - date   (str, optional) — YYYY-MM-DD или MM/DD/YYYY; если указана, берём сутки компании [00:00, 24:00)
+      - start  (str, optional) — ISO 8601 или YYYY-MM-DD (тогда 00:00 локали компании)
+      - end    (str, optional) — ISO 8601 или YYYY-MM-DD (тогда 00:00 следующего дня локали компании)
+      - tz     (str, optional) — IANA timezone, по умолчанию таймзона компании
+      - pad    (int, optional) — минут «запаса» ДО start (по умолчанию 45), чтобы вытянуть первое значение до начала окна
+      - debug  (int, optional) — 1 вернуть диагностику
+
+    Приоритет источников:
+      1) obdOdometerMeters
+      2) gpsDistanceMeters
+      3) gpsOdometerMeters
+    """
+    import requests
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+    from bson import ObjectId
+    from flask import request, jsonify
+    from samsara import  get_samsara_headers, BASE_URL
+
+    # --- константы/локальные утилиты ---
+    MILES_PER_METER = 0.000621371
+    TYPES = ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]
+
+    def _parse_any_ts_localfirst(s: str, local_tz: ZoneInfo):
+        """Поддержка ISO/offset/`YYYY-MM-DD`/`MM/DD/YYYY`."""
+        if not s:
+            return None
+        s = s.strip()
+        # Дата вида 2025-08-04 → 00:00 локали
+        try:
+            if len(s) == 10 and s[4] == "-" and s[7] == "-":
+                return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=local_tz)
+        except Exception:
+            pass
+        # Дата вида 08/04/2025 → 00:00 локали
+        try:
+            if "/" in s and len(s) >= 10:
+                return datetime.strptime(s[:10], "%m/%d/%Y").replace(tzinfo=local_tz)
+        except Exception:
+            pass
+        # Иначе пробуем ISO (aware → переведём в UTC позже)
+        try:
+            return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    def _to_utc_iso(dt):
+        return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _pick_first_last(arr):
+        """Из массива [{time, value}] берём (first, last) по времени."""
+        arr = [x for x in arr if x and x.get("time") and (x.get("value") is not None)]
+        if not arr:
+            return None, None
+        arr.sort(key=lambda x: x["time"])
+        return arr[0], arr[-1]
+
+    def _ensure_list(obj):
+        """Samsara иногда отдаёт объект, иногда массив; приводим к массиву."""
+        if obj is None:
+            return []
+        if isinstance(obj, list):
+            return obj
+        if isinstance(obj, dict):
+            return [obj]
+        return []
+
+    try:
+        # --- входные параметры ---
+        driver_id_str = request.args.get("driver_id")
+        if not driver_id_str:
+            return jsonify({"success": False, "error": "Missing driver_id"}), 400
+
+        try:
+            driver_oid = ObjectId(driver_id_str)
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid driver_id"}), 400
+
+        # --- коллекции ---
+        drivers_collection = db["drivers"]
+        trucks_collection  = db["trucks"]
+
+        # --- находим водителя в рамках компании ---
+        driver = drivers_collection.find_one(
+            {"_id": driver_oid, "company": current_user.company},
+            {"_id": 1, "name": 1, "truck": 1}
+        )
+        if not driver:
+            return jsonify({"success": False, "error": "Driver not found in your company"}), 404
+
+        truck_oid = driver.get("truck")
+        if not truck_oid:
+            return jsonify({"success": False, "error": "Driver has no assigned truck"}), 404
+
+        # --- находим трак и samsara_vehicle_id ---
+        truck = trucks_collection.find_one(
+            {"_id": truck_oid, "company": current_user.company},
+            {"_id": 1, "unit_number": 1, "samsara_vehicle_id": 1}
+        )
+        if not truck:
+            return jsonify({"success": False, "error": "Truck not found in your company"}), 404
+
+        samsara_vehicle_id = (truck.get("samsara_vehicle_id") or "").strip() if isinstance(truck.get("samsara_vehicle_id"), str) else truck.get("samsara_vehicle_id")
+        if not samsara_vehicle_id:
+            return jsonify({"success": False, "error": "Truck has no samsara_vehicle_id"}), 404
+
+        # --- таймзона компании (fallback America/Chicago) ---
+        tz_doc = db["company_timezone"].find_one({"company": current_user.company}) or {}
+        tz_name = request.args.get("tz") or tz_doc.get("timezone") or "America/Chicago"
+        local_tz = ZoneInfo(tz_name)
+
+        # --- вычисляем окно ---
+        date_str  = request.args.get("date")
+        start_str = request.args.get("start")
+        end_str   = request.args.get("end")
+
+        if date_str and not (start_str or end_str):
+            # сутки компании
+            day_local = _parse_any_ts_localfirst(date_str, local_tz)
+            if not day_local:
+                return jsonify({"success": False, "error": "Invalid date format"}), 400
+            start_local = day_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_local   = start_local + timedelta(days=1)
+        else:
+            # произвольные start/end
+            start_local = _parse_any_ts_localfirst(start_str, local_tz)
+            end_local   = _parse_any_ts_localfirst(end_str,   local_tz)
+            if not start_local:
+                return jsonify({"success": False, "error": "Provide either date or start/end"}), 400
+            if not end_local:
+                if len(start_str or "") == 10:
+                    end_local = start_local + timedelta(days=1)
+                else:
+                    return jsonify({"success": False, "error": "Missing end"}), 400
+
+        # --- паддинг до старта, чтобы поймать первое значение ДО окна ---
+        pad_min = int(request.args.get("pad") or 45)
+        start_local_padded = start_local - timedelta(minutes=max(0, pad_min))
+
+        # --- UTC/ISO для Samsara ---
+        start_iso         = _to_utc_iso(start_local)
+        end_iso           = _to_utc_iso(end_local)
+        start_iso_padded  = _to_utc_iso(start_local_padded)
+
+        # --- запрос в Samsara ---
+        headers = get_samsara_headers()
+        url = f"{BASE_URL}/fleet/vehicles/stats/history"
+        params = {
+            "vehicleIds": str(samsara_vehicle_id),
+            "types": ",".join(TYPES),
+            "startTime": start_iso_padded,
+            "endTime": end_iso
+        }
+
+        pages = 0
+        accum = {t: [] for t in TYPES}
+        names = {}
+        while True:
+            pages += 1
+            if pages > 60:
+                break
+            r = requests.get(url, headers=headers, params=params, timeout=30)
+            if not r.ok:
+                return jsonify({
+                    "success": False,
+                    "error": f"Failed to fetch stats history ({r.status_code})",
+                    "details": r.text
+                }), r.status_code
+
+            payload = r.json() or {}
+            for veh in payload.get("data", []):
+                if str(veh.get("id")) != str(samsara_vehicle_id):
+                    continue
+                names["vehicle"] = veh.get("name")
+                for t in TYPES:
+                    accum[t].extend(_ensure_list(veh.get(t)))
+
+            pag = (payload.get("pagination") or {})
+            if pag.get("hasNextPage"):
+                params["after"] = pag.get("endCursor")
+            else:
+                break
+
+        # --- считаем дельты по каждому источнику ---
+        breakdown = {}
+        for t in TYPES:
+            first, last = _pick_first_last(accum[t])
+            if not (first and last):
+                breakdown[t] = {"meters": 0.0, "miles": 0.0, "samples": len(accum[t])}
+                continue
+            delta_m = float(last.get("value", 0)) - float(first.get("value", 0))
+            if delta_m < 0:
+                delta_m = 0.0
+            meters = round(delta_m, 3)
+            miles  = round(meters * MILES_PER_METER, 3)
+            breakdown[t] = {
+                "meters": meters,
+                "miles":  miles,
+                "samples": len(accum[t]),
+                "firstTime": first.get("time"),
+                "lastTime":  last.get("time")
+            }
+
+        # --- выбираем лучший источник ---
+        best = None
+        for key in ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]:
+            if breakdown.get(key, {}).get("meters", 0) > 0:
+                best = (key, breakdown[key])
+                break
+        if not best:
+            best = ("obdOdometerMeters", breakdown.get("obdOdometerMeters", {"meters": 0.0, "miles": 0.0}))
+
+        # --- ответ ---
+        resp = {
+            "success": True,
+            "driver_id": str(driver["_id"]),
+            "driver_name": driver.get("name"),
+            "truck_id": str(truck["_id"]),
+            "unit_number": truck.get("unit_number"),
+            "vehicle_id": str(samsara_vehicle_id),
+            "date": (request.args.get("date") or None),
+            "start_time_utc": start_iso,
+            "end_time_utc": end_iso,
+            "meters": best[1]["meters"],
+            "miles": best[1]["miles"],
+            "source": best[0],
+            "breakdown": breakdown
+        }
+        if request.args.get("debug") == "1":
+            resp["debug"] = {
+                "pages": pages,
+                "tz": tz_name,
+                "pad_minutes": pad_min,
+                "queried_types": TYPES,
+                "vehicle_name": names.get("vehicle")
+            }
+        return jsonify(resp)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

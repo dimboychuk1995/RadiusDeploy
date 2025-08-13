@@ -87,10 +87,16 @@ async function calculateDriverStatement() {
 
   container.innerHTML = "<p>Загрузка...</p>";
 
+  // Сначала грузы (они же чекбоксы для пересчёта), потом параллельные блоки
   await fetchAndRenderDriverLoads(driverId, weekRange);
   fetchDriverFuelSummary(driverId, weekRange);
   fetchDriverInspections(driverId, weekRange);
   fetchDriverExpenses(driverId, weekRange);
+
+  // 👇 ДОБАВЛЕНО: пробег за период
+  fetchDriverMileage(driverId, weekRange);
+
+  // Пересчёт зарплаты после появления всех блоков
   window.recalculateDriverSalary();
 }
 
@@ -373,6 +379,55 @@ window.recalculateDriverSalary = async function () {
   } catch (err) {
     console.error("❌ Ошибка при расчёте зарплаты:", err);
   }
+}
+
+// === ПРОБЕГ ВОДИТЕЛЯ ЗА ПЕРИОД (через /api/statement/driver_mileage) =========================
+function fetchDriverMileage(driverId, weekRange) {
+  const container = document.getElementById("driverStatementResults");
+  const [start, end] = weekRange.split("-").map(s => s.trim());
+
+  // Ваш бэкенд принимает start/end в формате MM/DD/YYYY — это ок.
+  fetch(`/api/statement/driver_mileage?driver_id=${encodeURIComponent(driverId)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
+    .then(async (res) => {
+      // Если 404 (нет samsara_vehicle_id/нет трака/нет водителя) — покажем понятный текст
+      let data = null;
+      try { data = await res.json(); } catch (_) { /* ignore */ }
+
+      const old = container.querySelector("#driverMileageBlock");
+      if (old) old.remove();
+
+      // Случай когда ответ не ОК (например 404 с сообщением)
+      if (!res.ok) {
+        const msg = (data && (data.error || data.reason)) || `HTTP ${res.status}`;
+        container.insertAdjacentHTML(
+          "beforeend",
+          `<div id="driverMileageBlock" class="mt-4 text-muted">🚚 Пробег: недоступен (${msg})</div>`
+        );
+        return;
+      }
+
+      // success === true
+      const miles = Number((data && (data.miles ?? data.mileage?.miles)) || 0);
+      const source = (data && (data.source ?? data.mileage?.source)) || "—";
+      const truckNum = data && (data.unit_number || data.truck_number);
+
+      const html = `
+        <div id="driverMileageBlock" class="mt-4">
+          <h5>🚚 Пробег за период:</h5>
+          <div><b>${miles.toFixed(2)}</b> mi <span class="text-muted">(${source})</span>${truckNum ? ` • Truck ${truckNum}` : ""}</div>
+        </div>
+      `;
+      container.insertAdjacentHTML("beforeend", html);
+    })
+    .catch(err => {
+      console.error("❌ Ошибка пробега:", err);
+      const old = container.querySelector("#driverMileageBlock");
+      if (old) old.remove();
+      container.insertAdjacentHTML(
+        "beforeend",
+        `<div id="driverMileageBlock" class="mt-4 text-danger">Не удалось получить пробег</div>`
+      );
+    });
 }
 
 
@@ -661,8 +716,8 @@ async function apiGet(url) {
   return await r.json();
 }
 
-// 👤 вытянуть все данные по одному водителю (5 запросов)
-// 👤 вытянуть все данные по одному водителю (5 запросов) + нормализация инвойсов и расчёт зарплаты
+
+// 👤 вытянуть все данные по одному водителю (6 запросов: + mileage)
 async function fetchAllForDriver(driverId, weekRange) {
   const [start, end] = weekRange.split("-").map(s => s.trim());
 
@@ -671,16 +726,19 @@ async function fetchAllForDriver(driverId, weekRange) {
     fuelRes,
     schemeRes,
     inspRes,
-    expRes
+    expRes,
+    mileageRes
   ] = await Promise.all([
     apiGet(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_fuel_summary?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
-    apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`)
+    apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
+    // 👇 НОВОЕ: пробег берём по твоей ручке /api/statement/driver_mileage
+    apiGet(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
   ]);
 
-  // 1) Нормализуем данные
+  // 1) Нормализация
   const loads = (loadsRes.success ? loadsRes.loads : []);
   const fuel  = (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] });
   const scheme = (schemeRes.success ? {
@@ -694,7 +752,6 @@ async function fetchAllForDriver(driverId, weekRange) {
   } : null);
   const inspections = (inspRes.success ? inspRes.inspections : []);
 
-  // Инвойсы: по умолчанию — action: "keep", removed: false, amount как в базе
   const expenses = (expRes.success ? expRes.expenses : []).map(e => ({
     _id: e._id,
     amount: Number(e.amount || 0),
@@ -702,35 +759,37 @@ async function fetchAllForDriver(driverId, weekRange) {
     note: e.note || "",
     date: e.date || "",
     photo_id: e.photo_id || null,
-    action: "keep",     // по умолчанию — "Оставить как есть"
-    removed: false      // по умолчанию включён в стейтмент
+    action: "keep",
+    removed: false
   }));
 
-  // 2) Расчёт зарплаты (на основе правил)
+  // 2) Пробег — приводим к единому виду
+  const mileage = (mileageRes && mileageRes.success)
+    ? {
+        miles:  Number((mileageRes.miles ?? mileageRes.mileage?.miles) || 0),
+        meters: Number((mileageRes.meters ?? mileageRes.mileage?.meters) || 0),
+        source: (mileageRes.source ?? mileageRes.mileage?.source) || null,
+        truck_id: mileageRes.truck_id || null,
+        samsara_vehicle_id: mileageRes.vehicle_id || null
+      }
+    : { miles: 0, meters: 0, source: null, truck_id: null, samsara_vehicle_id: null };
+
+  // 3) Расчёт зарплаты
   const loadsGross = loads.reduce((sum, ld) => sum + Number(ld.price || 0), 0);
-
-  // Корректировки от инвойсов: по умолчанию (keep) — нулевые эффекты
-  let grossAdd = 0;     // add_gross
-  let grossDeduct = 0;  // deduct_gross
-  let salaryAdd = 0;    // add_salary
-  let salaryDeduct = 0; // deduct_salary
-
+  let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
   for (const exp of expenses) {
-    if (exp.removed) continue; // если когда-то будем менять флаг — учтётся
+    if (exp.removed) continue;
     const amt = Number(exp.amount || 0);
     switch (exp.action) {
       case "add_gross":     grossAdd += amt; break;
       case "deduct_gross":  grossDeduct += amt; break;
       case "add_salary":    salaryAdd += amt; break;
       case "deduct_salary": salaryDeduct += amt; break;
-      case "keep":
       default: break;
     }
   }
-
   const grossForCommission = loadsGross + grossAdd - grossDeduct;
 
-  // Комиссия
   let commission = 0;
   if (scheme && scheme.scheme_type === "percent") {
     const table = scheme.commission_table || [];
@@ -740,20 +799,14 @@ async function fetchAllForDriver(driverId, weekRange) {
       const matched = table
         .filter(row => grossForCommission >= Number(row.from_sum || 0))
         .sort((a, b) => Number(b.from_sum || 0) - Number(a.from_sum || 0))[0];
-      if (matched) {
-        commission = grossForCommission * (Number(matched.percent || 0) / 100);
-      }
+      if (matched) commission = grossForCommission * (Number(matched.percent || 0) / 100);
     }
   }
 
-  // Вычеты по схеме
   const schemeDeductions = (scheme?.deductions || []);
   const schemeDeductionsTotal = schemeDeductions.reduce((s, d) => s + Number(d.amount || 0), 0);
-
-  // Итог к выплате
   const finalSalary = commission - schemeDeductionsTotal - salaryDeduct + salaryAdd;
 
-  // 3) Собираем расчётный блок для сохранения
   const calc = {
     loads_gross: Number(loadsGross.toFixed(2)),
     gross_add_from_expenses: Number(grossAdd.toFixed(2)),
@@ -766,6 +819,7 @@ async function fetchAllForDriver(driverId, weekRange) {
     final_salary: Number(finalSalary.toFixed(2))
   };
 
+  // 4) Возвращаем структуру для bulk_save (теперь с mileage)
   return {
     driver_id: driverId,
     week_range: weekRange,
@@ -773,12 +827,13 @@ async function fetchAllForDriver(driverId, weekRange) {
     fuel,
     scheme,
     inspections,
-    // ВАЖНО: сохраняем инвойсы уже с action/removed/amount
     expenses,
-    // И результаты расчёта
+    mileage,              // 👈 ДОБАВЛЕНО
     calc
   };
 }
+
+
 
 // ▶️ главная кнопка "Рассчитать всем"
 async function calculateAllDriversStatements() {
