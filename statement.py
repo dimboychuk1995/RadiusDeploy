@@ -657,7 +657,7 @@ def list_drivers_for_statements():
 @login_required
 def bulk_save_statements():
     """
-    Принимает расчёты по нескольким водителям и сохраняет их в коллекцию driver_statements.
+    Принимает расчёты по нескольким водителям и сохраняет их в коллекцию statement.
 
     Тело запроса:
       {
@@ -707,12 +707,13 @@ def bulk_save_statements():
     if not week_range or not isinstance(items, list):
         return jsonify({"success": False, "error": "week_range and items[] required"}), 400
 
-    col = db["driver_statements"]
+    # ⬇️ Сохраняем в правильную коллекцию
+    col = db["statement"]
     drivers_col = db["drivers"]
     trucks_col = db["trucks"]
 
-    # Рекомендуемый уникальный индекс в Mongo (один раз в миграции):
-    # db.driver_statements.createIndex(
+    # Рекомендуемый уникальный индекс (один раз):
+    # db.statement.createIndex(
     #   {"company":1,"driver_id":1,"week_range":1},
     #   {"unique": True}
     # )
@@ -845,52 +846,73 @@ def bulk_save_statements():
     })
 
 
-
-    
-
-
 @statement_bp.route("/api/statements/list", methods=["GET"])
 @login_required
 def list_statements():
+    from flask import request, jsonify
+    from bson import ObjectId
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
     try:
         wr = (request.args.get("week_range") or "").strip()
+
+        # --- коллекции ---
+        col = db["statement"]          # читаем из правильной коллекции
+        drivers_col = db["drivers"]
+        trucks_col  = db["trucks"]
+        companies_col = db["companies"]
+
+        # --- базовый фильтр (БЕЗ company) ---
         query = {}
+
+        # --- фильтр по неделе: нормализованные поля ИЛИ строка week_range ---
         if wr:
-            # если уже записаны нормализованные даты, ищем по ним
             try:
-                tz_doc  = db["company_timezone"].find_one({}) or {}
-                tz_name = tz_doc.get("timezone") or "America/Chicago"
+                tz_name = (request.args.get("tz") or "America/Chicago")
                 local_tz = ZoneInfo(tz_name)
                 utc_tz   = timezone.utc
 
-                s, e = [x.strip() for x in wr.split("-")]
-                s_local = datetime.strptime(s, "%m/%d/%Y").replace(tzinfo=local_tz)
-                e_local_excl = (datetime.strptime(e, "%m/%d/%Y") + timedelta(days=1)).replace(tzinfo=local_tz)
+                s_str, e_str = [x.strip() for x in wr.split("-")]
+                s_local = datetime.strptime(s_str, "%m/%d/%Y").replace(tzinfo=local_tz)
+                e_local_excl = (datetime.strptime(e_str, "%m/%d/%Y") + timedelta(days=1)).replace(tzinfo=local_tz)
                 s_utc = s_local.astimezone(utc_tz).replace(tzinfo=None)
                 e_utc = e_local_excl.astimezone(utc_tz).replace(tzinfo=None)
-                query["week_start_utc"] = s_utc
-                query["week_end_utc"]   = e_utc
+
+                query.update({
+                    "$or": [
+                        {"week_start_utc": s_utc, "week_end_utc": e_utc},
+                        {"week_range": wr}
+                    ]
+                })
             except Exception:
-                # fallback — по строке
                 query["week_range"] = wr
 
-        # добавили calc и snapshot чтобы либо забрать готовую зарплату, либо пересчитать
+        # --- проекция полей ---
         projection = {
             "driver_id": 1, "week_range": 1,
             "monday_loads": 1, "invoices_num": 1, "inspections_num": 1,
             "approved": 1, "created_at": 1,
-            "calc": 1,
-            "snapshot.loads": 1,
-            "snapshot.expenses": 1,
-            "snapshot.scheme": 1
-        }
-        docs = list(statement_collection.find(query, projection).sort([("created_at", -1)]))
 
-        # справочники driver -> name, truck, hiring_company
+            # агрегаты/поля для списка
+            "salary": 1, "commission": 1, "miles": 1,
+            "truck_number": 1, "hiring_company": 1,
+
+            # сырьё на случай пересчёта
+            "raw.loads": 1,
+            "raw.expenses": 1,
+            "raw.scheme": 1,
+            "raw.calc.final_salary": 1,
+        }
+
+        docs = list(col.find(query, projection).sort([("created_at", -1)]))
+
+        # --- справочники driver -> {name, truck, hiring_company} (БЕЗ company-фильтров) ---
         driver_ids = list({d["driver_id"] for d in docs if isinstance(d.get("driver_id"), ObjectId)})
         drivers_map, trucks_map, companies_map = {}, {}, {}
+
         if driver_ids:
-            for drv in db["drivers"].find(
+            for drv in drivers_col.find(
                 {"_id": {"$in": driver_ids}},
                 {"name": 1, "truck": 1, "hiring_company": 1}
             ):
@@ -900,85 +922,64 @@ def list_statements():
                     "hiring_company": drv.get("hiring_company")
                 }
 
-            # траки
-            truck_ids = list({v["truck"] for v in drivers_map.values() if isinstance(v.get("truck"), ObjectId)})
+            truck_ids = [v["truck"] for v in drivers_map.values() if isinstance(v.get("truck"), ObjectId)]
             if truck_ids:
-                for t in db["trucks"].find({"_id": {"$in": truck_ids}}, {"unit_number": 1}):
+                for t in trucks_col.find({"_id": {"$in": truck_ids}}, {"unit_number": 1}):
                     trucks_map[t["_id"]] = t.get("unit_number") or ""
 
-            # компании найма
-            company_ids = list({v["hiring_company"] for v in drivers_map.values() if isinstance(v.get("hiring_company"), ObjectId)})
+            company_ids = [v["hiring_company"] for v in drivers_map.values() if isinstance(v.get("hiring_company"), ObjectId)]
             if company_ids:
-                for c in db["companies"].find({"_id": {"$in": company_ids}}, {"name": 1}):
+                for c in companies_col.find({"_id": {"$in": company_ids}}, {"name": 1}):
                     companies_map[c["_id"]] = c.get("name") or "—"
 
+        # --- утилиты пересчёта (если нет salary и нет raw.calc.final_salary) ---
         def to_float(val, default=0.0):
             try:
                 return float(val)
             except Exception:
                 return float(default)
 
-        def compute_final_salary_from_snapshot(snap: dict) -> float:
-            """
-            Быстрый пересчёт, если нет calc:
-              - loads_gross = sum(price)
-              - корректировки из expenses по action/removed
-              - percent-схема
-              - вычеты scheme.deductions
-            """
-            if not isinstance(snap, dict):
+        def compute_final_salary_from_raw(raw: dict) -> float:
+            if not isinstance(raw, dict):
                 return 0.0
-            loads   = snap.get("loads") or []
-            scheme  = snap.get("scheme") or {}
-            expenses = snap.get("expenses") or []
+            loads    = raw.get("loads") or []
+            scheme   = raw.get("scheme") or {}
+            expenses = raw.get("expenses") or []
 
-            # 1) гросс по грузам
-            loads_gross = 0.0
-            for ld in loads:
-                loads_gross += to_float((ld or {}).get("price"), 0.0)
+            loads_gross = sum(to_float((ld or {}).get("price"), 0.0) for ld in loads)
 
-            # 2) корректировки по инвойсам (только не удалённые)
             gross_add = gross_deduct = salary_add = salary_deduct = 0.0
             for e in expenses:
                 if (e or {}).get("removed", False):
                     continue
                 amt = to_float((e or {}).get("amount"), 0.0)
                 action = (e or {}).get("action") or "keep"
-                if action == "add_gross":
-                    gross_add += amt
-                elif action == "deduct_gross":
-                    gross_deduct += amt
-                elif action == "add_salary":
-                    salary_add += amt
-                elif action == "deduct_salary":
-                    salary_deduct += amt
+                if action == "add_gross": gross_add += amt
+                elif action == "deduct_gross": gross_deduct += amt
+                elif action == "add_salary": salary_add += amt
+                elif action == "deduct_salary": salary_deduct += amt
 
             gross_for_commission = loads_gross + gross_add - gross_deduct
 
-            # 3) комиссия по percent
             commission = 0.0
             scheme_type = scheme.get("scheme_type") or scheme.get("type") or "percent"
             if scheme_type == "percent":
                 table = scheme.get("commission_table") or []
-                safe_table = [{"from_sum": to_float(r.get("from_sum"), 0.0),
-                               "percent": to_float(r.get("percent"), 0.0)} for r in table]
-                if len(safe_table) == 1:
-                    commission = gross_for_commission * (safe_table[0]["percent"] / 100.0)
-                elif len(safe_table) > 1:
-                    safe_table.sort(key=lambda r: r["from_sum"], reverse=True)
-                    matched = next((r for r in safe_table if gross_for_commission >= r["from_sum"]), None)
-                    if matched:
-                        commission = gross_for_commission * (matched["percent"] / 100.0)
+                table = [{"from_sum": to_float(r.get("from_sum"), 0.0),
+                          "percent": to_float(r.get("percent"), 0.0)} for r in table]
+                if len(table) == 1:
+                    commission = gross_for_commission * (table[0]["percent"] / 100.0)
+                elif len(table) > 1:
+                    table.sort(key=lambda r: r["from_sum"], reverse=True)
+                    m = next((r for r in table if gross_for_commission >= r["from_sum"]), None)
+                    if m:
+                        commission = gross_for_commission * (m["percent"] / 100.0)
 
-            # 4) вычеты по схеме
-            scheme_deductions_total = 0.0
-            for d in (scheme.get("deductions") or []):
-                scheme_deductions_total += to_float(d.get("amount"), 0.0)
-
-            # 5) итог
+            scheme_deductions_total = sum(to_float(d.get("amount"), 0.0) for d in (scheme.get("deductions") or []))
             final_salary = commission - scheme_deductions_total - salary_deduct + salary_add
             return round(final_salary, 2)
 
+        # --- сборка ответа ---
         items = []
         for d in docs:
             drv = drivers_map.get(d.get("driver_id"), {})
@@ -986,13 +987,16 @@ def list_statements():
             hiring_company_oid = drv.get("hiring_company") if isinstance(drv.get("hiring_company"), ObjectId) else None
             hiring_company_name = companies_map.get(hiring_company_oid, "—") if hiring_company_oid else "—"
 
-            # берём salary: сначала calc.final_salary, иначе считаем из snapshot
-            calc = d.get("calc") or {}
-            if isinstance(calc, dict) and isinstance(calc.get("final_salary"), (int, float)):
-                final_salary = float(calc.get("final_salary"))
+            # salary: приоритет — явное поле; затем raw.calc.final_salary; затем быстрый пересчёт
+            if isinstance(d.get("salary"), (int, float)):
+                final_salary = float(d["salary"])
             else:
-                snap = d.get("snapshot") or {}
-                final_salary = compute_final_salary_from_snapshot(snap)
+                raw = d.get("raw") or {}
+                calc = (raw.get("calc") or {})
+                if isinstance(calc.get("final_salary"), (int, float)):
+                    final_salary = float(calc.get("final_salary"))
+                else:
+                    final_salary = compute_final_salary_from_raw(raw)
 
             items.append({
                 "_id": str(d["_id"]),
@@ -1001,9 +1005,8 @@ def list_statements():
                 "driver_name": drv.get("name", "—"),
 
                 "truck_id": str(truck_oid) if isinstance(truck_oid, ObjectId) else "",
-                "truck_number": trucks_map.get(truck_oid, "") if truck_oid else "",
+                "truck_number": d.get("truck_number") or (trucks_map.get(truck_oid, "") if truck_oid else ""),
 
-                # новое: компания найма
                 "hiring_company_id": str(hiring_company_oid) if hiring_company_oid else "",
                 "hiring_company_name": hiring_company_name,
 
@@ -1016,6 +1019,7 @@ def list_statements():
             })
 
         return jsonify({"success": True, "count": len(items), "items": items})
+
     except Exception as e:
         import traceback
         print("Exception in /api/statements/list:")
@@ -1024,8 +1028,6 @@ def list_statements():
 
 
 
-
-# --- Считаем мили водителя (инклюзивный диапазон дат с TZ → UTC, корректный baseline) ---
 @statement_bp.route("/api/statement/driver_mileage", methods=["GET"])
 @login_required
 def api_samsara_driver_mileage():
@@ -1035,13 +1037,7 @@ def api_samsara_driver_mileage():
       - по truck → trucks.samsara_vehicle_id
       - дальше считаем пробег по Samsara (stats/history)
 
-    Диапазон времени:
-      - date: сутки компании [00:00..23:59:59] инклюзивно
-      - start/end без времени: обе даты инклюзивно (start@00:00 .. end@23:59:59)
-      - start/end с временем: используем как есть
-
-    Параметры:
-      driver_id (required), date | start, end, tz (IANA, по умолчанию TZ компании), pad (минуты)
+    Если у водителя нет трака или у трака нет samsara_vehicle_id — возвращает нули без обращения в Самсару.
     """
     import requests
     from datetime import datetime, timedelta, timezone
@@ -1050,7 +1046,6 @@ def api_samsara_driver_mileage():
     from flask import request, jsonify
     from samsara import get_samsara_headers, BASE_URL
 
-    # --- константы/локальные утилиты ---
     MILES_PER_METER = 0.000621371
     TYPES = ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]
 
@@ -1058,24 +1053,20 @@ def api_samsara_driver_mileage():
         if not s:
             return False
         s = s.strip()
-        if len(s) == 10 and s[4] == "-" and s[7] == "-":  # YYYY-MM-DD
+        if len(s) == 10 and s[4] == "-" and s[7] == "-":
             return True
-        if len(s) >= 10 and s[2] == "/" and s[5] == "/":  # MM/DD/YYYY
+        if len(s) >= 10 and s[2] == "/" and s[5] == "/":
             return True
         return False
 
     def _parse_any_ts_localfirst(s: str, local_tz: ZoneInfo):
-        """Поддержка ISO/offset/YYYY-MM-DD/MM/DD/YYYY → TZ-aware."""
         if not s:
             return None
         s = s.strip()
-        # YYYY-MM-DD → 00:00 local
         if len(s) == 10 and s[4] == "-" and s[7] == "-":
             return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=local_tz)
-        # MM/DD/YYYY → 00:00 local
         if len(s) >= 10 and s[2] == "/" and s[5] == "/":
             return datetime.strptime(s[:10], "%m/%d/%Y").replace(tzinfo=local_tz)
-        # ISO (может быть с Z/offset) → aware
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
     def _to_utc_iso(dt: datetime) -> str:
@@ -1091,67 +1082,43 @@ def api_samsara_driver_mileage():
         return []
 
     def _parse_time(s: str) -> datetime:
-        # Примеры в Самсаре: "2025-08-04T05:00:03Z"
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
 
     def _pick_window_delta(arr, start_local: datetime, end_local: datetime):
-        """
-        Берём baseline = последняя точка <= start_local (если нет — первая >= start_local),
-        end      = последняя точка <= end_local.
-        Возвращаем (meters, miles, samples, firstTime, lastTime).
-        """
         samples = [x for x in arr if x and x.get("time") and (x.get("value") is not None)]
         if not samples:
             return 0.0, 0.0, 0, None, None
-
-        # сортируем по времени
         samples.sort(key=lambda x: x["time"])
-
-        # найдём индексы
         start_idx = None
         end_idx = None
-
-        # бинарный/линейный поиск (массив уже отсортирован)
-        # 1) end_idx: последняя точка <= end_local
         for i in range(len(samples) - 1, -1, -1):
             t = _parse_time(samples[i]["time"]).astimezone(start_local.tzinfo)
             if t <= end_local:
                 end_idx = i
                 break
-
         if end_idx is None:
-            # все точки после конца окна
             return 0.0, 0.0, len(samples), None, None
-
-        # 2) start_idx: последняя точка <= start_local
         for i in range(end_idx, -1, -1):
             t = _parse_time(samples[i]["time"]).astimezone(start_local.tzinfo)
             if t <= start_local:
                 start_idx = i
                 break
         if start_idx is None:
-            # нет точек до старта — возьмём первую точку >= start_local
             for i in range(0, end_idx + 1):
                 t = _parse_time(samples[i]["time"]).astimezone(start_local.tzinfo)
                 if t >= start_local:
                     start_idx = i
                     break
-
         if start_idx is None:
             return 0.0, 0.0, len(samples), None, None
-
         v0 = float(samples[start_idx]["value"])
         v1 = float(samples[end_idx]["value"])
-        delta_m = v1 - v0
-        if delta_m < 0:
-            delta_m = 0.0
-
+        delta_m = max(v1 - v0, 0.0)
         meters = round(delta_m, 3)
         miles = round(meters * MILES_PER_METER, 3)
         return meters, miles, len(samples), samples[start_idx]["time"], samples[end_idx]["time"]
 
     try:
-        # --- входные параметры ---
         driver_id_str = request.args.get("driver_id")
         if not driver_id_str:
             return jsonify({"success": False, "error": "Missing driver_id"}), 400
@@ -1161,18 +1128,30 @@ def api_samsara_driver_mileage():
             return jsonify({"success": False, "error": "Invalid driver_id"}), 400
 
         drivers_collection = db["drivers"]
-        trucks_collection  = db["trucks"]
+        trucks_collection = db["trucks"]
 
-        # --- водитель и трак ---
         driver = drivers_collection.find_one(
             {"_id": driver_oid, "company": current_user.company},
             {"_id": 1, "name": 1, "truck": 1}
         )
         if not driver:
             return jsonify({"success": False, "error": "Driver not found in your company"}), 404
+
         truck_oid = driver.get("truck")
         if not truck_oid:
-            return jsonify({"success": False, "error": "Driver has no assigned truck"}), 404
+            # Нет трака — сразу нули
+            return jsonify({
+                "success": True,
+                "driver_id": str(driver["_id"]),
+                "driver_name": driver.get("name"),
+                "truck_id": None,
+                "unit_number": None,
+                "vehicle_id": None,
+                "meters": 0.0,
+                "miles": 0.0,
+                "source": None,
+                "breakdown": {}
+            })
 
         truck = trucks_collection.find_one(
             {"_id": truck_oid, "company": current_user.company},
@@ -1181,58 +1160,61 @@ def api_samsara_driver_mileage():
         if not truck:
             return jsonify({"success": False, "error": "Truck not found in your company"}), 404
 
-        samsara_vehicle_id = truck.get("samsara_vehicle_id")
-        if isinstance(samsara_vehicle_id, str):
-            samsara_vehicle_id = samsara_vehicle_id.strip()
+        samsara_vehicle_id = (truck.get("samsara_vehicle_id") or "").strip()
         if not samsara_vehicle_id:
-            return jsonify({"success": False, "error": "Truck has no samsara_vehicle_id"}), 404
+            # Нет samsara_vehicle_id — сразу нули
+            return jsonify({
+                "success": True,
+                "driver_id": str(driver["_id"]),
+                "driver_name": driver.get("name"),
+                "truck_id": str(truck["_id"]),
+                "unit_number": truck.get("unit_number"),
+                "vehicle_id": None,
+                "meters": 0.0,
+                "miles": 0.0,
+                "source": None,
+                "breakdown": {}
+            })
 
-        # --- таймзона компании (fallback America/Chicago) ---
-        tz_doc  = db["company_timezone"].find_one({"company": current_user.company}) or {}
+        # Дальше идёт исходная логика запроса в Самсару
+        tz_doc = db["company_timezone"].find_one({"company": current_user.company}) or {}
         tz_name = request.args.get("tz") or tz_doc.get("timezone") or "America/Chicago"
         local_tz = ZoneInfo(tz_name)
 
-        # --- вычисляем окно ---
-        date_str  = request.args.get("date")
+        date_str = request.args.get("date")
         start_str = request.args.get("start")
-        end_str   = request.args.get("end")
+        end_str = request.args.get("end")
 
         if date_str and not (start_str or end_str):
-            # сутки выбранной даты инклюзивно
             day_local = _parse_any_ts_localfirst(date_str, local_tz)
             if not day_local:
                 return jsonify({"success": False, "error": "Invalid date format"}), 400
             start_local = day_local.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_local   = day_local.replace(hour=23, minute=59, second=59, microsecond=0)
+            end_local = day_local.replace(hour=23, minute=59, second=59, microsecond=0)
         else:
             if not (start_str and end_str):
                 return jsonify({"success": False, "error": "Provide either date or start+end"}), 400
-
             if _looks_like_date_only(start_str) and _looks_like_date_only(end_str):
                 s_local = _parse_any_ts_localfirst(start_str, local_tz)
-                e_local = _parse_any_ts_localfirst(end_str,   local_tz)
+                e_local = _parse_any_ts_localfirst(end_str, local_tz)
                 start_local = s_local.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_local   = e_local.replace(hour=23, minute=59, second=59, microsecond=0)
+                end_local = e_local.replace(hour=23, minute=59, second=59, microsecond=0)
             else:
                 start_local = _parse_any_ts_localfirst(start_str, local_tz)
-                end_local   = _parse_any_ts_localfirst(end_str,   local_tz)
+                end_local = _parse_any_ts_localfirst(end_str, local_tz)
                 if not (start_local and end_local):
                     return jsonify({"success": False, "error": "Bad start/end format"}), 400
 
-        # --- паддинг для запроса, baseline остаётся на start_local ---
         pad_min = int(request.args.get("pad") or 45)
         start_local_padded = start_local - timedelta(minutes=max(0, pad_min))
+        start_iso = _to_utc_iso(start_local)
+        end_iso = _to_utc_iso(end_local)
+        start_iso_padded = _to_utc_iso(start_local_padded)
 
-        # --- UTC/ISO ---
-        start_iso        = _to_utc_iso(start_local)
-        end_iso          = _to_utc_iso(end_local)          # включительно 23:59:59 локали → UTC
-        start_iso_padded = _to_utc_iso(start_local_padded) # только для выборки
-
-        # --- запрос в Samsara ---
         headers = get_samsara_headers()
         url = f"{BASE_URL}/fleet/vehicles/stats/history"
         params = {
-            "vehicleIds": str(samsara_vehicle_id),
+            "vehicleIds": samsara_vehicle_id,
             "types": ",".join(TYPES),
             "startTime": start_iso_padded,
             "endTime": end_iso
@@ -1252,36 +1234,32 @@ def api_samsara_driver_mileage():
                     "error": f"Failed to fetch stats history ({r.status_code})",
                     "details": r.text
                 }), r.status_code
-
             payload = r.json() or {}
             for veh in payload.get("data", []):
-                if str(veh.get("id")) != str(samsara_vehicle_id):
+                if str(veh.get("id")) != samsara_vehicle_id:
                     continue
                 names["vehicle"] = veh.get("name")
                 for t in TYPES:
                     accum[t].extend(_ensure_list(veh.get(t)))
-
             pag = (payload.get("pagination") or {})
             if pag.get("hasNextPage"):
                 params["after"] = pag.get("endCursor")
             else:
                 break
 
-        # --- считаем дельты по каждому источнику на строго заданном окне ---
         breakdown = {}
         for t in TYPES:
             meters, miles, samples, firstTime, lastTime = _pick_window_delta(accum[t], start_local, end_local)
             breakdown[t] = {
                 "meters": meters,
-                "miles":  miles,
+                "miles": miles,
                 "samples": samples,
                 "firstTime": firstTime,
-                "lastTime":  lastTime
+                "lastTime": lastTime
             }
 
-        # --- выбираем лучший источник ---
         best_key = None
-        for key in ["obdOdometerMeters", "gpsDistanceMeters", "gpsOdometerMeters"]:
+        for key in TYPES:
             if breakdown.get(key, {}).get("meters", 0) > 0:
                 best_key = key
                 break
@@ -1294,12 +1272,12 @@ def api_samsara_driver_mileage():
             "driver_name": driver.get("name"),
             "truck_id": str(truck["_id"]),
             "unit_number": truck.get("unit_number"),
-            "vehicle_id": str(samsara_vehicle_id),
+            "vehicle_id": samsara_vehicle_id,
             "date": (request.args.get("date") or None),
-            "start_time_utc": start_iso,   # начало окна (без pad)
-            "end_time_utc": end_iso,       # конец окна
+            "start_time_utc": start_iso,
+            "end_time_utc": end_iso,
             "meters": breakdown[best_key]["meters"],
-            "miles":  breakdown[best_key]["miles"],
+            "miles": breakdown[best_key]["miles"],
             "source": best_key,
             "breakdown": breakdown
         }
