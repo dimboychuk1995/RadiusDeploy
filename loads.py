@@ -247,6 +247,21 @@ Use the following logic depending on what kind of date/time information is prese
 🔁 OUTPUT FORMAT EXAMPLE:
 {example_block}
 
+––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+🔧 ADDITIONAL RULES (do not override the rules above — only extend them):
+- **Emails/Phones**: If multiple broker emails/phones are found, put them as a single string separated by commas. Prefer dispatch/operations/general contacts over AP/billing/payables when choosing a single best email to show first.
+- **Price extraction priority**: Prefer fields explicitly labeled as **Total Pay / Agreed Rate / Total / Carrier Pay**. If total is not given but multiple charge rows exist (e.g., Line Haul + accessorials), sum all stated charges that belong to the agreed rate. Strip currency symbols and format with two decimals.
+- **Windows & formats**: Support time and date windows such as “08:00 -to- 12:00”, “0600 to 2000”, “8AM-3PM”, and labels like “Pickup No Earlier Than / No Later Than”, or “Delivery No Earlier Than / No Later Than”. If a stop shows an **appointment** window (e.g., “Open 07:00–16:00” or explicit “APPT”), apply the DATE/TIME rules above accordingly.
+- **24-hour & compact times**: Accept 24-hour times (“15:00”) and compact “HHMM” (“0800”) — convert to “hh:mm AM/PM”.
+- **Stops**: Addresses may be split across multiple lines; join them into a single full address string including city, state, ZIP where available.
+- **Type Of Load**: Derive from equipment/trailer type if present (e.g., Dry Van, Reefer, Flatbed/Step Deck, Hot Shot, Partial). If multiple descriptors are present (e.g., “Hot Shot” and “Tarps Required”), store only the mode in “Type Of Load”; place requirements in Instructions/Load Description.
+- **Weight**: Use digits only (no units). If unknown, leave as an empty string.
+- **General vs per-stop instructions**: If an instruction clearly applies to the entire load (e.g., “DO NOT BREAK SEAL”, “Exclusive use”), include it in “Load Description”. If tied to a specific stop (“Call receiver 30 minutes prior at Stop 2”), include it in that stop’s “Instructions”.
+- **Multiple stops same day**: If a document lists multiple deliveries on the same date with different time windows, output them as separate stop objects with their own windows.
+- **Appointment keywords**: Treat keywords like “APPT”, “Appointment” near a concrete time as an appointment (appointment=true). If only a time range is present, appointment=false.
+- **Currency & separators**: Remove currency symbols and thousands separators from numeric fields before output; format Price with exactly two decimals.
+––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
 Document:
 -----
 {content}
