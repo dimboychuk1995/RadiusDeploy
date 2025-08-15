@@ -33,7 +33,9 @@ from bson import ObjectId
 from collections import defaultdict
 from flask import render_template_string
 from bson.errors import InvalidId
-
+from flask import Response, stream_with_context
+from urllib.parse import urlparse
+import requests
 
 
 loads_bp = Blueprint('loads', __name__)
@@ -1175,6 +1177,8 @@ def download_bol(load_id):
         logging.exception("Ошибка при загрузке BOL")
         return "Server error", 500
 
+
+
 @loads_bp.route('/fragment/load_details_fragment')
 @login_required
 def load_details_fragment():
@@ -1191,16 +1195,19 @@ def load_details_fragment():
         if not load:
             return "Load not found", 404
 
+        # Нормализуем коллекции экстрамаршрутов
         load["extra_pickups"] = load.get("extra_pickups") or []
         load["extra_deliveries"] = load.get("extra_deliveries") or []
 
+        # Водитель (если назначен)
         driver = None
         if load.get("assigned_driver"):
             driver = drivers_collection.find_one({"_id": load["assigned_driver"]})
 
+        # Mapbox token
         mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
 
-        # Проверка наличия фото
+        # Фото: логика разная для Super Dispatch заказов и локально загруженных
         if load.get("is_super_dispatch_order"):
             vehicles = load.get("vehicles", [])
             has_pickup_photos = any(
@@ -1215,6 +1222,9 @@ def load_details_fragment():
             has_pickup_photos = bool(load.get("pickup_photo_ids"))
             has_delivery_photos = bool(load.get("delivery_photo_ids"))
 
+        # ✅ Новый параметр для шаблона
+        is_super_dispatch_order = bool(load.get("is_super_dispatch_order"))
+
         return render_template(
             "fragments/load_details_fragment.html",
             load=load,
@@ -1222,13 +1232,110 @@ def load_details_fragment():
             mapbox_token=mapbox_token,
             load_id=str(load["_id"]),
             has_pickup_photos=has_pickup_photos,
-            has_delivery_photos=has_delivery_photos
+            has_delivery_photos=has_delivery_photos,
+            is_super_dispatch_order=is_super_dispatch_order  # 👈 добавлено
         )
 
     except Exception as e:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
         return "Server error", 500
-    
+
+
+ALLOWED_SCHEMES = ("http", "https")
+BLOCKED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+MAX_PROXY_BYTES = 30 * 1024 * 1024  # 30 MB
+
+def _is_safe_external_url(url: str) -> bool:
+    try:
+        u = urlparse(url)
+        if u.scheme not in ALLOWED_SCHEMES:
+            return False
+        host = (u.hostname or "").lower()
+        if not host or host in BLOCKED_HOSTS or host.endswith(".local"):
+            return False
+        return True
+    except Exception:
+        return False
+
+def _proxy_pdf_stream(url: str) -> Response:
+    r = requests.get(url, stream=True, timeout=30)
+    r.raise_for_status()
+
+    total = 0
+    def gen():
+        nonlocal total
+        for chunk in r.iter_content(chunk_size=8192):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > MAX_PROXY_BYTES:
+                break
+            yield chunk
+
+    headers = {
+        "Content-Type": r.headers.get("Content-Type", "application/pdf"),
+        "Content-Disposition": 'inline; filename="bol.pdf"',
+        "X-Content-Type-Options": "nosniff",
+    }
+    return Response(stream_with_context(gen()), headers=headers)
+
+@loads_bp.route("/api/load/<load_id>/bol_preview", methods=["GET"])
+@login_required
+def api_load_bol_preview(load_id):
+    """
+    Универсальный предпросмотр BOL (inline):
+    - Если заказ Super Dispatch и BOL — внешняя ссылка, проксируем и отдаём inline.
+    - Иначе читаем PDF из GridFS и отдаём inline.
+    """
+
+    print('trying to get BOL Super')
+
+    try:
+        load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
+        if not load:
+            return "Load not found", 404
+
+        # Super Dispatch: у нас только ссылка на BOL
+        if bool(load.get("is_super_dispatch_order")):
+            ext_url = (
+                load.get("bol_url")
+                or load.get("super_dispatch_bol_url")
+                or (load.get("bol") if isinstance(load.get("bol"), str) and load["bol"].startswith(("http://", "https://")) else None)
+            )
+            if not ext_url:
+                return "External BOL URL not found", 404
+            if not _is_safe_external_url(ext_url):
+                return "BOL URL is not allowed", 400
+            return _proxy_pdf_stream(ext_url)
+
+        # Локально сохранённый BOL (GridFS)
+        file_id = load.get("bol_file_id") or load.get("bol")
+        if not file_id:
+            return "BOL not uploaded", 404
+
+        try:
+            fh = fs.get(ObjectId(file_id))
+        except Exception:
+            return "BOL file not found", 404
+
+        filename = getattr(fh, "filename", None) or "bol.pdf"
+        data = fh.read()
+        return Response(
+            data,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'inline; filename="{filename}"',
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except Exception:
+        current_app.logger.exception("Error in api_load_bol_preview")
+        return "Server error", 500
+
+
+
+
+
 # photos for load details
 @loads_bp.route("/api/load/photos", methods=["GET"])
 @login_required

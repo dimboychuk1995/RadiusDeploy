@@ -14,10 +14,15 @@ function showLoadDetails(loadId) {
       details.innerHTML = html;
       details.style.display = "block";
 
-      // ✅ ВАЖНО: вызываем инициализацию карты после вставки HTML
+      // ✅ Инициализация карты и предпросмотра фото (как было)
       if (typeof initLoadDetails === "function") {
         initLoadDetails();
         initPhotoPreviewModal();
+      }
+
+      // ✅ Ленивая подгрузка BOL-предпросмотра (src подставится при раскрытии блока)
+      if (typeof initBolLazyPreview === "function") {
+        initBolLazyPreview(details); // передаём корень фрагмента
       }
     })
     .catch(error => {
@@ -240,3 +245,49 @@ function nextPhoto() {
 function prevPhoto() {
   showPhoto(currentPhotoIndex - 1);
 }
+
+
+/* =========================
+   ЛЕНИВАЯ ПОДГРУЗКА BOL
+   ========================= */
+/**
+ * Ленивая подгрузка предпросмотра BOL в iframe.
+ * Не ставим src до момента раскрытия коллапса, чтобы /api/load/<id>/bol_preview
+ * вызывался только при открытии блока BOL.
+ *
+ * Требования к HTML:
+ *  - контейнер BOL-коллапса с id="bolCollapse" и классом "collapse" (по умолчанию закрыт)
+ *  - iframe с id="bolFrame" и атрибутом data-src="/api/load/{{ load._id }}/bol_preview"
+ *
+ * @param {ParentNode} root - корневой контейнер фрагмента (document или div фрагмента)
+ * @param {string} collapseSelector - селектор коллапса BOL
+ * @param {string} iframeSelector - селектор iframe BOL
+ */
+function initBolLazyPreview(root, collapseSelector = '#bolCollapse', iframeSelector = '#bolFrame') {
+  try {
+    root = root || document;
+    const collapseEl = root.querySelector(collapseSelector);
+    const frame = root.querySelector(iframeSelector);
+    if (!collapseEl || !frame) return;
+
+    const loadOnce = () => {
+      if (!frame.getAttribute('src')) {
+        const url = frame.dataset.src;
+        if (url) frame.setAttribute('src', url);
+      }
+    };
+
+    // Если уже открыт — загрузим сразу
+    if (collapseEl.classList.contains('show')) {
+      loadOnce();
+    }
+
+    // При первом раскрытии — подставляем src
+    collapseEl.addEventListener('show.bs.collapse', loadOnce, { once: true });
+  } catch (e) {
+    // Здесь можно показать тост/alert при желании
+  }
+}
+
+// Экспорт в глобальную область (если нет модульной сборки)
+window.initBolLazyPreview = window.initBolLazyPreview || initBolLazyPreview;
