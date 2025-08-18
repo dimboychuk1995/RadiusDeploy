@@ -330,7 +330,17 @@ def driver_details_fragment(driver_id):
             'commission_table': driver.get('commission_table') or [],
             'net_commission_table': driver.get('net_commission_table') or [],
             'additional_charges': driver.get('additional_charges') or [],
-            'per_mile_rate': driver.get('per_mile_rate')
+            'per_mile_rate': driver.get('per_mile_rate'),
+
+            # ✅ Чтобы модалка открывалась уже с актуальными значениями:
+            'enable_inspection_bonus': driver.get('enable_inspection_bonus', False),
+            'bonus_level_1': driver.get('bonus_level_1', 0),
+            'bonus_level_2': driver.get('bonus_level_2', 0),
+            'bonus_level_3': driver.get('bonus_level_3', 0),
+
+            # 🆕 Extra Stop Bonus — первичная подстановка
+            'enable_extra_stop_bonus': driver.get('enable_extra_stop_bonus', False),
+            'extra_stop_bonus_amount': driver.get('extra_stop_bonus_amount', 0),
         }
 
         return render_template(
@@ -346,6 +356,14 @@ def driver_details_fragment(driver_id):
     except Exception as e:
         logging.error(f"Error fetching driver details: {e}")
         return render_template('error.html', message="Failed to retrieve driver details")
+
+
+
+
+
+
+
+
 
 @drivers_bp.route('/driver_file/<file_id>')
 @login_required
@@ -449,7 +467,11 @@ def set_salary_scheme(driver_id):
             })
 
         elif scheme_type == 'per_mile':
-            per_mile_rate = float(request.form.get('per_mile_rate', 0))
+            try:
+                per_mile_rate = float(request.form.get('per_mile_rate', 0) or 0)
+            except ValueError:
+                per_mile_rate = 0.0
+
             update_data.update({
                 'scheme_type': 'per_mile',
                 'per_mile_rate': per_mile_rate,
@@ -467,15 +489,21 @@ def set_salary_scheme(driver_id):
         charge_amounts = request.form.getlist('charge_amount[]')
         charge_files = request.files.getlist('charge_file[]')
 
+        import base64
         for i in range(len(charge_types)):
             if not charge_types[i] or not charge_amounts[i]:
                 continue
+
+            try:
+                amt = float(charge_amounts[i])
+            except ValueError:
+                amt = 0.0
 
             charge = {
                 'type': charge_types[i],
                 'period': charge_periods[i],
                 'day_of_month': int(charge_days[i]) if charge_periods[i] == 'monthly' and charge_days[i] else None,
-                'amount': float(charge_amounts[i]),
+                'amount': amt,
                 'file': None
             }
 
@@ -493,18 +521,39 @@ def set_salary_scheme(driver_id):
 
         update_data['additional_charges'] = charges
 
-        # ✅ Бонус за чистую инспекцию
+        # ✅ Clean Inspection Bonus
         enable_bonus = request.form.get('enable_inspection_bonus') == 'on'
         update_data['enable_inspection_bonus'] = enable_bonus
 
         if enable_bonus:
-            update_data['bonus_level_1'] = float(request.form.get('bonus_level_1', 0))
-            update_data['bonus_level_2'] = float(request.form.get('bonus_level_2', 0))
-            update_data['bonus_level_3'] = float(request.form.get('bonus_level_3', 0))
+            try:
+                update_data['bonus_level_1'] = float(request.form.get('bonus_level_1', 0) or 0)
+            except ValueError:
+                update_data['bonus_level_1'] = 0.0
+            try:
+                update_data['bonus_level_2'] = float(request.form.get('bonus_level_2', 0) or 0)
+            except ValueError:
+                update_data['bonus_level_2'] = 0.0
+            try:
+                update_data['bonus_level_3'] = float(request.form.get('bonus_level_3', 0) or 0)
+            except ValueError:
+                update_data['bonus_level_3'] = 0.0
         else:
-            update_data['bonus_level_1'] = 0
-            update_data['bonus_level_2'] = 0
-            update_data['bonus_level_3'] = 0
+            update_data['bonus_level_1'] = 0.0
+            update_data['bonus_level_2'] = 0.0
+            update_data['bonus_level_3'] = 0.0
+
+        # 🆕 🛑 Extra Stop Bonus
+        enable_extra = request.form.get('enable_extra_stop_bonus') == 'on'
+        update_data['enable_extra_stop_bonus'] = enable_extra
+
+        if enable_extra:
+            try:
+                update_data['extra_stop_bonus_amount'] = float(request.form.get('extra_stop_bonus_amount', 0) or 0)
+            except ValueError:
+                update_data['extra_stop_bonus_amount'] = 0.0
+        else:
+            update_data['extra_stop_bonus_amount'] = 0.0
 
         drivers_collection.update_one({'_id': ObjectId(driver_id)}, {'$set': update_data})
         return jsonify({'success': True})
@@ -512,6 +561,8 @@ def set_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при сохранении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 
 
@@ -528,10 +579,17 @@ def get_salary_scheme(driver_id):
             'commission_table': driver.get('commission_table', []),
             'net_commission_table': driver.get('net_commission_table', []),
             'per_mile_rate': driver.get('per_mile_rate'),
+
+            # ✅ Clean Inspection Bonus
             'enable_inspection_bonus': driver.get('enable_inspection_bonus', False),
             'bonus_level_1': driver.get('bonus_level_1', 0),
             'bonus_level_2': driver.get('bonus_level_2', 0),
             'bonus_level_3': driver.get('bonus_level_3', 0),
+
+            # 🆕 🛑 Extra Stop Bonus
+            'enable_extra_stop_bonus': driver.get('enable_extra_stop_bonus', False),
+            'extra_stop_bonus_amount': driver.get('extra_stop_bonus_amount', 0),
+
             'additional_charges': driver.get('additional_charges', [])
         }
 
@@ -540,7 +598,7 @@ def get_salary_scheme(driver_id):
     except Exception as e:
         logging.error(f"Ошибка при получении схемы зарплаты: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
+    
 
 def ask_driver_gpt(full_text):
     client = get_openai_client()

@@ -66,19 +66,6 @@ def get_driver_statement_loads():
         base_end_bound_naive = base_end_local_exclusive.astimezone(utc_tz).replace(tzinfo=None)
         end_bound_naive   = end_local_exclusive.astimezone(utc_tz).replace(tzinfo=None)
 
-        print("\n=== [Driver Statement Loads Debug / TZ-Aware] ===")
-        print(f"driver_id: {driver_id}")
-        print(f"company timezone: {tz_name}")
-        print(f"extra_days added to right boundary: {extra_days}")
-        print("-- Local range --")
-        print(f"  start_local: {start_local.isoformat()}")
-        print(f"  base_end_local: {base_end_local_exclusive.isoformat()}")
-        print(f"  end_local+extra: {end_local_exclusive.isoformat()}")
-        print("-- UTC naive range for Mongo --")
-        print(f"  start_bound_naive: {start_bound_naive!r}")
-        print(f"  base_end_bound_naive: {base_end_bound_naive!r}")
-        print(f"  end_bound_naive: {end_bound_naive!r}")
-
         # --- Aggregation ---
         pipeline = [
             {"$match": {
@@ -126,7 +113,6 @@ def get_driver_statement_loads():
 
         cursor = loads_collection.aggregate(pipeline)
         loads = list(cursor)
-        print(f"Fetched loads (count): {len(loads)}")
 
         def str_oid(val):
             return str(val) if isinstance(val, ObjectId) else val

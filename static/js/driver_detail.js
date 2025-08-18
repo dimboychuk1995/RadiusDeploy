@@ -10,6 +10,7 @@ function initDriverDetailActions() {
   setupCommissionRowButtons();
   setupAdditionalCharges();
   setupCleanInspectionBonusToggle();
+  setupExtraStopBonusToggle(); // 🆕 добавили
 
   if (window.lucide) lucide.createIcons();
 }
@@ -49,7 +50,11 @@ function setupSalarySchemeForm() {
       const driverId = salaryForm.dataset.driverId;
 
       if (!driverId) {
-        alert("❌ Ошибка: не удалось получить ID водителя.");
+        Swal.fire({
+          icon: "error",
+          title: "Ошибка",
+          text: "Не удалось получить ID водителя."
+        });
         return;
       }
 
@@ -62,16 +67,29 @@ function setupSalarySchemeForm() {
         .then(res => res.json())
         .then(data => {
           if (data.success) {
-            alert("✅ Схема зарплаты сохранена");
-            closeSalaryModal();
-            window.location.reload();
+            Swal.fire({
+              icon: "success",
+              title: "Сохранено",
+              text: "Схема зарплаты сохранена"
+            }).then(() => {
+              closeSalaryModal();
+              window.location.reload();
+            });
           } else {
-            alert("❌ Ошибка при сохранении схемы");
+            Swal.fire({
+              icon: "error",
+              title: "Ошибка",
+              text: data.message || "Ошибка при сохранении схемы"
+            });
           }
         })
         .catch(err => {
           console.error("Ошибка при отправке схемы:", err);
-          alert("❌ Сетевая ошибка");
+          Swal.fire({
+            icon: "error",
+            title: "Сетевая ошибка",
+            text: "Не удалось отправить схему. Попробуйте ещё раз."
+          });
         });
     });
   }
@@ -225,6 +243,17 @@ function setupCleanInspectionBonusToggle() {
   }
 }
 
+/** 🆕 ✅ Обработка показа блока Extra Stop Bonus */
+function setupExtraStopBonusToggle() {
+  const checkbox = document.getElementById("enableExtraStopBonus");
+  const block = document.getElementById("extraStopBonusBlock");
+
+  if (checkbox && block) {
+    checkbox.addEventListener("change", () => {
+      block.style.display = checkbox.checked ? "block" : "none";
+    });
+  }
+}
 
 /** 📤 Открытие модалки зарплаты */
 function openSalaryModal() {
@@ -261,6 +290,17 @@ function openSalaryModal() {
       if (level1) level1.value = scheme.bonus_level_1 || '';
       if (level2) level2.value = scheme.bonus_level_2 || '';
       if (level3) level3.value = scheme.bonus_level_3 || '';
+
+      // 🆕 Extra Stop Bonus
+      const enableExtra = document.getElementById("enableExtraStopBonus");
+      const extraBlock = document.getElementById("extraStopBonusBlock");
+      const extraAmount = document.querySelector('[name="extra_stop_bonus_amount"]');
+
+      if (enableExtra && extraBlock) {
+        enableExtra.checked = scheme.enable_extra_stop_bonus === true;
+        extraBlock.style.display = enableExtra.checked ? "block" : "none";
+      }
+      if (extraAmount) extraAmount.value = scheme.extra_stop_bonus_amount ?? '';
     })
     .catch(err => {
       console.warn("Ошибка при загрузке схемы зарплаты:", err);
