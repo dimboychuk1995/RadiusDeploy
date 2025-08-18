@@ -101,6 +101,10 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
 
       if (!data.success || !data.loads.length) {
         container.innerHTML = "<p>Грузы не найдены</p>";
+        // обнулим кэш экстра-стопов
+        container.dataset.extraStopsTotal = "0";
+        const oldSum = container.querySelector("#extraStopsSummary");
+        if (oldSum) oldSum.remove();
         return 0;
       }
 
@@ -125,7 +129,8 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
         return (load.delivery && load.delivery.date) || load.delivery_date || null;
       };
 
-      const totalAmount = data.loads.reduce((sum, load) => sum + (load.price || 0), 0);
+      // Собираем таблицу и сразу считаем экстра-стопы по выбранным (not out_of_diap)
+      let selectedExtraStops = 0;
 
       const table = document.createElement("table");
       table.className = "table table-sm table-bordered";
@@ -136,6 +141,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
             <th>Load ID</th>
             <th>Pickup<br><small>Date</small></th>
             <th>Delivery / Extra<br><small>Final Date</small></th>
+            <th>Extra Stops</th>
             <th>Price</th>
           </tr>
         </thead>
@@ -150,10 +156,19 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
             const effectiveDeliveryDate = getEffectiveDeliveryDate(load);
             const deliveryDateStr = toDateOnly(effectiveDeliveryDate);
 
+            const extraCount = Number(load.extra_stops || 0);
+            if (!load.out_of_diap) selectedExtraStops += Math.max(0, extraCount);
+
             return `
               <tr>
                 <td>
-                  <input type="checkbox" class="load-checkbox" data-price="${load.price}" ${checkedAttr}>
+                  <input
+                    type="checkbox"
+                    class="load-checkbox"
+                    data-price="${load.price || 0}"
+                    data-extra-stops="${extraCount}"
+                    ${checkedAttr}
+                  >
                 </td>
                 <td>${load.load_id || "—"}</td>
                 <td>
@@ -164,6 +179,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
                   <div>${deliveryAddress}</div>
                   <div><strong>${deliveryDateStr}</strong></div>
                 </td>
+                <td>${extraCount}</td>
                 <td>$${(load.price || 0).toFixed(2)}</td>
               </tr>
             `;
@@ -174,18 +190,54 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       container.innerHTML = "";
       container.appendChild(table);
 
-      const checkboxes = container.querySelectorAll(".load-checkbox");
-      checkboxes.forEach(cb => {
-        cb.addEventListener("change", recalculateDriverSalary);
-      });
+      // Кладём суммарные экстра-стопы по "выбранным" в дата-атрибут
+      container.dataset.extraStopsTotal = String(selectedExtraStops);
 
-      return totalAmount;
+      // Навесим пересчёт (он будет обновлять и summary по экстра-стопам)
+      const checkboxes = container.querySelectorAll(".load-checkbox");
+      checkboxes.forEach(cb => cb.addEventListener("change", recalculateDriverSalary));
+
+      // Отрисуем/обновим summary
+      renderOrUpdateExtraStopsSummary(container);
+
+      return data.loads.reduce((sum, load) => sum + (load.price || 0), 0);
     })
     .catch(err => {
       console.error("❌ Ошибка при получении грузов:", err);
       return 0;
     });
 }
+
+// вспомогательный сниппет: небольшой summary по экстра-стопам под таблицей
+function renderOrUpdateExtraStopsSummary(container) {
+  // считаем по факту отмеченных чекбоксов — это отражает текущий выбор пользователя
+  const cbs = container.querySelectorAll(".load-checkbox");
+  let selectedExtraStops = 0;
+  cbs.forEach(cb => {
+    if (cb.checked) {
+      selectedExtraStops += Number(cb.dataset.extraStops || 0);
+    }
+  });
+
+  container.dataset.extraStopsTotal = String(selectedExtraStops);
+
+  let sum = container.querySelector("#extraStopsSummary");
+  const html = `
+    <div id="extraStopsSummary" class="mt-2 text-muted">
+      <strong>Extra stops (selected):</strong> ${selectedExtraStops}
+    </div>
+  `;
+  if (!sum) {
+    const table = container.querySelector("table");
+    if (table) table.insertAdjacentHTML("afterend", html);
+  } else {
+    sum.outerHTML = html;
+  }
+}
+
+
+
+
 
 /* ===================== Топливо ===================== */
 function fetchDriverFuelSummary(driverId, weekRange) {
@@ -427,9 +479,16 @@ window.recalculateDriverSalary = async function () {
   // 1) Гросс из выбранных грузов
   const checkboxes = container.querySelectorAll(".load-checkbox");
   let loadsGross = 0;
+  let selectedExtraStops = 0;
   checkboxes.forEach(cb => {
-    if (cb.checked) loadsGross += parseFloat(cb.dataset.price || "0");
+    if (cb.checked) {
+      loadsGross += parseFloat(cb.dataset.price || "0");
+      selectedExtraStops += Number(cb.dataset.extraStops || 0);
+    }
   });
+
+  // Обновим маленький summary по экстра-стопам
+  renderOrUpdateExtraStopsSummary(container);
 
   // 2) Инвойсы
   let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0, visibleTotal = 0;
@@ -460,7 +519,7 @@ window.recalculateDriverSalary = async function () {
   const grossForCommission = loadsGross + grossAdd - grossDeduct;
 
   try {
-    // 3) Схема
+    // 3) Схема + экстра-стоп бонус из карточки водителя
     const res = await fetch(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`);
     const data = await res.json();
     if (!data.success) {
@@ -502,13 +561,19 @@ window.recalculateDriverSalary = async function () {
     const schemeDeductions = data.deductions || [];
     const schemeDeductionsTotal = schemeDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 
+    // 6) 🆕 Экстра-стоп бонус
+    const extraEnabled = !!data.enable_extra_stop_bonus;
+    const extraRate = Number(data.extra_stop_bonus_amount || 0);
+    const extraBonus = extraEnabled ? selectedExtraStops * extraRate : 0;
+
     const finalSalary =
       commission
       - schemeDeductionsTotal
       - salaryDeduct
-      + salaryAdd;
+      + salaryAdd
+      + extraBonus; // ← добавили бонус за экстра-стопы
 
-    // 6) Рендер
+    // 7) Рендер
     const old = container.querySelector("#driverSalaryBlock");
     if (old) old.remove();
 
@@ -518,6 +583,16 @@ window.recalculateDriverSalary = async function () {
         <td class="text-end">
           ${perMileDetails.miles.toLocaleString(undefined, {maximumFractionDigits:2})}
           × $${perMileDetails.rate.toFixed(4)} = <strong>$${perMileDetails.amount.toFixed(2)}</strong>
+        </td>
+      </tr>
+    ` : "";
+
+    const extraRow = extraEnabled ? `
+      <tr class="table-light">
+        <th>Extra stop bonus</th>
+        <td class="text-end">
+          ${selectedExtraStops}
+          × $${extraRate.toFixed(2)} = <strong>$${extraBonus.toFixed(2)}</strong>
         </td>
       </tr>
     ` : "";
@@ -559,6 +634,7 @@ window.recalculateDriverSalary = async function () {
                   &nbsp;&nbsp;–$${salaryDeduct.toFixed(2)} (deduct_salary)
                 </td>
               </tr>
+              ${extraRow}
               <tr class="table-success">
                 <th>Итого к выплате</th>
                 <td class="text-end"><strong>$${finalSalary.toFixed(2)}</strong></td>
@@ -580,10 +656,23 @@ window.recalculateDriverSalary = async function () {
 
     container.insertAdjacentHTML("beforeend", html);
 
+    // можно сохранить калькуляцию в крошечный кэш, если saveDriverStatement это читает
+    window.__statementState = window.__statementState || {};
+    window.__statementState.lastSingleCalc = {
+      driverId,
+      loadsGross, grossAdd, grossDeduct, salaryAdd, salaryDeduct,
+      grossForCommission, commission, schemeDeductionsTotal,
+      extraEnabled, selectedExtraStops, extraRate, extraBonus,
+      finalSalary
+    };
   } catch (err) {
     console.error("❌ Ошибка при расчёте зарплаты:", err);
   }
 };
+
+
+
+
 
 /* ===================== Statement for All drivers ===================== */
 function openAllDriversStatementModal() {
@@ -736,14 +825,15 @@ async function fetchAllForDriver(driverId, weekRange) {
     apiGet(`/api/driver_commission_scheme?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`),
     apiGet(`/api/driver_inspections_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
     apiGet(`/api/driver_expenses_by_range?driver_id=${driverId}&start_date=${start}&end_date=${end}`),
-    // 👇 пробег обрабатываем «мягко», и явно передаём tz
+    // пробег — «мягко», 404 не валит расчёт
     apiGetSoft(`/api/statement/driver_mileage?driver_id=${driverId}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&tz=America/Chicago`)
   ]);
 
-  // 1) Нормализация
+  // 1) Нормализация блоков
   const loads = (loadsRes.success ? loadsRes.loads : []);
   const fuel  = (fuelRes.success ? fuelRes.fuel : { qty:0, retail:0, invoice:0, cards:[] });
 
+  // схема: добавили поля для экстра-стоп бонуса
   const scheme = (schemeRes.success ? {
     scheme_type: schemeRes.scheme_type,
     commission_table: schemeRes.commission_table || [],
@@ -752,7 +842,11 @@ async function fetchAllForDriver(driverId, weekRange) {
     enable_inspection_bonus: !!schemeRes.enable_inspection_bonus,
     bonus_level_1: schemeRes.bonus_level_1 || 0,
     bonus_level_2: schemeRes.bonus_level_2 || 0,
-    bonus_level_3: schemeRes.bonus_level_3 || 0
+    bonus_level_3: schemeRes.bonus_level_3 || 0,
+
+    // 🆕 для бонуса за экстра-стоп
+    enable_extra_stop_bonus: !!schemeRes.enable_extra_stop_bonus,
+    extra_stop_bonus_amount: Number(schemeRes.extra_stop_bonus_amount || 0)
   } : null);
 
   const inspections = (inspRes.success ? inspRes.inspections : []);
@@ -768,7 +862,7 @@ async function fetchAllForDriver(driverId, weekRange) {
     removed: false
   }));
 
-  // 2) Пробег — если 404/ошибка, берём нули и продолжаем
+  // 2) Пробег
   const mileage = (mileageRes && mileageRes.success)
     ? {
         miles:  Number((mileageRes.miles ?? mileageRes.mileage?.miles) || 0),
@@ -779,7 +873,7 @@ async function fetchAllForDriver(driverId, weekRange) {
       }
     : { miles: 0, meters: 0, source: null, truck_id: null, samsara_vehicle_id: null };
 
-  // 3) Расчёт зарплаты (учитываем и percent, и per_mile)
+  // 3) Гросс + корректировки
   const loadsGross = loads.reduce((sum, ld) => sum + Number(ld.price || 0), 0);
   let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
   for (const exp of expenses) {
@@ -795,6 +889,7 @@ async function fetchAllForDriver(driverId, weekRange) {
   }
   const grossForCommission = loadsGross + grossAdd - grossDeduct;
 
+  // 4) Комиссия
   let commission = 0;
   if (scheme) {
     if (scheme.scheme_type === "per_mile") {
@@ -812,9 +907,22 @@ async function fetchAllForDriver(driverId, weekRange) {
     }
   }
 
+  // 5) Вычеты по схеме
   const schemeDeductions = (scheme?.deductions || []);
   const schemeDeductionsTotal = schemeDeductions.reduce((s, d) => s + Number(d.amount || 0), 0);
-  const finalSalary = commission - schemeDeductionsTotal - salaryDeduct + salaryAdd;
+
+  // 6) 🆕 Экстра-стоп бонус для массового расчёта
+  // сервер уже считает extra_stops_total в ответе /driver_statement_loads,
+  // но на всякий случай пересчитаем, если поле не пришло
+  const extraStopsTotal = loadsRes.extra_stops_total != null
+    ? Number(loadsRes.extra_stops_total || 0)
+    : loads.filter(ld => !ld.out_of_diap).reduce((acc, ld) => acc + Number(ld.extra_stops || 0), 0);
+
+  const extraRate = Number(scheme?.extra_stop_bonus_amount || 0);
+  const extraBonus = (scheme && scheme.enable_extra_stop_bonus) ? (extraStopsTotal * extraRate) : 0;
+
+  // 7) Итог
+  const finalSalary = commission - schemeDeductionsTotal - salaryDeduct + salaryAdd + extraBonus;
 
   const calc = {
     loads_gross: Number(loadsGross.toFixed(2)),
@@ -825,6 +933,11 @@ async function fetchAllForDriver(driverId, weekRange) {
     scheme_deductions_total: Number(schemeDeductionsTotal.toFixed(2)),
     salary_add_from_expenses: Number(salaryAdd.toFixed(2)),
     salary_deduct_from_expenses: Number(salaryDeduct.toFixed(2)),
+
+    // 🆕 чтобы было видно в UI/логах
+    extra_stops_total: Number(extraStopsTotal),
+    extra_stop_bonus_total: Number(extraBonus.toFixed(2)),
+
     final_salary: Number(finalSalary.toFixed(2))
   };
 
@@ -840,6 +953,10 @@ async function fetchAllForDriver(driverId, weekRange) {
     calc
   };
 }
+
+
+
+
 
 /* ===================== ▶️ Рассчитать всем + Bulk Save ===================== */
 async function calculateAllDriversStatements() {

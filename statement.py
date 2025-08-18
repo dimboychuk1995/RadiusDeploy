@@ -118,6 +118,8 @@ def get_driver_statement_loads():
             return str(val) if isinstance(val, ObjectId) else val
 
         serialized = []
+        extra_stops_total = 0  # ← копим только за базовый диапазон (out_of_diap == False)
+
         for load in loads:
             eff_date = load.get("effective_date")
             out_of_diap = False
@@ -125,6 +127,31 @@ def get_driver_statement_loads():
                 naive_eff = eff_date if eff_date.tzinfo is None else eff_date.astimezone(utc_tz).replace(tzinfo=None)
                 if not (start_bound_naive <= naive_eff < base_end_bound_naive):
                     out_of_diap = True
+
+            # аккуратно считаем экстра-стопы:
+            # 1) если в документе есть поле extra_stops — используем его
+            # 2) иначе считаем по extra_arr / extra_delivery
+            extra_count = 0
+            if isinstance(load.get("extra_stops"), (int, float)):
+                try:
+                    extra_count = int(load.get("extra_stops") or 0)
+                except Exception:
+                    extra_count = 0
+            else:
+                extras = load.get("extra_arr")
+                if isinstance(extras, list):
+                    extra_count = len(extras)
+                else:
+                    raw_extra = load.get("extra_delivery")
+                    if isinstance(raw_extra, list):
+                        extra_count = len(raw_extra)
+                    elif isinstance(raw_extra, dict):
+                        extra_count = 1
+                    else:
+                        extra_count = 0
+
+            if not out_of_diap:
+                extra_stops_total += max(0, extra_count)
 
             serialized.append({
                 "_id": str(load["_id"]),
@@ -138,20 +165,24 @@ def get_driver_statement_loads():
                 "pickup": load.get("pickup", {}),
                 "delivery": load.get("delivery", {}),
                 "extra_delivery": load.get("extra_delivery", {}),
-                "extra_stops": load.get("extra_stops", 0),
+                "extra_stops": extra_count,  # ← нормализованное число
                 "pickup_date": (load.get("pickup") or {}).get("date") if isinstance(load.get("pickup"), dict) else None,
                 "delivery_date": eff_date or (load.get("delivery") or {}).get("date"),
                 "out_of_diap": out_of_diap
             })
 
-        return jsonify({"success": True, "loads": serialized, "count": len(serialized)})
+        return jsonify({
+            "success": True,
+            "loads": serialized,
+            "count": len(serialized),
+            "extra_stops_total": int(extra_stops_total)  # ← новое поле
+        })
 
     except Exception as e:
         import traceback
         print("Exception in /api/driver_statement_loads (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
-
 
 
 
@@ -241,12 +272,9 @@ def get_driver_commission_scheme():
         if not driver:
             return jsonify({"success": False, "error": "Driver not found"}), 404
 
-        # 1) тип схемы: сначала пробуем явное поле driver.scheme_type (per_mile/percent/…),
-        #    затем из net_commission_table.type, иначе "percent" по умолчанию
+        # 1) тип схемы: сначала явное поле, затем из net_commission_table.type, иначе "percent"
         raw_net = (driver.get("net_commission_table") or {})
-        scheme_type = (driver.get("scheme_type")
-                       or raw_net.get("type")
-                       or "percent")
+        scheme_type = (driver.get("scheme_type") or raw_net.get("type") or "percent")
 
         # 2) таблица комиссий (для percent)
         commission_table = driver.get("commission_table", []) or []
@@ -254,7 +282,7 @@ def get_driver_commission_scheme():
         # 3) per-mile ставка (для per_mile)
         per_mile_rate = float(driver.get("per_mile_rate", 0) or 0)
 
-        # 4) постоянные удержания (additional_charges) — как было
+        # 4) постоянные удержания (additional_charges) — без изменений
         additional_charges = driver.get("additional_charges", []) or []
         deductions = []
         for charge in additional_charges:
@@ -279,16 +307,29 @@ def get_driver_commission_scheme():
         bonus_level_2 = float(driver.get("bonus_level_2", 0) or 0)
         bonus_level_3 = float(driver.get("bonus_level_3", 0) or 0)
 
+        # 6) 🆕 бонус за экстра-стопы (берём из карточки водителя)
+        enable_extra_stop_bonus = bool(driver.get("enable_extra_stop_bonus", False))
+        try:
+            extra_stop_bonus_amount = float(driver.get("extra_stop_bonus_amount", 0) or 0)
+        except Exception:
+            extra_stop_bonus_amount = 0.0
+
         return jsonify({
             "success": True,
-            "scheme_type": scheme_type,           # <-- теперь приходит 'per_mile' когда нужно
+            "scheme_type": scheme_type,
             "commission_table": commission_table,
-            "per_mile_rate": per_mile_rate,       # <-- добавили
+            "per_mile_rate": per_mile_rate,
+
             "deductions": deductions,
+
             "enable_inspection_bonus": enable_bonus,
             "bonus_level_1": bonus_level_1,
             "bonus_level_2": bonus_level_2,
-            "bonus_level_3": bonus_level_3
+            "bonus_level_3": bonus_level_3,
+
+            # ↓ новые поля для фронта
+            "enable_extra_stop_bonus": enable_extra_stop_bonus,
+            "extra_stop_bonus_amount": extra_stop_bonus_amount
         })
 
     except Exception as e:
@@ -296,7 +337,6 @@ def get_driver_commission_scheme():
         print("Exception in /api/driver_commission_scheme:")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
-
 
 
 @statement_bp.route("/api/driver_inspections_by_range", methods=["GET"])
@@ -644,40 +684,7 @@ def list_drivers_for_statements():
 def bulk_save_statements():
     """
     Принимает расчёты по нескольким водителям и сохраняет их в коллекцию statement.
-
-    Тело запроса:
-      {
-        "week_range": "MM/DD/YYYY - MM/DD/YYYY",
-        "items": [
-          {
-            "driver_id": "...",
-            "week_range": "...",          # можно не передавать, берём из корня
-            "loads": [...],
-            "fuel": {...},
-            "inspections": [...],
-            "expenses": [...],            # с action/remove для UI
-            "scheme": {...},              # scheme_type, commission_table / per_mile_rate, deductions...
-            "mileage": {"miles": .., "meters": .., "source": "...", ...},
-            "calc": {
-              "loads_gross": ...,
-              "gross_add_from_expenses": ...,
-              "gross_deduct_from_expenses": ...,
-              "gross_for_commission": ...,
-              "commission": ...,
-              "scheme_deductions_total": ...,
-              "salary_add_from_expenses": ...,
-              "salary_deduct_from_expenses": ...,
-              "final_salary": ...
-            }
-          }, ...
-        ]
-      }
-
-    Логика сохранения:
-      - уникаем по (company, driver_id, week_range)
-      - если найден документ и approved=True -> игнорируем (ignored++)
-      - если найден документ и approved=False -> replace (replaced++)
-      - если не найден -> insert (added++)
+    Логика сохранения не менялась; добавлено вычисление и сохранение extra_stops_total.
     """
     from flask import request, jsonify
     from bson import ObjectId
@@ -693,16 +700,9 @@ def bulk_save_statements():
     if not week_range or not isinstance(items, list):
         return jsonify({"success": False, "error": "week_range and items[] required"}), 400
 
-    # ⬇️ Сохраняем в правильную коллекцию
     col = db["statement"]
     drivers_col = db["drivers"]
     trucks_col = db["trucks"]
-
-    # Рекомендуемый уникальный индекс (один раз):
-    # db.statement.createIndex(
-    #   {"company":1,"driver_id":1,"week_range":1},
-    #   {"unique": True}
-    # )
 
     added = 0
     replaced = 0
@@ -710,6 +710,21 @@ def bulk_save_statements():
     failed = 0
     details = []
     now = datetime.utcnow()
+
+    def _count_extra_stops(load):
+        # считаем экстра-стопы из элемента loads массива фронта
+        # берём нормализованное поле extra_stops, иначе считаем по extra_delivery
+        try:
+            if isinstance(load.get("extra_stops"), (int, float)):
+                return max(0, int(load.get("extra_stops") or 0))
+        except Exception:
+            pass
+        raw = load.get("extra_delivery")
+        if isinstance(raw, list):
+            return len(raw)
+        if isinstance(raw, dict):
+            return 1
+        return 0
 
     for raw in items:
         try:
@@ -736,7 +751,7 @@ def bulk_save_statements():
                 details.append({"driver_id": driver_id_str, "status": "failed", "reason": "driver not in company"})
                 continue
 
-            # номер трака (для отображения в списке)
+            # номер трака
             truck_num = None
             tr_id = driver.get("truck")
             if tr_id:
@@ -757,6 +772,9 @@ def bulk_save_statements():
             monday_loads = sum(1 for ld in loads if not ld.get("out_of_diap"))
             invoices_num = sum(1 for e in expenses if not e.get("removed"))
             inspections_num = len(inspections)
+
+            # 👇 новый агрегат: общее число экстра-стопов в базовом диапазоне
+            extra_stops_total = sum(_count_extra_stops(ld) for ld in loads if not ld.get("out_of_diap"))
 
             miles = float(mileage.get("miles") or 0.0)
             salary = float(calc.get("final_salary") or 0.0)
@@ -781,6 +799,9 @@ def bulk_save_statements():
                 "monday_loads": int(monday_loads),
                 "invoices_num": int(invoices_num),
                 "inspections_num": int(inspections_num),
+
+                # ← сохраняем посчитанное количество экстра-стопов
+                "extra_stops_total": int(extra_stops_total),
 
                 "raw": {
                     "loads": loads,
