@@ -15,30 +15,47 @@ function closeDispatcherPayrollModal() {
 }
 
 // Очень важный метод генерации недель
-function generateWeekRanges(selectId) {
-  const select = document.getElementById(selectId);
-  select.innerHTML = "";
+function generateWeekRanges(selectIdOrSelector) {
+  const q = String(selectIdOrSelector || '').trim();
+  if (!q) return;
 
+  // Разрешаем передавать id ("statementWeekRangeSelect") ИЛИ CSS-селектор ("#statementWeekRangeSelect" / ".week-range-select")
+  const nodes = (q.startsWith('#') || q.startsWith('.') || q.includes('[') || q.includes(' '))
+    ? Array.from(document.querySelectorAll(q))
+    : Array.from(document.querySelectorAll(`[id="${q}"]`)); // поддержка «дублирующегося id» в разных секциях
+
+  if (!nodes.length) return;
+
+  const isVisible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  const targets = nodes.filter(isVisible);
+  const toFill = targets.length ? targets : nodes; // если вдруг все скрыты — заполняем найденные
+
+  // Вычисляем базовый понедельник текущей недели
   const today = new Date();
-  const day = today.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
+  const day = today.getDay();                 // 0..6 (вс.:0)
+  const diff = (day === 0 ? -6 : 1 - day);    // смещение до понедельника
   const baseMonday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diff);
 
-  const mmdd = d => String(d.getMonth() + 1).padStart(2, "0") + "/" + String(d.getDate()).padStart(2, "0") + "/" + d.getFullYear();
+  const fmt = (d) =>
+    `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
 
+  // Подготавливаем список меток на 10 недель назад
+  const labels = [];
   for (let i = 0; i < 10; i++) {
     const monday = new Date(baseMonday);
     monday.setDate(monday.getDate() - i * 7);
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
-
-    const label = `${mmdd(monday)} - ${mmdd(sunday)}`;
-
-    const option = document.createElement("option");
-    option.value = label;
-    option.textContent = label;
-    select.appendChild(option);
+    labels.push(`${fmt(monday)} - ${fmt(sunday)}`);
   }
+
+  // Заполняем каждый целевой селект; сохраняем прежнее значение, если оно есть в новом списке
+  const optionsHTML = labels.map(l => `<option value="${l}">${l}</option>`).join('');
+  toFill.forEach((sel) => {
+    const prev = sel.value;
+    sel.innerHTML = optionsHTML;
+    if (prev && labels.includes(prev)) sel.value = prev;
+  });
 }
 
 
