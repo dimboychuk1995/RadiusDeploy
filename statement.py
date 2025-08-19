@@ -683,13 +683,156 @@ def list_drivers_for_statements():
 @login_required
 def bulk_save_statements():
     """
-    Принимает расчёты по нескольким водителям и сохраняет их в коллекцию statement.
-    Логика сохранения не менялась; добавлено вычисление и сохранение extra_stops_total.
+    Массовое сохранение стейтментов.
+    ДОБАВЛЕНО: глубокая нормализация типов внутри raw/loads/inspections/expenses/fuel/mileage/scheme:
+      - *_id и ряд известных id-полей → ObjectId
+      - поля с датами → datetime (naive, UTC)
+      - числовые поля → float/int, где уместно
     """
     from flask import request, jsonify
     from bson import ObjectId
     from datetime import datetime
 
+    # ---- Хелперы приведения типов ------------------------------------------
+    OID_KEYS = {
+        "_id", "id",
+        "driver_id", "driver", "dispatcher", "user_id",
+        "assigned_driver", "assigned_dispatch", "assigned_power_unit",
+        "company_sign", "hiring_company",
+        "truck", "truck_id",
+        "photo_id", "fuel_card_id",
+        "samsara_vehicle_id", "vehicle_id",
+        "expense_id", "inspection_id",
+    }
+
+    DATE_KEYS = {
+        # обобщённые дата-поля
+        "date", "date_to", "pickup_date", "delivery_date",
+        "picked_up", "delivered_at",
+        # служебные
+        "created_at", "updated_at",
+    }
+
+    # набор форматов, встречающихся в проекте
+    _DT_FORMATS = (
+        "%a, %d %b %Y %H:%M:%S GMT",   # Fri, 08 Aug 2025 20:22:36 GMT
+        "%m/%d/%Y %H:%M:%S",           # 08/06/2025 14:18:57
+        "%m/%d/%Y %H:%M",              # 08/06/2025 14:18
+        "%m/%d/%Y",                    # 08/06/2025
+        "%Y-%m-%dT%H:%M:%S.%fZ",       # ISO с миллисекундами
+        "%Y-%m-%dT%H:%M:%SZ",          # ISO
+        "%Y-%m-%d %H:%M:%S",           # 2025-08-06 14:18:57
+        "%Y-%m-%d",                    # 2025-08-06
+    )
+
+    def _is_hex24(s: str) -> bool:
+        return isinstance(s, str) and len(s) == 24 and all(c in "0123456789abcdefABCDEF" for c in s)
+
+    def _to_oid(val):
+        if isinstance(val, ObjectId):
+            return val
+        if isinstance(val, str) and _is_hex24(val):
+            try:
+                return ObjectId(val)
+            except Exception:
+                return val
+        return val
+
+    def _try_parse_datetime(s):
+        if not isinstance(s, str) or not s.strip():
+            return s
+        # быстрая эвристика: если это чисто время (HH:MM/HH:MM:SS) — оставляем строкой
+        if s.count(":") in (1, 2) and ("/" not in s and "," not in s and "T" not in s and "-" not in s):
+            return s
+        for fmt in _DT_FORMATS:
+            try:
+                dt = datetime.strptime(s, fmt)
+                # трактуем как UTC-naive
+                return dt.replace(tzinfo=None)
+            except Exception:
+                pass
+        # last resort: ISO-8601 произвольный
+        try:
+            # без dateutil — пробуем избыточно откусить 'Z'
+            if s.endswith("Z"):
+                s2 = s[:-1]
+                dt = datetime.fromisoformat(s2)
+                return dt.replace(tzinfo=None)
+            dt = datetime.fromisoformat(s)
+            return dt.replace(tzinfo=None)
+        except Exception:
+            return s
+
+    # Опциональное приведение чисел
+    def _to_int(val):
+        try:
+            return int(val)
+        except Exception:
+            return val
+
+    def _to_float(val):
+        try:
+            return float(val)
+        except Exception:
+            return val
+
+    # Глубокая нормализация документов
+    def _coerce(obj, parent_key=None):
+        # списки
+        if isinstance(obj, list):
+            return [_coerce(x, parent_key) for x in obj]
+
+        # словари
+        if isinstance(obj, dict):
+            out = {}
+            for k, v in obj.items():
+                kv = k.lower() if isinstance(k, str) else k
+
+                # рекурсивно нормализуем вложенное
+                v_norm = _coerce(v, kv)
+
+                # 1) ObjectId по ключам
+                if kv in OID_KEYS or kv.endswith("_id"):
+                    out[k] = _to_oid(v_norm)
+                    continue
+
+                # 2) Даты по известным ключам
+                if kv in DATE_KEYS:
+                    out[k] = _try_parse_datetime(v_norm)
+                    continue
+
+                # 3) Отдельные числовые поля (где встречается текст)
+                if kv in {"price", "rpm", "miles", "meters", "per_mile_rate",
+                          "bonus_level_1", "bonus_level_2", "bonus_level_3",
+                          "extra_stop_bonus_amount"}:
+                    out[k] = _to_float(v_norm)
+                    continue
+
+                if kv in {"extra_stops", "stop_number", "monday_loads",
+                          "invoices_num", "inspections_num"}:
+                    out[k] = _to_int(v_norm)
+                    continue
+
+                out[k] = v_norm
+
+            # Спец-нормализация известных структур:
+            # pickup/delivery/extra_delivery.date → datetime
+            for node in ("pickup", "delivery"):
+                if isinstance(out.get(node), dict) and "date" in out[node]:
+                    out[node]["date"] = _try_parse_datetime(out[node]["date"])
+            if isinstance(out.get("extra_delivery"), dict) and "date" in out["extra_delivery"]:
+                out["extra_delivery"]["date"] = _try_parse_datetime(out["extra_delivery"]["date"])
+            if isinstance(out.get("extra_delivery"), list):
+                for ed in out["extra_delivery"]:
+                    if isinstance(ed, dict) and "date" in ed:
+                        ed["date"] = _try_parse_datetime(ed["date"])
+
+            return out
+
+        # простые типы
+        return obj
+
+    # ---- Основная логика сохранения -----------------------------------------
     try:
         payload = request.get_json(force=True) or {}
     except Exception:
@@ -704,18 +847,13 @@ def bulk_save_statements():
     drivers_col = db["drivers"]
     trucks_col = db["trucks"]
 
-    added = 0
-    replaced = 0
-    ignored = 0
-    failed = 0
+    added = replaced = ignored = failed = 0
     details = []
     now = datetime.utcnow()
 
     def _count_extra_stops(load):
-        # считаем экстра-стопы из элемента loads массива фронта
-        # берём нормализованное поле extra_stops, иначе считаем по extra_delivery
         try:
-            if isinstance(load.get("extra_stops"), (int, float)):
+            if isinstance(load.get("extra_stops"), (int, float, str)):
                 return max(0, int(load.get("extra_stops") or 0))
         except Exception:
             pass
@@ -760,20 +898,27 @@ def bulk_save_statements():
                     truck_num = tr.get("unit_number")
 
             # исходные блоки
-            loads = raw.get("loads") or []
-            inspections = raw.get("inspections") or []
-            expenses = raw.get("expenses") or []
-            scheme = raw.get("scheme") or {}
-            mileage = raw.get("mileage") or {}
-            calc = raw.get("calc") or {}
-            fuel = raw.get("fuel") or {}
+            loads_in = raw.get("loads") or []
+            inspections_in = raw.get("inspections") or []
+            expenses_in = raw.get("expenses") or []
+            scheme_in = raw.get("scheme") or {}
+            mileage_in = raw.get("mileage") or {}
+            fuel_in = raw.get("fuel") or {}
+            calc_in = raw.get("calc") or {}
 
-            # агрегаты для списка
+            # Глубокая нормализация
+            loads = _coerce(loads_in)
+            inspections = _coerce(inspections_in)
+            expenses = _coerce(expenses_in)
+            scheme = _coerce(scheme_in)
+            mileage = _coerce(mileage_in)
+            fuel = _coerce(fuel_in)
+            calc = _coerce(calc_in)
+
+            # агрегаты
             monday_loads = sum(1 for ld in loads if not ld.get("out_of_diap"))
             invoices_num = sum(1 for e in expenses if not e.get("removed"))
             inspections_num = len(inspections)
-
-            # 👇 новый агрегат: общее число экстра-стопов в базовом диапазоне
             extra_stops_total = sum(_count_extra_stops(ld) for ld in loads if not ld.get("out_of_diap"))
 
             miles = float(mileage.get("miles") or 0.0)
@@ -799,8 +944,6 @@ def bulk_save_statements():
                 "monday_loads": int(monday_loads),
                 "invoices_num": int(invoices_num),
                 "inspections_num": int(inspections_num),
-
-                # ← сохраняем посчитанное количество экстра-стопов
                 "extra_stops_total": int(extra_stops_total),
 
                 "raw": {
