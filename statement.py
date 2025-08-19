@@ -1446,3 +1446,297 @@ def api_samsara_driver_mileage():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@statement_bp.route("/api/statements/save_single", methods=["POST"])
+@login_required
+def save_single_statement():
+    """
+    Сохраняет стейтмент для ОДНОГО водителя:
+      POST JSON: { "week_range": "MM/DD/YYYY - MM/DD/YYYY", "item": {...} }
+    - approved всегда True
+    - week_start_utc / week_end_utc считаются из week_range по таймзоне компании
+    - все id -> ObjectId, все даты -> UTC naive
+    - upsert по (company, driver_id, week_range)
+    """
+    from flask import request, jsonify
+    from bson import ObjectId
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+    import re
+    from email.utils import parsedate_to_datetime as pdt
+
+    try:
+        payload = request.get_json(force=True) or {}
+    except Exception:
+        payload = {}
+
+    week_range = (payload.get("week_range") or "").strip()
+    raw = payload.get("item") or {}
+    if not week_range or not isinstance(raw, dict) or not raw.get("driver_id"):
+        return jsonify({"success": False, "error": "week_range and item.driver_id required"}), 400
+
+    # --- TZ из БД и преобразование week_range в UTC naive ---
+    tz_doc  = db["company_timezone"].find_one({}) or {}
+    tz_name = tz_doc.get("timezone") or "America/Chicago"
+    local_tz = ZoneInfo(tz_name)
+    utc_tz   = timezone.utc
+
+    try:
+        s_str, e_str = [x.strip() for x in week_range.split("-")]
+        s_local = datetime.strptime(s_str, "%m/%d/%Y").replace(tzinfo=local_tz)
+        e_local_excl = (datetime.strptime(e_str, "%m/%d/%Y") + timedelta(days=1)).replace(tzinfo=local_tz)
+        week_start_utc = s_local.astimezone(utc_tz).replace(tzinfo=None)
+        week_end_utc   = e_local_excl.astimezone(utc_tz).replace(tzinfo=None)
+    except Exception:
+        return jsonify({"success": False, "error": "Invalid week_range format"}), 400
+
+    # --- локальные помощники (только внутри метода) ---
+    HEX24 = re.compile(r"^[0-9a-f]{24}$", re.IGNORECASE)
+
+    def to_oid(v):
+        if isinstance(v, ObjectId) or v is None:
+            return v
+        if isinstance(v, str) and HEX24.match(v):
+            try:
+                return ObjectId(v)
+            except Exception:
+                pass
+        return None
+
+    def to_utc_naive(val):
+        """Принимает ISO/строку/RFC2822/aware-datetime, возвращает UTC naive (datetime) или None."""
+        if not val:
+            return None
+        # уже datetime?
+        if isinstance(val, datetime):
+            if val.tzinfo:
+                return val.astimezone(utc_tz).replace(tzinfo=None)
+            return val  # считаем, что уже UTC naive
+        # строка
+        s = str(val).strip()
+        # сначала пробуем email/HTTP формат (например: 'Mon, 11 Aug 2025 17:08:16 GMT')
+        try:
+            d = pdt(s)
+            if d:
+                return d.astimezone(utc_tz).replace(tzinfo=None) if d.tzinfo else d.replace(tzinfo=None)
+        except Exception:
+            pass
+        # пробуем обычные шаблоны
+        for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y %H:%M", "%m/%d/%Y"):
+            try:
+                d = datetime.strptime(s, fmt)
+                return d  # трактуем как UTC naive
+            except Exception:
+                pass
+        # как последний шанс — ISO 8601
+        try:
+            d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+            return d.astimezone(utc_tz).replace(tzinfo=None) if d.tzinfo else d.replace(tzinfo=None)
+        except Exception:
+            return None
+
+    # --- коллекции ---
+    col          = db["statement"]
+    drivers_col  = db["drivers"]
+    trucks_col   = db["trucks"]
+    companies_col = db["companies"]
+
+    # --- справочники водителя/грузовика/компании ---
+    driver_oid = to_oid(raw.get("driver_id"))
+    if not isinstance(driver_oid, ObjectId):
+        return jsonify({"success": False, "error": "Invalid driver_id"}), 400
+
+    drv = drivers_col.find_one({"_id": driver_oid}, {"name": 1, "truck": 1, "hiring_company": 1})
+    if not drv:
+        return jsonify({"success": False, "error": "Driver not found"}), 404
+
+    truck_id = drv.get("truck") if isinstance(drv.get("truck"), ObjectId) else None
+    truck_number = None
+    if truck_id:
+        t = trucks_col.find_one({"_id": truck_id}, {"unit_number": 1})
+        truck_number = t.get("unit_number") if t else None
+
+    # --- loads: нормализация + подсчёт extra_stops_total ---
+    loads_in = list(raw.get("loads") or [])
+    loads_out = []
+    extra_stops_total = 0
+    for ld in loads_in:
+        extra_stops_total += int(ld.get("extra_stops") or 0)
+        # нормализуем extra_delivery (может быть dict/list/None) + даты
+        ex = ld.get("extra_delivery")
+        if isinstance(ex, list):
+            ex_out = [
+                {
+                    **e,
+                    "date":    to_utc_naive(e.get("date")),
+                    "date_to": to_utc_naive(e.get("date_to")),
+                } for e in ex if isinstance(e, dict)
+            ]
+        elif isinstance(ex, dict):
+            ex_out = {
+                **ex,
+                "date":    to_utc_naive(ex.get("date")),
+                "date_to": to_utc_naive(ex.get("date_to")),
+            }
+        else:
+            ex_out = None
+
+        loads_out.append({
+            "_id": to_oid(ld.get("_id")),
+            "load_id": ld.get("load_id") or "",
+            "company_sign": to_oid(ld.get("company_sign")),
+            "assigned_driver": to_oid(ld.get("assigned_driver")),
+            "assigned_dispatch": to_oid(ld.get("assigned_dispatch")),
+            "assigned_power_unit": to_oid(ld.get("assigned_power_unit")),
+            "price": float(ld.get("price") or 0),
+            "RPM": ld.get("RPM"),
+            "pickup": {
+                **(ld.get("pickup") or {}),
+                "date":      to_utc_naive((ld.get("pickup") or {}).get("date")),
+                "date_to":   to_utc_naive((ld.get("pickup") or {}).get("date_to")),
+                "picked_up": to_utc_naive((ld.get("pickup") or {}).get("picked_up")),
+            },
+            "delivery": {
+                **(ld.get("delivery") or {}),
+                "date":        to_utc_naive((ld.get("delivery") or {}).get("date")),
+                "date_to":     to_utc_naive((ld.get("delivery") or {}).get("date_to")),
+                "delivered_at":to_utc_naive((ld.get("delivery") or {}).get("delivered_at")),
+            },
+            "extra_delivery": ex_out,
+            "extra_stops": int(ld.get("extra_stops") or 0),
+            "pickup_date":   to_utc_naive(ld.get("pickup_date")),
+            "delivery_date": to_utc_naive(ld.get("delivery_date")),
+            "out_of_diap":   bool(ld.get("out_of_diap")),
+        })
+
+    # --- expenses ---
+    expenses_in = list(raw.get("expenses") or [])
+    expenses_out = []
+    invoices_num = 0
+    for e in expenses_in:
+        removed = bool(e.get("removed"))
+        if not removed:
+            invoices_num += 1
+        expenses_out.append({
+            "_id": to_oid(e.get("_id")),
+            "amount": float(e.get("amount") or 0),
+            "category": e.get("category") or "",
+            "note": e.get("note") or "",
+            "date": to_utc_naive(e.get("date")),
+            "photo_id": to_oid(e.get("photo_id")),
+            "action": (e.get("action") or "keep"),
+            "removed": removed,
+        })
+
+    # --- inspections ---
+    inspections_out = []
+    for i in list(raw.get("inspections") or []):
+        inspections_out.append({
+            "_id": to_oid(i.get("_id")),
+            "address": i.get("address") or "",
+            "state": i.get("state") or "",
+            "clean_inspection": bool(i.get("clean_inspection")),
+            "date":       to_utc_naive(i.get("date")),
+            "created_at": to_utc_naive(i.get("created_at")),
+            "start_time": i.get("start_time"),
+            "end_time":   i.get("end_time"),
+        })
+
+    # --- топливо/схема/пробег/калькуляция ---
+    fuel_in = raw.get("fuel") or {}
+    fuel_out = {
+        "qty": float(fuel_in.get("qty") or 0),
+        "retail": float(fuel_in.get("retail") or 0),
+        "invoice": float(fuel_in.get("invoice") or 0),
+        "cards": list(fuel_in.get("cards") or []),
+    }
+
+    scheme_in = raw.get("scheme") or {}
+    scheme_out = {
+        "scheme_type": scheme_in.get("scheme_type") or "percent",
+        "commission_table": list(scheme_in.get("commission_table") or []),
+        "per_mile_rate": float(scheme_in.get("per_mile_rate") or 0),
+        "deductions": list(scheme_in.get("deductions") or []),
+        "enable_inspection_bonus": bool(scheme_in.get("enable_inspection_bonus", False)),
+        "bonus_level_1": float(scheme_in.get("bonus_level_1") or 0),
+        "bonus_level_2": float(scheme_in.get("bonus_level_2") or 0),
+        "bonus_level_3": float(scheme_in.get("bonus_level_3") or 0),
+        # поля для экстра-стопов
+        "enable_extra_stop_bonus": bool(scheme_in.get("enable_extra_stop_bonus", False)),
+        "extra_stop_bonus_amount": float(scheme_in.get("extra_stop_bonus_amount") or 0),
+    }
+
+    mileage_in = raw.get("mileage") or {}
+    mileage_out = {
+        "miles": float(mileage_in.get("miles") or 0),
+        "meters": float(mileage_in.get("meters") or 0),
+        "source": mileage_in.get("source"),
+        "truck_id": to_oid(mileage_in.get("truck_id")),
+        "samsara_vehicle_id": to_oid(mileage_in.get("samsara_vehicle_id")),
+    }
+
+    calc_in = raw.get("calc") or {}
+    calc_out = {
+        "loads_gross": float(calc_in.get("loads_gross") or 0),
+        "gross_add_from_expenses": float(calc_in.get("gross_add_from_expenses") or 0),
+        "gross_deduct_from_expenses": float(calc_in.get("gross_deduct_from_expenses") or 0),
+        "gross_for_commission": float(calc_in.get("gross_for_commission") or 0),
+        "commission": float(calc_in.get("commission") or 0),
+        "scheme_deductions_total": float(calc_in.get("scheme_deductions_total") or 0),
+        "salary_add_from_expenses": float(calc_in.get("salary_add_from_expenses") or 0),
+        "salary_deduct_from_expenses": float(calc_in.get("salary_deduct_from_expenses") or 0),
+        # Итог по экстра-стопам: берём из calc если уже посчитан на фронте, иначе — из подсчёта здесь
+        "extra_stops_total": int(calc_in.get("extra_stops_total") or extra_stops_total),
+        "extra_stop_bonus_total": float(calc_in.get("extra_stop_bonus_total") or 0),
+        "final_salary": float(calc_in.get("final_salary") or 0),
+    }
+
+    now = datetime.utcnow()
+    doc = {
+        "company": current_user.company,
+        "week_range": week_range,
+        "week_start_utc": week_start_utc,
+        "week_end_utc": week_end_utc,
+        "driver_id": driver_oid,
+        "driver_name": drv.get("name"),
+        "hiring_company": drv.get("hiring_company"),
+        "truck_id": truck_id,
+        "truck_number": truck_number,
+
+        "salary": calc_out["final_salary"],
+        "commission": calc_out["commission"],
+        "miles": mileage_out["miles"],
+        "scheme_type": scheme_out["scheme_type"],
+        "per_mile_rate": scheme_out["per_mile_rate"],
+
+        "monday_loads": int(raw.get("monday_loads") or 0),
+        "invoices_num": invoices_num,
+        "inspections_num": len(inspections_out),
+        "extra_stops_total": int(calc_out["extra_stops_total"]),
+
+        "raw": {
+            "loads": loads_out,
+            "fuel": fuel_out,
+            "expenses": expenses_out,
+            "inspections": inspections_out,
+            "scheme": scheme_out,
+            "mileage": mileage_out,
+            "calc": calc_out,
+        },
+
+        "approved": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    # upsert по (company, driver_id, week_range)
+    flt = {"company": current_user.company, "driver_id": driver_oid, "week_range": week_range}
+    existing = col.find_one(flt, {"_id": 1, "created_at": 1})
+    if existing:
+        doc["created_at"] = existing.get("created_at") or now
+        col.replace_one({"_id": existing["_id"]}, doc, upsert=False)
+        return jsonify({"success": True, "status": "replaced", "_id": str(existing["_id"])})
+    else:
+        ins = col.insert_one(doc)
+        return jsonify({"success": True, "status": "added", "_id": str(ins.inserted_id)})

@@ -86,7 +86,7 @@ CORS(app,
      origins=[
          "http://localhost:8081",
          "http://192.168.0.229:8081",
-         "https://26a9cc20a55c.ngrok-free.app"
+         "https://f48a34ccfdd8.ngrok-free.app"
      ],
      expose_headers=["Authorization"])
 
@@ -97,7 +97,7 @@ socketio.init_app(
     cors_allowed_origins=[
         "http://localhost:8081",
         "http://192.168.0.229:8081",
-        "https://26a9cc20a55c.ngrok-free.app",
+        "https://f48a34ccfdd8.ngrok-free.app",
         "http://127.0.0.1:5000"
     ]
 )

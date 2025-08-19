@@ -1383,3 +1383,107 @@ async function openStatementReviewModal(item) {
 
   closeBtn.onclick = () => closeDriverStatementModal();
 }
+
+
+async function saveDriverStatement() {
+  const driverId  = document.getElementById("driverSelect").value;
+  const weekRange = document.getElementById("driverWeekRangeSelect").value;
+  const container = document.getElementById("driverStatementResults");
+
+  if (!driverId || !weekRange) {
+    alert("Сначала выберите водителя и неделю.");
+    return;
+  }
+
+  // 1) Собираем «сырьё» так же, как при массовом сохранении
+  const item = await fetchAllForDriver(driverId, weekRange); // блоки loads/fuel/scheme/inspections/expenses/mileage
+  if (!item) {
+    alert("Не удалось собрать данные для сохранения.");
+    return;
+  }
+
+  // 2) Подставляем изменения из UI (инвойсы и выбор грузов/экстра-стопов)
+  //    Инвойсы — читаем действие/сумму/удалённость
+  const expensesBlock = container.querySelector("#driverExpensesBlock");
+  if (expensesBlock) {
+    const uiItems = expensesBlock.querySelectorAll(".expense-item");
+    const mapped = [];
+    uiItems.forEach(li => {
+      const id = li.getAttribute("data-expense-id");
+      const removed = li.getAttribute("data-removed") === "1";
+      const amount = Math.max(0, parseFloat((li.querySelector(".expense-amount")?.value || "0").trim() || "0"));
+      const action = li.querySelector(".expense-action")?.value || "keep";
+      const base = (item.expenses || []).find(e => e._id === id) || {};
+      mapped.push({
+        _id: base._id || id,
+        amount,
+        category: base.category || "",
+        note: base.note || "",
+        date: base.date || "",
+        photo_id: base.photo_id || null,
+        action,
+        removed
+      });
+    });
+    item.expenses = mapped;
+  }
+
+  // 3) Собираем выбор по грузам и экстра-стопам из чекбоксов
+  const cbs = container.querySelectorAll(".load-checkbox");
+  let selectedExtraStops = 0;
+  let loadsGross = 0;
+  cbs.forEach(cb => {
+    if (cb.checked) {
+      loadsGross += parseFloat(cb.dataset.price || "0");
+      selectedExtraStops += Number(cb.dataset.extraStops || 0);
+    }
+  });
+
+  // 4) Пересчёт из стейта (его заполняет window.recalculateDriverSalary)
+  const calc = (window.__statementState && window.__statementState.lastSingleCalc) || {};
+  // гарантируем, что экстра-стопы попадут
+  calc.extra_stops_total = selectedExtraStops;
+
+  item.calc = {
+    loads_gross: Number(calc.loadsGross ?? loadsGross) || 0,
+    gross_add_from_expenses: Number(calc.grossAdd || 0),
+    gross_deduct_from_expenses: Number(calc.grossDeduct || 0),
+    gross_for_commission: Number(calc.grossForCommission ?? (loadsGross + (calc.grossAdd||0) - (calc.grossDeduct||0))) || 0,
+    commission: Number(calc.commission || 0),
+    scheme_deductions_total: Number(calc.schemeDeductionsTotal || 0),
+    salary_add_from_expenses: Number(calc.salaryAdd || 0),
+    salary_deduct_from_expenses: Number(calc.salaryDeduct || 0),
+    extra_stops_total: Number(calc.extra_stops_total || selectedExtraStops),
+    extra_stop_bonus_total: Number(calc.extraBonus || 0),
+    final_salary: Number(calc.finalSalary || 0)
+  };
+
+  // тело для нового эндпоинта
+  const body = { week_range: weekRange, item: {
+    driver_id: driverId,
+    loads: item.loads || [],
+    fuel: item.fuel || {qty:0, retail:0, invoice:0, cards:[]},
+    inspections: item.inspections || [],
+    expenses: item.expenses || [],
+    scheme: item.scheme || {},
+    mileage: item.mileage || {miles:0, meters:0, source:null, truck_id:null, samsara_vehicle_id:null},
+    calc: item.calc
+  }};
+
+  // 5) Сохранение (approved=True делает сервер)
+  const r = await fetch("/api/statements/save_single", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json().catch(() => ({}));
+
+  if (!r.ok || !data.success) {
+    console.error("Save single statement error:", data);
+    alert(`Не удалось сохранить стейтмент: ${(data && (data.error || data.status)) || r.status}`);
+    return;
+  }
+
+  alert("Стейтмент сохранён.");
+  closeDriverStatementModal();
+}
