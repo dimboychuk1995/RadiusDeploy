@@ -349,56 +349,38 @@ def get_driver_inspections_by_range():
         if not driver_id or not start_str or not end_str:
             return jsonify({"success": False, "error": "Missing parameters"}), 400
 
-        # Таймзона из БД (или дефолт)
         tz_doc  = db["company_timezone"].find_one({}) or {}
         tz_name = tz_doc.get("timezone") or "America/Chicago"
         local_tz = ZoneInfo(tz_name)
         utc_tz   = timezone.utc
 
-        # Локальные границы включительно по дням: [start_local 00:00, end_local + 1д 00:00)
         start_local_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_local_date   = datetime.strptime(end_str, "%m/%d/%Y")
         start_local = start_local_date.replace(tzinfo=local_tz)
         end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
 
-        # В UTC для Mongo (и наивные UTC-границы для сравнения с наивными датами в БД)
         start_utc = start_local.astimezone(utc_tz)
         end_utc_exclusive = end_local_exclusive.astimezone(utc_tz)
         start_bound_naive = start_utc.replace(tzinfo=None)
         end_bound_naive   = end_utc_exclusive.replace(tzinfo=None)
 
-        print("\n=== [Driver Inspections Debug / TZ-Aware] ===")
-        print(f"driver_id: {driver_id}")
-        print(f"company timezone: {tz_name}")
-        print("-- Local range --")
-        print(f"  start_local (inclusive): {start_local.isoformat()}")
-        print(f"  end_local   (exclusive): {end_local_exclusive.isoformat()}")
-        print("-- UTC range (aware) --")
-        print(f"  start_utc   (inclusive): {start_utc.isoformat()}")
-        print(f"  end_utc     (exclusive): {end_utc_exclusive.isoformat()}")
-        print("-- UTC range used in Mongo (naive) --")
-        print(f"  start_bound_naive: {start_bound_naive!r}")
-        print(f"  end_bound_naive:   {end_bound_naive!r}")
-
         query = {
             "driver": ObjectId(driver_id),
-            "created_at": {"$gte": start_bound_naive, "$lt": end_bound_naive}
+            "created_at": {"$gte": start_bound_naive, "$lt": end_bound_naive},
+            "was_added_to_statement": {"$ne": True}   # ← ДОБАВЛЕНО
         }
-        print("Mongo query (UTC naive):", query)
 
         inspections_raw = list(
             db["inspections"]
             .find(query)
             .sort("created_at", 1)
         )
-        print(f"Fetched by UTC bounds (raw count): {len(inspections_raw)}")
 
-        # Хелперы
         def to_local(dt):
             if not dt:
                 return None
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=utc_tz)  # трактуем наивное как UTC
+                dt = dt.replace(tzinfo=utc_tz)
             return dt.astimezone(local_tz)
 
         def to_utc_aware(dt):
@@ -406,44 +388,15 @@ def get_driver_inspections_by_range():
                 return None
             return dt if dt.tzinfo else dt.replace(tzinfo=utc_tz)
 
-        # Подробные принты по каждой записи: "DB time" и приведённые времена
         inspections_out = []
-        print("---- Per-row debug (DB -> UTC aware -> UTC naive -> LOCAL) ----")
         for insp in inspections_raw:
-            _id = insp.get("_id")
-            cat_db = insp.get("created_at")                         # как пришло из БД (обычно наивное UTC)
-            cat_type = type(cat_db).__name__
-            cat_utc_aw = to_utc_aware(cat_db)                       # UTC-aware
+            cat_db = insp.get("created_at")
+            cat_utc_aw = to_utc_aware(cat_db)
             cat_utc_naive = cat_utc_aw.replace(tzinfo=None) if cat_utc_aw else None
-            cat_local = to_local(cat_db)                            # локальное
-
-            # Сопоставления по двум интервалам (UTC и LOCAL) для явной диагностики
-            match_utc_naive  = bool(cat_utc_naive and (start_bound_naive <= cat_utc_naive < end_bound_naive))
-            match_local_half = bool(cat_local and (start_local <= cat_local < end_local_exclusive))
-
-            print(
-                f"  • _id={_id} | "
-                f"created_at_DB={cat_db!r} (type={cat_type}) | "
-                f"created_at_utc_aw={cat_utc_aw.isoformat() if cat_utc_aw else '—'} | "
-                f"created_at_utc_naive={cat_utc_naive!r} | "
-                f"created_at_local={cat_local.isoformat() if cat_local else '—'} | "
-                f"IN_UTC={match_utc_naive} | IN_LOCAL={match_local_half}"
-            )
-
-            # Возвращаем по факту попадания в UTC-диапазон (это и есть корректный поиск)
-            # Дополнительно можно требовать и LOCAL, если нужно строго по локальным суткам
-            if match_utc_naive:
-                insp["_created_at_local"] = cat_local
-                insp["_created_at_utc_aw"] = cat_utc_aw
-                insp["_created_at_utc_naive"] = cat_utc_naive
+            if cat_utc_naive and (start_bound_naive <= cat_utc_naive < end_bound_naive):
+                insp["_created_at_local"] = to_local(cat_db)
                 inspections_out.append(insp)
 
-        print(f"Result after UTC range check (count): {len(inspections_out)}")
-        if inspections_out:
-            print("IDs:", [str(i["_id"]) for i in inspections_out])
-        print("=== End Debug ===\n")
-
-        # Ответ (created_at отдаём в локальном времени)
         result = []
         for i in inspections_out:
             created_at_local = i.get("_created_at_local") or to_local(i.get("created_at"))
@@ -469,7 +422,10 @@ def get_driver_inspections_by_range():
         print("Exception in /api/driver_inspections_by_range (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
-    
+
+
+
+
 
 @statement_bp.route("/api/driver_expenses_by_range", methods=["GET"])
 def get_driver_expenses_by_range():
@@ -481,19 +437,16 @@ def get_driver_expenses_by_range():
         if not driver_id or not start_str or not end_str:
             return jsonify({"success": False, "error": "Missing parameters"}), 400
 
-        # Таймзона компании (или дефолт)
         tz_doc  = db["company_timezone"].find_one({}) or {}
         tz_name = tz_doc.get("timezone") or "America/Chicago"
         local_tz = ZoneInfo(tz_name)
         utc_tz   = timezone.utc
 
-        # Локальные границы: [start_local 00:00, end_local+1д 00:00)
         start_local_date = datetime.strptime(start_str, "%m/%d/%Y")
         end_local_date   = datetime.strptime(end_str, "%m/%d/%Y")
         start_local = start_local_date.replace(tzinfo=local_tz)
         end_local_exclusive = (end_local_date + timedelta(days=1)).replace(tzinfo=local_tz)
 
-        # В UTC (aware) -> наивные UTC-границы для Mongo
         start_utc_aw = start_local.astimezone(utc_tz)
         end_utc_aw_exclusive = end_local_exclusive.astimezone(utc_tz)
         start_bound_naive = start_utc_aw.replace(tzinfo=None)
@@ -504,15 +457,14 @@ def get_driver_expenses_by_range():
         except Exception:
             return jsonify({"success": False, "error": "Invalid driver_id"}), 400
 
-        # ВАЖНО: выборка только по водителю (drivers._id).
-        # Поддерживаем разные схемы поля ссылки: driver_id ИЛИ driver (обе — id водителя).
         query = {
             "$and": [
                 {"created_at": {"$gte": start_bound_naive, "$lt": end_bound_naive}},
                 {"$or": [
                     {"driver_id": driver_oid},
                     {"driver": driver_oid}
-                ]}
+                ]},
+                {"was_added_to_statement": {"$ne": True}}  # ← ДОБАВЛЕНО
             ]
         }
 
@@ -522,12 +474,11 @@ def get_driver_expenses_by_range():
             .sort("created_at", 1)
         )
 
-        # TZ helpers
         def to_local(dt):
             if not dt:
                 return None
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=utc_tz)  # трактуем наивное как UTC
+                dt = dt.replace(tzinfo=utc_tz)
             return dt.astimezone(local_tz)
 
         def to_utc_aware(dt):
@@ -535,7 +486,6 @@ def get_driver_expenses_by_range():
                 return None
             return dt if dt.tzinfo else dt.replace(tzinfo=utc_tz)
 
-        # Фильтрация по границам (диагностика + приведение времени)
         expenses_out = []
         for exp in expenses_raw:
             cat_db = exp.get("created_at")
@@ -545,7 +495,6 @@ def get_driver_expenses_by_range():
                 exp["_created_at_local"] = to_local(cat_db)
                 expenses_out.append(exp)
 
-        # Ответ
         result = []
         for e in expenses_out:
             created_at_local = e.get("_created_at_local") or to_local(e.get("created_at"))
@@ -561,7 +510,6 @@ def get_driver_expenses_by_range():
                 "date": date_field if isinstance(date_field, str) else (date_field.strftime("%m/%d/%Y") if date_field else ""),
                 "created_at": created_at_local.strftime("%m/%d/%Y %H:%M:%S") if created_at_local else None,
                 "photo_id": str(e["photo_id"]) if e.get("photo_id") else None,
-                # поля для стейтмента:
                 "action": (e.get("action") or "keep"),
                 "removed": bool(e.get("removed", False))
             })
@@ -573,7 +521,6 @@ def get_driver_expenses_by_range():
         print("Exception in /api/driver_expenses_by_range (TZ-Aware):")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
-
 
 
 
@@ -1801,8 +1748,7 @@ def get_statement_one():
             return jsonify({"success": False, "error": "Invalid id"}), 400
 
         doc = db["statement"].find_one({
-            "_id": ObjectId(stmt_id),
-            "company": current_user.company
+            "_id": ObjectId(stmt_id)
         })
         if not doc:
             return jsonify({"success": False, "error": "Not found"}), 404
