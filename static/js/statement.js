@@ -1312,7 +1312,7 @@ function ensureWeekRangeOption(selectEl, weekRange) {
 
 
 async function openStatementReviewModal(item) {
-  // Открываем ту же модалку
+  // Базовые элементы модалки
   const modal    = document.getElementById("driverStatementModal");
   const backdrop = document.getElementById("driverStatementBackdrop");
   const title    = modal.querySelector(".modal-title");
@@ -1336,16 +1336,16 @@ async function openStatementReviewModal(item) {
 
   if (title) title.textContent = "Просмотр стейтмента";
 
-  // Прячем поля выбора и старые кнопки расчёта/сохранения
+  // Прячем поля выбора и кнопки расчёта/сохранения
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
-  // Удалим старую панель, если была
+  // Снести старую панель кнопок, если была
   let btnBar = modal.querySelector("#reviewConfirmWrap");
   if (btnBar) btnBar.remove();
 
-  // Тянем готовый документ из statement
+  // Тянем документ из statement
   if (results) results.innerHTML = "<p>Загрузка…</p>";
   let doc;
   try {
@@ -1359,16 +1359,13 @@ async function openStatementReviewModal(item) {
     return;
   }
 
-  // === КНОПКИ В ЗАВИСИМОСТИ ОТ СТАТУСА ===
-  const isApproved = !!doc.approved; // трактуем как "confirmed"
+  const isApproved = !!doc.approved; // confirmed?
 
+  // ===== Кнопки =====
   btnBar = document.createElement("div");
   btnBar.id = "reviewConfirmWrap";
   btnBar.className = "mt-3 d-flex gap-2";
 
-  // Сборка набора кнопок:
-  // confirmed → Close + Delete
-  // not confirmed → Confirm + Close + Delete
   const buttons = [];
   if (!isApproved) {
     buttons.push(`<button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>`);
@@ -1379,30 +1376,51 @@ async function openStatementReviewModal(item) {
   );
   btnBar.innerHTML = buttons.join("\n");
 
-  // Вставляем панель сразу под контейнером результатов
+  // Вставим под контейнер результатов (пока внизу)
   results.parentElement.insertBefore(btnBar, results.nextSibling);
 
-  // ===== Ниже — тот же рендер сохранённых данных, что и раньше =====
-  // Хелперы форматирования
+  // ===== Данные для рендера =====
+  const raw     = doc.raw || {};
+  const loads   = raw.loads || [];
+  const fuel    = raw.fuel || {};
+  const insp    = raw.inspections || [];
+  const exps    = raw.expenses || [];
+  const scheme  = raw.scheme || {};
+  const mileage = raw.mileage || {};
+  const calc    = raw.calc || {};
+
+  // ===== Хелперы форматирования/расчёта =====
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
   const dateOnly = (d) => {
     if (!d) return "—";
     const dt = new Date(d);
-    if (isNaN(dt.getTime())) return "—";
+    if (isNaN(dt)) return "—";
     return dt.toLocaleDateString();
   };
 
-  // Подготовка данных
-  const raw    = doc.raw || {};
-  const loads  = raw.loads || [];
-  const fuel   = raw.fuel || {};
-  const insp   = raw.inspections || [];
-  const exps   = raw.expenses || [];
-  const scheme = raw.scheme || {};
-  const mileage= raw.mileage || {};
-  const calc   = raw.calc || {};
+  function calcCommissionProgressive(gross, table) {
+    // piecewise по commission_table: [{from_sum, to_sum|null, percent}]
+    if (!Array.isArray(table) || !table.length) return 0;
+    const rows = table
+      .map(r => ({from: Number(r.from_sum || 0), to: (r.to_sum == null ? Infinity : Number(r.to_sum)), pct: Number(r.percent || 0)}))
+      .sort((a,b)=>a.from-b.from);
+    let left = Math.max(0, Number(gross || 0));
+    let comm = 0, prev = 0;
+    for (const r of rows) {
+      const lo = Math.max(prev, r.from);
+      const hi = Math.min(r.to, Infinity);
+      if (left <= 0 || hi <= lo) { prev = Math.max(prev, hi); continue; }
+      const span = Math.max(0, Math.min(left, hi - lo));
+      if (span > 0) {
+        comm += span * (r.pct / 100);
+        left -= span;
+      }
+      prev = Math.max(prev, hi);
+    }
+    return comm;
+  }
 
-  // Заголовок
+  // ===== Заголовок =====
   const headerHtml = `
     <div class="mb-3">
       <div class="fw-bold fs-6">${doc.driver_name || ""} ${doc.truck_number ? `· Truck ${doc.truck_number}` : ""}</div>
@@ -1410,155 +1428,100 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Грузы
-  const loadsHtml = `
-    <div class="card mb-3">
-      <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Load #</th>
-                <th>Pickup</th>
-                <th>Delivery</th>
-                <th class="text-end">Price</th>
-                <th class="text-center">Extra stops</th>
-                <th class="text-center">В диапазоне?</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${loads.map(ld => {
-                const included = !ld.out_of_diap;
-                const pick = ld.pickup || {};
-                const del  = ld.delivery || {};
-                const extraStops = Number(ld.extra_stops || 0);
-                return `
-                  <tr>
-                    <td><span class="fw-semibold">${ld.load_id || ""}</span></td>
-                    <td>
-                      <div class="small">${pick.company || ""}</div>
-                      <div class="text-muted small">${pick.address || ""}</div>
-                      <div class="text-muted small">${dateOnly(ld.pickup_date || pick.date)}</div>
-                    </td>
-                    <td>
-                      <div class="small">${del.company || ""}</div>
-                      <div class="text-muted small">${del.address || ""}</div>
-                      <div class="text-muted small">${dateOnly(ld.delivery_date || del.date)}</div>
-                    </td>
-                    <td class="text-end">${money(ld.price)}</td>
-                    <td class="text-center">${extraStops}</td>
-                    <td class="text-center">
-                      ${included ? '<span class="badge bg-success">да</span>' : '<span class="badge bg-secondary">нет</span>'}
-                    </td>
-                  </tr>
-                `;
-              }).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Топливо
-  const fuelHtml = `
-    <div class="card mb-3">
-      <div class="card-header fw-bold">⛽ Топливо</div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col"><div class="text-muted small">Qty</div><div class="fw-semibold">${Number(fuel.qty || 0)}</div></div>
-          <div class="col"><div class="text-muted small">Retail</div><div class="fw-semibold">${money(fuel.retail || 0)}</div></div>
-          <div class="col"><div class="text-muted small">Invoice</div><div class="fw-semibold">${money(fuel.invoice || 0)}</div></div>
-          <div class="col-6"><div class="text-muted small">Cards</div><div class="fw-semibold">${(fuel.cards || []).join(", ")}</div></div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Инспекции
-  const inspHtml = `
-    <div class="card mb-3">
-      <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
-      <div class="card-body">
-        ${insp.length ? `
-          <ul class="mb-0">
-            ${insp.map(i => `
-              <li class="small">
-                ${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}
-              </li>
-            `).join("")}
-          </ul>
-        ` : `<span class="text-muted">Нет данных</span>`}
-      </div>
-    </div>
-  `;
-
-  // Инвойсы
-  const expsHtml = `
-    <div class="card mb-3">
-      <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
-      <div class="card-body">
-        ${exps.length ? `
+  // ===== Режим просмотра (confirmed) — оставляем как было =====
+  if (isApproved) {
+    const readonlyLoads = `
+      <div class="card mb-3">
+        <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
+        <div class="card-body p-0">
           <div class="table-responsive">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 align-middle">
               <thead class="table-light">
                 <tr>
-                  <th>Дата</th><th>Категория</th><th>Action</th><th class="text-end">Сумма</th>
+                  <th>Load #</th>
+                  <th>Pickup</th>
+                  <th>Delivery</th>
+                  <th class="text-end">Price</th>
+                  <th class="text-center">Extra stops</th>
+                  <th class="text-center">В диапазоне?</th>
                 </tr>
               </thead>
               <tbody>
-                ${exps.map(e => `
-                  <tr>
-                    <td>${dateOnly(e.date)}</td>
-                    <td>${e.category || ""}</td>
-                    <td>${e.action || ""}</td>
-                    <td class="text-end">${money(e.amount)}</td>
-                  </tr>
-                `).join("")}
+                ${loads.map(ld => {
+                  const included = !ld.out_of_diap;
+                  const p = ld.pickup || {}, d = ld.delivery || {};
+                  return `
+                    <tr>
+                      <td><span class="fw-semibold">${ld.load_id || ""}</span></td>
+                      <td>
+                        <div class="small">${p.company || ""}</div>
+                        <div class="text-muted small">${p.address || ""}</div>
+                        <div class="text-muted small">${dateOnly(ld.pickup_date || p.date)}</div>
+                      </td>
+                      <td>
+                        <div class="small">${d.company || ""}</div>
+                        <div class="text-muted small">${d.address || ""}</div>
+                        <div class="text-muted small">${dateOnly(ld.delivery_date || d.date)}</div>
+                      </td>
+                      <td class="text-end">${money(ld.price)}</td>
+                      <td class="text-center">${Number(ld.extra_stops || 0)}</td>
+                      <td class="text-center">${included ? '<span class="badge bg-success">да</span>' : '<span class="badge bg-secondary">нет</span>'}</td>
+                    </tr>
+                  `;
+                }).join("")}
               </tbody>
             </table>
           </div>
-        ` : `<span class="text-muted">Нет данных</span>`}
+        </div>
       </div>
-    </div>
-  `;
+    `;
 
-  // Схема
-  const schemeHtml = `
-    <div class="card mb-3">
-      <div class="card-header fw-bold">⚙️ Схема</div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">Тип</div>
-            <div class="fw-semibold">${scheme.scheme_type || "percent"}</div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="text-muted small">Per Mile</div>
-            <div class="fw-semibold">${Number(scheme.per_mile_rate || 0)}</div>
-          </div>
-          <div class="col-12">
-            <div class="text-muted small">Комиссионная таблица</div>
-            <div class="fw-semibold">${(scheme.commission_table || []).map(r => `${r.from_sum || 0}+ → ${r.percent || 0}%`).join("; ") || "—"}</div>
-          </div>
-          <div class="col-12">
-            <div class="text-muted small">Extra Stop Bonus</div>
-            <div class="fw-semibold">
-              ${scheme.enable_extra_stop_bonus ? `включен, $${Number(scheme.extra_stop_bonus_amount || 0)} / стоп` : "выключен"}
-            </div>
+    const fuelHtml = `
+      <div class="card mb-3">
+        <div class="card-header fw-bold">⛽ Топливо</div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col"><div class="text-muted small">Qty</div><div class="fw-semibold">${Number(fuel.qty || 0)}</div></div>
+            <div class="col"><div class="text-muted small">Retail</div><div class="fw-semibold">${money(fuel.retail || 0)}</div></div>
+            <div class="col"><div class="text-muted small">Invoice</div><div class="fw-semibold">${money(fuel.invoice || 0)}</div></div>
+            <div class="col-6"><div class="text-muted small">Cards</div><div class="fw-semibold">${(fuel.cards || []).join(", ")}</div></div>
           </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
 
-  // Итоги
-  const totalsHtml = (() => {
-    const extraRow = (scheme.enable_extra_stop_bonus)
+    const inspHtml = `
+      <div class="card mb-3">
+        <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
+        <div class="card-body">
+          ${insp.length ? `<ul class="mb-0">${insp.map(i => `<li class="small">${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</li>`).join("")}</ul>` : `<span class="text-muted">Нет данных</span>`}
+        </div>
+      </div>
+    `;
+
+    const expsHtml = `
+      <div class="card mb-3">
+        <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
+        <div class="card-body">
+          ${exps.length ? `
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead class="table-light">
+                  <tr><th>Дата</th><th>Категория</th><th>Action</th><th class="text-end">Сумма</th></tr>
+                </thead>
+                <tbody>
+                  ${exps.map(e => `<tr><td>${dateOnly(e.date)}</td><td>${e.category || ""}</td><td>${e.action || ""}</td><td class="text-end">${money(e.amount)}</td></tr>`).join("")}
+                </tbody>
+              </table>
+            </div>` : `<span class="text-muted">Нет данных</span>`}
+        </div>
+      </div>
+    `;
+
+    const extraRow = scheme.enable_extra_stop_bonus
       ? `<tr><th>Бонус за extra stops</th><td class="text-end">${money(calc.extra_stop_bonus_total || 0)} <span class="text-muted">(${Number(calc.extra_stops_total || 0)} шт.)</span></td></tr>`
       : "";
-    return `
+    const totalsHtml = `
       <div class="card mb-3">
         <div class="card-header fw-bold">📊 Итоги</div>
         <div class="card-body p-0">
@@ -1576,20 +1539,252 @@ async function openStatementReviewModal(item) {
         </div>
       </div>
     `;
-  })();
 
-  // Рендерим всё
-  if (results) {
-    results.innerHTML = headerHtml + loadsHtml + fuelHtml + inspHtml + expsHtml + schemeHtml + totalsHtml;
+    results.innerHTML = headerHtml + readonlyLoads + fuelHtml + inspHtml + expsHtml + totalsHtml;
+
+    // Кнопки
+    const closeBtn  = modal.querySelector("#reviewCloseBtn");
+    const deleteBtn = modal.querySelector("#reviewDeleteBtn");
+    if (closeBtn)  closeBtn.onclick  = () => closeDriverStatementModal();
+    if (deleteBtn) deleteBtn.onclick = () => console.log("TODO delete:", modal.dataset.statementId);
+    return;
   }
 
-  // Обработчики кнопок
+  // ===== НЕ confirmed — редактируемый режим =====
+  // Таблица грузов с чекбоксами
+  const loadsHtmlEditable = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>✓</th>
+                <th>Load #</th>
+                <th>Pickup</th>
+                <th>Delivery</th>
+                <th class="text-end">Price</th>
+                <th class="text-center">Extra stops</th>
+                <th class="text-center">В диапазоне?</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${loads.map(ld => {
+                const included = !ld.out_of_diap;
+                const p = ld.pickup || {}, d = ld.delivery || {};
+                const checkedAttr = included ? "checked" : ""; // по умолчанию как раньше
+                return `
+                  <tr>
+                    <td class="text-center">
+                      <input type="checkbox"
+                             class="form-check-input rev-load-check"
+                             data-load-oid="${ld._id || ""}"
+                             data-price="${Number(ld.price || 0)}"
+                             data-extra-stops="${Number(ld.extra_stops || 0)}"
+                             ${checkedAttr}>
+                    </td>
+                    <td><span class="fw-semibold">${ld.load_id || ""}</span></td>
+                    <td>
+                      <div class="small">${p.company || ""}</div>
+                      <div class="text-muted small">${p.address || ""}</div>
+                      <div class="text-muted small">${dateOnly(ld.pickup_date || p.date)}</div>
+                    </td>
+                    <td>
+                      <div class="small">${d.company || ""}</div>
+                      <div class="text-muted small">${d.address || ""}</div>
+                      <div class="text-muted small">${dateOnly(ld.delivery_date || d.date)}</div>
+                    </td>
+                    <td class="text-end">$${Number(ld.price || 0).toFixed(2)}</td>
+                    <td class="text-center">${Number(ld.extra_stops || 0)}</td>
+                    <td class="text-center">${included ? '<span class="badge bg-success">да</span>' : '<span class="badge bg-secondary">нет</span>'}</td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Инспекции с чекбоксами
+  const inspHtmlEditable = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
+      <div class="card-body">
+        ${insp.length ? `
+          <ul class="list-unstyled mb-0">
+            ${insp.map(i => `
+              <li class="d-flex align-items-center gap-2 mb-1">
+                <input type="checkbox" class="form-check-input rev-insp-check" data-insp-oid="${i._id || ""}" checked>
+                <span class="small">${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</span>
+              </li>
+            `).join("")}
+          </ul>
+        ` : `<span class="text-muted">Нет данных</span>`}
+      </div>
+    </div>
+  `;
+
+  // Инвойсы/расходы с чекбоксами + amount + action (как в одиночном расчёте)
+  const expsHtmlEditable = `
+    <div class="card mb-3" id="driverExpensesBlock">
+      <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
+      <div class="card-body">
+        ${exps.length ? `
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>✓</th>
+                  <th>Дата</th>
+                  <th>Категория</th>
+                  <th style="width: 140px;">Action</th>
+                  <th class="text-end" style="width: 140px;">Сумма</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${exps.map(e => `
+                  <tr class="expense-item" data-expense-id="${e._id || ""}" data-removed="${e.removed ? "1" : "0"}">
+                    <td class="text-center">
+                      <input type="checkbox" class="form-check-input rev-exp-check" data-exp-oid="${e._id || ""}" ${e.removed ? "" : "checked"}>
+                    </td>
+                    <td>${dateOnly(e.date)}</td>
+                    <td>${e.category || ""}</td>
+                    <td>
+                      <select class="form-select form-select-sm rev-exp-action">
+                        <option value="keep" ${e.action === "keep" ? "selected" : ""}>keep</option>
+                        <option value="gross_add" ${e.action === "gross_add" ? "selected" : ""}>+ gross</option>
+                        <option value="gross_deduct" ${e.action === "gross_deduct" ? "selected" : ""}>- gross</option>
+                        <option value="salary_add" ${e.action === "salary_add" ? "selected" : ""}>+ salary</option>
+                        <option value="salary_deduct" ${e.action === "salary_deduct" ? "selected" : ""}>- salary</option>
+                        <option value="skip" ${e.action === "skip" ? "selected" : ""}>skip</option>
+                      </select>
+                    </td>
+                    <td class="text-end">
+                      <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end rev-exp-amount" value="${Number(e.amount || 0)}">
+                    </td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : `<span class="text-muted">Нет данных</span>`}
+      </div>
+    </div>
+  `;
+
+  // Топливо как справочно
+  const fuelHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">⛽ Топливо</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col"><div class="text-muted small">Qty</div><div class="fw-semibold">${Number(fuel.qty || 0)}</div></div>
+          <div class="col"><div class="text-muted small">Retail</div><div class="fw-semibold">${money(fuel.retail || 0)}</div></div>
+          <div class="col"><div class="text-muted small">Invoice</div><div class="fw-semibold">${money(fuel.invoice || 0)}</div></div>
+          <div class="col-6"><div class="text-muted small">Cards</div><div class="fw-semibold">${(fuel.cards || []).join(", ")}</div></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Итоги (живые, обновляются по событиям)
+  const totalsHtmlEditable = `
+    <div class="card mb-3" id="reviewTotalsCard">
+      <div class="card-header fw-bold">📊 Итоги</div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th>Гросс по грузам</th><td class="text-end" id="rvLoadsGross">$0.00</td></tr>
+            <tr><th>Корректировки gross</th><td class="text-end"><span id="rvGrossAdd">$0.00</span> / <span id="rvGrossDeduct">$0.00</span></td></tr>
+            <tr><th>Гросс для комиссии</th><td class="text-end" id="rvGrossForComm">$0.00</td></tr>
+            <tr><th>Комиссия</th><td class="text-end" id="rvCommission">$0.00</td></tr>
+            <tr><th>Списания по схеме</th><td class="text-end" id="rvSchemeDeduct">-${money(calc.scheme_deductions_total || 0)}</td></tr>
+            <tr><th>Корректировки к зарплате</th><td class="text-end"><span id="rvSalaryAdd">$0.00</span> / <span id="rvSalaryDeduct">$0.00</span></td></tr>
+            <tr><th>Extra stops</th><td class="text-end"><span id="rvExtraStops">0</span></td></tr>
+            <tr><th>Бонус за extra stops</th><td class="text-end" id="rvExtraBonus">$0.00</td></tr>
+            <tr class="table-success"><th>Итого к выплате</th><td class="text-end fw-bold" id="rvFinalSalary">$0.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  // Рендер всей страницы
+  results.innerHTML = headerHtml + loadsHtmlEditable + fuelHtml + inspHtmlEditable + expsHtmlEditable + totalsHtmlEditable;
+
+  // ===== Живой пересчёт по выбору =====
+  function recalcReview() {
+    // LOADS
+    let loadsGross = 0;
+    let extraStops = 0;
+    const loadCbs = results.querySelectorAll(".rev-load-check");
+    loadCbs.forEach(cb => {
+      if (cb.checked) {
+        loadsGross += Number(cb.getAttribute("data-price") || 0);
+        extraStops += Number(cb.getAttribute("data-extra-stops") || 0);
+      }
+    });
+
+    // EXPENSES
+    let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
+    const expRows = results.querySelectorAll("#driverExpensesBlock .expense-item");
+    expRows.forEach(row => {
+      const enabled = row.querySelector(".rev-exp-check")?.checked;
+      if (!enabled) return;
+      const amt = Math.max(0, Number(row.querySelector(".rev-exp-amount")?.value || 0));
+      const act = (row.querySelector(".rev-exp-action")?.value || "keep").toLowerCase();
+      if (act === "gross_add") grossAdd += amt;
+      else if (act === "gross_deduct") grossDeduct += amt;
+      else if (act === "salary_add") salaryAdd += amt;
+      else if (act === "salary_deduct") salaryDeduct += amt;
+      // keep/skip — не учитываем
+    });
+
+    const grossForComm = loadsGross + grossAdd - grossDeduct;
+    const commission = calcCommissionProgressive(grossForComm, scheme.commission_table || []);
+    const extraBonus = scheme.enable_extra_stop_bonus ? extraStops * Number(scheme.extra_stop_bonus_amount || 0) : 0;
+    const schemeDeduct = Number(calc.scheme_deductions_total || 0);
+    const finalSalary = commission - schemeDeduct + salaryAdd - salaryDeduct + extraBonus;
+
+    // Обновим UI
+    results.querySelector("#rvLoadsGross").textContent   = money(loadsGross);
+    results.querySelector("#rvGrossAdd").textContent     = money(grossAdd);
+    results.querySelector("#rvGrossDeduct").textContent  = money(grossDeduct);
+    results.querySelector("#rvGrossForComm").textContent = money(grossForComm);
+    results.querySelector("#rvCommission").textContent   = money(commission);
+    results.querySelector("#rvSchemeDeduct").textContent = `-${money(schemeDeduct).slice(1)}`; // сохранить знак -
+    results.querySelector("#rvSalaryAdd").textContent    = money(salaryAdd);
+    results.querySelector("#rvSalaryDeduct").textContent = money(salaryDeduct);
+    results.querySelector("#rvExtraStops").textContent   = String(extraStops);
+    results.querySelector("#rvExtraBonus").textContent   = money(extraBonus);
+    results.querySelector("#rvFinalSalary").textContent  = money(finalSalary);
+
+    // Сохраним в state, если надо будет позже отправлять
+    window.__reviewState = {
+      loadsGross, grossAdd, grossDeduct, grossForComm, commission,
+      salaryAdd, salaryDeduct, extraStops, extraBonus, schemeDeduct, finalSalary
+    };
+  }
+
+  // Слушатели
+  results.querySelectorAll(".rev-load-check").forEach(cb => cb.addEventListener("change", recalcReview));
+  results.querySelectorAll(".rev-insp-check").forEach(cb => cb.addEventListener("change", recalcReview));
+  results.querySelectorAll(".rev-exp-check, .rev-exp-action, .rev-exp-amount").forEach(el => el.addEventListener("input", recalcReview));
+  // Первый пересчёт
+  recalcReview();
+
+  // ===== Кнопки =====
   const closeBtn   = modal.querySelector("#reviewCloseBtn");
-  const confirmBtn = modal.querySelector("#reviewConfirmBtn"); // может не существовать
+  const confirmBtn = modal.querySelector("#reviewConfirmBtn");
   const deleteBtn  = modal.querySelector("#reviewDeleteBtn");
 
   if (confirmBtn) {
     confirmBtn.onclick = async () => {
+      // ⚠️ Сейчас Confirm просто подтверждает стейтмент на сервере (без сохранения изменений).
+      // Если захотите, сделаем шаг "update_before_confirm", чтобы применить выбор/суммы к документу.
       try {
         confirmBtn.disabled = true;
         confirmBtn.textContent = "Confirming…";
@@ -1612,13 +1807,10 @@ async function openStatementReviewModal(item) {
   }
 
   if (deleteBtn) {
-    // Функционал добавим позже — пока просто заглушка
     deleteBtn.onclick = () => {
       console.log("TODO: implement delete statement", modal.dataset.statementId);
-      // здесь позже повесим реальный DELETE
     };
   }
-
   if (closeBtn) {
     closeBtn.onclick = () => closeDriverStatementModal();
   }
