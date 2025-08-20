@@ -1336,47 +1336,16 @@ async function openStatementReviewModal(item) {
 
   if (title) title.textContent = "Просмотр стейтмента";
 
-  // Прячем поля выбора водителя/недели и кнопки расчёта/сохранения
+  // Прячем поля выбора и старые кнопки расчёта/сохранения
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
-  // Пересоздаём блок с Confirm / Close
-  let confirmWrap = modal.querySelector("#reviewConfirmWrap");
-  if (confirmWrap) confirmWrap.remove();
-  confirmWrap = document.createElement("div");
-  confirmWrap.id = "reviewConfirmWrap";
-  confirmWrap.className = "mt-3 d-flex gap-2";
-  confirmWrap.innerHTML = `
-    <button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>
-    <button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Закрыть</button>
-  `;
-  results.parentElement.insertBefore(confirmWrap, results.nextSibling);
+  // Удалим старую панель, если была
+  let btnBar = modal.querySelector("#reviewConfirmWrap");
+  if (btnBar) btnBar.remove();
 
-  // Хелперы форматирования
-  const money = (n) => `$${Number(n || 0).toFixed(2)}`;
-  const dateOnly = (d) => {
-    if (!d) return "—";
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return "—";
-    return dt.toLocaleDateString();
-  };
-
-  // Заполняем селекты (скрыты) для единообразия
-  try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
-  if (weekSel) {
-    // гарантируем наличие нужной недели
-    const wr = item.week_range || "";
-    let opt = Array.from(weekSel.options).find(o => o.value === wr);
-    if (!opt && wr) {
-      opt = new Option(wr, wr, true, true);
-      weekSel.add(opt);
-    }
-    weekSel.value = wr || "";
-  }
-  if (driverSel) driverSel.value = (item.driver_id || "");
-
-  // Тянем готовый документ
+  // Тянем готовый документ из statement
   if (results) results.innerHTML = "<p>Загрузка…</p>";
   let doc;
   try {
@@ -1390,17 +1359,58 @@ async function openStatementReviewModal(item) {
     return;
   }
 
-  // Достаём нужные куски
-  const raw   = doc.raw || {};
-  const loads = raw.loads || [];
-  const fuel  = raw.fuel || {};
-  const insp  = raw.inspections || [];
-  const exps  = raw.expenses || [];
-  const scheme = raw.scheme || {};
-  const mileage = raw.mileage || {};
-  const calc = raw.calc || {};
+  // === КНОПКИ В ЗАВИСИМОСТИ ОТ СТАТУСА ===
+  const isApproved = !!doc.approved; // трактуем как "confirmed"
 
-  // Собираем HTML (статичный обзор сохранённых данных)
+  btnBar = document.createElement("div");
+  btnBar.id = "reviewConfirmWrap";
+  btnBar.className = "mt-3 d-flex gap-2";
+
+  // Сборка набора кнопок:
+  // confirmed → Close + Delete
+  // not confirmed → Confirm + Close + Delete
+  const buttons = [];
+  if (!isApproved) {
+    buttons.push(`<button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>`);
+  }
+  buttons.push(
+    `<button type="button" class="btn btn-outline-secondary" id="reviewCloseBtn">Close</button>`,
+    `<button type="button" class="btn btn-outline-danger" id="reviewDeleteBtn">Delete</button>`
+  );
+  btnBar.innerHTML = buttons.join("\n");
+
+  // Вставляем панель сразу под контейнером результатов
+  results.parentElement.insertBefore(btnBar, results.nextSibling);
+
+  // ===== Ниже — тот же рендер сохранённых данных, что и раньше =====
+  // Хелперы форматирования
+  const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const dateOnly = (d) => {
+    if (!d) return "—";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return "—";
+    return dt.toLocaleDateString();
+  };
+
+  // Подготовка данных
+  const raw    = doc.raw || {};
+  const loads  = raw.loads || [];
+  const fuel   = raw.fuel || {};
+  const insp   = raw.inspections || [];
+  const exps   = raw.expenses || [];
+  const scheme = raw.scheme || {};
+  const mileage= raw.mileage || {};
+  const calc   = raw.calc || {};
+
+  // Заголовок
+  const headerHtml = `
+    <div class="mb-3">
+      <div class="fw-bold fs-6">${doc.driver_name || ""} ${doc.truck_number ? `· Truck ${doc.truck_number}` : ""}</div>
+      <div class="text-muted">${doc.company || ""} · Week: ${doc.week_range || ""}</div>
+    </div>
+  `;
+
+  // Грузы
   const loadsHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
@@ -1451,6 +1461,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
+  // Топливо
   const fuelHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">⛽ Топливо</div>
@@ -1465,6 +1476,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
+  // Инспекции
   const inspHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
@@ -1482,6 +1494,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
+  // Инвойсы
   const expsHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
@@ -1511,6 +1524,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
+  // Схема
   const schemeHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">⚙️ Схема</div>
@@ -1539,6 +1553,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
+  // Итоги
   const totalsHtml = (() => {
     const extraRow = (scheme.enable_extra_stop_bonus)
       ? `<tr><th>Бонус за extra stops</th><td class="text-end">${money(calc.extra_stop_bonus_total || 0)} <span class="text-muted">(${Number(calc.extra_stops_total || 0)} шт.)</span></td></tr>`
@@ -1563,47 +1578,51 @@ async function openStatementReviewModal(item) {
     `;
   })();
 
-  const headerHtml = `
-    <div class="mb-3">
-      <div class="fw-bold fs-6">${doc.driver_name || ""} ${doc.truck_number ? `· Truck ${doc.truck_number}` : ""}</div>
-      <div class="text-muted">${doc.company || ""} · Week: ${doc.week_range || ""}</div>
-    </div>
-  `;
-
+  // Рендерим всё
   if (results) {
     results.innerHTML = headerHtml + loadsHtml + fuelHtml + inspHtml + expsHtml + schemeHtml + totalsHtml;
   }
 
-  // Confirm / Close обработчики
-  const confirmBtn = modal.querySelector("#reviewConfirmBtn");
+  // Обработчики кнопок
   const closeBtn   = modal.querySelector("#reviewCloseBtn");
+  const confirmBtn = modal.querySelector("#reviewConfirmBtn"); // может не существовать
+  const deleteBtn  = modal.querySelector("#reviewDeleteBtn");
 
-  confirmBtn.onclick = async () => {
-    try {
-      confirmBtn.disabled = true;
-      confirmBtn.textContent = "Confirming…";
-      const r = await fetch("/api/statements/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: modal.dataset.statementId })
-      });
-      const resp = await r.json();
-      if (!resp.success) throw new Error(resp.error || "Confirm failed");
-      closeDriverStatementModal();
-      if (typeof loadDriverStatements === "function") await loadDriverStatements();
-    } catch (err) {
-      console.error("Confirm error:", err);
-      if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = "Confirm";
-    }
-  };
+  if (confirmBtn) {
+    confirmBtn.onclick = async () => {
+      try {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = "Confirming…";
+        const r = await fetch("/api/statements/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: modal.dataset.statementId })
+        });
+        const resp = await r.json();
+        if (!resp.success) throw new Error(resp.error || "Confirm failed");
+        closeDriverStatementModal();
+        if (typeof loadDriverStatements === "function") await loadDriverStatements();
+      } catch (err) {
+        console.error("Confirm error:", err);
+        if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = "Confirm";
+      }
+    };
+  }
 
-  closeBtn.onclick = () => closeDriverStatementModal();
+  if (deleteBtn) {
+    // Функционал добавим позже — пока просто заглушка
+    deleteBtn.onclick = () => {
+      console.log("TODO: implement delete statement", modal.dataset.statementId);
+      // здесь позже повесим реальный DELETE
+    };
+  }
+
+  if (closeBtn) {
+    closeBtn.onclick = () => closeDriverStatementModal();
+  }
 }
-
-
-
 
 
 
