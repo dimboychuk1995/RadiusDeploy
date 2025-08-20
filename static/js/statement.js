@@ -1312,40 +1312,35 @@ function ensureWeekRangeOption(selectEl, weekRange) {
 
 
 async function openStatementReviewModal(item) {
-  // Базовые элементы модалки
+  // Элементы модалки
   const modal    = document.getElementById("driverStatementModal");
   const backdrop = document.getElementById("driverStatementBackdrop");
   const title    = modal.querySelector(".modal-title");
+  const results  = modal.querySelector("#driverStatementResults");
 
+  // Скрываем поля выбора/расчёта/сохранения (мы в режиме Review)
   const driverLabel = modal.querySelector('label[for="driverSelect"]');
   const driverSel   = modal.querySelector("#driverSelect");
   const weekLabel   = modal.querySelector('label[for="driverWeekRangeSelect"]');
   const weekSel     = modal.querySelector("#driverWeekRangeSelect");
-
-  const calcBtn  = modal.querySelector('button[onclick="calculateDriverStatement()"]');
-  const saveBtn  = modal.querySelector('button[onclick="saveDriverStatement()"]');
-  const results  = modal.querySelector("#driverStatementResults");
-
-  // Показать модалку
-  modal.classList.add("show");
-  if (backdrop) backdrop.classList.add("show");
-
-  // Режим REVIEW
-  modal.dataset.mode = "review";
-  modal.dataset.statementId = item._id || "";
-
-  if (title) title.textContent = "Просмотр стейтмента";
-
-  // Прячем поля выбора и кнопки расчёта/сохранения
+  const calcBtn     = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn     = modal.querySelector('button[onclick="saveDriverStatement()"]');
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
-  // Снести старую панель кнопок, если была
+  // Открываем модалку
+  modal.classList.add("show");
+  if (backdrop) backdrop.classList.add("show");
+  modal.dataset.mode = "review";
+  modal.dataset.statementId = item._id || "";
+  if (title) title.textContent = "Просмотр стейтмента";
+
+  // Уберём прежнюю панель кнопок, если была
   let btnBar = modal.querySelector("#reviewConfirmWrap");
   if (btnBar) btnBar.remove();
 
-  // Тянем документ из statement
+  // Тянем документ из коллекции statement
   if (results) results.innerHTML = "<p>Загрузка…</p>";
   let doc;
   try {
@@ -1360,12 +1355,19 @@ async function openStatementReviewModal(item) {
   }
 
   const isApproved = !!doc.approved; // confirmed?
+  const raw     = doc.raw || {};
+  const loads   = raw.loads || [];
+  const fuel    = raw.fuel || {};
+  const insp    = raw.inspections || [];
+  const exps    = raw.expenses || [];
+  const scheme  = raw.scheme || {};
+  const mileage = raw.mileage || {};
+  const calc    = raw.calc || {};
 
-  // ===== Кнопки =====
+  // Панель кнопок: confirmed → Close + Delete; not confirmed → Confirm + Close + Delete
   btnBar = document.createElement("div");
   btnBar.id = "reviewConfirmWrap";
   btnBar.className = "mt-3 d-flex gap-2";
-
   const buttons = [];
   if (!isApproved) {
     buttons.push(`<button type="button" class="btn btn-success" id="reviewConfirmBtn">Confirm</button>`);
@@ -1376,30 +1378,20 @@ async function openStatementReviewModal(item) {
   );
   btnBar.innerHTML = buttons.join("\n");
 
-  // Вставим под контейнер результатов (пока внизу)
+  // Вставим панель под областью результатов
   results.parentElement.insertBefore(btnBar, results.nextSibling);
 
-  // ===== Данные для рендера =====
-  const raw     = doc.raw || {};
-  const loads   = raw.loads || [];
-  const fuel    = raw.fuel || {};
-  const insp    = raw.inspections || [];
-  const exps    = raw.expenses || [];
-  const scheme  = raw.scheme || {};
-  const mileage = raw.mileage || {};
-  const calc    = raw.calc || {};
-
-  // ===== Хелперы форматирования/расчёта =====
+  // Хелперы
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
   const dateOnly = (d) => {
     if (!d) return "—";
     const dt = new Date(d);
-    if (isNaN(dt)) return "—";
-    return dt.toLocaleDateString();
+    if (isNaN(dt.getTime())) return "—";
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    return `${mm}/${dd}/${dt.getFullYear()}`;
   };
-
   function calcCommissionProgressive(gross, table) {
-    // piecewise по commission_table: [{from_sum, to_sum|null, percent}]
     if (!Array.isArray(table) || !table.length) return 0;
     const rows = table
       .map(r => ({from: Number(r.from_sum || 0), to: (r.to_sum == null ? Infinity : Number(r.to_sum)), pct: Number(r.percent || 0)}))
@@ -1420,17 +1412,17 @@ async function openStatementReviewModal(item) {
     return comm;
   }
 
-  // ===== Заголовок =====
+  // Заголовок
   const headerHtml = `
     <div class="mb-3">
-      <div class="fw-bold fs-6">${doc.driver_name || ""} ${doc.truck_number ? `· Truck ${doc.truck_number}` : ""}</div>
+      <div class="fw-bold fs-6">${doc.driver_name || ""}${doc.truck_number ? ` · Truck ${doc.truck_number}` : ""}</div>
       <div class="text-muted">${doc.company || ""} · Week: ${doc.week_range || ""}</div>
     </div>
   `;
 
-  // ===== Режим просмотра (confirmed) — оставляем как было =====
+  // ===== Режим: CONFIRMED (только просмотр) =====
   if (isApproved) {
-    const readonlyLoads = `
+    const loadsReadonly = `
       <div class="card mb-3">
         <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
         <div class="card-body p-0">
@@ -1540,7 +1532,7 @@ async function openStatementReviewModal(item) {
       </div>
     `;
 
-    results.innerHTML = headerHtml + readonlyLoads + fuelHtml + inspHtml + expsHtml + totalsHtml;
+    results.innerHTML = headerHtml + loadsReadonly + fuelHtml + inspHtml + expsHtml + totalsHtml;
 
     // Кнопки
     const closeBtn  = modal.querySelector("#reviewCloseBtn");
@@ -1550,8 +1542,7 @@ async function openStatementReviewModal(item) {
     return;
   }
 
-  // ===== НЕ confirmed — редактируемый режим =====
-  // Таблица грузов с чекбоксами
+  // ===== Режим: НЕ confirmed (редактируемый) =====
   const loadsHtmlEditable = `
     <div class="card mb-3">
       <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
@@ -1573,7 +1564,7 @@ async function openStatementReviewModal(item) {
               ${loads.map(ld => {
                 const included = !ld.out_of_diap;
                 const p = ld.pickup || {}, d = ld.delivery || {};
-                const checkedAttr = included ? "checked" : ""; // по умолчанию как раньше
+                const checkedAttr = included ? "checked" : "";
                 return `
                   <tr>
                     <td class="text-center">
@@ -1608,7 +1599,6 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Инспекции с чекбоксами
   const inspHtmlEditable = `
     <div class="card mb-3">
       <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
@@ -1627,7 +1617,6 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Инвойсы/расходы с чекбоксами + amount + action (как в одиночном расчёте)
   const expsHtmlEditable = `
     <div class="card mb-3" id="driverExpensesBlock">
       <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
@@ -1675,7 +1664,6 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Топливо как справочно
   const fuelHtml = `
     <div class="card mb-3">
       <div class="card-header fw-bold">⛽ Топливо</div>
@@ -1690,7 +1678,6 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Итоги (живые, обновляются по событиям)
   const totalsHtmlEditable = `
     <div class="card mb-3" id="reviewTotalsCard">
       <div class="card-header fw-bold">📊 Итоги</div>
@@ -1712,93 +1699,115 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Рендер всей страницы
+  // Рендер редактируемого режима
   results.innerHTML = headerHtml + loadsHtmlEditable + fuelHtml + inspHtmlEditable + expsHtmlEditable + totalsHtmlEditable;
 
-  // ===== Живой пересчёт по выбору =====
+  // Живой пересчёт
   function recalcReview() {
-    // LOADS
     let loadsGross = 0;
     let extraStops = 0;
-    const loadCbs = results.querySelectorAll(".rev-load-check");
-    loadCbs.forEach(cb => {
+    results.querySelectorAll(".rev-load-check").forEach(cb => {
       if (cb.checked) {
         loadsGross += Number(cb.getAttribute("data-price") || 0);
         extraStops += Number(cb.getAttribute("data-extra-stops") || 0);
       }
     });
 
-    // EXPENSES
     let grossAdd = 0, grossDeduct = 0, salaryAdd = 0, salaryDeduct = 0;
-    const expRows = results.querySelectorAll("#driverExpensesBlock .expense-item");
-    expRows.forEach(row => {
-      const enabled = row.querySelector(".rev-exp-check")?.checked;
-      if (!enabled) return;
+    results.querySelectorAll("#driverExpensesBlock .expense-item").forEach(row => {
+      const cb = row.querySelector(".rev-exp-check");
+      if (!cb || !cb.checked) return;
       const amt = Math.max(0, Number(row.querySelector(".rev-exp-amount")?.value || 0));
       const act = (row.querySelector(".rev-exp-action")?.value || "keep").toLowerCase();
       if (act === "gross_add") grossAdd += amt;
       else if (act === "gross_deduct") grossDeduct += amt;
       else if (act === "salary_add") salaryAdd += amt;
       else if (act === "salary_deduct") salaryDeduct += amt;
-      // keep/skip — не учитываем
     });
 
     const grossForComm = loadsGross + grossAdd - grossDeduct;
-    const commission = calcCommissionProgressive(grossForComm, scheme.commission_table || []);
-    const extraBonus = scheme.enable_extra_stop_bonus ? extraStops * Number(scheme.extra_stop_bonus_amount || 0) : 0;
+    const commission   = calcCommissionProgressive(grossForComm, scheme.commission_table || []);
+    const extraBonus   = scheme.enable_extra_stop_bonus ? extraStops * Number(scheme.extra_stop_bonus_amount || 0) : 0;
     const schemeDeduct = Number(calc.scheme_deductions_total || 0);
-    const finalSalary = commission - schemeDeduct + salaryAdd - salaryDeduct + extraBonus;
+    const finalSalary  = commission - schemeDeduct + salaryAdd - salaryDeduct + extraBonus;
 
-    // Обновим UI
     results.querySelector("#rvLoadsGross").textContent   = money(loadsGross);
     results.querySelector("#rvGrossAdd").textContent     = money(grossAdd);
     results.querySelector("#rvGrossDeduct").textContent  = money(grossDeduct);
     results.querySelector("#rvGrossForComm").textContent = money(grossForComm);
     results.querySelector("#rvCommission").textContent   = money(commission);
-    results.querySelector("#rvSchemeDeduct").textContent = `-${money(schemeDeduct).slice(1)}`; // сохранить знак -
+    results.querySelector("#rvSchemeDeduct").textContent = `-${money(schemeDeduct).slice(1)}`;
     results.querySelector("#rvSalaryAdd").textContent    = money(salaryAdd);
     results.querySelector("#rvSalaryDeduct").textContent = money(salaryDeduct);
     results.querySelector("#rvExtraStops").textContent   = String(extraStops);
     results.querySelector("#rvExtraBonus").textContent   = money(extraBonus);
     results.querySelector("#rvFinalSalary").textContent  = money(finalSalary);
 
-    // Сохраним в state, если надо будет позже отправлять
-    window.__reviewState = {
-      loadsGross, grossAdd, grossDeduct, grossForComm, commission,
-      salaryAdd, salaryDeduct, extraStops, extraBonus, schemeDeduct, finalSalary
-    };
+    // Можно сохранить в глобальный state, если понадобится
+    window.__reviewState = { loadsGross, grossAdd, grossDeduct, grossForComm, commission, salaryAdd, salaryDeduct, extraStops, extraBonus, schemeDeduct, finalSalary };
   }
 
-  // Слушатели
+  // Навесим слушатели и сделаем первичный пересчёт
   results.querySelectorAll(".rev-load-check").forEach(cb => cb.addEventListener("change", recalcReview));
   results.querySelectorAll(".rev-insp-check").forEach(cb => cb.addEventListener("change", recalcReview));
   results.querySelectorAll(".rev-exp-check, .rev-exp-action, .rev-exp-amount").forEach(el => el.addEventListener("input", recalcReview));
-  // Первый пересчёт
   recalcReview();
 
-  // ===== Кнопки =====
+  // Кнопки
   const closeBtn   = modal.querySelector("#reviewCloseBtn");
   const confirmBtn = modal.querySelector("#reviewConfirmBtn");
   const deleteBtn  = modal.querySelector("#reviewDeleteBtn");
 
   if (confirmBtn) {
     confirmBtn.onclick = async () => {
-      // ⚠️ Сейчас Confirm просто подтверждает стейтмент на сервере (без сохранения изменений).
-      // Если захотите, сделаем шаг "update_before_confirm", чтобы применить выбор/суммы к документу.
       try {
         confirmBtn.disabled = true;
         confirmBtn.textContent = "Confirming…";
+        const stmtId  = modal.dataset.statementId;
+
+        // Собираем выбор из UI
+        const loads_selected = Array.from(results.querySelectorAll(".rev-load-check:checked"))
+          .map(cb => cb.getAttribute("data-load-oid"))
+          .filter(Boolean);
+
+        const inspections_selected = Array.from(results.querySelectorAll(".rev-insp-check:checked"))
+          .map(cb => cb.getAttribute("data-insp-oid"))
+          .filter(Boolean);
+
+        const expenses_updates = Array.from(results.querySelectorAll(".rev-exp-check")).map(cb => {
+          const row = cb.closest(".expense-item");
+          const id  = cb.getAttribute("data-exp-oid") || row?.getAttribute("data-expense-id");
+          const amountInp = row?.querySelector(".rev-exp-amount");
+          const actionSel = row?.querySelector(".rev-exp-action");
+          return {
+            _id: id,
+            selected: cb.checked,
+            amount: Math.max(0, parseFloat((amountInp?.value || "0").trim()) || 0),
+            action: (actionSel?.value || "keep")
+          };
+        }).filter(x => !!x._id);
+
+        // Отправляем на бекенд с apply_changes=true
         const r = await fetch("/api/statements/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: modal.dataset.statementId })
+          body: JSON.stringify({
+            id: stmtId,
+            apply_changes: true,
+            loads_selected,
+            inspections_selected,
+            expenses_updates
+          })
         });
+
         const resp = await r.json();
         if (!resp.success) throw new Error(resp.error || "Confirm failed");
+
+        // Закрыть модалку и обновить список
         closeDriverStatementModal();
         if (typeof loadDriverStatements === "function") await loadDriverStatements();
       } catch (err) {
-        console.error("Confirm error:", err);
+        console.error("Confirm (with changes) error:", err);
         if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось подтвердить.", "error");
         confirmBtn.disabled = false;
         confirmBtn.textContent = "Confirm";
@@ -1807,10 +1816,12 @@ async function openStatementReviewModal(item) {
   }
 
   if (deleteBtn) {
+    // TODO: реализовать удаление
     deleteBtn.onclick = () => {
       console.log("TODO: implement delete statement", modal.dataset.statementId);
     };
   }
+
   if (closeBtn) {
     closeBtn.onclick = () => closeDriverStatementModal();
   }

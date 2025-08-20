@@ -1773,3 +1773,212 @@ def get_statement_one():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# Подтвердить неподтвержденный стейтмент 
+@statement_bp.route("/api/statements/confirm", methods=["POST"])
+@login_required
+def confirm_statement():
+    """
+    Универсальный confirm:
+    - Если приходят apply_changes=true и набор выбранных элементов из модалки — сначала применяет изменения к документу,
+      пересчитывает calc/поля, сохраняет в statement, затем отмечает связанные объекты was_added_to_statement=true.
+    - Если приходит только id (подтверждение из списка) — просто помечает statement approved=true и
+      проставляет was_added_to_statement=true по уже сохранённым в raw объектам.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        stmt_id = (data.get("id") or "").strip()
+        if not stmt_id:
+            return jsonify({"success": False, "error": "Missing statement id"}), 400
+
+        col_stmt = db["statement"]
+        col_loads = db["loads"]
+        col_insp  = db["inspections"]
+        col_exp   = db["driver_expenses"]
+
+        # -------- helpers (локально, без вынесения в отдельные методы) ----------
+        def to_oid(x):
+            try:
+                # может прилетать str, ObjectId, {"$oid": "..."}
+                if isinstance(x, ObjectId):
+                    return x
+                if isinstance(x, dict) and "$oid" in x:
+                    return ObjectId(x["$oid"])
+                return ObjectId(str(x))
+            except Exception:
+                return None
+
+        def str_or_oid_equal(a, b):
+            oa, ob = to_oid(a), to_oid(b)
+            return (oa is not None and ob is not None and oa == ob)
+
+        now = datetime.utcnow()
+
+        stmt = col_stmt.find_one({"_id": to_oid(stmt_id)})
+        if not stmt:
+            return jsonify({"success": False, "error": "Statement not found"}), 404
+
+        if stmt.get("approved") is True:
+            return jsonify({"success": False, "error": "Statement already confirmed"}), 409
+
+        apply_changes = bool(data.get("apply_changes"))
+
+        # ---- если прислали изменения из модалки, применяем к raw и пересчитываем ----
+        if apply_changes:
+            raw = stmt.get("raw") or {}
+            loads_raw       = raw.get("loads") or []
+            insp_raw        = raw.get("inspections") or []
+            expenses_raw    = raw.get("expenses") or []
+            scheme          = raw.get("scheme") or {}
+            mileage         = raw.get("mileage") or {}
+
+            sel_load_ids = {to_oid(x) for x in (data.get("loads_selected") or []) if to_oid(x)}
+            sel_insp_ids = {to_oid(x) for x in (data.get("inspections_selected") or []) if to_oid(x)}
+            exp_updates  = data.get("expenses_updates") or []
+
+            # 1) LOADS: оставляем только отмеченные
+            if sel_load_ids:
+                new_loads = []
+                for ld in loads_raw:
+                    if to_oid(ld.get("_id")) in sel_load_ids:
+                        new_loads.append(ld)
+                loads_raw = new_loads
+
+            # 2) INSPECTIONS: оставляем только отмеченные
+            if sel_insp_ids:
+                new_insp = []
+                for ins in insp_raw:
+                    if to_oid(ins.get("_id")) in sel_insp_ids:
+                        new_insp.append(ins)
+                insp_raw = new_insp
+
+            # 3) EXPENSES: обновляем amount/action/removed и «selected»
+            #    selected=false трактуем как removed=True
+            upd_map = {}
+            for it in exp_updates:
+                k = to_oid(it.get("_id"))
+                if k:
+                    upd_map[k] = {
+                        "selected": bool(it.get("selected", True)),
+                        "amount": float(it.get("amount") or 0),
+                        "action": (it.get("action") or "keep")
+                    }
+
+            new_expenses = []
+            for e in expenses_raw:
+                eid = to_oid(e.get("_id"))
+                if eid in upd_map:
+                    upd = upd_map[eid]
+                    e["amount"] = upd["amount"]
+                    e["action"] = upd["action"]
+                    e["removed"] = (not upd["selected"])
+                # если апдейта нет — оставляем как было
+                new_expenses.append(e)
+            expenses_raw = new_expenses
+
+            # ---------- Пересчёт ----------
+            scheme_type        = (scheme.get("scheme_type") or "percent").strip()
+            per_mile_rate      = float(scheme.get("per_mile_rate") or 0)
+            commission_table   = scheme.get("commission_table") or []
+            scheme_deductions  = scheme.get("deductions") or []
+
+            loads_gross = sum(float(ld.get("price") or 0) for ld in loads_raw)
+            gross_add   = sum(float(e.get("amount") or 0) for e in expenses_raw if not e.get("removed") and (e.get("action") in ("add_gross", "gross_add")))
+            gross_deduct= sum(float(e.get("amount") or 0) for e in expenses_raw if not e.get("removed") and (e.get("action") in ("deduct_gross", "gross_deduct")))
+            gross_for_commission = loads_gross + gross_add - gross_deduct
+
+            # Комиссия
+            if scheme_type == "per_mile":
+                miles = float(mileage.get("miles") or stmt.get("miles") or 0)
+                commission = per_mile_rate * miles
+            else:
+                # percent по таблице
+                percent = 0.0
+                for row in commission_table:
+                    frm = float(row.get("from_sum") or 0)
+                    to  = row.get("to_sum")
+                    to  = float(to) if to is not None else None
+                    if gross_for_commission >= frm and (to is None or gross_for_commission <= to):
+                        percent = float(row.get("percent") or 0)
+                        break
+                commission = gross_for_commission * (percent / 100.0)
+
+            scheme_deduct_total = sum(float(d.get("amount") or 0) for d in scheme_deductions)
+            salary_add    = sum(float(e.get("amount") or 0) for e in expenses_raw if not e.get("removed") and (e.get("action") in ("add_salary", "salary_add")))
+            salary_deduct = sum(float(e.get("amount") or 0) for e in expenses_raw if not e.get("removed") and (e.get("action") in ("deduct_salary", "salary_deduct")))
+
+            extra_stops_total = sum(int(ld.get("extra_stops") or 0) for ld in loads_raw)
+            extra_bonus_total = 0.0
+            if scheme.get("enable_extra_stop_bonus") and float(scheme.get("extra_stop_bonus_amount") or 0) > 0:
+                extra_bonus_total = extra_stops_total * float(scheme.get("extra_stop_bonus_amount") or 0)
+
+            final_salary = commission - scheme_deduct_total + salary_add - salary_deduct + extra_bonus_total
+
+            # Собираем обновлённый raw.calc
+            calc = {
+                "loads_gross": round(loads_gross, 2),
+                "gross_add_from_expenses": round(gross_add, 2),
+                "gross_deduct_from_expenses": round(gross_deduct, 2),
+                "gross_for_commission": round(gross_for_commission, 2),
+                "commission": round(commission, 2),
+                "scheme_deductions_total": round(scheme_deduct_total, 2),
+                "salary_add_from_expenses": round(salary_add, 2),
+                "salary_deduct_from_expenses": round(salary_deduct, 2),
+                "extra_stops_total": int(extra_stops_total),
+                "extra_stop_bonus_total": round(extra_bonus_total, 2),
+                "final_salary": round(final_salary, 2)
+            }
+
+            # Пишем обратно в statement
+            col_stmt.update_one(
+                {"_id": stmt["_id"]},
+                {"$set": {
+                    "approved": True,
+                    "salary": round(final_salary, 2),
+                    "commission": round(commission, 2),
+                    "extra_stops_total": int(extra_stops_total),
+                    "raw.loads": loads_raw,
+                    "raw.inspections": insp_raw,
+                    "raw.expenses": expenses_raw,
+                    "raw.calc": calc,
+                    "updated_at": now
+                }}
+            )
+        else:
+            # подтверждение без правок (из списка)
+            col_stmt.update_one(
+                {"_id": stmt["_id"]},
+                {"$set": {"approved": True, "updated_at": now}}
+            )
+
+        # --- Проставляем was_added_to_statement=true в связанных коллекциях ---
+        # Берём актуальный документ (после возможного апдейта):
+        stmt_now = col_stmt.find_one({"_id": to_oid(stmt_id)}, {"raw.loads._id": 1, "raw.expenses._id":1, "raw.expenses.removed":1, "raw.expenses.action":1, "raw.inspections._id":1})
+
+        # LOADS
+        load_ids = [to_oid(ld.get("_id")) for ld in (stmt_now.get("raw", {}).get("loads") or []) if to_oid(ld.get("_id"))]
+        if load_ids:
+            col_loads.update_many({"_id": {"$in": load_ids}}, {"$set": {"was_added_to_statement": True}})
+
+        # INSPECTIONS
+        insp_ids = [to_oid(i.get("_id")) for i in (stmt_now.get("raw", {}).get("inspections") or []) if to_oid(i.get("_id"))]
+        if insp_ids:
+            col_insp.update_many({"_id": {"$in": insp_ids}}, {"$set": {"was_added_to_statement": True}})
+
+        # EXPENSES (берём только НЕ removed; "keep" тоже считаем включённым)
+        exp_ids = []
+        for e in (stmt_now.get("raw", {}).get("expenses") or []):
+            if not e.get("removed", False):
+                oid = to_oid(e.get("_id"))
+                if oid:
+                    exp_ids.append(oid)
+        if exp_ids:
+            col_exp.update_many({"_id": {"$in": exp_ids}}, {"$set": {"was_added_to_statement": True}})
+
+        return jsonify({"success": True, "approved": True})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
