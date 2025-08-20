@@ -1452,12 +1452,13 @@ def api_samsara_driver_mileage():
 @login_required
 def save_single_statement():
     """
-    Сохраняет стейтмент для ОДНОГО водителя:
-      POST JSON: { "week_range": "MM/DD/YYYY - MM/DD/YYYY", "item": {...} }
-    - approved всегда True
-    - week_start_utc / week_end_utc считаются из week_range по таймзоне компании
-    - все id -> ObjectId, все даты -> UTC naive
-    - upsert по (company, driver_id, week_range)
+    Сохраняет стейтмент для ОДНОГО водителя (approved=True) и
+    ПОСЛЕ сохранения помечает связанные документы:
+      - loads.was_added_to_statement = True для:
+          • всех load_id из item.selected_load_ids (отмеченных чекбоксом)
+          • и всех грузов из item.loads, где out_of_diap != True (базовый диапазон)
+      - driver_expenses.was_added_to_statement = True для не-removed и не 'skip'
+      - inspections.was_added_to_statement = True для всех из item.inspections
     """
     from flask import request, jsonify
     from bson import ObjectId
@@ -1476,7 +1477,7 @@ def save_single_statement():
     if not week_range or not isinstance(raw, dict) or not raw.get("driver_id"):
         return jsonify({"success": False, "error": "week_range and item.driver_id required"}), 400
 
-    # --- TZ из БД и преобразование week_range в UTC naive ---
+    # --- TZ / границы недели ---
     tz_doc  = db["company_timezone"].find_one({}) or {}
     tz_name = tz_doc.get("timezone") or "America/Chicago"
     local_tz = ZoneInfo(tz_name)
@@ -1505,31 +1506,23 @@ def save_single_statement():
         return None
 
     def to_utc_naive(val):
-        """Принимает ISO/строку/RFC2822/aware-datetime, возвращает UTC naive (datetime) или None."""
         if not val:
             return None
-        # уже datetime?
         if isinstance(val, datetime):
-            if val.tzinfo:
-                return val.astimezone(utc_tz).replace(tzinfo=None)
-            return val  # считаем, что уже UTC naive
-        # строка
+            return val.astimezone(utc_tz).replace(tzinfo=None) if val.tzinfo else val
         s = str(val).strip()
-        # сначала пробуем email/HTTP формат (например: 'Mon, 11 Aug 2025 17:08:16 GMT')
         try:
             d = pdt(s)
             if d:
                 return d.astimezone(utc_tz).replace(tzinfo=None) if d.tzinfo else d.replace(tzinfo=None)
         except Exception:
             pass
-        # пробуем обычные шаблоны
         for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y %H:%M", "%m/%d/%Y"):
             try:
                 d = datetime.strptime(s, fmt)
-                return d  # трактуем как UTC naive
+                return d
             except Exception:
                 pass
-        # как последний шанс — ISO 8601
         try:
             d = datetime.fromisoformat(s.replace("Z", "+00:00"))
             return d.astimezone(utc_tz).replace(tzinfo=None) if d.tzinfo else d.replace(tzinfo=None)
@@ -1537,33 +1530,48 @@ def save_single_statement():
             return None
 
     # --- коллекции ---
-    col          = db["statement"]
-    drivers_col  = db["drivers"]
-    trucks_col   = db["trucks"]
-    companies_col = db["companies"]
+    col            = db["statement"]
+    drivers_col    = db["drivers"]
+    trucks_col     = db["trucks"]
+    loads_col      = db["loads"]
+    expenses_col   = db["driver_expenses"]
+    inspections_col= db["inspections"]
 
-    # --- справочники водителя/грузовика/компании ---
+    # --- справочники ---
     driver_oid = to_oid(raw.get("driver_id"))
     if not isinstance(driver_oid, ObjectId):
         return jsonify({"success": False, "error": "Invalid driver_id"}), 400
 
-    drv = drivers_col.find_one({"_id": driver_oid}, {"name": 1, "truck": 1, "hiring_company": 1})
+    drv = drivers_col.find_one({"_id": driver_oid, "company": current_user.company},
+                               {"name": 1, "truck": 1, "hiring_company": 1})
     if not drv:
         return jsonify({"success": False, "error": "Driver not found"}), 404
 
     truck_id = drv.get("truck") if isinstance(drv.get("truck"), ObjectId) else None
     truck_number = None
     if truck_id:
-        t = trucks_col.find_one({"_id": truck_id}, {"unit_number": 1})
+        t = trucks_col.find_one({"_id": truck_id, "company": current_user.company}, {"unit_number": 1})
         truck_number = t.get("unit_number") if t else None
 
-    # --- loads: нормализация + подсчёт extra_stops_total ---
+    # --- loads: нормализация (и параллельно собираем id для пометки) ---
     loads_in = list(raw.get("loads") or [])
     loads_out = []
     extra_stops_total = 0
+
+    # IDs отмеченных чекбоксом (присылаются фронтом)
+    selected_ids_raw = raw.get("selected_load_ids") or []
+    selected_ids = set()
+    for sid in selected_ids_raw:
+        oid = to_oid(sid)
+        if isinstance(oid, ObjectId):
+            selected_ids.add(oid)
+
+    # Грузы из базового диапазона (раньше мы их помечали всегда)
+    default_ids = set()
+
     for ld in loads_in:
         extra_stops_total += int(ld.get("extra_stops") or 0)
-        # нормализуем extra_delivery (может быть dict/list/None) + даты
+
         ex = ld.get("extra_delivery")
         if isinstance(ex, list):
             ex_out = [
@@ -1582,8 +1590,11 @@ def save_single_statement():
         else:
             ex_out = None
 
+        oid = to_oid(ld.get("_id"))
+        out_of_diap = bool(ld.get("out_of_diap"))
+
         loads_out.append({
-            "_id": to_oid(ld.get("_id")),
+            "_id": oid,
             "load_id": ld.get("load_id") or "",
             "company_sign": to_oid(ld.get("company_sign")),
             "assigned_driver": to_oid(ld.get("assigned_driver")),
@@ -1607,19 +1618,28 @@ def save_single_statement():
             "extra_stops": int(ld.get("extra_stops") or 0),
             "pickup_date":   to_utc_naive(ld.get("pickup_date")),
             "delivery_date": to_utc_naive(ld.get("delivery_date")),
-            "out_of_diap":   bool(ld.get("out_of_diap")),
+            "out_of_diap":   out_of_diap,
         })
+
+        if oid and not out_of_diap:
+            default_ids.add(oid)
 
     # --- expenses ---
     expenses_in = list(raw.get("expenses") or [])
     expenses_out = []
     invoices_num = 0
+    expense_ids_to_mark = []
+
     for e in expenses_in:
         removed = bool(e.get("removed"))
         if not removed:
             invoices_num += 1
+        exp_oid = to_oid(e.get("_id"))
+        if exp_oid and not removed and (e.get("action") or "keep") != "skip":
+            expense_ids_to_mark.append(exp_oid)
+
         expenses_out.append({
-            "_id": to_oid(e.get("_id")),
+            "_id": exp_oid,
             "amount": float(e.get("amount") or 0),
             "category": e.get("category") or "",
             "note": e.get("note") or "",
@@ -1631,9 +1651,13 @@ def save_single_statement():
 
     # --- inspections ---
     inspections_out = []
+    inspection_ids_to_mark = []
     for i in list(raw.get("inspections") or []):
+        ins_oid = to_oid(i.get("_id"))
+        if ins_oid:
+            inspection_ids_to_mark.append(ins_oid)
         inspections_out.append({
-            "_id": to_oid(i.get("_id")),
+            "_id": ins_oid,
             "address": i.get("address") or "",
             "state": i.get("state") or "",
             "clean_inspection": bool(i.get("clean_inspection")),
@@ -1662,7 +1686,6 @@ def save_single_statement():
         "bonus_level_1": float(scheme_in.get("bonus_level_1") or 0),
         "bonus_level_2": float(scheme_in.get("bonus_level_2") or 0),
         "bonus_level_3": float(scheme_in.get("bonus_level_3") or 0),
-        # поля для экстра-стопов
         "enable_extra_stop_bonus": bool(scheme_in.get("enable_extra_stop_bonus", False)),
         "extra_stop_bonus_amount": float(scheme_in.get("extra_stop_bonus_amount") or 0),
     }
@@ -1686,7 +1709,6 @@ def save_single_statement():
         "scheme_deductions_total": float(calc_in.get("scheme_deductions_total") or 0),
         "salary_add_from_expenses": float(calc_in.get("salary_add_from_expenses") or 0),
         "salary_deduct_from_expenses": float(calc_in.get("salary_deduct_from_expenses") or 0),
-        # Итог по экстра-стопам: берём из calc если уже посчитан на фронте, иначе — из подсчёта здесь
         "extra_stops_total": int(calc_in.get("extra_stops_total") or extra_stops_total),
         "extra_stop_bonus_total": float(calc_in.get("extra_stop_bonus_total") or 0),
         "final_salary": float(calc_in.get("final_salary") or 0),
@@ -1736,7 +1758,31 @@ def save_single_statement():
     if existing:
         doc["created_at"] = existing.get("created_at") or now
         col.replace_one({"_id": existing["_id"]}, doc, upsert=False)
-        return jsonify({"success": True, "status": "replaced", "_id": str(existing["_id"])})
+        statement_id = existing["_id"]
+        status = "replaced"
     else:
         ins = col.insert_one(doc)
-        return jsonify({"success": True, "status": "added", "_id": str(ins.inserted_id)})
+        statement_id = ins.inserted_id
+        status = "added"
+
+    # --- МАРКИРУЕМ СВЯЗАННЫЕ ДОКУМЕНТЫ ---
+    try:
+        # Грузы: объединение отмеченных чекбоксом и "по умолчанию" (базовый диапазон)
+        loads_to_mark = list(selected_ids | default_ids)
+        if loads_to_mark:
+            loads_col.update_many({"_id": {"$in": loads_to_mark}}, {"$set": {"was_added_to_statement": True}})
+
+        if expense_ids_to_mark:
+            expenses_col.update_many({"_id": {"$in": expense_ids_to_mark}}, {"$set": {"was_added_to_statement": True}})
+
+        if inspection_ids_to_mark:
+            inspections_col.update_many({"_id": {"$in": inspection_ids_to_mark}}, {"$set": {"was_added_to_statement": True}})
+    except Exception as mark_err:
+        return jsonify({
+            "success": True,
+            "status": status,
+            "_id": str(statement_id),
+            "warning": f"Statement saved, but marking source docs failed: {mark_err}"
+        })
+
+    return jsonify({"success": True, "status": status, "_id": str(statement_id)})

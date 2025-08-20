@@ -96,12 +96,10 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
   return fetch(`/api/driver_statement_loads?driver_id=${driverId}&week_range=${encodeURIComponent(weekRange)}`)
     .then(res => res.json())
     .then(data => {
-      console.log("📦 Грузы:", data);
       const container = document.getElementById("driverStatementResults");
 
       if (!data.success || !data.loads.length) {
         container.innerHTML = "<p>Грузы не найдены</p>";
-        // обнулим кэш экстра-стопов
         container.dataset.extraStopsTotal = "0";
         const oldSum = container.querySelector("#extraStopsSummary");
         if (oldSum) oldSum.remove();
@@ -129,7 +127,6 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
         return (load.delivery && load.delivery.date) || load.delivery_date || null;
       };
 
-      // Собираем таблицу и сразу считаем экстра-стопы по выбранным (not out_of_diap)
       let selectedExtraStops = 0;
 
       const table = document.createElement("table");
@@ -148,14 +145,11 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
         <tbody>
           ${data.loads.map((load) => {
             const checkedAttr = load.out_of_diap ? "" : "checked";
-
             const pickupAddress = load.pickup?.address || "—";
             const pickupDateStr = toDateOnly(load.pickup?.date);
-
             const deliveryAddress = load.delivery?.address || "—";
             const effectiveDeliveryDate = getEffectiveDeliveryDate(load);
             const deliveryDateStr = toDateOnly(effectiveDeliveryDate);
-
             const extraCount = Number(load.extra_stops || 0);
             if (!load.out_of_diap) selectedExtraStops += Math.max(0, extraCount);
 
@@ -165,6 +159,7 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
                   <input
                     type="checkbox"
                     class="load-checkbox"
+                    data-load-oid="${load._id || ""}"
                     data-price="${load.price || 0}"
                     data-extra-stops="${extraCount}"
                     ${checkedAttr}
@@ -190,14 +185,11 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
       container.innerHTML = "";
       container.appendChild(table);
 
-      // Кладём суммарные экстра-стопы по "выбранным" в дата-атрибут
       container.dataset.extraStopsTotal = String(selectedExtraStops);
 
-      // Навесим пересчёт (он будет обновлять и summary по экстра-стопам)
       const checkboxes = container.querySelectorAll(".load-checkbox");
       checkboxes.forEach(cb => cb.addEventListener("change", recalculateDriverSalary));
 
-      // Отрисуем/обновим summary
       renderOrUpdateExtraStopsSummary(container);
 
       return data.loads.reduce((sum, load) => sum + (load.price || 0), 0);
@@ -208,9 +200,11 @@ function fetchAndRenderDriverLoads(driverId, weekRange) {
     });
 }
 
+
+
+
 // вспомогательный сниппет: небольшой summary по экстра-стопам под таблицей
 function renderOrUpdateExtraStopsSummary(container) {
-  // считаем по факту отмеченных чекбоксов — это отражает текущий выбор пользователя
   const cbs = container.querySelectorAll(".load-checkbox");
   let selectedExtraStops = 0;
   cbs.forEach(cb => {
@@ -218,7 +212,6 @@ function renderOrUpdateExtraStopsSummary(container) {
       selectedExtraStops += Number(cb.dataset.extraStops || 0);
     }
   });
-
   container.dataset.extraStopsTotal = String(selectedExtraStops);
 
   let sum = container.querySelector("#extraStopsSummary");
@@ -1395,15 +1388,14 @@ async function saveDriverStatement() {
     return;
   }
 
-  // 1) Собираем «сырьё» так же, как при массовом сохранении
-  const item = await fetchAllForDriver(driverId, weekRange); // блоки loads/fuel/scheme/inspections/expenses/mileage
+  // 1) Собираем актуальные данные для item (loads/fuel/scheme/inspections/expenses/mileage/calc)
+  const item = await fetchAllForDriver(driverId, weekRange);
   if (!item) {
     alert("Не удалось собрать данные для сохранения.");
     return;
   }
 
-  // 2) Подставляем изменения из UI (инвойсы и выбор грузов/экстра-стопов)
-  //    Инвойсы — читаем действие/сумму/удалённость
+  // 2) Инвойсы — перечитываем из UI (чтобы action/removed/amount ушли правильно)
   const expensesBlock = container.querySelector("#driverExpensesBlock");
   if (expensesBlock) {
     const uiItems = expensesBlock.querySelectorAll(".expense-item");
@@ -1413,7 +1405,7 @@ async function saveDriverStatement() {
       const removed = li.getAttribute("data-removed") === "1";
       const amount = Math.max(0, parseFloat((li.querySelector(".expense-amount")?.value || "0").trim() || "0"));
       const action = li.querySelector(".expense-action")?.value || "keep";
-      const base = (item.expenses || []).find(e => e._id === id) || {};
+      const base = (item.expenses || []).find(e => (e._id === id || e._id?.$oid === id)) || {};
       mapped.push({
         _id: base._id || id,
         amount,
@@ -1428,20 +1420,22 @@ async function saveDriverStatement() {
     item.expenses = mapped;
   }
 
-  // 3) Собираем выбор по грузам и экстра-стопам из чекбоксов
+  // 3) Выбор по грузам и экстра-стопам из чекбоксов
   const cbs = container.querySelectorAll(".load-checkbox");
+  const selectedLoadIds = [];
   let selectedExtraStops = 0;
   let loadsGross = 0;
   cbs.forEach(cb => {
     if (cb.checked) {
+      const oid = cb.getAttribute("data-load-oid");
+      if (oid) selectedLoadIds.push(oid);
       loadsGross += parseFloat(cb.dataset.price || "0");
       selectedExtraStops += Number(cb.dataset.extraStops || 0);
     }
   });
 
-  // 4) Пересчёт из стейта (его заполняет window.recalculateDriverSalary)
+  // 4) Пересчёт из стейта (его наполняет recalculateDriverSalary)
   const calc = (window.__statementState && window.__statementState.lastSingleCalc) || {};
-  // гарантируем, что экстра-стопы попадут
   calc.extra_stops_total = selectedExtraStops;
 
   item.calc = {
@@ -1458,19 +1452,23 @@ async function saveDriverStatement() {
     final_salary: Number(calc.finalSalary || 0)
   };
 
-  // тело для нового эндпоинта
-  const body = { week_range: weekRange, item: {
-    driver_id: driverId,
-    loads: item.loads || [],
-    fuel: item.fuel || {qty:0, retail:0, invoice:0, cards:[]},
-    inspections: item.inspections || [],
-    expenses: item.expenses || [],
-    scheme: item.scheme || {},
-    mileage: item.mileage || {miles:0, meters:0, source:null, truck_id:null, samsara_vehicle_id:null},
-    calc: item.calc
-  }};
+  // 5) Тело запроса — добавили selected_load_ids
+  const body = {
+    week_range: weekRange,
+    item: {
+      driver_id: driverId,
+      loads: item.loads || [],
+      fuel: item.fuel || {qty:0, retail:0, invoice:0, cards:[]},
+      inspections: item.inspections || [],
+      expenses: item.expenses || [],
+      scheme: item.scheme || {},
+      mileage: item.mileage || {miles:0, meters:0, source:null, truck_id:null, samsara_vehicle_id:null},
+      calc: item.calc,
+      selected_load_ids: selectedLoadIds   // ← ключевое для отметки на бэке
+    }
+  };
 
-  // 5) Сохранение (approved=True делает сервер)
+  // 6) Сохранение
   const r = await fetch("/api/statements/save_single", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
