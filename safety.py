@@ -10,7 +10,7 @@ from flask import send_file
 from io import BytesIO
 from tools.jwt_auth import jwt_required
 import gridfs
-
+from datetime import datetime, timedelta
 
 fs = GridFS(db)
 safety_bp = Blueprint('safety', __name__)
@@ -218,116 +218,179 @@ def inspection_details_fragment():
 
 
 # MOBILE API
-
 @safety_bp.route('/api/mobile/inspections', methods=['GET'])
 @jwt_required
 def mobile_get_inspections():
-    from flask import g
+    from flask import g, request
+
+    def to_oid(v):
+        try:
+            return ObjectId(v) if v and ObjectId.is_valid(v) else None
+        except Exception:
+            return None
+
     try:
-        driver_id = ObjectId(g.user_id)
-        company = g.company
-        after = request.args.get("after")  # ISO datetime
-        limit = 10
+        company = getattr(g, "company", None)
+        driver_oid = to_oid(getattr(g, "driver_id", None))
+        if not driver_oid:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
 
-        query = {
-            "driver": driver_id,
-            "company": company
-        }
+        driver_doc = db["drivers"].find_one({"_id": driver_oid})
+        if not driver_doc:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
 
-        if after:
-            try:
-                after_dt = datetime.fromisoformat(after)
-                query["created_at"] = {"$lt": after_dt}
-            except ValueError:
-                return jsonify({"error": "Invalid date format"}), 400
+        if company and driver_doc.get("company") and driver_doc["company"] != company:
+            return jsonify({"success": False, "error": "Access denied (company mismatch)"}), 403
 
-        inspections = db["inspections"].find(query).sort("created_at", -1).limit(limit)
+        # --- пагинация ---
+        try:
+            page = int(request.args.get("page", 1))
+            per_page = int(request.args.get("per_page", 10))  # под фронт, как у loads
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid pagination params"}), 400
+        page = max(1, page)
+        per_page = max(1, min(per_page, 50))
+        skip = (page - 1) * per_page
 
-        result = []
-        for i in inspections:
-            result.append({
-                "_id": str(i["_id"]),
-                "date": i.get("date"),
-                "start_time": i.get("start_time"),
-                "end_time": i.get("end_time"),
-                "state": i.get("state"),
-                "address": i.get("address"),
-                "clean_inspection": i.get("clean_inspection", False),
-                "violations": i.get("violations", []),
-                "file_id": str(i["file_id"]) if i.get("file_id") else None,
-                "created_at": i.get("created_at").isoformat() if i.get("created_at") else None
+        query = {"driver": driver_doc["_id"]}
+        total = db["inspections"].count_documents(query)
+
+        cursor = (
+            db["inspections"]
+            .find(query)
+            .sort([("created_at", -1), ("_id", -1)])
+            .skip(skip)
+            .limit(per_page)
+        )
+
+        items = []
+        for doc in cursor:
+            items.append({
+                "id": str(doc["_id"]),
+                "date": doc.get("date"),
+                "state": doc.get("state"),
+                "address": doc.get("address"),
+                "start_time": doc.get("start_time"),
+                "end_time": doc.get("end_time"),
+                "clean_inspection": bool(doc.get("clean_inspection")),
+                "violations": doc.get("violations") or [],
+                "file_id": str(doc.get("file_id")) if doc.get("file_id") else None,
+                "created_at": doc.get("created_at").isoformat() + "Z" if doc.get("created_at") else None,
             })
 
-        return jsonify(result)
+        has_more = (page * per_page) < total
+
+        return jsonify({
+            "success": True,
+            "items": items,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "has_more": has_more,
+        })
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+
+
 
 
 @safety_bp.route('/api/mobile/inspections', methods=['POST'])
 @jwt_required
 def mobile_add_inspection():
     from flask import g
-    try:
-        driver_id = ObjectId(g.user_id)
 
-        # Найти документ водителя
-        driver_doc = db["drivers"].find_one({"_id": driver_id})
+    def to_oid(v):
+        try:
+            return ObjectId(v) if v and ObjectId.is_valid(v) else None
+        except Exception:
+            return None
+
+    def getv(key, default=None):
+        if request.form:
+            return request.form.get(key, default)
+        if request.is_json:
+            data = request.get_json(silent=True) or {}
+            return data.get(key, default)
+        return default
+
+    def as_bool(v):
+        if v is None:
+            return False
+        return str(v).strip().lower() in {"1", "true", "on", "yes", "y"}
+
+    try:
+        # --- только driver_id из g ---
+        company = getattr(g, "company", None)
+        driver_oid = to_oid(getattr(g, "driver_id", None))
+        if not driver_oid:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
+
+        driver_doc = db["drivers"].find_one({"_id": driver_oid})
         if not driver_doc:
             return jsonify({"success": False, "error": "Driver not found"}), 404
 
-        truck_id = driver_doc.get("truck")
-        company = driver_doc.get("company")
+        if company and driver_doc.get("company") and driver_doc["company"] != company:
+            return jsonify({"success": False, "error": "Access denied (company mismatch)"}), 403
 
-        # Получить файл
+        # --- файл (опционально) ---
         file = request.files.get("file")
         file_id = None
-        if file:
-            file_id = fs.put(file, filename=file.filename, content_type=file.content_type)
+        if file and getattr(file, "filename", None):
+            stream = getattr(file, "stream", None) or file
+            file_id = fs.put(stream, filename=file.filename, content_type=file.content_type)
 
-        # Обработка даты
-        date_str = request.form.get("date")
+        # --- даты/время ---
+        date_str = getv("date")
         date_formatted = None
         if date_str:
             try:
-                from datetime import datetime
+                # если прислано YYYY-MM-DD — конвертим в MM/DD/YYYY
                 date_obj = datetime.strptime(date_str, "%Y-%m-%d")
                 date_formatted = date_obj.strftime("%m/%d/%Y")
             except Exception:
-                date_formatted = date_str
+                date_formatted = date_str  # оставляем как есть
 
-        start_time = request.form.get("start_time")
-        end_time = request.form.get("end_time")
-        state = request.form.get("state")
-        address = request.form.get("address")
-        clean_inspection = request.form.get("clean_inspection") == "null"
+        start_time = getv("start_time")
+        end_time   = getv("end_time")
+        state      = getv("state")
+        address    = getv("address")
+        clean_inspection = as_bool(getv("clean_inspection"))
 
-        # Violations
-        violations_str = request.form.get("violations")
-        try:
-            violations_list = json.loads(violations_str) if violations_str else []
-            violations_json = json.dumps(violations_list)
-        except:
-            violations_list = []
-            violations_json = "[]"
+        # --- violations: строка JSON или массив ---
+        violations_raw = getv("violations") or getv("violations_json")
+        if isinstance(violations_raw, str):
+            try:
+                violations = json.loads(violations_raw)
+                if not isinstance(violations, list):
+                    violations = []
+            except Exception:
+                violations = []
+        elif isinstance(violations_raw, list):
+            violations = violations_raw
+        else:
+            violations = []
 
         inspection = {
-            "driver": driver_id,
-            "truck": truck_id,
+            "driver": driver_doc["_id"],
+            "truck": driver_doc.get("truck"),
             "file_id": file_id,
             "date": date_formatted,
             "start_time": start_time,
             "end_time": end_time,
             "state": state,
             "address": address,
-            "violations_json": violations_json,
-            "violations": violations_list,
+            "violations": violations,
             "clean_inspection": clean_inspection,
-            "company": company,
-            "created_at": datetime.utcnow()
+            "company": driver_doc.get("company") or company,
+            "created_at": datetime.utcnow(),
         }
 
         result = db["inspections"].insert_one(inspection)
         return jsonify({"success": True, "id": str(result.inserted_id)})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
