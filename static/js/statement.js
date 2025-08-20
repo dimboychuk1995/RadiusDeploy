@@ -1310,27 +1310,38 @@ function ensureWeekRangeOption(selectEl, weekRange) {
   }
 }
 
+
 async function openStatementReviewModal(item) {
-  openDriverStatementModal();
+  // Открываем ту же модалку
+  const modal    = document.getElementById("driverStatementModal");
+  const backdrop = document.getElementById("driverStatementBackdrop");
+  const title    = modal.querySelector(".modal-title");
 
-  const modal = document.getElementById("driverStatementModal");
-  const title = modal.querySelector(".modal-title");
   const driverLabel = modal.querySelector('label[for="driverSelect"]');
-  const driverSel = modal.querySelector("#driverSelect");
-  const weekLabel = modal.querySelector('label[for="driverWeekRangeSelect"]');
-  const weekSel = modal.querySelector("#driverWeekRangeSelect");
-  const calcBtn = modal.querySelector('button[onclick="calculateDriverStatement()"]');
-  const saveBtn = modal.querySelector('button[onclick="saveDriverStatement()"]');
-  const results = modal.querySelector("#driverStatementResults");
+  const driverSel   = modal.querySelector("#driverSelect");
+  const weekLabel   = modal.querySelector('label[for="driverWeekRangeSelect"]');
+  const weekSel     = modal.querySelector("#driverWeekRangeSelect");
 
+  const calcBtn  = modal.querySelector('button[onclick="calculateDriverStatement()"]');
+  const saveBtn  = modal.querySelector('button[onclick="saveDriverStatement()"]');
+  const results  = modal.querySelector("#driverStatementResults");
+
+  // Показать модалку
+  modal.classList.add("show");
+  if (backdrop) backdrop.classList.add("show");
+
+  // Режим REVIEW
   modal.dataset.mode = "review";
   modal.dataset.statementId = item._id || "";
+
   if (title) title.textContent = "Просмотр стейтмента";
 
+  // Прячем поля выбора водителя/недели и кнопки расчёта/сохранения
   [driverLabel, driverSel, weekLabel, weekSel].forEach(el => { if (el) el.style.display = "none"; });
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
+  // Пересоздаём блок с Confirm / Close
   let confirmWrap = modal.querySelector("#reviewConfirmWrap");
   if (confirmWrap) confirmWrap.remove();
   confirmWrap = document.createElement("div");
@@ -1342,21 +1353,235 @@ async function openStatementReviewModal(item) {
   `;
   results.parentElement.insertBefore(confirmWrap, results.nextSibling);
 
+  // Хелперы форматирования
+  const money = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const dateOnly = (d) => {
+    if (!d) return "—";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return "—";
+    return dt.toLocaleDateString();
+  };
+
+  // Заполняем селекты (скрыты) для единообразия
   try { generateWeekRanges("driverWeekRangeSelect"); } catch (e) {}
-  ensureWeekRangeOption(weekSel, item.week_range);
-  if (driverSel) driverSel.value = item.driver_id || "";
-  if (weekSel) weekSel.value = item.week_range || "";
+  if (weekSel) {
+    // гарантируем наличие нужной недели
+    const wr = item.week_range || "";
+    let opt = Array.from(weekSel.options).find(o => o.value === wr);
+    if (!opt && wr) {
+      opt = new Option(wr, wr, true, true);
+      weekSel.add(opt);
+    }
+    weekSel.value = wr || "";
+  }
+  if (driverSel) driverSel.value = (item.driver_id || "");
 
-  if (results) results.innerHTML = "<p>Загрузка...</p>";
-  await calculateDriverStatement();
+  // Тянем готовый документ
+  if (results) results.innerHTML = "<p>Загрузка…</p>";
+  let doc;
+  try {
+    const r = await fetch(`/api/statements/get_one?id=${encodeURIComponent(item._id)}`);
+    const j = await r.json();
+    if (!j.success) throw new Error(j.error || "Failed to load statement");
+    doc = j.item || {};
+  } catch (err) {
+    console.error(err);
+    if (results) results.innerHTML = `<div class="alert alert-danger">Не удалось загрузить стейтмент.</div>`;
+    return;
+  }
 
+  // Достаём нужные куски
+  const raw   = doc.raw || {};
+  const loads = raw.loads || [];
+  const fuel  = raw.fuel || {};
+  const insp  = raw.inspections || [];
+  const exps  = raw.expenses || [];
+  const scheme = raw.scheme || {};
+  const mileage = raw.mileage || {};
+  const calc = raw.calc || {};
+
+  // Собираем HTML (статичный обзор сохранённых данных)
+  const loadsHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Load #</th>
+                <th>Pickup</th>
+                <th>Delivery</th>
+                <th class="text-end">Price</th>
+                <th class="text-center">Extra stops</th>
+                <th class="text-center">В диапазоне?</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${loads.map(ld => {
+                const included = !ld.out_of_diap;
+                const pick = ld.pickup || {};
+                const del  = ld.delivery || {};
+                const extraStops = Number(ld.extra_stops || 0);
+                return `
+                  <tr>
+                    <td><span class="fw-semibold">${ld.load_id || ""}</span></td>
+                    <td>
+                      <div class="small">${pick.company || ""}</div>
+                      <div class="text-muted small">${pick.address || ""}</div>
+                      <div class="text-muted small">${dateOnly(ld.pickup_date || pick.date)}</div>
+                    </td>
+                    <td>
+                      <div class="small">${del.company || ""}</div>
+                      <div class="text-muted small">${del.address || ""}</div>
+                      <div class="text-muted small">${dateOnly(ld.delivery_date || del.date)}</div>
+                    </td>
+                    <td class="text-end">${money(ld.price)}</td>
+                    <td class="text-center">${extraStops}</td>
+                    <td class="text-center">
+                      ${included ? '<span class="badge bg-success">да</span>' : '<span class="badge bg-secondary">нет</span>'}
+                    </td>
+                  </tr>
+                `;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const fuelHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">⛽ Топливо</div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col"><div class="text-muted small">Qty</div><div class="fw-semibold">${Number(fuel.qty || 0)}</div></div>
+          <div class="col"><div class="text-muted small">Retail</div><div class="fw-semibold">${money(fuel.retail || 0)}</div></div>
+          <div class="col"><div class="text-muted small">Invoice</div><div class="fw-semibold">${money(fuel.invoice || 0)}</div></div>
+          <div class="col-6"><div class="text-muted small">Cards</div><div class="fw-semibold">${(fuel.cards || []).join(", ")}</div></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const inspHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
+      <div class="card-body">
+        ${insp.length ? `
+          <ul class="mb-0">
+            ${insp.map(i => `
+              <li class="small">
+                ${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}
+              </li>
+            `).join("")}
+          </ul>
+        ` : `<span class="text-muted">Нет данных</span>`}
+      </div>
+    </div>
+  `;
+
+  const expsHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">💳 Инвойсы / расходы (${exps.length})</div>
+      <div class="card-body">
+        ${exps.length ? `
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Дата</th><th>Категория</th><th>Action</th><th class="text-end">Сумма</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${exps.map(e => `
+                  <tr>
+                    <td>${dateOnly(e.date)}</td>
+                    <td>${e.category || ""}</td>
+                    <td>${e.action || ""}</td>
+                    <td class="text-end">${money(e.amount)}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        ` : `<span class="text-muted">Нет данных</span>`}
+      </div>
+    </div>
+  `;
+
+  const schemeHtml = `
+    <div class="card mb-3">
+      <div class="card-header fw-bold">⚙️ Схема</div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Тип</div>
+            <div class="fw-semibold">${scheme.scheme_type || "percent"}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="text-muted small">Per Mile</div>
+            <div class="fw-semibold">${Number(scheme.per_mile_rate || 0)}</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Комиссионная таблица</div>
+            <div class="fw-semibold">${(scheme.commission_table || []).map(r => `${r.from_sum || 0}+ → ${r.percent || 0}%`).join("; ") || "—"}</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Extra Stop Bonus</div>
+            <div class="fw-semibold">
+              ${scheme.enable_extra_stop_bonus ? `включен, $${Number(scheme.extra_stop_bonus_amount || 0)} / стоп` : "выключен"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const totalsHtml = (() => {
+    const extraRow = (scheme.enable_extra_stop_bonus)
+      ? `<tr><th>Бонус за extra stops</th><td class="text-end">${money(calc.extra_stop_bonus_total || 0)} <span class="text-muted">(${Number(calc.extra_stops_total || 0)} шт.)</span></td></tr>`
+      : "";
+    return `
+      <div class="card mb-3">
+        <div class="card-header fw-bold">📊 Итоги</div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <tbody>
+              <tr><th>Гросс по грузам</th><td class="text-end">${money(calc.loads_gross)}</td></tr>
+              <tr><th>Гросс для комиссии</th><td class="text-end">${money(calc.gross_for_commission)}</td></tr>
+              <tr><th>Комиссия</th><td class="text-end">${money(calc.commission)}</td></tr>
+              <tr><th>Списания по схеме</th><td class="text-end">-${money(calc.scheme_deductions_total)}</td></tr>
+              <tr><th>Корректировки к зарплате</th><td class="text-end">${money((calc.salary_add_from_expenses || 0) - (calc.salary_deduct_from_expenses || 0))}</td></tr>
+              ${extraRow}
+              <tr class="table-success"><th>Итого к выплате</th><td class="text-end fw-bold">${money(calc.final_salary)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  })();
+
+  const headerHtml = `
+    <div class="mb-3">
+      <div class="fw-bold fs-6">${doc.driver_name || ""} ${doc.truck_number ? `· Truck ${doc.truck_number}` : ""}</div>
+      <div class="text-muted">${doc.company || ""} · Week: ${doc.week_range || ""}</div>
+    </div>
+  `;
+
+  if (results) {
+    results.innerHTML = headerHtml + loadsHtml + fuelHtml + inspHtml + expsHtml + schemeHtml + totalsHtml;
+  }
+
+  // Confirm / Close обработчики
   const confirmBtn = modal.querySelector("#reviewConfirmBtn");
-  const closeBtn = modal.querySelector("#reviewCloseBtn");
+  const closeBtn   = modal.querySelector("#reviewCloseBtn");
 
   confirmBtn.onclick = async () => {
     try {
       confirmBtn.disabled = true;
-      confirmBtn.textContent = "Confirming...";
+      confirmBtn.textContent = "Confirming…";
       const r = await fetch("/api/statements/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1376,6 +1601,12 @@ async function openStatementReviewModal(item) {
 
   closeBtn.onclick = () => closeDriverStatementModal();
 }
+
+
+
+
+
+
 
 
 async function saveDriverStatement() {

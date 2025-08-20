@@ -1786,3 +1786,44 @@ def save_single_statement():
         })
 
     return jsonify({"success": True, "status": status, "_id": str(statement_id)})
+
+
+@statement_bp.route("/api/statements/get_one", methods=["GET"])
+@login_required
+def get_statement_one():
+    """
+    Вернуть один сохранённый стейтмент по id (без пересчётов).
+    Возвращает весь документ с нормализованными типами для фронта.
+    """
+    try:
+        stmt_id = request.args.get("id") or ""
+        if not stmt_id or not ObjectId.is_valid(stmt_id):
+            return jsonify({"success": False, "error": "Invalid id"}), 400
+
+        doc = db["statement"].find_one({
+            "_id": ObjectId(stmt_id),
+            "company": current_user.company
+        })
+        if not doc:
+            return jsonify({"success": False, "error": "Not found"}), 404
+
+        from datetime import datetime
+
+        def encode(v):
+            if isinstance(v, ObjectId):
+                return str(v)
+            if isinstance(v, datetime):
+                # ISO 8601; фронту достаточно parseable строки
+                return v.isoformat()
+            if isinstance(v, list):
+                return [encode(x) for x in v]
+            if isinstance(v, dict):
+                return {k: encode(val) for k, val in v.items()}
+            return v
+
+        out = encode(doc)
+        return jsonify({"success": True, "item": out})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
