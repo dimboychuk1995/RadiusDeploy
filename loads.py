@@ -620,7 +620,10 @@ def add_load():
                 send_push_notification(
                     expo_token,
                     title=f"📦 Назначен новый груз {load_id_str}",
-                    body=f"{pickup} → {delivery}"
+                    body=f"{pickup} → {delivery}",
+                    data={"load_id": str(load_data["_id"])},  # <-- ВАЖНО: строкой!
+                    priority="high",
+                    channel_id="default",
                 )
             else:
                 print("⚠️ У водителя нет push токена")
