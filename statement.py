@@ -1982,3 +1982,71 @@ def confirm_statement():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@statement_bp.route("/api/statements/delete", methods=["POST"])
+@login_required
+def delete_statement():
+    """
+    Удаляет стейтмент по id.
+    Перед удалением снимает флаг was_added_to_statement у всех грузов, инспекций и инвойсов,
+    которые входят в этот стейтмент.
+    """
+    try:
+        from bson import ObjectId
+        from datetime import datetime
+
+        data = request.get_json(silent=True) or {}
+        stmt_id = (data.get("id") or "").strip()
+        if not stmt_id or not ObjectId.is_valid(stmt_id):
+            return jsonify({"success": False, "error": "Invalid id"}), 400
+
+        col_stmt = db["statement"]
+        col_loads = db["loads"]
+        col_insp  = db["inspections"]
+        col_exp   = db["driver_expenses"]
+
+        stmt = col_stmt.find_one({"_id": ObjectId(stmt_id)})
+        if not stmt:
+            return jsonify({"success": False, "error": "Statement not found"}), 404
+
+        # (опционально) проверка компании
+        if stmt.get("company") != current_user.company:
+            return jsonify({"success": False, "error": "Forbidden"}), 403
+
+        raw = stmt.get("raw") or {}
+        loads_raw    = raw.get("loads") or []
+        insp_raw     = raw.get("inspections") or []
+        expenses_raw = raw.get("expenses") or []
+
+        def to_oid(x):
+            try:
+                if isinstance(x, ObjectId):
+                    return x
+                if isinstance(x, dict) and "$oid" in x:
+                    return ObjectId(x["$oid"])
+                return ObjectId(str(x))
+            except Exception:
+                return None
+
+        load_ids = [to_oid(ld.get("_id")) for ld in loads_raw if to_oid(ld.get("_id"))]
+        insp_ids = [to_oid(i.get("_id"))  for i  in insp_raw  if to_oid(i.get("_id"))]
+        exp_ids  = [to_oid(e.get("_id"))  for e  in expenses_raw if to_oid(e.get("_id"))]
+
+        # Снимаем флажки (если они стояли) — операция идемпотентна
+        if load_ids:
+            col_loads.update_many({"_id": {"$in": load_ids}}, {"$set": {"was_added_to_statement": False}})
+        if insp_ids:
+            col_insp.update_many({"_id": {"$in": insp_ids}}, {"$set": {"was_added_to_statement": False}})
+        if exp_ids:
+            col_exp.update_many({"_id": {"$in": exp_ids}}, {"$set": {"was_added_to_statement": False}})
+
+        # Удаляем сам стейтмент
+        col_stmt.delete_one({"_id": stmt["_id"]})
+
+        return jsonify({"success": True})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

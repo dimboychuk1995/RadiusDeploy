@@ -70,7 +70,9 @@ async function calculateDriverStatement() {
   const container = document.getElementById("driverStatementResults");
 
   if (!driverId || !weekRange) {
-    alert("Выберите водителя и диапазон недели.");
+    if (typeof Swal !== "undefined") {
+      await Swal.fire("Внимание", "Выберите водителя и диапазон недели.", "warning");
+    }
     return;
   }
 
@@ -90,6 +92,7 @@ async function calculateDriverStatement() {
   // 4) Пересчёт зарплаты
   window.recalculateDriverSalary();
 }
+
 
 /* ===================== Грузы водителя ===================== */
 function fetchAndRenderDriverLoads(driverId, weekRange) {
@@ -1312,13 +1315,47 @@ function ensureWeekRangeOption(selectEl, weekRange) {
 
 
 async function openStatementReviewModal(item) {
-  // Элементы модалки
+  // ===== Timezone helpers (America/Chicago) =====
+  const COMPANY_TZ = "America/Chicago";
+
+  // Accepts: Date | string | number | { $date: string|number }
+  function toJsDate(v) {
+    if (!v) return null;
+    if (typeof v === "object" && v.$date != null) v = v.$date;
+    if (v instanceof Date) return isNaN(v) ? null : v;
+    const d = new Date(String(v)); // supports ISO & RFC strings
+    return isNaN(d) ? null : d;
+  }
+  // Format to MM/DD/YYYY in company TZ
+  function fmtLocalDate(v) {
+    const d = toJsDate(v);
+    if (!d) return "—";
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: COMPANY_TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const mm = parts.find(p => p.type === "month").value;
+    const dd = parts.find(p => p.type === "day").value;
+    const yy = parts.find(p => p.type === "year").value;
+    return `${mm}/${dd}/${yy}`;
+  }
+  // Use the last extra stop date, else delivery.date, else delivery_date
+  function getEffectiveDeliveryDate(load) {
+    const ed = load?.extra_delivery;
+    if (Array.isArray(ed) && ed.length) return ed[ed.length - 1]?.date || null;
+    if (ed && typeof ed === "object" && ed.date) return ed.date;
+    return (load?.delivery?.date ?? load?.delivery_date ?? null);
+  }
+
+  // ===== Elements =====
   const modal    = document.getElementById("driverStatementModal");
   const backdrop = document.getElementById("driverStatementBackdrop");
   const title    = modal.querySelector(".modal-title");
   const results  = modal.querySelector("#driverStatementResults");
 
-  // Скрываем поля выбора/расчёта/сохранения (мы в режиме Review)
+  // Hide "create" controls
   const driverLabel = modal.querySelector('label[for="driverSelect"]');
   const driverSel   = modal.querySelector("#driverSelect");
   const weekLabel   = modal.querySelector('label[for="driverWeekRangeSelect"]');
@@ -1329,42 +1366,41 @@ async function openStatementReviewModal(item) {
   if (calcBtn) calcBtn.style.display = "none";
   if (saveBtn) saveBtn.style.display = "none";
 
-  // Открываем модалку
+  // Open modal
   modal.classList.add("show");
   if (backdrop) backdrop.classList.add("show");
   modal.dataset.mode = "review";
   modal.dataset.statementId = item._id || "";
   if (title) title.textContent = "Просмотр стейтмента";
 
-  // Уберём прежнюю панель кнопок, если была
+  // Remove old button bar if exists
   let btnBar = modal.querySelector("#reviewConfirmWrap");
   if (btnBar) btnBar.remove();
 
-  // Тянем документ из коллекции statement
+  // Load statement from DB
   if (results) results.innerHTML = "<p>Загрузка…</p>";
   let doc;
   try {
     const r = await fetch(`/api/statements/get_one?id=${encodeURIComponent(item._id)}`);
     const j = await r.json();
     if (!j.success) throw new Error(j.error || "Failed to load statement");
-    doc = j.item || {};
+    doc = j.item || j.data || {};
   } catch (err) {
     console.error(err);
     if (results) results.innerHTML = `<div class="alert alert-danger">Не удалось загрузить стейтмент.</div>`;
     return;
   }
 
-  const isApproved = !!doc.approved; // confirmed?
+  const isApproved = !!doc.approved;
   const raw     = doc.raw || {};
   const loads   = raw.loads || [];
   const fuel    = raw.fuel || {};
   const insp    = raw.inspections || [];
   const exps    = raw.expenses || [];
   const scheme  = raw.scheme || {};
-  const mileage = raw.mileage || {};
   const calc    = raw.calc || {};
 
-  // Панель кнопок: confirmed → Close + Delete; not confirmed → Confirm + Close + Delete
+  // Buttons bar
   btnBar = document.createElement("div");
   btnBar.id = "reviewConfirmWrap";
   btnBar.className = "mt-3 d-flex gap-2";
@@ -1377,25 +1413,17 @@ async function openStatementReviewModal(item) {
     `<button type="button" class="btn btn-outline-danger" id="reviewDeleteBtn">Delete</button>`
   );
   btnBar.innerHTML = buttons.join("\n");
-
-  // Вставим панель под областью результатов
   results.parentElement.insertBefore(btnBar, results.nextSibling);
 
-  // Хелперы
+  // Helpers
   const money = (n) => `$${Number(n || 0).toFixed(2)}`;
-  const dateOnly = (d) => {
-    if (!d) return "—";
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return "—";
-    const mm = String(dt.getMonth() + 1).padStart(2, "0");
-    const dd = String(dt.getDate()).padStart(2, "0");
-    return `${mm}/${dd}/${dt.getFullYear()}`;
-  };
   function calcCommissionProgressive(gross, table) {
     if (!Array.isArray(table) || !table.length) return 0;
-    const rows = table
-      .map(r => ({from: Number(r.from_sum || 0), to: (r.to_sum == null ? Infinity : Number(r.to_sum)), pct: Number(r.percent || 0)}))
-      .sort((a,b)=>a.from-b.from);
+    const rows = table.map(r => ({
+      from: Number(r.from_sum || 0),
+      to: (r.to_sum == null ? Infinity : Number(r.to_sum)),
+      pct: Number(r.percent || 0)
+    })).sort((a,b)=>a.from-b.from);
     let left = Math.max(0, Number(gross || 0));
     let comm = 0, prev = 0;
     for (const r of rows) {
@@ -1403,16 +1431,13 @@ async function openStatementReviewModal(item) {
       const hi = Math.min(r.to, Infinity);
       if (left <= 0 || hi <= lo) { prev = Math.max(prev, hi); continue; }
       const span = Math.max(0, Math.min(left, hi - lo));
-      if (span > 0) {
-        comm += span * (r.pct / 100);
-        left -= span;
-      }
+      if (span > 0) { comm += span * (r.pct / 100); left -= span; }
       prev = Math.max(prev, hi);
     }
     return comm;
   }
 
-  // Заголовок
+  // Header
   const headerHtml = `
     <div class="mb-3">
       <div class="fw-bold fs-6">${doc.driver_name || ""}${doc.truck_number ? ` · Truck ${doc.truck_number}` : ""}</div>
@@ -1420,7 +1445,7 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // ===== Режим: CONFIRMED (только просмотр) =====
+  // ===== CONFIRMED (read-only) =====
   if (isApproved) {
     const loadsReadonly = `
       <div class="card mb-3">
@@ -1448,12 +1473,12 @@ async function openStatementReviewModal(item) {
                       <td>
                         <div class="small">${p.company || ""}</div>
                         <div class="text-muted small">${p.address || ""}</div>
-                        <div class="text-muted small">${dateOnly(ld.pickup_date || p.date)}</div>
+                        <div class="text-muted small">${fmtLocalDate(p.date || ld.pickup_date)}</div>
                       </td>
                       <td>
                         <div class="small">${d.company || ""}</div>
                         <div class="text-muted small">${d.address || ""}</div>
-                        <div class="text-muted small">${dateOnly(ld.delivery_date || d.date)}</div>
+                        <div class="text-muted small">${fmtLocalDate(getEffectiveDeliveryDate(ld))}</div>
                       </td>
                       <td class="text-end">${money(ld.price)}</td>
                       <td class="text-center">${Number(ld.extra_stops || 0)}</td>
@@ -1486,7 +1511,7 @@ async function openStatementReviewModal(item) {
       <div class="card mb-3">
         <div class="card-header fw-bold">🧾 Инспекции (${insp.length})</div>
         <div class="card-body">
-          ${insp.length ? `<ul class="mb-0">${insp.map(i => `<li class="small">${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</li>`).join("")}</ul>` : `<span class="text-muted">Нет данных</span>`}
+          ${insp.length ? `<ul class="mb-0">${insp.map(i => `<li class="small">${fmtLocalDate(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</li>`).join("")}</ul>` : `<span class="text-muted">Нет данных</span>`}
         </div>
       </div>
     `;
@@ -1502,7 +1527,7 @@ async function openStatementReviewModal(item) {
                   <tr><th>Дата</th><th>Категория</th><th>Action</th><th class="text-end">Сумма</th></tr>
                 </thead>
                 <tbody>
-                  ${exps.map(e => `<tr><td>${dateOnly(e.date)}</td><td>${e.category || ""}</td><td>${e.action || ""}</td><td class="text-end">${money(e.amount)}</td></tr>`).join("")}
+                  ${exps.map(e => `<tr><td>${fmtLocalDate(e.date)}</td><td>${e.category || ""}</td><td>${e.action || ""}</td><td class="text-end">${money(e.amount)}</td></tr>`).join("")}
                 </tbody>
               </table>
             </div>` : `<span class="text-muted">Нет данных</span>`}
@@ -1534,15 +1559,40 @@ async function openStatementReviewModal(item) {
 
     results.innerHTML = headerHtml + loadsReadonly + fuelHtml + inspHtml + expsHtml + totalsHtml;
 
-    // Кнопки
+    // Buttons: Close / Delete
     const closeBtn  = modal.querySelector("#reviewCloseBtn");
     const deleteBtn = modal.querySelector("#reviewDeleteBtn");
     if (closeBtn)  closeBtn.onclick  = () => closeDriverStatementModal();
-    if (deleteBtn) deleteBtn.onclick = () => console.log("TODO delete:", modal.dataset.statementId);
+    if (deleteBtn) {
+      deleteBtn.onclick = async () => {
+        const stmtId = modal.dataset.statementId;
+        if (!stmtId) return;
+        const yes = window.confirm("Удалить стейтмент? Флаги was_added_to_statement будут сняты со связанных грузов/инспекций/инвойсов.");
+        if (!yes) return;
+        try {
+          deleteBtn.disabled = true;
+          deleteBtn.textContent = "Deleting…";
+          const r = await fetch("/api/statements/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: stmtId })
+          });
+          const resp = await r.json();
+          if (!resp.success) throw new Error(resp.error || "Delete failed");
+          closeDriverStatementModal();
+          if (typeof loadDriverStatements === "function") await loadDriverStatements();
+        } catch (err) {
+          console.error("Delete statement error:", err);
+          if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось удалить стейтмент.", "error");
+          deleteBtn.disabled = false;
+          deleteBtn.textContent = "Delete";
+        }
+      };
+    }
     return;
   }
 
-  // ===== Режим: НЕ confirmed (редактируемый) =====
+  // ===== NOT CONFIRMED (editable) =====
   const loadsHtmlEditable = `
     <div class="card mb-3">
       <div class="card-header fw-bold">📦 Грузы (${loads.length})</div>
@@ -1570,7 +1620,7 @@ async function openStatementReviewModal(item) {
                     <td class="text-center">
                       <input type="checkbox"
                              class="form-check-input rev-load-check"
-                             data-load-oid="${ld._id || ""}"
+                             data-load-oid="${ld._id?.$oid || ld._id || ""}"
                              data-price="${Number(ld.price || 0)}"
                              data-extra-stops="${Number(ld.extra_stops || 0)}"
                              ${checkedAttr}>
@@ -1579,12 +1629,12 @@ async function openStatementReviewModal(item) {
                     <td>
                       <div class="small">${p.company || ""}</div>
                       <div class="text-muted small">${p.address || ""}</div>
-                      <div class="text-muted small">${dateOnly(ld.pickup_date || p.date)}</div>
+                      <div class="text-muted small">${fmtLocalDate(p.date || ld.pickup_date)}</div>
                     </td>
                     <td>
                       <div class="small">${d.company || ""}</div>
                       <div class="text-muted small">${d.address || ""}</div>
-                      <div class="text-muted small">${dateOnly(ld.delivery_date || d.date)}</div>
+                      <div class="text-muted small">${fmtLocalDate(getEffectiveDeliveryDate(ld))}</div>
                     </td>
                     <td class="text-end">$${Number(ld.price || 0).toFixed(2)}</td>
                     <td class="text-center">${Number(ld.extra_stops || 0)}</td>
@@ -1607,8 +1657,8 @@ async function openStatementReviewModal(item) {
           <ul class="list-unstyled mb-0">
             ${insp.map(i => `
               <li class="d-flex align-items-center gap-2 mb-1">
-                <input type="checkbox" class="form-check-input rev-insp-check" data-insp-oid="${i._id || ""}" checked>
-                <span class="small">${dateOnly(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</span>
+                <input type="checkbox" class="form-check-input rev-insp-check" data-insp-oid="${i._id?.$oid || i._id || ""}" checked>
+                <span class="small">${fmtLocalDate(i.date)} — ${i.clean_inspection ? "clean" : "not clean"}</span>
               </li>
             `).join("")}
           </ul>
@@ -1635,11 +1685,11 @@ async function openStatementReviewModal(item) {
               </thead>
               <tbody>
                 ${exps.map(e => `
-                  <tr class="expense-item" data-expense-id="${e._id || ""}" data-removed="${e.removed ? "1" : "0"}">
+                  <tr class="expense-item" data-expense-id="${e._id?.$oid || e._id || ""}" data-removed="${e.removed ? "1" : "0"}">
                     <td class="text-center">
-                      <input type="checkbox" class="form-check-input rev-exp-check" data-exp-oid="${e._id || ""}" ${e.removed ? "" : "checked"}>
+                      <input type="checkbox" class="form-check-input rev-exp-check" data-exp-oid="${e._id?.$oid || e._id || ""}" ${e.removed ? "" : "checked"}>
                     </td>
-                    <td>${dateOnly(e.date)}</td>
+                    <td>${fmtLocalDate(e.date)}</td>
                     <td>${e.category || ""}</td>
                     <td>
                       <select class="form-select form-select-sm rev-exp-action">
@@ -1688,7 +1738,7 @@ async function openStatementReviewModal(item) {
             <tr><th>Корректировки gross</th><td class="text-end"><span id="rvGrossAdd">$0.00</span> / <span id="rvGrossDeduct">$0.00</span></td></tr>
             <tr><th>Гросс для комиссии</th><td class="text-end" id="rvGrossForComm">$0.00</td></tr>
             <tr><th>Комиссия</th><td class="text-end" id="rvCommission">$0.00</td></tr>
-            <tr><th>Списания по схеме</th><td class="text-end" id="rvSchemeDeduct">-${money(calc.scheme_deductions_total || 0)}</td></tr>
+            <tr><th>Списания по схеме</th><td class="text-end" id="rvSchemeDeduct">-$0.00</td></tr>
             <tr><th>Корректировки к зарплате</th><td class="text-end"><span id="rvSalaryAdd">$0.00</span> / <span id="rvSalaryDeduct">$0.00</span></td></tr>
             <tr><th>Extra stops</th><td class="text-end"><span id="rvExtraStops">0</span></td></tr>
             <tr><th>Бонус за extra stops</th><td class="text-end" id="rvExtraBonus">$0.00</td></tr>
@@ -1699,10 +1749,10 @@ async function openStatementReviewModal(item) {
     </div>
   `;
 
-  // Рендер редактируемого режима
+  // Render editable view
   results.innerHTML = headerHtml + loadsHtmlEditable + fuelHtml + inspHtmlEditable + expsHtmlEditable + totalsHtmlEditable;
 
-  // Живой пересчёт
+  // Live recalculation (client-side preview)
   function recalcReview() {
     let loadsGross = 0;
     let extraStops = 0;
@@ -1743,17 +1793,15 @@ async function openStatementReviewModal(item) {
     results.querySelector("#rvExtraBonus").textContent   = money(extraBonus);
     results.querySelector("#rvFinalSalary").textContent  = money(finalSalary);
 
-    // Можно сохранить в глобальный state, если понадобится
     window.__reviewState = { loadsGross, grossAdd, grossDeduct, grossForComm, commission, salaryAdd, salaryDeduct, extraStops, extraBonus, schemeDeduct, finalSalary };
   }
 
-  // Навесим слушатели и сделаем первичный пересчёт
   results.querySelectorAll(".rev-load-check").forEach(cb => cb.addEventListener("change", recalcReview));
   results.querySelectorAll(".rev-insp-check").forEach(cb => cb.addEventListener("change", recalcReview));
   results.querySelectorAll(".rev-exp-check, .rev-exp-action, .rev-exp-amount").forEach(el => el.addEventListener("input", recalcReview));
   recalcReview();
 
-  // Кнопки
+  // Buttons
   const closeBtn   = modal.querySelector("#reviewCloseBtn");
   const confirmBtn = modal.querySelector("#reviewConfirmBtn");
   const deleteBtn  = modal.querySelector("#reviewDeleteBtn");
@@ -1765,7 +1813,6 @@ async function openStatementReviewModal(item) {
         confirmBtn.textContent = "Confirming…";
         const stmtId  = modal.dataset.statementId;
 
-        // Собираем выбор из UI
         const loads_selected = Array.from(results.querySelectorAll(".rev-load-check:checked"))
           .map(cb => cb.getAttribute("data-load-oid"))
           .filter(Boolean);
@@ -1787,7 +1834,6 @@ async function openStatementReviewModal(item) {
           };
         }).filter(x => !!x._id);
 
-        // Отправляем на бекенд с apply_changes=true
         const r = await fetch("/api/statements/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1803,7 +1849,6 @@ async function openStatementReviewModal(item) {
         const resp = await r.json();
         if (!resp.success) throw new Error(resp.error || "Confirm failed");
 
-        // Закрыть модалку и обновить список
         closeDriverStatementModal();
         if (typeof loadDriverStatements === "function") await loadDriverStatements();
       } catch (err) {
@@ -1816,9 +1861,29 @@ async function openStatementReviewModal(item) {
   }
 
   if (deleteBtn) {
-    // TODO: реализовать удаление
-    deleteBtn.onclick = () => {
-      console.log("TODO: implement delete statement", modal.dataset.statementId);
+    deleteBtn.onclick = async () => {
+      const stmtId = modal.dataset.statementId;
+      if (!stmtId) return;
+      const yes = window.confirm("Удалить стейтмент? Флаги was_added_to_statement будут сняты со связанных грузов/инспекций/инвойсов.");
+      if (!yes) return;
+      try {
+        deleteBtn.disabled = true;
+        deleteBtn.textContent = "Deleting…";
+        const r = await fetch("/api/statements/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: stmtId })
+        });
+        const resp = await r.json();
+        if (!resp.success) throw new Error(resp.error || "Delete failed");
+        closeDriverStatementModal();
+        if (typeof loadDriverStatements === "function") await loadDriverStatements();
+      } catch (err) {
+        console.error("Delete statement error:", err);
+        if (typeof Swal !== "undefined") Swal.fire("Ошибка", err.message || "Не удалось удалить стейтмент.", "error");
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = "Delete";
+      }
     };
   }
 
@@ -1829,26 +1894,29 @@ async function openStatementReviewModal(item) {
 
 
 
-
-
+/* ===================== Сохранение одного стейтмента (CREATE-модалка) ===================== */
 async function saveDriverStatement() {
   const driverId  = document.getElementById("driverSelect").value;
   const weekRange = document.getElementById("driverWeekRangeSelect").value;
   const container = document.getElementById("driverStatementResults");
 
   if (!driverId || !weekRange) {
-    alert("Сначала выберите водителя и неделю.");
+    if (typeof Swal !== "undefined") {
+      await Swal.fire("Внимание", "Сначала выберите водителя и неделю.", "warning");
+    }
     return;
   }
 
   // 1) Собираем актуальные данные для item (loads/fuel/scheme/inspections/expenses/mileage/calc)
   const item = await fetchAllForDriver(driverId, weekRange);
   if (!item) {
-    alert("Не удалось собрать данные для сохранения.");
+    if (typeof Swal !== "undefined") {
+      await Swal.fire("Ошибка", "Не удалось собрать данные для сохранения.", "error");
+    }
     return;
   }
 
-  // 2) Инвойсы — перечитываем из UI (чтобы action/removed/amount ушли правильно)
+  // 2) Подмешиваем изменения из UI (инвойсы/чекбоксы/экстра-стопы/калькуляция)
   const expensesBlock = container.querySelector("#driverExpensesBlock");
   if (expensesBlock) {
     const uiItems = expensesBlock.querySelectorAll(".expense-item");
@@ -1873,7 +1941,7 @@ async function saveDriverStatement() {
     item.expenses = mapped;
   }
 
-  // 3) Выбор по грузам и экстра-стопам из чекбоксов
+  // 3) Чекбоксы грузов и экстра-стопы
   const cbs = container.querySelectorAll(".load-checkbox");
   const selectedLoadIds = [];
   let selectedExtraStops = 0;
@@ -1931,10 +1999,18 @@ async function saveDriverStatement() {
 
   if (!r.ok || !data.success) {
     console.error("Save single statement error:", data);
-    alert(`Не удалось сохранить стейтмент: ${(data && (data.error || data.status)) || r.status}`);
+    if (typeof Swal !== "undefined") {
+      await Swal.fire(
+        "Ошибка",
+        `Не удалось сохранить стейтмент: ${(data && (data.error || data.status)) || r.status}`,
+        "error"
+      );
+    }
     return;
   }
 
-  alert("Стейтмент сохранён.");
+  if (typeof Swal !== "undefined") {
+    await Swal.fire({ icon: "success", title: "Стейтмент сохранён", confirmButtonText: "Ок" });
+  }
   closeDriverStatementModal();
 }
