@@ -820,37 +820,45 @@ def update_push_token(driver_id):
     from flask import request, jsonify
     from bson import ObjectId
     import traceback
-
     try:
-        print("📥 /update_push_token вызван")
-        print(f"🧾 driver_id из URL: {driver_id}")
-
-        data = request.get_json()
-        print(f"📦 Тело запроса: {data}")
-
+        data = request.get_json() or {}
         token = data.get("expo_push_token")
         if not token:
-            print("❌ Не передан expo_push_token")
-            return jsonify(success=False, error="❌ Токен не передан"), 400
+            return jsonify(success=False, error="Token required"), 400
 
-        result = drivers_collection.update_one(
+        # убрать этот токен у всех других водителей
+        drivers_collection.update_many(
+            {"expo_push_token": token, "_id": {"$ne": ObjectId(driver_id)}},
+            {"$unset": {"expo_push_token": ""}}
+        )
+        # установить текущему
+        res = drivers_collection.update_one(
             {"_id": ObjectId(driver_id)},
             {"$set": {"expo_push_token": token}}
         )
-
-        print(f"📊 MongoDB update result: matched={result.matched_count}, modified={result.modified_count}")
-
-        if result.matched_count == 0:
-            print("❌ Водитель не найден")
-            return jsonify(success=False, error="🚫 Водитель не найден"), 404
-        elif result.modified_count == 0:
-            print("ℹ️ Токен уже был таким же — не обновлён")
-            return jsonify(success=False, error="ℹ️ Токен не изменился", same_token=True), 200
-        else:
-            print("✅ Push token успешно обновлён")
-            return jsonify(success=True), 200
-
+        if res.matched_count == 0:
+            return jsonify(success=False, error="Driver not found"), 404
+        return jsonify(success=True, same_token=(res.modified_count == 0)), 200
     except Exception as e:
-        print("❌ Ошибка в update_push_token")
+        traceback.print_exc()
+        return jsonify(success=False, error=str(e)), 500
+    
+
+@drivers_bp.route('/api/drivers/<driver_id>/clear_push_token', methods=['POST'])
+@jwt_required
+@cross_origin()
+def clear_push_token(driver_id):
+    from flask import jsonify
+    from bson import ObjectId
+    import traceback
+    try:
+        res = drivers_collection.update_one(
+            {"_id": ObjectId(driver_id)},
+            {"$unset": {"expo_push_token": ""}}
+        )
+        if res.matched_count == 0:
+            return jsonify(success=False, error="Driver not found"), 404
+        return jsonify(success=True), 200
+    except Exception as e:
         traceback.print_exc()
         return jsonify(success=False, error=str(e)), 500
