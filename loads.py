@@ -621,7 +621,10 @@ def add_load():
                     expo_token,
                     title=f"📦 Назначен новый груз {load_id_str}",
                     body=f"{pickup} → {delivery}",
-                    data={"load_id": str(load_data["_id"])},  # <-- ВАЖНО: строкой!
+                    data={
+                        "load_id": str(load_data.get("load_id") or ""),          # ← ключевой параметр для клиента
+                        "mongo_id": str(load_data.get("_id") or ""),              # (опционально) запасной
+                    },
                     priority="high",
                     channel_id="default",
                 )
