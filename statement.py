@@ -9,6 +9,8 @@ from bson.objectid import ObjectId
 from flask_login import login_required
 import hashlib
 from flask_login import login_required, current_user
+from typing import Optional
+from utils.notifications import send_push_notification
 
 statement_bp = Blueprint('statement', __name__)
 
@@ -1732,7 +1734,34 @@ def save_single_statement():
             "warning": f"Statement saved, but marking source docs failed: {mark_err}"
         })
 
+    # --- PUSH: уведомление водителю о подтверждённом стейтменте ---
+    try:
+        drv_push = drivers_col.find_one({"_id": driver_oid}, {"expo_push_token": 1})
+        expo = (drv_push or {}).get("expo_push_token")
+        if expo:
+            from utils.notifications import send_push_notification
+            try:
+                _net = float(doc.get("salary") or 0)
+            except Exception:
+                _net = 0.0
+            send_push_notification(
+                expo,
+                title="📑 Statement confirmed",
+                body=f"{week_range} • ${_net:.2f}",
+                data={
+                    "type": "statement",
+                    "statement_id": str(statement_id),
+                    "week_range": week_range
+                }
+            )
+    except Exception as _push_err:
+        # не ломаем основной поток
+        print("⚠️ Statement push failed:", _push_err)
+    # --- /PUSH ---
+
     return jsonify({"success": True, "status": status, "_id": str(statement_id)})
+
+
 
 
 @statement_bp.route("/api/statements/get_one", methods=["GET"])
@@ -1775,6 +1804,7 @@ def get_statement_one():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# Подтвердить неподтвержденный стейтмент 
 # Подтвердить неподтвержденный стейтмент 
 @statement_bp.route("/api/statements/confirm", methods=["POST"])
 @login_required
@@ -1976,12 +2006,44 @@ def confirm_statement():
         if exp_ids:
             col_exp.update_many({"_id": {"$in": exp_ids}}, {"$set": {"was_added_to_statement": True}})
 
+        # --- PUSH: уведомление водителю о подтверждении стейтмента ---
+        try:
+            stmt_fresh = col_stmt.find_one({"_id": to_oid(stmt_id)}, {"driver_id": 1, "week_range": 1, "salary": 1})
+            if stmt_fresh and stmt_fresh.get("driver_id"):
+                drv = db["drivers"].find_one({"_id": stmt_fresh["driver_id"]}, {"expo_push_token": 1})
+                expo = (drv or {}).get("expo_push_token")
+                if expo:
+                    from utils.notifications import send_push_notification
+                    try:
+                        _net = float(stmt_fresh.get("salary") or 0)
+                    except Exception:
+                        _net = 0.0
+                    send_push_notification(
+                        expo,
+                        title="📑 Statement confirmed",
+                        body=f"{stmt_fresh.get('week_range', '')} • ${_net:.2f}",
+                        data={
+                            "type": "statement",
+                            "statement_id": str(to_oid(stmt_id)),
+                            "week_range": stmt_fresh.get("week_range", "")
+                        }
+                    )
+        except Exception as _push_err:
+            # не ломаем основной поток
+            print("⚠️ Statement confirm push failed:", _push_err)
+        # --- /PUSH ---
+
         return jsonify({"success": True, "approved": True})
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+
+
 
 
 @statement_bp.route("/api/statements/delete", methods=["POST"])
@@ -2050,3 +2112,80 @@ def delete_statement():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    
+
+
+def send_statement_push_to_driver(
+    *,
+    driver_id: ObjectId,
+    week_range: str,
+    statement_id: Optional[ObjectId],
+    net_salary: Optional[float] = None,
+):
+    """
+    Находит expo_push_token водителя и шлёт пуш 'Statement confirmed'.
+    """
+    drivers_col = db["drivers"]
+
+    drv = drivers_col.find_one(
+        {"_id": driver_id, "company": current_user.company},
+        {"expo_push_token": 1, "name": 1}
+    )
+    if not drv:
+        print("⚠️ Driver not found or not in company")
+        return
+
+    token = (drv or {}).get("expo_push_token")
+    if not token:
+        print("⚠️ Driver has no expo_push_token")
+        return
+
+    title = "📑 Statement confirmed"
+    if net_salary is not None:
+        body = f"{week_range} • Net: ${net_salary:,.2f}"
+    else:
+        body = f"{week_range}"
+
+    data = {
+        "type": "statement",
+        "week_range": week_range,
+        "driver_id": str(driver_id),
+        "statement_id": str(statement_id) if statement_id else "",
+    }
+
+    # высокий приоритет и дефолтный канал
+    send_push_notification(
+        token,
+        title=title,
+        body=body,
+        data=data,
+        priority="high",
+        channel_id="default",
+    )
+    
+
+def _notify_statement_to_driver(driver_id, statement_id, week_range, title, body=None):
+    """
+    Универсальный пуш по стейтменту конкретному водителю.
+    Тихо игнорирует, если токена нет.
+    """
+    try:
+        drv = db["drivers"].find_one({"_id": ObjectId(driver_id)}, {"expo_push_token": 1, "name": 1})
+        token = (drv or {}).get("expo_push_token")
+        if not token:
+            return  # нечего отправлять
+
+        payload_body = body or f"Week: {week_range}"
+        # data используется мобильным приложением для навигации на детали стейтмента
+        send_push_notification(
+            token,
+            title=title,
+            body=payload_body,
+            data={
+                "type": "statement",
+                "statement_id": str(statement_id)
+            }
+        )
+    except Exception as notify_err:
+        # не ломаем основной поток, просто лог
+        print(f"⚠️ PUSH (statement) error: {notify_err}")
