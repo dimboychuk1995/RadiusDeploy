@@ -752,3 +752,36 @@ table .driver-row > td {
 }
 
 /* === ---------------------------- === */
+
+
+
+/* === ---------------------------- === */
+/* === dispatch schedule fragment === */
+
+/* Вертикальные линии только для #dispatch-schedule-table */
+#dispatch-schedule-table {
+  border-collapse: collapse; /* чтобы линии были ровные */
+}
+
+/* Включаем правую границу у каждой ячейки, горизонтали — выкл */
+#dispatch-schedule-table th,
+#dispatch-schedule-table td {
+  border-right: 1px solid #D0D7DE !important;
+  border-left: 0 !important;
+  border-top: 0 !important;
+  border-bottom: 0 !important;
+  padding: 8px 10px; /* опционально */
+}
+
+/* Левая внешняя граница у первой колонки */
+#dispatch-schedule-table th:first-child,
+#dispatch-schedule-table td:first-child {
+  border-left: 1px solid #D0D7DE !important;
+}
+
+#dispatch-schedule-table-name {
+  color: #ffffff;
+  font-size: larger;
+}
+
+/* === ---------------------------- === */

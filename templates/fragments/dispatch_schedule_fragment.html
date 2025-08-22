@@ -11,7 +11,7 @@
 </div>
 
 <div id="dispatch-table-wrapper">
-  <table class="table table-bordered table-sm text-center align-middle w-100">
+  <table id="dispatch-schedule-table" class="table table-bordered table-sm text-center align-middle w-100">
     <thead class="table-light">
       <tr>
         <th style="width: 12%;">Driver</th>
@@ -30,7 +30,7 @@
     <tbody>
       {% for dispatcher in dispatchers %}
         <tr class="table-dark dispatcher-header" data-dispatcher="{{ dispatcher.id }}" style="cursor: pointer;">
-          <td colspan="11">{{ dispatcher.username }}</td>
+          <td id="dispatch-schedule-table-name" colspan="11">{{ dispatcher.username }}</td>
         </tr>
         {% for driver in drivers if driver.dispatcher == dispatcher.id %}
           <tr class="driver-row" data-dispatcher="{{ dispatcher.id }}" data-driver-id="{{ driver.id }}">
