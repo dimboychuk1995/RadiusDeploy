@@ -248,84 +248,55 @@ function initDriverBreakFormListenerDispatch() {
 
 
 function bindLoadCellClicks() {
-  // CSS внутри JS
-  const style = document.createElement('style');
-  style.textContent = `
-    .selected-delivery {
-      background-color: #0d6efd !important;
-      color: white !important;
-    }
-    .selected-load-cell {
-      outline: 3px solid #0d6efd;
-      outline-offset: -3px;
-      border-radius: 4px;
-    }
-  `;
-  document.head.appendChild(style);
+  // CSS только для «чипов» грузов и их выбранного состояния
+  const styleId = 'dispatch-select-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      .delivery-chip {
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        line-height: 1.2;
+        display: inline-block;
+      }
+      .selected-delivery {
+        background-color: #0d6efd !important;
+        color: #fff !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
   let currentDriverId = null;
 
-  const allCells = document.querySelectorAll("td.load-cell");
-
-  allCells.forEach(cell => {
-    const row = cell.closest("tr.driver-row");
-    if (!row) return;
-    const driverId = row.dataset.driverId;
-    const hasDropdown = cell.querySelector(".dropdown");
-
-    if (!hasDropdown) {
-      // одиночная доставка
-      const text = cell.textContent.trim();
-      if (!text || cell.dataset.bound === "true") return;
-
-      cell.dataset.bound = "true";
-      cell.style.cursor = "pointer";
-
-      cell.addEventListener("click", () => {
-        // если переключили на другого водителя — сбросить всё
-        if (currentDriverId && currentDriverId !== driverId) {
-          clearAllSelections();
-        }
-        currentDriverId = driverId;
-
-        cell.classList.toggle("selected-load-cell");
-      });
-    }
-  });
-
-  // dropdown deliveries
+  // Больше не используем клики по всей ячейке — только по конкретным грузам
   document.querySelectorAll(".delivery-item").forEach(item => {
     if (item.dataset.bound === "true") return;
     item.dataset.bound = "true";
 
     item.addEventListener("click", e => {
-      e.preventDefault();
+      e.preventDefault?.();
       e.stopPropagation();
 
-      const cell = item.closest("td");
-      const row = cell.closest("tr.driver-row");
-      const driverId = row.dataset.driverId;
+      const row = item.closest("tr.driver-row");
+      const driverId = row?.dataset.driverId;
 
+      // Если переключились на другого водителя — очистить предыдущие выборы
       if (currentDriverId && currentDriverId !== driverId) {
         clearAllSelections();
       }
-      currentDriverId = driverId;
+      currentDriverId = driverId || null;
 
+      // Переключаем выбор ТОЛЬКО на этом грузе
       item.classList.toggle("selected-delivery");
 
-      const anySelected = cell.querySelectorAll(".selected-delivery").length > 0;
-      if (anySelected) {
-        cell.classList.add("selected-load-cell");
-      } else {
-        cell.classList.remove("selected-load-cell");
-      }
+      // НИКАКОЙ рамки у ячейки не ставим
     });
   });
 
   function clearAllSelections() {
-    document.querySelectorAll("td.load-cell").forEach(c => {
-      c.classList.remove("selected-load-cell");
-    });
     document.querySelectorAll(".delivery-item").forEach(i => {
       i.classList.remove("selected-delivery");
     });

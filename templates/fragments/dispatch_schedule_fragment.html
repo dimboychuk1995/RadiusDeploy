@@ -43,46 +43,27 @@
               {% set deliveries = driver_delivery_map.get((driver.id, date_str), []) %}
               {% set breaks = driver_break_map.get((driver.id, date_str)) %}
               <td class="load-cell" data-day="{{ i }}">
-                {% if deliveries|length == 1 %}
-                  {{ deliveries[0].location }}
-                  {% if deliveries[0].price is not none and deliveries[0].is_last %}
-                    ({{ '${:,.2f}'.format(deliveries[0].price) }})
-                  {% endif %}
-                  <span class="delivery-item d-none"
-                        data-load-id="{{ deliveries[0].load_id }}"
-                        data-driver-id="{{ driver.id }}"
-                        {% if deliveries[0].price is not none and deliveries[0].is_last %}
-                          data-amount="{{ deliveries[0].price }}"
-                        {% endif %}></span>
-                {% elif deliveries|length > 1 %}
-                  <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100" type="button" data-bs-toggle="dropdown">
-                      {{ deliveries|length }} deliveries
-                    </button>
-                    <ul class="dropdown-menu text-start">
-                      {% for d in deliveries %}
-                        <li>
-                          <a class="dropdown-item delivery-item"
-                             href="#"
-                             data-load-id="{{ d.load_id }}"
-                             data-driver-id="{{ driver.id }}"
-                             {% if d.price is not none and d.is_last %}
-                               data-amount="{{ d.price }}"
-                             {% endif %}>
-                            {{ d.location }}
-                            {% if d.price is not none and d.is_last %}
-                              ({{ '${:,.2f}'.format(d.price) }})
-                            {% endif %}
-                          </a>
-                        </li>
-                      {% endfor %}
-                    </ul>
-                  </div>
+                {# ── 1 или несколько грузов: видимые кликабельные элементы через " / " ── #}
+                {% if deliveries|length >= 1 %}
+                  {% for d in deliveries %}
+                    <span class="delivery-item delivery-chip"
+                          data-load-id="{{ d.load_id }}"
+                          data-driver-id="{{ driver.id }}"
+                          {% if d.price is not none and d.is_last %}
+                            data-amount="{{ d.price }}"
+                          {% endif %}>
+                      {{ d.location }}
+                      {% if d.price is not none and d.is_last %}
+                        ({{ '${:,.2f}'.format(d.price) }})
+                      {% endif %}
+                    </span>{% if not loop.last %} / {% endif %}
+                  {% endfor %}
                 {% endif %}
 
+                {# брейки без изменений #}
                 {% if breaks %}
                   <div class="text-danger fw-bold" title="{{ breaks|join(', ') }}">
-                      {{ breaks|join(', ') }}
+                    {{ breaks|join(', ') }}
                   </div>
                 {% endif %}
               </td>
