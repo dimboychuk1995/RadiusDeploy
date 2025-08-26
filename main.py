@@ -51,7 +51,7 @@ def start_scheduler():
     scheduler.add_job(
         func=import_super_dispatch_orders,
         trigger="interval",
-        minutes=60,
+        minutes=360,
         id="super_dispatch_import",
         replace_existing=True
     )

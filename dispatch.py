@@ -174,20 +174,45 @@ def dispatch_fragment():
 @dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
 @login_required
 def prep_consolidation():
+    """
+    Готовит данные для консолидации:
+    - Возвращает pickups/deliveries как раньше (совместимо с фронтом),
+      НО теперь каждая точка содержит поле 'order' — порядковый номер в общем маршруте.
+    - Дополнительно возвращает 'route_points' — объединённый список всех точек (pickup + delivery),
+      отсортированный по времени, с полем 'order'.
+    Правила сортировки:
+      1) Сначала точки с распознанной датой/временем (по возрастанию).
+      2) После — точки без даты (в исходном порядке добавления).
+    Поддерживаются даты в форматах:
+      - datetime (Mongo)
+      - ISO-строка (включая окончания 'Z')
+      - 'MM/DD/YYYY' и 'MM/DD/YYYY HH:MM'
+      - 'MM / DD / YYYY' (с пробелами вокруг '/')
+    """
     try:
-        data = request.get_json()
+        from bson import ObjectId
+        from flask import jsonify, request
+        from datetime import datetime
+
+        data = request.get_json(silent=True) or {}
         load_ids = data.get('load_ids', [])
         if not load_ids:
             return jsonify({"success": False, "error": "No load_ids provided"}), 400
 
-        object_ids = [ObjectId(id_) for id_ in load_ids]
+        # Защитное преобразование ObjectId
+        object_ids = []
+        for id_ in load_ids:
+            try:
+                object_ids.append(ObjectId(id_))
+            except Exception:
+                return jsonify({"success": False, "error": f"Invalid load_id: {id_}"}), 400
 
         # Получаем грузы
         loads = list(loads_collection.find(
             {'_id': {'$in': object_ids}},
             {
                 '_id': 1,
-                'load_id': 1,  # ← обязательно!
+                'load_id': 1,       # ← важно для отображения
                 'pickup': 1,
                 'delivery': 1,
                 'extra_pickup': 1,
@@ -198,56 +223,120 @@ def prep_consolidation():
                 'broker': 1,
                 'broker_id': 1,
                 'broker_load_id': 1,
-                'RPM': 1
+                'RPM': 1,
+                'total_miles': 1,
+                'company_sign': 1,
+                'assigned_driver': 1,
+                'assigned_dispatch': 1,
+                'assigned_power_unit': 1,
             }
         ))
+
+        # ---- helpers ----
+        def _norm_date_str(s: str) -> str:
+            # Привести 'MM / DD / YYYY' → 'MM/DD/YYYY'
+            if isinstance(s, str):
+                return s.replace(' / ', '/').strip()
+            return s
+
+        def _parse_dt(value):
+            """Вернёт (True, datetime) если удалось распарсить, иначе (False, None)."""
+            if not value:
+                return False, None
+            # Уже datetime
+            if isinstance(value, datetime):
+                return True, value
+
+            if isinstance(value, str):
+                s = _norm_date_str(value)
+
+                # ISO-строки, включая 'Z'
+                try:
+                    iso = s.replace('Z', '+00:00')
+                    return True, datetime.fromisoformat(iso)
+                except Exception:
+                    pass
+
+                # MM/DD/YYYY HH:MM
+                for fmt in ("%m/%d/%Y %H:%M", "%m/%d/%Y"):
+                    try:
+                        return True, datetime.strptime(s, fmt)
+                    except Exception:
+                        continue
+
+            return False, None
 
         pickup_points = []
         delivery_points = []
         result_loads = []
 
+        # Для общего маршрута собираем все точки с прикреплённым сортировочным ключом
+        all_points_for_sort = []  # каждый элемент: {point, sort_key_dt, has_dt}
+
         for load in loads:
-            load_id = str(load['_id'])
+            load_oid = str(load['_id'])
             price = float(load.get("total_price", load.get("price", 0)) or 0)
 
+            # ---- extra_pickup ----
             for ep in load.get('extra_pickup') or []:
-                pickup_points.append({
-                    "address": ep.get("address", ""),
-                    "scheduled_at": ep.get("scheduled_at", ""),
-                    "load_id": load_id,
-                    "price": price
-                })
+                point = {
+                    "type": "pickup",
+                    "address": ep.get("address", "") or "",
+                    "scheduled_at": ep.get("scheduled_at", "") or "",
+                    "load_id": load_oid,
+                    "price": price,
+                }
+                has_dt, dt = _parse_dt(point["scheduled_at"])
+                pickup_points.append(point)
+                all_points_for_sort.append({"point": point, "has_dt": has_dt, "dt": dt})
 
+            # ---- pickup ----
             pickup = load.get('pickup')
             if pickup:
-                pickup_points.append({
-                    "address": pickup.get("address", ""),
-                    "scheduled_at": pickup.get("date", ""),
-                    "load_id": load_id,
-                    "price": price
-                })
+                # в базе дата часто лежит в поле "date"
+                scheduled = pickup.get("date", "")
+                point = {
+                    "type": "pickup",
+                    "address": pickup.get("address", "") or "",
+                    "scheduled_at": scheduled or "",
+                    "load_id": load_oid,
+                    "price": price,
+                }
+                has_dt, dt = _parse_dt(point["scheduled_at"])
+                pickup_points.append(point)
+                all_points_for_sort.append({"point": point, "has_dt": has_dt, "dt": dt})
 
+            # ---- delivery ----
             delivery = load.get('delivery')
             if delivery:
-                delivery_points.append({
-                    "address": delivery.get("address", ""),
-                    "scheduled_at": delivery.get("date", ""),
-                    "load_id": load_id,
-                    "price": price
-                })
+                scheduled = delivery.get("date", "")
+                point = {
+                    "type": "delivery",
+                    "address": delivery.get("address", "") or "",
+                    "scheduled_at": scheduled or "",
+                    "load_id": load_oid,
+                    "price": price,
+                }
+                has_dt, dt = _parse_dt(point["scheduled_at"])
+                delivery_points.append(point)
+                all_points_for_sort.append({"point": point, "has_dt": has_dt, "dt": dt})
 
+            # ---- extra_delivery ----
             for ed in load.get('extra_delivery') or []:
-                delivery_points.append({
-                    "address": ed.get("address", ""),
-                    "scheduled_at": ed.get("scheduled_at", ""),
-                    "load_id": load_id,
-                    "price": price
-                })
+                point = {
+                    "type": "delivery",
+                    "address": ed.get("address", "") or "",
+                    "scheduled_at": ed.get("scheduled_at", "") or "",
+                    "load_id": load_oid,
+                    "price": price,
+                }
+                has_dt, dt = _parse_dt(point["scheduled_at"])
+                delivery_points.append(point)
+                all_points_for_sort.append({"point": point, "has_dt": has_dt, "dt": dt})
 
-            load_id = str(load['_id'])
-
+            # ---- echo load for table ----
             result_loads.append({
-                "_id": load_id,
+                "_id": load_oid,
                 "load_id": str(load.get("load_id", "")),
                 "broker_id": str(load.get("broker_id")) if load.get("broker_id") else "",
                 "company_sign": str(load.get("company_sign")) if load.get("company_sign") else "",
@@ -263,14 +352,49 @@ def prep_consolidation():
                 "price": load.get("price"),
                 "total_price": load.get("total_price"),
                 "RPM": load.get("RPM"),
-                "miles": load.get("total_miles")
+                "miles": load.get("total_miles"),
             })
+
+        # ---- сортировка общего маршрута и присвоение order ----
+        # Сортируем: сначала с датой (по dt), затем без даты (по исходному порядку)
+        # Ключ: (0/1, dt или минимально возможное)
+        def _sort_key(item):
+            if item["has_dt"] and item["dt"]:
+                return (0, item["dt"])
+            # без даты — в конец, стабильная сортировка сохранит исходный порядок
+            return (1, None)
+
+        all_points_for_sort.sort(key=_sort_key)
+
+        # Присвоим порядковые номера, начиная с 1
+        route_points = []
+        for idx, item in enumerate(all_points_for_sort, start=1):
+            p = item["point"]
+            p_with_order = {
+                **p,
+                "order": idx
+            }
+            route_points.append(p_with_order)
+
+        # Для совместимости — проставим order также в исходных массивах
+        # (без дополнительного копирования объектов, чтобы не расходились ссылки)
+        # Создадим быстрый индекс: (type, load_id, address, scheduled_at) -> order
+        def _k(p):
+            return (p.get("type"), p.get("load_id"), p.get("address"), p.get("scheduled_at"))
+
+        idx_map = {_k(p): p["order"] for p in route_points}
+
+        for arr, ptype in ((pickup_points, "pickup"), (delivery_points, "delivery")):
+            for pt in arr:
+                key = (ptype, pt.get("load_id"), pt.get("address"), pt.get("scheduled_at"))
+                pt["order"] = idx_map.get(key)
 
         # ✅ Возврат JSON-ответа
         return jsonify({
             "success": True,
             "pickup_points": pickup_points,
             "delivery_points": delivery_points,
+            "route_points": route_points,   # ← новый объединённый маршрут
             "loads": result_loads
         })
 

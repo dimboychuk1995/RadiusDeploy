@@ -380,11 +380,13 @@ function bindLoadContextMenuHandlers() {
   const excludeBtn = document.getElementById("excludeFromGrossBtn");
   const consolidateBtn = document.getElementById("consolidateLoadsBtn");
 
+  let selectedLoadCell = null;
+
   document.addEventListener("contextmenu", function (e) {
     const cell = e.target.closest(".load-cell");
     if (!cell) return;
 
-    // Проверка: есть ли груз внутри ячейки
+    // Проверка: есть ли внутри хоть что-то относящееся к грузам
     const hasDeliveryText = cell.textContent.trim() !== "";
     const hasDropdown = cell.querySelector(".dropdown");
     const hasDeliveryItem = cell.querySelector(".delivery-item");
@@ -394,20 +396,49 @@ function bindLoadContextMenuHandlers() {
     e.preventDefault();
     selectedLoadCell = cell;
 
-    // Собираем выделенные ячейки (для консолидации)
-    selectedConsolidationCells = Array.from(document.querySelectorAll(".load-cell.selected-load-cell"));
+    // --- ВАЖНО: считаем выделенные ЧИПЫ грузов, а не ячейки ---
+    const selectedDeliveries = Array.from(document.querySelectorAll(".delivery-item.selected-delivery"));
 
-    // Показываем/скрываем опцию "Консолидировать"
-    if (selectedConsolidationCells.length >= 1) {
-      consolidateBtn.style.display = "block";
-    } else {
-      consolidateBtn.style.display = "none";
-    }
+    // Уникальные load_id среди выбранных чипов
+    const uniqueLoadIds = Array.from(
+      new Set(
+        selectedDeliveries
+          .map(it => it.dataset.loadId)
+          .filter(Boolean)
+      )
+    );
 
-    // Показать меню у курсора
+    // Уникальные водители среди выбранных чипов
+    const uniqueDriverIds = Array.from(
+      new Set(
+        selectedDeliveries
+          .map(it => it.dataset.driverId)
+          .filter(Boolean)
+      )
+    );
+
+    // Водитель строки, по которой кликнули правой кнопкой
+    const clickedRow = cell.closest(".driver-row");
+    const clickedDriverId = clickedRow?.dataset.driverId || null;
+
+    // Условие: выбрано ≥2 разных грузов, все у одного водителя,
+    // и правый клик был в строке этого же водителя
+    const canConsolidate =
+      uniqueLoadIds.length >= 2 &&
+      uniqueDriverIds.length === 1 &&
+      clickedDriverId &&
+      uniqueDriverIds[0] === clickedDriverId;
+
+    // Показ/скрытие опции "Консолидировать грузы"
+    consolidateBtn.style.display = canConsolidate ? "block" : "none";
+
+    // Показ контекстного меню у курсора
     menu.style.top = `${e.pageY}px`;
     menu.style.left = `${e.pageX}px`;
     menu.style.display = "block";
+
+    // Сохраняем актуальный набор load_ids для обработчика кнопки
+    menu.dataset.consolidateLoadIds = JSON.stringify(uniqueLoadIds);
   });
 
   // Клик вне — закрываем меню
@@ -415,7 +446,7 @@ function bindLoadContextMenuHandlers() {
     menu.style.display = "none";
   });
 
-  // 🚫 Не учитывать в гросс
+  // 🚫 Не учитывать в гросс — помечаем именно ячейку, как и раньше
   excludeBtn.addEventListener("click", () => {
     if (!selectedLoadCell) return;
 
@@ -423,28 +454,22 @@ function bindLoadContextMenuHandlers() {
     selectedLoadCell.dataset.excludeFromGross = "true";
 
     console.log("🚫 Исключена ячейка из gross");
-
     menu.style.display = "none";
   });
 
-  // 🔗 Консолидировать грузы
+  // 🔗 Консолидировать грузы — используем load_ids из выбранных ЧИПов
   consolidateBtn.addEventListener("click", () => {
-    if (!selectedConsolidationCells.length) return;
+    const serialized = menu.dataset.consolidateLoadIds || "[]";
+    let allLoadIds = [];
+    try {
+      allLoadIds = JSON.parse(serialized);
+    } catch (e) {
+      allLoadIds = [];
+    }
 
-    const allLoadIds = [];
-
-    selectedConsolidationCells.forEach(cell => {
-      const deliveries = cell.querySelectorAll(".delivery-item[data-load-id]");
-      deliveries.forEach(item => {
-        const id = item.dataset.loadId;
-        if (id && !allLoadIds.includes(id)) {
-          allLoadIds.push(id);
-        }
-      });
-    });
+    if (!allLoadIds.length) return;
 
     console.log("🔗 Консолидация грузов:", allLoadIds);
-
     startConsolidationModal(allLoadIds);
 
     menu.style.display = "none";
@@ -477,6 +502,21 @@ function startConsolidationModal(loadIds) {
   modal.classList.add("show");
   backdrop.classList.add("show");
 
+  // Стили для бейджей порядка (один раз на страницу)
+  if (!document.getElementById("order-badge-styles")) {
+    const style = document.createElement("style");
+    style.id = "order-badge-styles";
+    style.textContent = `
+      .order-badge{
+        margin-left:8px;
+        display:inline-flex;align-items:center;justify-content:center;
+        min-width:20px;height:20px;padding:0 6px;border-radius:999px;
+        background:#0d6efd;color:#fff;font-weight:600;font-size:12px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   console.log("📤 Отправка запроса на /api/consolidation/prep с load_ids:", loadIds);
 
   fetch("/api/consolidation/prep", {
@@ -497,75 +537,70 @@ function startConsolidationModal(loadIds) {
       const deliveries = data.delivery_points || [];
       const loads = data.loads || [];
 
-      console.log("✅ Pickups:", pickups);
-      console.log("✅ Deliveries:", deliveries);
-      console.log("✅ Loads:", loads);
-
-      // Добавляем в списки
-      pickups.forEach(pick => {
+      // ➜ Рисуем списки с учётом order (если он пришёл)
+      const makeLi = (point) => {
         const li = document.createElement("li");
         li.className = "list-group-item";
-        li.textContent = pick.address;
-        li.dataset.id = pick.load_id;
-        pickupList.appendChild(li);
-      });
+        // Оставляем только адрес (как и раньше), не добавляя дату в текст,
+        // чтобы не ломать текущую логику извлечения scheduled_at.
+        li.textContent = point.address || "";
+        li.dataset.id = point.load_id || "";
+        if (point.order != null) {
+          li.dataset.order = String(point.order);
+          const badge = document.createElement("span");
+          badge.className = "order-badge";
+          badge.innerText = String(point.order);
+          li.appendChild(badge);
+        }
+        return li;
+      };
 
-      deliveries.forEach(del => {
-        const li = document.createElement("li");
-        li.className = "list-group-item";
-        li.textContent = del.address;
-        li.dataset.id = del.load_id;
-        deliveryList.appendChild(li);
-      });
+      pickups.forEach(p => pickupList.appendChild(makeLi(p)));
+      deliveries.forEach(d => deliveryList.appendChild(makeLi(d)));
 
-      if (pickups.length > 0 && deliveries.length > 0) {
-        saveBtn.style.display = "inline-block";
+      if (pickups.length > 0 || deliveries.length > 0) {
+        // Отрисовать таблицу грузов — без изменений
+        loads.forEach((load, idx) => {
+          const tr = document.createElement("tr");
+          const id = load._id || load.id || "—";
+          const broker = load.broker?.name || "—";
+          const price = parseFloat(load.total_price ?? load.price ?? 0);
+          const miles = parseFloat(load.miles ?? 0);
+          const rpm = miles ? (price / miles).toFixed(2) : "—";
+
+          const pickupAddresses = [
+            ...(load.extra_pickup || []),
+            ...(load.pickup ? [load.pickup] : [])
+          ].map(p => p.address).join(" → ") || "—";
+
+          const deliveryAddresses = [
+            ...(load.delivery ? [load.delivery] : []),
+            ...(load.extra_delivery || [])
+          ].map(d => d.address).join(" → ") || "—";
+
+          tr.innerHTML = `
+            <td>${id}</td>
+            <td>${broker}</td>
+            <td>${pickupAddresses}</td>
+            <td>${deliveryAddresses}</td>
+            <td>${rpm}</td>
+            <td>$${price.toFixed(2)}</td>
+          `;
+          loadsTableBody.appendChild(tr);
+        });
       }
 
-      // 🧾 Таблица грузов
-      if (loads.length === 0) {
-        console.warn("⚠️ Список loads пуст — таблица не будет отрисована.");
-      }
-
-      loads.forEach((load, idx) => {
-        console.log(`📦 Отрисовка груза #${idx + 1}:`, load);
-
-        const tr = document.createElement("tr");
-
-        const id = load._id || load.id || "—";
-        const broker = load.broker?.name || "—";
-        const price = parseFloat(load.total_price ?? load.price ?? 0);
-        const miles = parseFloat(load.miles ?? 0);
-        const rpm = miles ? (price / miles).toFixed(2) : "—";
-
-        const pickupAddresses = [
-          ...(load.extra_pickup || []),
-          ...(load.pickup ? [load.pickup] : [])
-        ].map(p => p.address).join(" → ") || "—";
-
-        const deliveryAddresses = [
-          ...(load.delivery ? [load.delivery] : []),
-          ...(load.extra_delivery || [])
-        ].map(d => d.address).join(" → ") || "—";
-
-        tr.innerHTML = `
-          <td>${id}</td>
-          <td>${broker}</td>
-          <td>${pickupAddresses}</td>
-          <td>${deliveryAddresses}</td>
-          <td>${rpm}</td>
-          <td>$${price.toFixed(2)}</td>
-        `;
-        loadsTableBody.appendChild(tr);
-      });
       renderConsolidatedLoadsTable(loads);
       initSortableListsDispatch();
-      setupPointClickOrderingDispatch();
+
+      // ⬇️ ВАЖНО: инициализируем обработчики кликов с автосидированием порядка из бэка
+      setupPointClickOrderingDispatch(true);
     })
     .catch(err => {
       console.error("❌ Ошибка при получении грузов для консолидации:", err);
     });
 }
+
 
 function closeConsolidationModalDispatch() {
   document.getElementById("consolidationModalDispatch").classList.remove("show");
@@ -616,43 +651,78 @@ function renderConsolidatedLoadsTable(loads) {
   });
 }
 
-function setupPointClickOrderingDispatch() {
-  const allItems = document.querySelectorAll('#pickupListDispatch li, #deliveryListDispatch li');
-  const selectionOrder = [];
+function setupPointClickOrderingDispatch(seedFromBackend = false) {
+  const allItems = Array.from(document.querySelectorAll('#pickupListDispatch li, #deliveryListDispatch li'));
   const saveBtn = document.getElementById('saveConsolidationBtnDispatch');
-  saveBtn.style.display = 'none';
 
+  // Текущее выбранное упорядочивание
+  const selectionOrder = [];
+
+  // Проставляет бейджи согласно текущему selectionOrder
+  function redrawBadges() {
+    // Снимаем старые бейджи
+    allItems.forEach(li => li.querySelector('.order-badge')?.remove());
+    // Рендерим новые по порядку selectionOrder
+    selectionOrder.forEach((li, idx) => {
+      const badge = document.createElement('span');
+      badge.className = 'order-badge';
+      badge.innerText = String(idx + 1);
+      li.appendChild(badge);
+    });
+  }
+
+  // ——— Автосидирование из бэка (если order пришёл) ———
+  if (seedFromBackend) {
+    const withOrder = allItems.filter(li => li.dataset.order != null && li.dataset.order !== "");
+    const withoutOrder = allItems.filter(li => !(li.dataset.order != null && li.dataset.order !== ""));
+
+    // Сортируем элементы с order по возрастанию
+    withOrder.sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order));
+
+    // Наполняем selectionOrder сначала бэковским порядком, далее — как кликнут пользователь
+    withOrder.forEach(li => selectionOrder.push(li));
+
+    // Отрисовываем бейджи 1..N согласно текущему selectionOrder
+    redrawBadges();
+
+    // Если бэк дал порядок на все точки — сразу показываем кнопку "Сохранить"
+    saveBtn.style.display = (selectionOrder.length === allItems.length) ? 'inline-block' : 'none';
+
+    // Остальные остаются без номера до клика пользователя
+    // (никаких бейджей не добавляем для них на этом шаге)
+  } else {
+    // По умолчанию — скрыть кнопку, пока пользователь не отметит все точки
+    saveBtn.style.display = 'none';
+  }
+
+  // ——— Логика кликов пользователя (добавить/удалить из порядка) ———
   allItems.forEach(item => {
     item.addEventListener('click', () => {
-      const existingIndex = selectionOrder.indexOf(item);
-      if (existingIndex !== -1) {
-        selectionOrder.splice(existingIndex, 1);
-        item.querySelector('.order-badge')?.remove();
+      const i = selectionOrder.indexOf(item);
+      if (i !== -1) {
+        // Удаляем из порядка
+        selectionOrder.splice(i, 1);
       } else {
+        // Добавляем в конец
         selectionOrder.push(item);
-        const badge = document.createElement('span');
-        badge.className = 'order-badge';
-        badge.innerText = selectionOrder.length;
-        item.appendChild(badge);
       }
 
-      selectionOrder.forEach((el, idx) => {
-        const badge = el.querySelector('.order-badge');
-        if (badge) badge.innerText = idx + 1;
-      });
-
+      redrawBadges();
       saveBtn.style.display = selectionOrder.length === allItems.length ? 'inline-block' : 'none';
     });
   });
 
+  // ——— Кнопка "Сохранить": формируем payload из selectionOrder ———
   saveBtn.addEventListener('click', () => {
     const result = selectionOrder.map(li => ({
+      // адрес оставляем как раньше
       address: li.innerText.replace(/\s+—\s+\d{2}\/\d{2}\/\d{4}$/, '').trim(),
+      // пытаемся выдернуть дату из текста, как и было
       scheduled_at: li.innerText.match(/\d{2}\/\d{2}\/\d{4}$/)?.[0],
       load_id: li.dataset.id
     }));
-    const loadIds = [...new Set(result.map(p => p.load_id))];
-    submitConsolidationOrderDispatch(result, loadIds);
+
+    submitConsolidationOrderDispatch(result);
   });
 }
 
