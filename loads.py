@@ -180,7 +180,7 @@ def ask_gpt(content):
     {{
       "Company": "Costco",
       "Address": "321 Pine Ave, Charlotte, NC",
-      "date_from": "06/05/2025",
+      "date": "06/05/2025",
       "date_to": "06/06/2025",
       "time_from": "10:00 AM",
       "time_to": "02:00 PM",
@@ -262,7 +262,7 @@ Use the following logic depending on what kind of date/time information is prese
   - "appointment": false
 
 - If both a date range and time range are provided:
-  - "date_from": "MM/DD/YYYY"
+  - "date": "MM/DD/YYYY"
   - "date_to": "MM/DD/YYYY"
   - "time_from": "hh:mm AM/PM"
   - "time_to": "hh:mm AM/PM"
@@ -282,7 +282,7 @@ Use the following logic depending on what kind of date/time information is prese
 - Do NOT confuse the general document date (e.g., date issued, usually near the top of the document) with the pickup/delivery dates.
 - Pickup and delivery dates/times are typically located next to each stop, and must be extracted separately for each.
 
-- Never use capitalized "Date" or "Time" — always use lowercase: date, date_to, date_from, time_from, time_to.
+- Never use capitalized "Date" or "Time" — always use lowercase: date, date_to, date, time_from, time_to.
 
 📌 SPECIAL INSTRUCTIONS LOGIC:
 - Instructions may appear throughout the document — at the top, bottom, or near specific stops.
