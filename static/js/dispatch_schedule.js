@@ -528,60 +528,32 @@ function startConsolidationModal(loadIds) {
     const loads = data.loads || [];
     const routePoints = (data.route_points && Array.isArray(data.route_points))
       ? data.route_points
-      : [
-          ...(data.pickup_points || []),
-          ...(data.delivery_points || [])
-        ].sort((a,b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+      : [];
 
-    // По oid → объект груза
-    const loadByOid = {};
-    loads.forEach(l => { loadByOid[String(l._id)] = l; });
-
-    // Надёжный форматтер: ISO (из бэка) + запасные варианты
-    function fmtDt(raw) {
-      if (!raw) return { date:"—", time:"" };
-      let m = moment(raw, moment.ISO_8601, true);
-      if (!m.isValid()) m = moment(raw, "ddd, DD MMM YYYY HH:mm:ss [GMT]", true); // RFC fallback
-      if (!m.isValid()) m = moment(new Date(raw)); // максимально терпимый fallback
-      if (!m.isValid()) return { date:String(raw), time:"" };
-      return { date: m.format("MM/DD/YYYY"), time: m.format("HH:mm") };
-    }
+    // oid → объект груза
+    const byOid = {};
+    loads.forEach(l => { byOid[String(l._id)] = l; });
 
     const typeLabel = t => t === "pickup" ? "Пикап" : "Доставка";
-    const safeBrokerName = b => {
-      if (!b) return "—";
-      if (typeof b === "string") return b;
-      if (typeof b === "object" && b.name) return b.name;
-      return "—";
-    };
+    const safeBrokerName = b => (b && typeof b === "object" && b.name) ? b.name : (typeof b === "string" ? b : "—");
 
+    // строим список
     routePoints.forEach(pt => {
       const li = document.createElement("li");
       li.className = "list-group-item route-item";
 
-      const load = loadByOid[String(pt.load_id)] || {};
+      const load = byOid[String(pt.load_id)] || {};
       const brokerName = safeBrokerName(load.broker);
-      const loadNum = load.load_id || load.broker_load_id || "—";  // ← показываем load_id, НЕ _id
-
-      const start = fmtDt(pt.scheduled_at);
-      const end   = fmtDt(pt.scheduled_to || pt.scheduled_end || "");
-
-      const datePart = (end.date && end.date !== "—" && end.date !== start.date)
-        ? `${start.date} – ${end.date}`
-        : start.date;
-
-      const timePart = (end.time && end.time !== start.time)
-        ? `${start.time || "—"} – ${end.time}`
-        : (start.time || "");
+      const loadNum = load.load_id || load.broker_load_id || "—"; // показываем load_id
 
       const left = document.createElement("div");
       left.className = "route-line";
       left.innerHTML = `
         <span class="addr"><strong>${pt.address || "—"}</strong></span>
         <span class="muted">—</span>
-        <span class="date">${datePart}</span>
+        <span class="date">${pt.date_text || "—"}</span>
         <span class="muted">—</span>
-        <span class="time">${timePart || "—"}</span>
+        <span class="time">${pt.time_text || ""}</span>
         <span class="muted">—</span>
         <span class="chip">${typeLabel(pt.type)}</span>
         <span class="muted">—</span>
@@ -598,16 +570,20 @@ function startConsolidationModal(loadIds) {
         li.dataset.order = String(pt.order);
       }
 
-      li.dataset.id = String(pt.load_id || "");           // для submit (oid)
+      // данные для последующего submit
+      li.dataset.id = String(pt.load_id || "");                 // OID для бэка
       li.dataset.address = String(pt.address || "");
-      li.dataset.scheduledAt = String(pt.scheduled_at || "");
-      li.dataset.type = String(pt.type || "");
+      li.dataset.dateFromIso = String(pt.date_from_iso || "");
+      li.dataset.dateToIso   = String(pt.date_to_iso || "");
+      li.dataset.timeFrom    = String(pt.time_from || "");
+      li.dataset.timeTo      = String(pt.time_to || "");
+      li.dataset.type        = String(pt.type || "");
 
       li.appendChild(left);
       routeList.appendChild(li);
     });
 
-    // Таблица грузов — как была (без обязательной правки)
+    // таблица грузов (как есть)
     loads.forEach(load => {
       const tr = document.createElement("tr");
       const pickupAddresses = [
@@ -623,7 +599,7 @@ function startConsolidationModal(loadIds) {
       const rpm = miles ? (price / miles).toFixed(2) : "—";
 
       tr.innerHTML = `
-        <td>${load._id || load.id || "—"}</td>
+        <td>${load.load_id || load.broker_load_id || load._id || "—"}</td>  <!-- показ: load_id -->
         <td>${safeBrokerName(load.broker)}</td>
         <td>${pickupAddresses}</td>
         <td>${deliveryAddresses}</td>
@@ -652,10 +628,40 @@ function initSortableListsDispatch() {
   const list = document.getElementById("routeListDispatch");
   if (!list) return;
 
+  // Первичная нумерация по текущему DOM-порядку
+  renumberRouteList();
+
   new Sortable(list, {
     animation: 150,
-    ghostClass: "sortable-ghost"
+    ghostClass: "sortable-ghost",
+    onSort() {
+      renumberRouteList(); // обновить цифры после любого dnd
+    },
+    onEnd() {
+      renumberRouteList(); // на всякий случай
+    }
   });
+}
+
+function renumberRouteList() {
+  const list = document.getElementById("routeListDispatch");
+  const items = Array.from(list?.querySelectorAll("li.list-group-item.route-item") || []);
+  const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
+
+  items.forEach((li, idx) => {
+    li.dataset.order = String(idx + 1);
+    // удалить старый бейдж
+    li.querySelector(".order-badge")?.remove();
+    // добавить новый бейдж в конец левой части
+    const badge = document.createElement("span");
+    badge.className = "order-badge";
+    badge.textContent = String(idx + 1);
+    li.querySelector(".route-line")?.appendChild(badge);
+  });
+
+  if (saveBtn) {
+    saveBtn.style.display = items.length ? "inline-block" : "none";
+  }
 }
 
 
@@ -692,52 +698,27 @@ function renderConsolidatedLoadsTable(loads) {
   });
 }
 
-function setupPointClickOrderingDispatch(seedFromBackend = false) {
-  const allItems = Array.from(document.querySelectorAll('#routeListDispatch li'));
-  const saveBtn = document.getElementById('saveConsolidationBtnDispatch');
+function setupPointClickOrderingDispatch() {
+  const list = document.getElementById("routeListDispatch");
+  const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
+  if (!list || !saveBtn) return;
 
-  const selectionOrder = [];
+  // Нумерация уже делает initSortableListsDispatch → renumberRouteList()
 
-  function redrawBadges() {
-    allItems.forEach(li => li.querySelector('.order-badge')?.remove());
-    selectionOrder.forEach((li, idx) => {
-      const badge = document.createElement('span');
-      badge.className = 'order-badge';
-      badge.innerText = String(idx + 1);
-      // вставляем в конец левой части
-      li.querySelector('.route-line')?.appendChild(badge);
-    });
-  }
+  saveBtn.onclick = () => {
+    const items = Array.from(list.querySelectorAll("li.list-group-item.route-item"));
 
-  if (seedFromBackend) {
-    const withOrder = allItems.filter(li => li.dataset.order);
-    withOrder.sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order));
-    withOrder.forEach(li => selectionOrder.push(li));
-    redrawBadges();
-    saveBtn.style.display = (selectionOrder.length === allItems.length) ? 'inline-block' : 'none';
-  } else {
-    saveBtn.style.display = 'none';
-  }
-
-  allItems.forEach(item => {
-    item.addEventListener('click', () => {
-      const i = selectionOrder.indexOf(item);
-      if (i !== -1) selectionOrder.splice(i, 1);
-      else selectionOrder.push(item);
-
-      redrawBadges();
-      saveBtn.style.display = selectionOrder.length === allItems.length ? 'inline-block' : 'none';
-    });
-  });
-
-  saveBtn.addEventListener('click', () => {
-    const result = selectionOrder.map(li => ({
-      address: li.dataset.address,
-      scheduled_at: li.dataset.scheduledAt,
-      load_id: li.dataset.id
+    // Формируем orderedPoints в текущем порядке
+    const orderedPoints = items.map(li => ({
+      address: li.dataset.address || "",
+      // отдаём начало окна как scheduled_at (совместимо с текущим /save)
+      scheduled_at: li.dataset.dateFromIso || li.dataset.scheduledAt || "",
+      load_id: li.dataset.id || ""
+      // при необходимости можно расширить: date_to_iso, time_from, time_to, type
     }));
-    submitConsolidationOrderDispatch(result);
-  });
+
+    submitConsolidationOrderDispatch(orderedPoints);
+  };
 }
 
 

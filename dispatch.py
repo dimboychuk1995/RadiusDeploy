@@ -176,19 +176,22 @@ def dispatch_fragment():
 def prep_consolidation():
     """
     Готовит данные для консолидации.
-    Новое:
-      - Все даты/время приводим к таймзоне компании.
-      - В выдаче поля scheduled_at / scheduled_to — ISO в локальной TZ компании.
-      - Точки получают поле 'order' (как раньше).
+    На выходе у каждой точки:
+      - type: 'pickup' | 'delivery'
+      - address, load_id (OID строки в БД)
+      - date_from_iso, date_to_iso  (локальная TZ компании, ISO-строки или "")
+      - time_from, time_to          (как есть, строки или "")
+      - date_text, time_text        (готовые строки для UI)
+      - order                       (порядковый номер в маршруте)
+    Также возвращаем loads (с полем load_id для показа).
     """
     try:
         from bson import ObjectId
         from flask import jsonify, request
-        from datetime import datetime, timezone
+        from datetime import datetime, time
         from zoneinfo import ZoneInfo
-        from email.utils import parsedate_to_datetime
 
-        # --- TZ компании (как в dispatch_schedule) ---
+        # --- TZ компании как в dispatch_schedule.py ---
         def get_company_timezone():
             doc = db.company_timezone.find_one({}) or {}
             name = doc.get("timezone", "America/Chicago")
@@ -197,148 +200,173 @@ def prep_consolidation():
             except Exception:
                 return ZoneInfo("America/Chicago")
 
-        tz = get_company_timezone()  # ← локальная TZ компании (например America/Chicago) :contentReference[oaicite:0]{index=0}
+        tz = get_company_timezone()  # локальная TZ компании:contentReference[oaicite:1]{index=1}
 
         data = request.get_json(silent=True) or {}
-        load_ids = data.get('load_ids', [])
-        if not load_ids:
+        raw_ids = data.get('load_ids', [])
+        if not raw_ids:
             return jsonify({"success": False, "error": "No load_ids provided"}), 400
 
         object_ids = []
-        for id_ in load_ids:
-            object_ids.append(ObjectId(id_))
+        for s in raw_ids:
+            object_ids.append(ObjectId(s))
 
         loads = list(loads_collection.find(
             {'_id': {'$in': object_ids}},
             {
-                '_id': 1,
-                'load_id': 1,
-                'pickup': 1,
-                'delivery': 1,
-                'extra_pickup': 1,
-                'extra_delivery': 1,
-                'price': 1,
-                'total_price': 1,
-                'miles': 1,
-                'broker': 1,
-                'broker_id': 1,
-                'broker_load_id': 1,
-                'RPM': 1,
-                'total_miles': 1,
-                'company_sign': 1,
-                'assigned_driver': 1,
-                'assigned_dispatch': 1,
-                'assigned_power_unit': 1,
+                '_id': 1, 'load_id': 1,
+                'pickup': 1, 'delivery': 1,
+                'extra_pickup': 1, 'extra_delivery': 1,
+                'price': 1, 'total_price': 1,
+                'miles': 1, 'total_miles': 1,
+                'broker': 1, 'broker_id': 1, 'broker_load_id': 1,
+                'RPM': 1, 'company_sign': 1,
+                'assigned_driver': 1, 'assigned_dispatch': 1, 'assigned_power_unit': 1,
             }
         ))
 
-        # ---- helpers ----
-        def _parse_any_dt(v):
-            """Парсим что угодно: datetime / ISO / RFC 2822 ('Mon, 25 Aug 2025 ... GMT') / MM/DD/YYYY[ HH:MM]."""
-            if isinstance(v, datetime):
-                return v
-            if not v:
+        # ---------- helpers ----------
+        def _to_local_dt(dt_val):
+            """Любой datetime → локальная TZ компании; Naive трактуем как локальную."""
+            if not dt_val:
                 return None
-            s = str(v).strip()
-
-            # 1) RFC 2822 / email utils (Mon, 25 Aug 2025 05:00:00 GMT)
-            try:
-                dt = parsedate_to_datetime(s)
-                if isinstance(dt, datetime):
-                    return dt
-            except Exception:
-                pass
-
-            # 2) ISO8601
-            try:
-                iso = s.replace('Z', '+00:00')
-                return datetime.fromisoformat(iso)
-            except Exception:
-                pass
-
-            # 3) MM/DD/YYYY HH:MM or MM/DD/YYYY
-            for fmt in ("%m/%d/%Y %H:%M", "%m/%d/%Y"):
+            if isinstance(dt_val, str):
+                s = dt_val.strip()
+                # ISO
                 try:
-                    return datetime.strptime(s, fmt)
+                    s_iso = s.replace('Z', '+00:00')
+                    dt = datetime.fromisoformat(s_iso)
+                except Exception:
+                    dt = None
+                # MM/DD/YYYY[ HH:MM]
+                if dt is None:
+                    for fmt in ("%m/%d/%Y %H:%M", "%m/%d/%Y"):
+                        try:
+                            dt = datetime.strptime(s, fmt)
+                            break
+                        except Exception:
+                            continue
+                if dt is None:
+                    return None
+            else:
+                dt = dt_val
+
+            if dt.tzinfo is None:
+                # считаем, что наивная уже в локальной TZ компании
+                return dt.replace(tzinfo=tz)
+            return dt.astimezone(tz)
+
+        def _parse_time(s):
+            """Строка времени → time или None. Поддержка 'HH:MM', 'H:MM', 'h:mm AM/PM'."""
+            if not s or not isinstance(s, str):
+                return None
+            s = s.strip().lower()
+            for fmt in ("%H:%M", "%I:%M %p", "%I %p"):
+                try:
+                    return datetime.strptime(s.upper(), fmt).time()
                 except Exception:
                     continue
+            # допускаем 'HH' без минут
+            try:
+                hh = int(s)
+                if 0 <= hh <= 23:
+                    return time(hh, 0)
+            except Exception:
+                pass
             return None
 
-        def _to_company_iso(v):
-            """→ (iso_str, dt_local) в TZ компании; если даты нет — ('', None)."""
-            dt = _parse_any_dt(v)
-            if not dt:
-                return "", None
-            if dt.tzinfo is None:
-                # трактуем наивную как локальную компанию (ключевой момент)
-                dt_local = dt.replace(tzinfo=tz)
-            else:
-                dt_local = dt.astimezone(tz)
-            return dt_local.isoformat(), dt_local
+        def _mk_text_date(d1, d2):
+            if d1 and d2 and d2.date() != d1.date():
+                return f"{d1.strftime('%m/%d/%Y')} – {d2.strftime('%m/%d/%Y')}"
+            if d1:
+                return d1.strftime("%m/%d/%Y")
+            if d2:
+                return d2.strftime("%m/%d/%Y")
+            return "—"
 
-        pickup_points, delivery_points, result_loads = [], [], []
-        sortable = []  # {point, has_dt, dt}
+        def _mk_text_time(t1, t2):
+            def f(t): return t.strftime("%H:%M")
+            if t1 and t2 and (t1 != t2):
+                return f"{f(t1)} – {f(t2)}"
+            if t1:
+                return f(t1)
+            if t2:
+                return f(t2)
+            return ""
+
+        def _extract_point(pt_type, node, load_oid, price):
+            """
+            Универсальный экстрактор полей из pickup/delivery и extra_*.
+            Поддерживает поля:
+              date / scheduled_at   (datetime/str)
+              date_to / scheduled_to (datetime/str)
+              time_from / time_to   (str)
+            """
+            date_from_raw = node.get("date", node.get("scheduled_at"))
+            date_to_raw   = node.get("date_to", node.get("scheduled_to"))
+            time_from_str = node.get("time_from", "") or ""
+            time_to_str   = node.get("time_to", "") or ""
+
+            d1_local = _to_local_dt(date_from_raw)
+            d2_local = _to_local_dt(date_to_raw)
+
+            # Для сортировки пытаемся добавить время к началу
+            tf = _parse_time(time_from_str)
+            sort_dt = d1_local
+            if d1_local and tf:
+                sort_dt = d1_local.replace(hour=tf.hour, minute=tf.minute, second=0, microsecond=0)
+
+            point = {
+                "type": pt_type,
+                "address": node.get("address", "") or "",
+                "load_id": load_oid,
+                "price": float(price),
+                "date_from_iso": d1_local.isoformat() if d1_local else "",
+                "date_to_iso":   d2_local.isoformat() if d2_local else "",
+                "time_from": time_from_str,
+                "time_to":   time_to_str,
+                "date_text": _mk_text_date(d1_local, d2_local),
+                "time_text": _mk_text_time(_parse_time(time_from_str), _parse_time(time_to_str)),
+                # Для обратной совместимости:
+                "scheduled_at": d1_local.isoformat() if d1_local else "",
+            }
+            return point, sort_dt
+
+        pickup_points, delivery_points, sortable = [], [], []
+        result_loads = []
 
         for load in loads:
-            oid = str(load['_id'])
+            oid = str(load["_id"])
             price = float(load.get("total_price", load.get("price", 0)) or 0)
 
             # extra_pickup
-            for ep in load.get('extra_pickup') or []:
-                sched_iso, sched_dt = _to_company_iso(ep.get("scheduled_at", ""))
-                p = {
-                    "type": "pickup",
-                    "address": ep.get("address", "") or "",
-                    "scheduled_at": sched_iso,
-                    "load_id": oid,
-                    "price": price
-                }
+            for ep in (load.get("extra_pickup") or []):
+                p, sort_dt = _extract_point("pickup", ep, oid, price)
                 pickup_points.append(p)
-                sortable.append({"point": p, "has_dt": bool(sched_dt), "dt": sched_dt})
+                sortable.append((p, sort_dt))
 
             # pickup
-            if load.get('pickup'):
-                sched_iso, sched_dt = _to_company_iso(load['pickup'].get("date", ""))
-                p = {
-                    "type": "pickup",
-                    "address": load['pickup'].get("address", "") or "",
-                    "scheduled_at": sched_iso,
-                    "load_id": oid,
-                    "price": price
-                }
+            if load.get("pickup"):
+                p, sort_dt = _extract_point("pickup", load["pickup"], oid, price)
                 pickup_points.append(p)
-                sortable.append({"point": p, "has_dt": bool(sched_dt), "dt": sched_dt})
+                sortable.append((p, sort_dt))
 
             # delivery
-            if load.get('delivery'):
-                sched_iso, sched_dt = _to_company_iso(load['delivery'].get("date", ""))
-                p = {
-                    "type": "delivery",
-                    "address": load['delivery'].get("address", "") or "",
-                    "scheduled_at": sched_iso,
-                    "load_id": oid,
-                    "price": price
-                }
+            if load.get("delivery"):
+                p, sort_dt = _extract_point("delivery", load["delivery"], oid, price)
                 delivery_points.append(p)
-                sortable.append({"point": p, "has_dt": bool(sched_dt), "dt": sched_dt})
+                sortable.append((p, sort_dt))
 
             # extra_delivery
-            for ed in load.get('extra_delivery') or []:
-                sched_iso, sched_dt = _to_company_iso(ed.get("scheduled_at", ""))
-                p = {
-                    "type": "delivery",
-                    "address": ed.get("address", "") or "",
-                    "scheduled_at": sched_iso,
-                    "load_id": oid,
-                    "price": price
-                }
+            for ed in (load.get("extra_delivery") or []):
+                p, sort_dt = _extract_point("delivery", ed, oid, price)
                 delivery_points.append(p)
-                sortable.append({"point": p, "has_dt": bool(sched_dt), "dt": sched_dt})
+                sortable.append((p, sort_dt))
 
-            # echo load
+            # инфо о грузе (для таблицы и UI): используем load_id для показа
             result_loads.append({
-                "_id": oid,
-                "load_id": str(load.get("load_id", "")),  # ← Номер груза для отображения
+                "_id": oid,                         # OID для backend операций
+                "load_id": str(load.get("load_id", "")),   # Номер груза для UI
                 "broker_id": str(load.get("broker_id")) if load.get("broker_id") else "",
                 "company_sign": str(load.get("company_sign")) if load.get("company_sign") else "",
                 "assigned_driver": str(load.get("assigned_driver")) if load.get("assigned_driver") else "",
@@ -356,20 +384,21 @@ def prep_consolidation():
                 "miles": load.get("total_miles"),
             })
 
-        # сортировка: сначала с датой, потом без (в исходном порядке)
-        sortable.sort(key=lambda it: (0, it["dt"]) if it["has_dt"] and it["dt"] else (1, None))
+        # сортировка (сначала с валидным sort_dt, затем без)
+        sortable.sort(key=lambda x: (0, x[1]) if x[1] is not None else (1, None))
 
-        # присваиваем order и строим route_points
         route_points = []
-        for idx, it in enumerate(sortable, start=1):
-            p = {**it["point"], "order": idx}
-            route_points.append(p)
+        for idx, (p, _) in enumerate(sortable, start=1):
+            rp = {**p, "order": idx}
+            route_points.append(rp)
 
-        # также проставим order внутри pickup_points/delivery_points
-        idx_map = {(p["type"], p["load_id"], p["address"], p["scheduled_at"]): p["order"] for p in route_points}
-        for arr, typ in ((pickup_points, "pickup"), (delivery_points, "delivery")):
+        # проставим order обратно в pickup_points/delivery_points
+        idx_map = {(p["type"], p["load_id"], p["address"], p["date_from_iso"], p["date_to_iso"], p["time_from"], p["time_to"]): p["order"]
+                   for p in route_points}
+        for arr in (pickup_points, delivery_points):
             for pt in arr:
-                pt["order"] = idx_map.get((typ, pt["load_id"], pt["address"], pt["scheduled_at"]))
+                key = (pt["type"], pt["load_id"], pt["address"], pt["date_from_iso"], pt["date_to_iso"], pt["time_from"], pt["time_to"])
+                pt["order"] = idx_map.get(key)
 
         return jsonify({
             "success": True,
@@ -378,6 +407,7 @@ def prep_consolidation():
             "route_points": route_points,
             "loads": result_loads
         })
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
