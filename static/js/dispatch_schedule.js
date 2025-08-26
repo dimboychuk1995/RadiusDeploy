@@ -491,20 +491,25 @@ function startConsolidationModal(loadIds) {
   const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
   const loadsTableBody = document.getElementById("consolidatedLoadsBody");
 
+  // Очистка
   routeList.innerHTML = "";
   loadsTableBody.innerHTML = "";
-  saveBtn.style.display = "none";
+  if (saveBtn) saveBtn.style.display = "none";
 
+  // Показ модалки
   modal.classList.add("show");
   backdrop.classList.add("show");
 
+  // Стили (если ещё не добавлялись)
   if (!document.getElementById("order-badge-styles")) {
     const style = document.createElement("style");
     style.id = "order-badge-styles";
     style.textContent = `
-      .order-badge{ margin-left:8px; display:inline-flex; align-items:center; justify-content:center;
+      .order-badge{
+        margin-left:8px; display:inline-flex; align-items:center; justify-content:center;
         min-width:20px; height:20px; padding:0 6px; border-radius:999px;
-        background:#0d6efd; color:#fff; font-weight:600; font-size:12px; }
+        background:#0d6efd; color:#fff; font-weight:600; font-size:12px;
+      }
       .route-line{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
       .route-line .muted{ color:#6c757d; }
       .route-line .chip{ padding:2px 8px; border-radius:12px; background:#eef2ff; color:#374151; }
@@ -513,6 +518,13 @@ function startConsolidationModal(loadIds) {
     document.head.appendChild(style);
   }
 
+  // Хелперы отображения
+  const typeLabel = t => t === "pickup" ? "Пикап" : "Доставка";
+  const safeBrokerName = b =>
+    (b && typeof b === "object" && b.name) ? b.name :
+    (typeof b === "string" ? b : "—");
+
+  // Запрос к бэку
   fetch("/api/consolidation/prep", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -526,25 +538,20 @@ function startConsolidationModal(loadIds) {
     }
 
     const loads = data.loads || [];
-    const routePoints = (data.route_points && Array.isArray(data.route_points))
-      ? data.route_points
-      : [];
+    const routePoints = Array.isArray(data.route_points) ? data.route_points : [];
 
-    // oid → объект груза
+    // Индекс груза по OID
     const byOid = {};
     loads.forEach(l => { byOid[String(l._id)] = l; });
 
-    const typeLabel = t => t === "pickup" ? "Пикап" : "Доставка";
-    const safeBrokerName = b => (b && typeof b === "object" && b.name) ? b.name : (typeof b === "string" ? b : "—");
-
-    // строим список
+    // Список маршрута
     routePoints.forEach(pt => {
       const li = document.createElement("li");
       li.className = "list-group-item route-item";
 
       const load = byOid[String(pt.load_id)] || {};
       const brokerName = safeBrokerName(load.broker);
-      const loadNum = load.load_id || load.broker_load_id || "—"; // показываем load_id
+      const loadNum = load.load_id || load.broker_load_id || "—";
 
       const left = document.createElement("div");
       left.className = "route-line";
@@ -570,20 +577,22 @@ function startConsolidationModal(loadIds) {
         li.dataset.order = String(pt.order);
       }
 
-      // данные для последующего submit
-      li.dataset.id = String(pt.load_id || "");                 // OID для бэка
-      li.dataset.address = String(pt.address || "");
+      // dataset для сохранения/карты/расчётов
+      li.dataset.id          = String(pt.load_id || "");
+      li.dataset.address     = String(pt.address || "");
+      li.dataset.type        = String(pt.type || "");
       li.dataset.dateFromIso = String(pt.date_from_iso || "");
       li.dataset.dateToIso   = String(pt.date_to_iso || "");
       li.dataset.timeFrom    = String(pt.time_from || "");
       li.dataset.timeTo      = String(pt.time_to || "");
-      li.dataset.type        = String(pt.type || "");
+      li.dataset.lng         = (pt.lng != null ? String(pt.lng) : "");
+      li.dataset.lat         = (pt.lat != null ? String(pt.lat) : "");
 
       li.appendChild(left);
       routeList.appendChild(li);
     });
 
-    // таблица грузов (как есть)
+    // Таблица грузов
     loads.forEach(load => {
       const tr = document.createElement("tr");
       const pickupAddresses = [
@@ -599,7 +608,7 @@ function startConsolidationModal(loadIds) {
       const rpm = miles ? (price / miles).toFixed(2) : "—";
 
       tr.innerHTML = `
-        <td>${load.load_id || load.broker_load_id || load._id || "—"}</td>  <!-- показ: load_id -->
+        <td>${load.load_id || load.broker_load_id || load._id || "—"}</td>
         <td>${safeBrokerName(load.broker)}</td>
         <td>${pickupAddresses}</td>
         <td>${deliveryAddresses}</td>
@@ -609,10 +618,22 @@ function startConsolidationModal(loadIds) {
       loadsTableBody.appendChild(tr);
     });
 
-    renderConsolidatedLoadsTable(loads);
-    initSortableListsDispatch();
-    setupPointClickOrderingDispatch(true);
-  })
+    // Грузы для суммирования цены
+    window.__consolidationLoads = loads;
+
+    // Карта + DnD + линия + сводка
+    initConsolidationMap()
+      .then(() => {
+        initSortableListsDispatch();
+        setupPointClickOrderingDispatch();
+        updateConsolidationMapRoute();
+      })
+      .catch(err => {
+        console.error("Map init error:", err);
+        initSortableListsDispatch();
+        setupPointClickOrderingDispatch();
+      });
+  }) // ← закрываем .then(data => { ... })
   .catch(err => {
     console.error("❌ Ошибка при получении данных для консолидации:", err);
   });
@@ -628,17 +649,19 @@ function initSortableListsDispatch() {
   const list = document.getElementById("routeListDispatch");
   if (!list) return;
 
-  // Первичная нумерация по текущему DOM-порядку
-  renumberRouteList();
+  renumberRouteList();           // проставит бейджи 1..N
+  updateConsolidationMapRoute(); // сразу построим линию и сводку
 
   new Sortable(list, {
     animation: 150,
     ghostClass: "sortable-ghost",
     onSort() {
-      renumberRouteList(); // обновить цифры после любого dnd
+      renumberRouteList();
+      updateConsolidationMapRoute(); // пересчёт после dnd
     },
     onEnd() {
-      renumberRouteList(); // на всякий случай
+      renumberRouteList();
+      updateConsolidationMapRoute();
     }
   });
 }
@@ -767,3 +790,262 @@ async function submitConsolidationOrderDispatch(orderedPoints) {
 
 
 
+//all for consolidation 
+// Глобальное состояние карты консолидации
+let CONSOLIDATION_MAP = null;
+let CONSOLIDATION_ROUTE_SOURCE_ID = "consolidation-route";
+let CONSOLIDATION_ROUTE_LAYER_ID  = "consolidation-route-layer";
+let CONSOLIDATION_MARKERS = [];
+
+async function initConsolidationMap(center = [-89.4, 40.5], zoom = 4) {
+  await ensureMapboxToken(); // ← ВАЖНО: токен до создания карты
+
+  const container = document.getElementById("consolidationMap");
+  if (!container) return;
+
+  // Пересоздание карты, если была
+  if (CONSOLIDATION_MAP) {
+    try { CONSOLIDATION_MAP.remove(); } catch (e) {}
+    CONSOLIDATION_MAP = null;
+    CONSOLIDATION_MARKERS = [];
+  }
+
+  CONSOLIDATION_MAP = new mapboxgl.Map({
+    container: "consolidationMap",
+    style: "mapbox://styles/mapbox/streets-v12",
+    center,
+    zoom
+  });
+
+  // Дождаться загрузки стиля и добавить слои
+  await new Promise((resolve) => {
+    CONSOLIDATION_MAP.on("load", () => {
+      if (!CONSOLIDATION_MAP.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)) {
+        CONSOLIDATION_MAP.addSource(CONSOLIDATION_ROUTE_SOURCE_ID, {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] }
+        });
+      }
+      if (!CONSOLIDATION_MAP.getLayer(CONSOLIDATION_ROUTE_LAYER_ID)) {
+        CONSOLIDATION_MAP.addLayer({
+          id: CONSOLIDATION_ROUTE_LAYER_ID,
+          type: "line",
+          source: CONSOLIDATION_ROUTE_SOURCE_ID,
+          paint: { "line-color": "#0d6efd", "line-width": 4 }
+        });
+      }
+      resolve();
+    });
+  });
+}
+
+async function updateConsolidationMapRoute() {
+  const map = CONSOLIDATION_MAP;
+  const list = document.getElementById("routeListDispatch");
+  if (!map || !list) return;
+
+  // Собираем точки в текущем порядке DOM
+  const pts = Array.from(list.querySelectorAll("li.list-group-item.route-item")).map(li => {
+    const lng = parseFloat(li.dataset.lng || "NaN");
+    const lat = parseFloat(li.dataset.lat || "NaN");
+    return {
+      type: li.dataset.type || "",
+      address: li.dataset.address || "",
+      load_oid: li.dataset.id || "",
+      date_from_iso: li.dataset.dateFromIso || "",
+      date_to_iso: li.dataset.dateToIso || "",
+      time_from: li.dataset.timeFrom || "",
+      time_to: li.dataset.timeTo || "",
+      lng, lat
+    };
+  });
+
+  // Снимаем старые маркеры
+  CONSOLIDATION_MARKERS.forEach(m => { try { m.marker.remove(); } catch(e) {} });
+  CONSOLIDATION_MARKERS = [];
+
+  // Маркеры: пикапы — зелёные, деливери — красные
+  const bounds = new mapboxgl.LngLatBounds();
+
+  pts.forEach(p => {
+    if (isFinite(p.lng) && isFinite(p.lat)) {
+      const color = (p.type === "pickup") ? "#22c55e" : "#ef4444";
+      const el = document.createElement("div");
+      el.style.width = "12px";
+      el.style.height = "12px";
+      el.style.borderRadius = "50%";
+      el.style.background = color;
+      el.style.boxShadow = "0 0 0 2px #fff";
+      const marker = new mapboxgl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map);
+      CONSOLIDATION_MARKERS.push({ marker, type: p.type });
+      bounds.extend([p.lng, p.lat]);
+    }
+  });
+
+  // Подгоняем камеру
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 40, duration: 300 });
+  }
+
+  // Рисуем линию маршрута по дорогам (Mapbox Directions). Если координат <2 — очищаем.
+  const coords = pts.filter(p => isFinite(p.lng) && isFinite(p.lat)).map(p => [p.lng, p.lat]);
+
+  let miles = 0;
+  if (coords.length >= 2) {
+    const geojson = await fetchDirectionsGeoJSON(coords); // едет по дорогам
+    if (geojson) {
+      map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData(geojson);
+      miles = (geojson.properties?.distance_miles) || 0;
+    } else {
+      // fallback: прямая линия по шаровой дистанции
+      miles = haversineTotalMiles(coords);
+      map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData({
+        type: "FeatureCollection",
+        features: [{
+          type: "Feature",
+          geometry: { type: "LineString", coordinates: coords },
+          properties: {}
+        }]
+      });
+    }
+  } else {
+    map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
+  }
+
+  // Считаем RPM = сумма цен / мили (цены берём по уникальным грузам из таблицы loads, сохранённой при открытии модалки)
+  const priceTotal = getConsolidationTotalPrice();
+  const rpm = miles > 0 ? (priceTotal / miles) : 0;
+
+  // Обновляем сводку
+  document.getElementById("summaryMiles").textContent = miles.toFixed(2);
+  document.getElementById("summaryRPM").textContent   = isFinite(rpm) ? rpm.toFixed(2) : "—";
+}
+
+
+async function fetchDirectionsGeoJSON(coords) {
+  try {
+    // Mapbox Directions: максимум 25 точек. Если больше — можно чанкать, но обычно хватает.
+    const accessToken = mapboxgl.accessToken;
+    const coordStr = coords.map(c => `${c[0]},${c[1]}`).join(";");
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordStr}?geometries=geojson&overview=full&access_token=${accessToken}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const route = (json.routes && json.routes[0]) || null;
+    if (!route) return null;
+
+    const meters = route.distance || 0;
+    const miles = meters * 0.000621371;
+
+    return {
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: route.geometry,
+        properties: { distance_miles: miles }
+      }],
+      properties: { distance_miles: miles }
+    };
+  } catch (e) {
+    console.error("Directions error:", e);
+    return null;
+  }
+}
+
+function haversineTotalMiles(coords) {
+  const R = 3958.7613; // радиус Земли в милях
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [lng1, lat1] = coords[i - 1];
+    const [lng2, lat2] = coords[i];
+    const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    total += R * c;
+  }
+  return total;
+}
+
+// Сумма цен по уникальным грузам (берём из таблицы, которую рисуем в модалке)
+function getConsolidationTotalPrice() {
+  // Можем хранить в глобале, установленном в startConsolidationModal
+  if (window.__consolidationLoads && Array.isArray(window.__consolidationLoads)) {
+    const byOid = {};
+    window.__consolidationLoads.forEach(l => {
+      const oid = String(l._id || l.id || "");
+      if (!oid) return;
+      if (!byOid[oid]) {
+        const price = parseFloat(l.total_price ?? l.price ?? 0) || 0;
+        byOid[oid] = price;
+      }
+    });
+    return Object.values(byOid).reduce((a,b) => a+b, 0);
+  }
+  return 0;
+}
+
+
+async function ensureMapboxToken() {
+  // 1) проверяем наличие Mapbox GL
+  if (typeof window === "undefined" || typeof window.mapboxgl === "undefined") {
+    throw new Error("Mapbox GL JS is not loaded");
+  }
+
+  // 2) если токен уже есть — вернуть его
+  if (mapboxgl.accessToken && String(mapboxgl.accessToken).trim().length > 0) {
+    return mapboxgl.accessToken;
+  }
+
+  // 3) пробуем разные источники токена
+  var token = "";
+
+  // A) глобальная переменная из шаблона
+  if (window.MAPBOX_TOKEN && String(window.MAPBOX_TOKEN).trim().length > 0) {
+    token = String(window.MAPBOX_TOKEN).trim();
+  }
+
+  // B) <meta name="mapbox-token" content="...">
+  if (!token) {
+    var meta = document.querySelector('meta[name="mapbox-token"]');
+    if (meta && meta.content && meta.content.trim().length > 0) {
+      token = meta.content.trim();
+    }
+  }
+
+  // C) API: /api/integrations/mapbox_token
+  if (!token) {
+    var res = await fetch("/api/integrations/mapbox_token", {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin"
+    });
+
+    if (!res.ok) {
+      var text = "";
+      try { text = await res.text(); } catch (e) {}
+      throw new Error("Mapbox token fetch failed: HTTP " + res.status + " " + (text ? text.slice(0,120) : ""));
+    }
+
+    var data = null;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error("Mapbox token fetch returned non-JSON");
+    }
+
+    var apiToken = data && data.token ? String(data.token).trim() : "";
+    var success = data && data.success ? true : false;
+
+    if (!success || !apiToken) {
+      var errMsg = (data && data.error) ? data.error : "empty token";
+      throw new Error("Mapbox token missing: " + errMsg);
+    }
+
+    token = apiToken;
+  }
+
+  // 4) устанавливаем токен и возвращаем
+  mapboxgl.accessToken = token;
+  return token;
+}

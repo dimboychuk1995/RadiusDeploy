@@ -142,8 +142,20 @@
 
       <!-- 📌 Вложенный блок без flex, просто по потоку -->
       <!-- 📌 ЕДИНЫЙ список маршрута в нужном формате -->
+      <!-- 📌 Карта и сводка по маршруту -->
       <div class="mb-3">
         <h6>Маршрут</h6>
+
+        <!-- Mapbox container -->
+        <div id="consolidationMap" style="height: 340px; border-radius: 8px; overflow: hidden; background:#f8f9fa;" class="mb-2"></div>
+
+        <!-- Сводка: мили и RPM -->
+        <div id="consolidationSummary" class="d-flex justify-content-end gap-3 mb-2">
+          <div>Miles: <b id="summaryMiles">—</b></div>
+          <div>RPM: <b id="summaryRPM">—</b></div>
+        </div>
+
+        <!-- ЕДИНЫЙ упорядочиваемый список точек -->
         <ul id="routeListDispatch" class="list-group sortable-list"></ul>
       </div>
 

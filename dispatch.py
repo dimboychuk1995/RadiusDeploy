@@ -170,28 +170,49 @@ def dispatch_fragment():
         return render_template('error.html', message="Не удалось загрузить данные диспетчеров.")
 
 
+@dispatch_bp.route('/api/integrations/mapbox_token', methods=['GET'])
+@login_required
+def get_mapbox_token():
+    try:
+        doc = db.integrations_settings.find_one({"name": "MapBox"}) or {}
+        token = str(doc.get("api_key", "")).strip()
+        if not token:
+            return jsonify({"success": False, "error": "Mapbox token is not configured"}), 404
+        return jsonify({"success": True, "token": token})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# we called this method from different places
 # we called this method from different places
 @dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
 @login_required
 def prep_consolidation():
     """
     Готовит данные для консолидации.
-    На выходе у каждой точки:
-      - type: 'pickup' | 'delivery'
-      - address, load_id (OID строки в БД)
-      - date_from_iso, date_to_iso  (локальная TZ компании, ISO-строки или "")
-      - time_from, time_to          (как есть, строки или "")
-      - date_text, time_text        (готовые строки для UI)
-      - order                       (порядковый номер в маршруте)
-    Также возвращаем loads (с полем load_id для показа).
+
+    Источники времени на точке (любые могут быть null):
+      - date (datetime/ISO/строка)
+      - date_to (datetime/ISO/строка)
+      - time_from (str)
+      - time_to   (str)
+
+    На каждый point возвращаем:
+      type, address, load_id (OID строки в БД), price,
+      date_from_iso, date_to_iso, time_from, time_to,
+      date_text, time_text,
+      lng, lat,
+      order (после сортировки).
+
+    Также возвращаем loads (с load_id для отображения в UI).
     """
     try:
+        import os, urllib.parse, requests
         from bson import ObjectId
         from flask import jsonify, request
         from datetime import datetime, time
         from zoneinfo import ZoneInfo
 
-        # --- TZ компании как в dispatch_schedule.py ---
+        # ---------- TZ компании (аналогично dispatch_schedule.py) ----------
         def get_company_timezone():
             doc = db.company_timezone.find_one({}) or {}
             name = doc.get("timezone", "America/Chicago")
@@ -200,17 +221,55 @@ def prep_consolidation():
             except Exception:
                 return ZoneInfo("America/Chicago")
 
-        tz = get_company_timezone()  # локальная TZ компании:contentReference[oaicite:1]{index=1}
+        tz = get_company_timezone()
 
+        # ---------- Mapbox token из БД (fallback: env) ----------
+        def get_mapbox_token():
+            doc = db.integrations_settings.find_one({"name": "MapBox"}) or {}
+            token = (doc.get("api_key") or "").strip()
+            if not token:
+                token = (os.getenv("MAPBOX_TOKEN") or "").strip()
+            return token or None
+
+        MAPBOX_TOKEN = get_mapbox_token()
+
+        # ---------- простой кэш геокода в Mongo ----------
+        geo_cache = db.geocode_cache
+
+        def geocode_address(addr: str):
+            """Возвращает (lng, lat) или (None, None). Кэширует результат."""
+            if not addr or not MAPBOX_TOKEN:
+                return None, None
+            key = addr.strip()
+            cached = geo_cache.find_one({"q": key})
+            if cached and "lng" in cached and "lat" in cached:
+                return cached["lng"], cached["lat"]
+            url = (
+                "https://api.mapbox.com/geocoding/v5/mapbox.places/"
+                f"{urllib.parse.quote(key)}.json?limit=1&access_token={MAPBOX_TOKEN}"
+            )
+            try:
+                r = requests.get(url, timeout=8)
+                r.raise_for_status()
+                j = r.json()
+                feat = (j.get("features") or [None])[0]
+                if feat and "center" in feat and len(feat["center"]) == 2:
+                    lng, lat = float(feat["center"][0]), float(feat["center"][1])
+                    geo_cache.update_one({"q": key}, {"$set": {"lng": lng, "lat": lat}}, upsert=True)
+                    return lng, lat
+            except Exception:
+                pass
+            return None, None
+
+        # ---------- входные данные ----------
         data = request.get_json(silent=True) or {}
         raw_ids = data.get('load_ids', [])
         if not raw_ids:
             return jsonify({"success": False, "error": "No load_ids provided"}), 400
 
-        object_ids = []
-        for s in raw_ids:
-            object_ids.append(ObjectId(s))
+        object_ids = [ObjectId(s) for s in raw_ids]
 
+        # ---------- выбираем грузы ----------
         loads = list(loads_collection.find(
             {'_id': {'$in': object_ids}},
             {
@@ -227,7 +286,7 @@ def prep_consolidation():
 
         # ---------- helpers ----------
         def _to_local_dt(dt_val):
-            """Любой datetime → локальная TZ компании; Naive трактуем как локальную."""
+            """Любой datetime/ISO/'MM/DD/YYYY[ HH:MM]' → локальная TZ компании; naive трактуем как локальную."""
             if not dt_val:
                 return None
             if isinstance(dt_val, str):
@@ -252,23 +311,22 @@ def prep_consolidation():
                 dt = dt_val
 
             if dt.tzinfo is None:
-                # считаем, что наивная уже в локальной TZ компании
                 return dt.replace(tzinfo=tz)
             return dt.astimezone(tz)
 
         def _parse_time(s):
-            """Строка времени → time или None. Поддержка 'HH:MM', 'H:MM', 'h:mm AM/PM'."""
+            """Строка времени → time или None. Поддержка 'HH:MM', 'H:MM', 'HH', 'h:mm AM/PM'."""
             if not s or not isinstance(s, str):
                 return None
-            s = s.strip().lower()
+            s0 = s.strip().upper()
             for fmt in ("%H:%M", "%I:%M %p", "%I %p"):
                 try:
-                    return datetime.strptime(s.upper(), fmt).time()
+                    return datetime.strptime(s0, fmt).time()
                 except Exception:
                     continue
-            # допускаем 'HH' без минут
+            # допускаем просто 'HH'
             try:
-                hh = int(s)
+                hh = int(s0)
                 if 0 <= hh <= 23:
                     return time(hh, 0)
             except Exception:
@@ -296,77 +354,73 @@ def prep_consolidation():
 
         def _extract_point(pt_type, node, load_oid, price):
             """
-            Универсальный экстрактор полей из pickup/delivery и extra_*.
-            Поддерживает поля:
-              date / scheduled_at   (datetime/str)
-              date_to / scheduled_to (datetime/str)
-              time_from / time_to   (str)
+            Универсальный экстрактор полей из pickup/delivery/extra_*:
+              date | scheduled_at,
+              date_to | scheduled_to,
+              time_from, time_to
             """
             date_from_raw = node.get("date", node.get("scheduled_at"))
             date_to_raw   = node.get("date_to", node.get("scheduled_to"))
-            time_from_str = node.get("time_from", "") or ""
-            time_to_str   = node.get("time_to", "") or ""
+            time_from_str = (node.get("time_from") or "").strip()
+            time_to_str   = (node.get("time_to") or "").strip()
 
             d1_local = _to_local_dt(date_from_raw)
             d2_local = _to_local_dt(date_to_raw)
+            t_from = _parse_time(time_from_str)
+            t_to   = _parse_time(time_to_str)
 
-            # Для сортировки пытаемся добавить время к началу
-            tf = _parse_time(time_from_str)
+            # sort_dt = начало окна (дата + time_from, если есть)
             sort_dt = d1_local
-            if d1_local and tf:
-                sort_dt = d1_local.replace(hour=tf.hour, minute=tf.minute, second=0, microsecond=0)
+            if d1_local and t_from:
+                sort_dt = d1_local.replace(hour=t_from.hour, minute=t_from.minute, second=0, microsecond=0)
+
+            addr = (node.get("address") or "").strip()
+            lng, lat = geocode_address(addr)
 
             point = {
                 "type": pt_type,
-                "address": node.get("address", "") or "",
-                "load_id": load_oid,
+                "address": addr,
+                "load_id": str(load_oid),                     # OID строки груза
                 "price": float(price),
                 "date_from_iso": d1_local.isoformat() if d1_local else "",
                 "date_to_iso":   d2_local.isoformat() if d2_local else "",
                 "time_from": time_from_str,
                 "time_to":   time_to_str,
                 "date_text": _mk_text_date(d1_local, d2_local),
-                "time_text": _mk_text_time(_parse_time(time_from_str), _parse_time(time_to_str)),
-                # Для обратной совместимости:
-                "scheduled_at": d1_local.isoformat() if d1_local else "",
+                "time_text": _mk_text_time(t_from, t_to),
+                "scheduled_at": d1_local.isoformat() if d1_local else "",  # для обратной совместимости
+                "lng": lng, "lat": lat,
             }
             return point, sort_dt
 
+        # ---------- собираем точки ----------
         pickup_points, delivery_points, sortable = [], [], []
         result_loads = []
 
         for load in loads:
-            oid = str(load["_id"])
+            oid = load["_id"]
             price = float(load.get("total_price", load.get("price", 0)) or 0)
 
-            # extra_pickup
             for ep in (load.get("extra_pickup") or []):
-                p, sort_dt = _extract_point("pickup", ep, oid, price)
-                pickup_points.append(p)
-                sortable.append((p, sort_dt))
+                p, sdt = _extract_point("pickup", ep, oid, price)
+                pickup_points.append(p); sortable.append((p, sdt))
 
-            # pickup
             if load.get("pickup"):
-                p, sort_dt = _extract_point("pickup", load["pickup"], oid, price)
-                pickup_points.append(p)
-                sortable.append((p, sort_dt))
+                p, sdt = _extract_point("pickup", load["pickup"], oid, price)
+                pickup_points.append(p); sortable.append((p, sdt))
 
-            # delivery
             if load.get("delivery"):
-                p, sort_dt = _extract_point("delivery", load["delivery"], oid, price)
-                delivery_points.append(p)
-                sortable.append((p, sort_dt))
+                p, sdt = _extract_point("delivery", load["delivery"], oid, price)
+                delivery_points.append(p); sortable.append((p, sdt))
 
-            # extra_delivery
             for ed in (load.get("extra_delivery") or []):
-                p, sort_dt = _extract_point("delivery", ed, oid, price)
-                delivery_points.append(p)
-                sortable.append((p, sort_dt))
+                p, sdt = _extract_point("delivery", ed, oid, price)
+                delivery_points.append(p); sortable.append((p, sdt))
 
-            # инфо о грузе (для таблицы и UI): используем load_id для показа
+            # Информация о грузе (для таблицы). В UI показываем load_id, не _id.
             result_loads.append({
-                "_id": oid,                         # OID для backend операций
-                "load_id": str(load.get("load_id", "")),   # Номер груза для UI
+                "_id": str(oid),                        # для backend операций
+                "load_id": str(load.get("load_id", "")),# номер груза для UI
                 "broker_id": str(load.get("broker_id")) if load.get("broker_id") else "",
                 "company_sign": str(load.get("company_sign")) if load.get("company_sign") else "",
                 "assigned_driver": str(load.get("assigned_driver")) if load.get("assigned_driver") else "",
@@ -384,15 +438,15 @@ def prep_consolidation():
                 "miles": load.get("total_miles"),
             })
 
-        # сортировка (сначала с валидным sort_dt, затем без)
+        # ---------- сортировка и order ----------
+        # Сначала точки с валидным sort_dt (по возрастанию), затем без (в исходном порядке)
         sortable.sort(key=lambda x: (0, x[1]) if x[1] is not None else (1, None))
 
         route_points = []
         for idx, (p, _) in enumerate(sortable, start=1):
-            rp = {**p, "order": idx}
-            route_points.append(rp)
+            route_points.append({**p, "order": idx})
 
-        # проставим order обратно в pickup_points/delivery_points
+        # order обратно в pickup_points/delivery_points
         idx_map = {(p["type"], p["load_id"], p["address"], p["date_from_iso"], p["date_to_iso"], p["time_from"], p["time_to"]): p["order"]
                    for p in route_points}
         for arr in (pickup_points, delivery_points):
@@ -410,7 +464,6 @@ def prep_consolidation():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 
 
