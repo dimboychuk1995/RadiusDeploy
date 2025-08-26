@@ -52,6 +52,59 @@ dispatchers = list(db["users"].find({"role": "dispatch"}, {"_id": 1, "username":
 
 ALLOWED_EXTENSIONS = {'pdf'}
 
+
+# helpers: tz + даты
+
+def get_company_tz_by_id(company_id):
+    try:
+        doc = companies_collection.find_one({"_id": company_id})
+        tzname = (doc or {}).get("timezone") or "America/Chicago"
+    except Exception:
+        tzname = "America/Chicago"
+    try:
+        return pytz.timezone(tzname)
+    except Exception:
+        return pytz.timezone("America/Chicago")
+
+def get_current_company_tz():
+    try:
+        return get_company_tz_by_id(getattr(current_user, "company", None))
+    except Exception:
+        return pytz.timezone("America/Chicago")
+
+def dt_to_local_str(dt, tz=None, fmt="%m/%d/%Y"):
+    if not dt or not isinstance(dt, datetime):
+        return ""
+    tz = tz or get_current_company_tz()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(tz).strftime(fmt)
+
+def dt_to_local_iso(dt, tz=None):
+    if not dt or not isinstance(dt, datetime):
+        return None
+    tz = tz or get_current_company_tz()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(tz).isoformat()
+
+# переписываем parse_date: используем TZ компании, а не Chicago по умолчанию
+def parse_date(date_str, tz=None):
+    if not date_str or not str(date_str).strip():
+        return None
+    tz = tz or get_current_company_tz()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y-%m-%d %H:%M"):
+        try:
+            naive = datetime.strptime(date_str.strip(), fmt)
+            local_dt = tz.localize(naive)
+            return local_dt.astimezone(pytz.utc)
+        except ValueError:
+            continue
+    logging.warning(f"❌ Ошибка в parse_date('{date_str}'): unsupported format")
+    return None
+
+
+
 def parse_date(date_str):
     if not date_str or not date_str.strip():
         return None
@@ -443,6 +496,7 @@ def add_load():
             return None
 
     def extract_time_block(form, prefix):
+        # parse_date теперь сам тянет TZ компании
         return {
             "company": form.get(f"{prefix}_company"),
             "address": form.get(f"{prefix}_address"),
@@ -454,38 +508,46 @@ def add_load():
             "date_to": parse_date(form.get(f"{prefix}_date_to")),
             "time_from": form.get(f"{prefix}_time_from"),
             "time_to": form.get(f"{prefix}_time_to"),
-            "appointment": form.get(f"{prefix}_appointment") == "true"
+            "appointment": form.get(f"{prefix}_appointment") == "true",
         }
 
     try:
         rate_con_file = request.files.get('rate_con')
         bol_file = request.files.get('bol')
 
-        rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) if rate_con_file and rate_con_file.filename else None
-        bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) if bol_file and bol_file.filename else None
+        rate_con_id = fs.put(rate_con_file, filename=secure_filename(rate_con_file.filename)) \
+            if rate_con_file and rate_con_file.filename else None
+        bol_id = fs.put(bol_file, filename=secure_filename(bol_file.filename)) \
+            if bol_file and bol_file.filename else None
 
-        partner_type = request.form.get("broker_customer_type", "broker")
-        partner_name = request.form.get("broker_load_id")
-        partner_email = request.form.get("broker_email")
-        partner_phone = request.form.get("broker_phone_number")
+        partner_type = request.form.get("broker_customer_type", "broker")  # 'broker' | 'customer'
+        # ✅ ИМЯ партнёра, а не broker_load_id
+        partner_name = (
+            request.form.get("broker_name")
+            or request.form.get("customer_name")
+            or request.form.get("partner_name")
+            or ""
+        ).strip()
+        partner_email = request.form.get("broker_email") or request.form.get("customer_email")
+        partner_phone = request.form.get("broker_phone_number") or request.form.get("customer_phone_number")
+
+        broker_load_id = request.form.get("broker_load_id")  # это номер у брокера/клиента (НЕ имя)
 
         broker_id = get_or_create_partner(
             partner_type=partner_type,
             partner_name=partner_name,
             partner_email=partner_email,
             partner_phone=partner_phone,
-            company_id=current_user.company
-        )
+            company_id=current_user.company,
+        ) if partner_name else None
 
-        # STOP NUMBER COUNTER
+        # STOP NUMBER COUNTER (1-based)
         stop_number = 1
 
-        # PICKUP
         pickup = extract_time_block(request.form, "pickup")
         pickup["stop_number"] = stop_number
         stop_number += 1
 
-        # EXTRA PICKUPS
         extra_pickups = []
         for key in request.form:
             if key.startswith("extra_pickup[") and key.endswith("][company]"):
@@ -502,17 +564,15 @@ def add_load():
                     "time_from": request.form.get(f"extra_pickup[{idx}][time_from]"),
                     "time_to": request.form.get(f"extra_pickup[{idx}][time_to]"),
                     "appointment": request.form.get(f"extra_pickup[{idx}][appointment]") == "true",
-                    "stop_number": stop_number
+                    "stop_number": stop_number,
                 }
                 stop_number += 1
                 extra_pickups.append(block)
 
-        # DELIVERY
         delivery = extract_time_block(request.form, "delivery")
         delivery["stop_number"] = stop_number
         stop_number += 1
 
-        # EXTRA DELIVERIES
         extra_deliveries = []
         for key in request.form:
             if key.startswith("extra_delivery[") and key.endswith("][company]"):
@@ -529,7 +589,7 @@ def add_load():
                     "time_from": request.form.get(f"extra_delivery[{idx}][time_from]"),
                     "time_to": request.form.get(f"extra_delivery[{idx}][time_to]"),
                     "appointment": request.form.get(f"extra_delivery[{idx}][appointment]") == "true",
-                    "stop_number": stop_number
+                    "stop_number": stop_number,
                 }
                 stop_number += 1
                 extra_deliveries.append(block)
@@ -544,7 +604,7 @@ def add_load():
                     "model": request.form.get(f"vehicles[{idx}][model]"),
                     "vin": request.form.get(f"vehicles[{idx}][vin]"),
                     "mileage": request.form.get(f"vehicles[{idx}][mileage]"),
-                    "description": request.form.get(f"vehicles[{idx}][description]")
+                    "description": request.form.get(f"vehicles[{idx}][description]"),
                 })
 
         assigned_driver_id = request.form.get("assigned_driver")
@@ -563,7 +623,7 @@ def add_load():
         load_data = {
             "load_id": request.form.get("load_id"),
             "company_sign": company_sign,
-            "broker_load_id": partner_name,
+            "broker_load_id": broker_load_id,
             "broker_id": broker_id,
             "broker_customer_type": partner_type,
             "broker_email": partner_email,
@@ -574,14 +634,14 @@ def add_load():
             "price": try_parse_float(request.form.get("price")),
             "total_miles": try_parse_float(request.form.get("total_miles")),
             "load_description": request.form.get("load_description"),
-            "vehicles": vehicles if vehicles else None,
+            "vehicles": vehicles or None,
             "assigned_driver": ObjectId(assigned_driver_id) if assigned_driver_id else None,
             "assigned_dispatch": ObjectId(request.form.get("assigned_dispatch")) if request.form.get("assigned_dispatch") else None,
             "assigned_power_unit": assigned_power_unit,
             "pickup": pickup,
             "delivery": delivery,
-            "extra_pickup": extra_pickups if extra_pickups else None,
-            "extra_delivery": extra_deliveries if extra_deliveries else None,
+            "extra_pickup": extra_pickups or None,
+            "extra_delivery": extra_deliveries or None,
             "extra_stops": len(extra_pickups) + len(extra_deliveries),
             "status": request.form.get("status"),
             "payment_status": request.form.get("payment_status"),
@@ -589,56 +649,54 @@ def add_load():
             "bol": bol_id,
             "company": current_user.company,
             "was_added_to_statement": False,
-            "created_at": datetime.now(timezone.utc)
+            "created_at": datetime.now(timezone.utc),
         }
 
-        loads_collection.insert_one(load_data)
+        ins = loads_collection.insert_one(load_data)
+        load_data["_id"] = ins.inserted_id  # чтобы использовать в письме/пуше
 
         assigned_driver_obj_id = load_data.get("assigned_driver")
         if assigned_driver_obj_id:
             driver = drivers_collection.find_one({"_id": assigned_driver_obj_id})
-            company = db["companies"].find_one({"name": "UWC"})
+            company_doc = companies_collection.find_one({"_id": current_user.company})
 
-            if driver and driver.get("email") and company and company.get("email") and company.get("password"):
+            # Отправка письма — если у компании заведены email/пароль
+            if driver and driver.get("email") and company_doc and company_doc.get("email") and company_doc.get("password"):
                 try:
                     send_load_email_to_driver(
-                        company_email=company["email"],
-                        company_password=company["password"],
+                        company_email=company_doc["email"],
+                        company_password=company_doc["password"],
                         driver_email=driver["email"],
-                        driver_name=driver["name"],
-                        load_info=load_data
+                        driver_name=driver.get("name") or driver.get("username") or "Driver",
+                        load_info=load_data,
                     )
                 except Exception as e:
-                    print(f"❌ Ошибка email: {str(e)}")
+                    logging.warning(f"❌ Ошибка email: {str(e)}")
 
-            expo_token = driver.get("expo_push_token")
+            # Push
+            expo_token = driver.get("expo_push_token") if driver else None
             if expo_token:
-                pickup = load_data["pickup"]["address"]
-                delivery = load_data["delivery"]["address"]
-                load_id_str = load_data.get("load_id", "Новый груз")
+                pickup_addr = (load_data.get("pickup") or {}).get("address", "")
+                delivery_addr = (load_data.get("delivery") or {}).get("address", "")
+                load_id_str = load_data.get("load_id") or "Новый груз"
 
                 send_push_notification(
                     expo_token,
                     title=f"📦 Назначен новый груз {load_id_str}",
-                    body=f"{pickup} → {delivery}",
+                    body=f"{pickup_addr} → {delivery_addr}",
                     data={
-                        "load_id": str(load_data.get("load_id") or ""),          # ← ключевой параметр для клиента
-                        "mongo_id": str(load_data.get("_id") or ""),              # (опционально) запасной
+                        "load_id": str(load_data.get("load_id") or ""),
+                        "mongo_id": str(load_data.get("_id") or ""),
                     },
                     priority="high",
                     channel_id="default",
                 )
-            else:
-                print("⚠️ У водителя нет push токена")
 
-        print("✅ Успешно завершено, redirect...")
         return redirect(url_for('index') + '#section-loads-fragment')
 
-    except Exception as e:
-        print("❌ Ошибка в add_load:")
+    except Exception:
         traceback.print_exc()
         return render_template("error.html", message="Ошибка при сохранении груза")
-
 
 
 
@@ -667,19 +725,13 @@ def customers_list():
 @login_required
 def loads_fragment():
     try:
-        # Таймзона компании
-        local_tz = pytz.timezone("America/Chicago")
+        local_tz = get_current_company_tz()
 
         def to_local_str(dt):
-            if not dt or not isinstance(dt, datetime):
-                return ""
-            local_dt = dt.replace(tzinfo=timezone.utc).astimezone(local_tz)
-            return local_dt.strftime("%m/%d/%Y")
+            return dt_to_local_str(dt, local_tz)
 
-        # Компании
         companies = list(db["companies"].find({}, {"_id": 1, "name": 1}))
 
-        # Водители компании
         all_drivers = list(drivers_collection.find(
             {'company': current_user.company},
             {"_id": 1, "name": 1, "dispatcher": 1, "status": 1, "truck": 1}
@@ -699,13 +751,11 @@ def loads_fragment():
 
         driver_map = {str(d['_id']): d['name'] for d in drivers}
 
-        # Диспетчеры
         dispatchers = list(users_collection.find(
             {'company': current_user.company, 'role': 'dispatch'},
             {"_id": 1, "username": 1}
         ))
 
-        # Загружаем все грузы компании с датой создания
         all_loads = list(loads_collection.find(
             {'company': current_user.company},
             {
@@ -729,27 +779,23 @@ def loads_fragment():
             }
         ))
 
-        # Группировка по company_sign
         company_load_map = defaultdict(list)
         for load in all_loads:
             company_id = str(load.get("company_sign", "unknown"))
             company_load_map[company_id].append(load)
 
-        # Отбор 5 последних по created_at
         final_loads = []
         for company_id, loads in company_load_map.items():
-            # Отсортировать по created_at DESC (по убыванию)
             sorted_loads = sorted(loads, key=lambda x: x.get("created_at", datetime.min), reverse=True)
             final_loads.extend(sorted_loads[:5])
 
-        # Обогащение
         for load in final_loads:
             driver_id = load.get("assigned_driver")
             load["driver_name"] = driver_map.get(str(driver_id), "—") if driver_id else "—"
             if load.get("company_sign"):
                 load["company_sign"] = str(load["company_sign"])
 
-            pickup_dt = load.get("pickup", {}).get("date")
+            pickup_dt = (load.get("pickup") or {}).get("date")
             load["pickup_date"] = to_local_str(pickup_dt)
 
             extra_deliveries = load.get("extra_delivery") or load.get("extra_deliveries") or []
@@ -757,7 +803,7 @@ def loads_fragment():
                 last_delivery = extra_deliveries[-1]
                 delivery_dt = last_delivery.get("date")
             else:
-                delivery_dt = load.get("delivery", {}).get("date")
+                delivery_dt = (load.get("delivery") or {}).get("date")
             load["delivery_date"] = to_local_str(delivery_dt)
 
         return render_template(
@@ -1197,23 +1243,19 @@ def load_details_fragment():
             "_id": ObjectId(load_id),
             "company": current_user.company
         })
-
         if not load:
             return "Load not found", 404
 
-        # Нормализуем коллекции экстрамаршрутов
         load["extra_pickups"] = load.get("extra_pickups") or []
         load["extra_deliveries"] = load.get("extra_deliveries") or []
 
-        # Водитель (если назначен)
         driver = None
         if load.get("assigned_driver"):
             driver = drivers_collection.find_one({"_id": load["assigned_driver"]})
 
-        # Mapbox token
-        mapbox_token = db["integrations_settings"].find_one({"name": "MapBox"}).get("api_key", "")
+        integ = db["integrations_settings"].find_one({"name": "MapBox"}) or {}
+        mapbox_token = integ.get("api_key", "") or ""
 
-        # Фото: логика разная для Super Dispatch заказов и локально загруженных
         if load.get("is_super_dispatch_order"):
             vehicles = load.get("vehicles", [])
             has_pickup_photos = any(
@@ -1228,7 +1270,6 @@ def load_details_fragment():
             has_pickup_photos = bool(load.get("pickup_photo_ids"))
             has_delivery_photos = bool(load.get("delivery_photo_ids"))
 
-        # ✅ Новый параметр для шаблона
         is_super_dispatch_order = bool(load.get("is_super_dispatch_order"))
 
         return render_template(
@@ -1239,10 +1280,10 @@ def load_details_fragment():
             load_id=str(load["_id"]),
             has_pickup_photos=has_pickup_photos,
             has_delivery_photos=has_delivery_photos,
-            is_super_dispatch_order=is_super_dispatch_order  # 👈 добавлено
+            is_super_dispatch_order=is_super_dispatch_order
         )
 
-    except Exception as e:
+    except Exception:
         logging.exception("Ошибка при загрузке фрагмента деталей груза")
         return "Server error", 500
 
@@ -1346,10 +1387,6 @@ def api_load_bol_preview(load_id):
 @loads_bp.route("/api/load/photos", methods=["GET"])
 @login_required
 def get_load_photos():
-    """
-    Возвращает список URL фото из GridFS для заданного stop (по stage и stop_number).
-    Используется в деталях груза при раскрытии секций "Фото с Pickup" / "Фото с Delivery" и др.
-    """
     try:
         load_id = request.args.get("id")
         stage = request.args.get("stage")  # pickup, delivery, extra_pickup, extra_delivery
@@ -1358,34 +1395,32 @@ def get_load_photos():
         if not load_id or not stage or stop_number is None:
             return jsonify({"error": "Missing or invalid parameters"}), 400
 
-        # Преобразование номера стопа к соответствию с Mongo (1-based)
-        stop_number += 1
+        # ❌ БЫЛО: stop_number += 1
+        # ✅ Делаем везде 1-based (как в add_load), UI должен присылать 1-based
 
         load = loads_collection.find_one({
             "_id": ObjectId(load_id),
             "company": current_user.company
         })
-
         if not load:
             return jsonify({"error": "Load not found"}), 404
 
-        # Если это заказ из Super Dispatch — фото здесь не хранятся
         if load.get("is_super_dispatch_order"):
             return jsonify({"error": "Photos for Super Dispatch orders are external"}), 400
 
         stop_photos = load.get("stop_photos", [])
-
         block = next(
-            (s for s in stop_photos if s.get("stage") == stage and str(s.get("stop_number")) == str(stop_number)),
+            (s for s in stop_photos if s.get("stage") == stage and int(s.get("stop_number")) == int(stop_number)),
             None
         )
 
         if not block:
-            return jsonify({"photos": []})  # нет фото — пустой массив
+            return jsonify({"photos": []})
 
         photo_urls = [
             url_for('loads.get_load_photo_web', photo_id=str(photo_id), _external=True)
             for photo_id in block.get("photo_ids", [])
+            if ObjectId.is_valid(str(photo_id))
         ]
 
         return jsonify({"photos": photo_urls})
@@ -1393,6 +1428,8 @@ def get_load_photos():
     except Exception:
         logging.exception("Ошибка при получении фото груза")
         return jsonify({"error": "Server error"}), 500
+
+
 
 
 @loads_bp.route("/load/photo/<photo_id>")
@@ -1465,40 +1502,45 @@ def assign_driver_to_load():
         if not load:
             return jsonify({"success": False, "message": "Груз не найден"}), 404
 
+        # безопасность: груз должен принадлежать компании текущего пользователя
+        if load.get("company") != current_user.company:
+            return jsonify({"success": False, "message": "Нет доступа к этому грузу"}), 403
+
         driver = drivers_collection.find_one({"_id": ObjectId(driver_id)})
         if not driver:
             return jsonify({"success": False, "message": "Водитель не найден"}), 404
 
-        update_fields = {
-            "assigned_driver": ObjectId(driver_id)
-        }
+        update_fields = {"assigned_driver": ObjectId(driver_id)}
         if driver.get("truck"):
             update_fields["assigned_power_unit"] = driver["truck"]
 
         loads_collection.update_one({"_id": ObjectId(load_id)}, {"$set": update_fields})
 
-        # === EMAIL отправляем асинхронно ===
+        # === Email отправляем асинхронно — подбираем компанию по _id ===
         if driver.get("email"):
-            company = db["companies"].find_one({"name": driver.get("company")})
-            if company and company.get("email") and company.get("password"):
+            drv_company = driver.get("company")
+            company_doc = None
+            if isinstance(drv_company, ObjectId):
+                company_doc = companies_collection.find_one({"_id": drv_company})
+            elif isinstance(drv_company, str):
+                company_doc = companies_collection.find_one({"name": drv_company})
+            if company_doc and company_doc.get("email") and company_doc.get("password"):
                 def send_email():
                     try:
                         send_load_email_to_driver(
-                            company_email=company["email"],
-                            company_password=company["password"],
+                            company_email=company_doc["email"],
+                            company_password=company_doc["password"],
                             driver_email=driver["email"],
-                            driver_name=driver["name"],
-                            load_info=load
+                            driver_name=driver.get("name") or driver.get("username") or "Driver",
+                            load_info=load,
                         )
                     except Exception as e:
-                        import logging
                         logging.warning(f"❌ Ошибка при отправке email: {e}")
-                threading.Thread(target=send_email).start()
+                threading.Thread(target=send_email, daemon=True).start()
 
         return jsonify({"success": True})
 
-    except Exception as e:
-        import traceback
+    except Exception:
         traceback.print_exc()
         return jsonify({"success": False, "message": "Ошибка сервера"}), 500
 
@@ -1640,7 +1682,6 @@ def get_loads():
         per_page = 10
 
         query = {}
-
         if g.role == "driver":
             if not g.driver_id:
                 return jsonify({"success": False, "error": "Missing driver_id in session"}), 400
@@ -1659,9 +1700,13 @@ def get_loads():
 
         result = []
         for load in cursor:
-            delivery_date = load.get("delivery", {}).get("date")
-            delivery_address = load.get("delivery", {}).get("address")
-            extra_deliveries = load.get("extra_delivery", [])
+            # TZ компании этого груза
+            tz = get_company_tz_by_id(load.get("company"))
+
+            # финальная точка доставки: последняя из extra_delivery либо обычная delivery
+            delivery_date = (load.get("delivery") or {}).get("date")
+            delivery_address = (load.get("delivery") or {}).get("address")
+            extra_deliveries = load.get("extra_delivery") or []
             if extra_deliveries:
                 last_extra = extra_deliveries[-1]
                 delivery_date = last_extra.get("date", delivery_date)
@@ -1669,10 +1714,10 @@ def get_loads():
 
             result.append({
                 "load_id": load.get("load_id"),
-                "pickup_address": load.get("pickup", {}).get("address", ""),
-                "pickup_date": load.get("pickup", {}).get("date"),
-                "delivery_address": delivery_address,
-                "delivery_date": delivery_date,
+                "pickup_address": (load.get("pickup") or {}).get("address", "") or "",
+                "pickup_date": dt_to_local_iso((load.get("pickup") or {}).get("date"), tz),
+                "delivery_address": delivery_address or "",
+                "delivery_date": dt_to_local_iso(delivery_date, tz),
                 "price": load.get("price"),
                 "RPM": load.get("RPM"),
             })
@@ -1681,7 +1726,8 @@ def get_loads():
             "success": True,
             "loads": result,
             "page": page,
-            "per_page": per_page
+            "per_page": per_page,
+            "total": total,
         })
 
     except Exception as e:
