@@ -487,118 +487,159 @@ function startConsolidationModal(loadIds) {
 
   const modal = document.getElementById("consolidationModalDispatch");
   const backdrop = document.getElementById("consolidationBackdropDispatch");
-  const pickupList = document.getElementById("pickupListDispatch");
-  const deliveryList = document.getElementById("deliveryListDispatch");
+  const routeList = document.getElementById("routeListDispatch");
   const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
   const loadsTableBody = document.getElementById("consolidatedLoadsBody");
 
-  // Очистка
-  pickupList.innerHTML = "";
-  deliveryList.innerHTML = "";
+  routeList.innerHTML = "";
   loadsTableBody.innerHTML = "";
   saveBtn.style.display = "none";
 
-  // Показ модалки
   modal.classList.add("show");
   backdrop.classList.add("show");
 
-  // Стили для бейджей порядка (один раз на страницу)
   if (!document.getElementById("order-badge-styles")) {
     const style = document.createElement("style");
     style.id = "order-badge-styles";
     style.textContent = `
-      .order-badge{
-        margin-left:8px;
-        display:inline-flex;align-items:center;justify-content:center;
-        min-width:20px;height:20px;padding:0 6px;border-radius:999px;
-        background:#0d6efd;color:#fff;font-weight:600;font-size:12px;
-      }
+      .order-badge{ margin-left:8px; display:inline-flex; align-items:center; justify-content:center;
+        min-width:20px; height:20px; padding:0 6px; border-radius:999px;
+        background:#0d6efd; color:#fff; font-weight:600; font-size:12px; }
+      .route-line{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+      .route-line .muted{ color:#6c757d; }
+      .route-line .chip{ padding:2px 8px; border-radius:12px; background:#eef2ff; color:#374151; }
+      .list-group-item.route-item{ display:flex; justify-content:space-between; align-items:center; }
     `;
     document.head.appendChild(style);
   }
-
-  console.log("📤 Отправка запроса на /api/consolidation/prep с load_ids:", loadIds);
 
   fetch("/api/consolidation/prep", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ load_ids: loadIds }),
   })
-    .then(res => res.json())
-    .then(data => {
-      console.log("📥 Ответ от /api/consolidation/prep:", data);
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) {
+      alert("❌ Ошибка загрузки данных для консолидации");
+      return;
+    }
 
-      if (!data.success) {
-        alert("❌ Ошибка загрузки данных для консолидации");
-        return;
+    const loads = data.loads || [];
+    const routePoints = (data.route_points && Array.isArray(data.route_points))
+      ? data.route_points
+      : [
+          ...(data.pickup_points || []),
+          ...(data.delivery_points || [])
+        ].sort((a,b) => (a.order ?? 1e9) - (b.order ?? 1e9));
+
+    // По oid → объект груза
+    const loadByOid = {};
+    loads.forEach(l => { loadByOid[String(l._id)] = l; });
+
+    // Надёжный форматтер: ISO (из бэка) + запасные варианты
+    function fmtDt(raw) {
+      if (!raw) return { date:"—", time:"" };
+      let m = moment(raw, moment.ISO_8601, true);
+      if (!m.isValid()) m = moment(raw, "ddd, DD MMM YYYY HH:mm:ss [GMT]", true); // RFC fallback
+      if (!m.isValid()) m = moment(new Date(raw)); // максимально терпимый fallback
+      if (!m.isValid()) return { date:String(raw), time:"" };
+      return { date: m.format("MM/DD/YYYY"), time: m.format("HH:mm") };
+    }
+
+    const typeLabel = t => t === "pickup" ? "Пикап" : "Доставка";
+    const safeBrokerName = b => {
+      if (!b) return "—";
+      if (typeof b === "string") return b;
+      if (typeof b === "object" && b.name) return b.name;
+      return "—";
+    };
+
+    routePoints.forEach(pt => {
+      const li = document.createElement("li");
+      li.className = "list-group-item route-item";
+
+      const load = loadByOid[String(pt.load_id)] || {};
+      const brokerName = safeBrokerName(load.broker);
+      const loadNum = load.load_id || load.broker_load_id || "—";  // ← показываем load_id, НЕ _id
+
+      const start = fmtDt(pt.scheduled_at);
+      const end   = fmtDt(pt.scheduled_to || pt.scheduled_end || "");
+
+      const datePart = (end.date && end.date !== "—" && end.date !== start.date)
+        ? `${start.date} – ${end.date}`
+        : start.date;
+
+      const timePart = (end.time && end.time !== start.time)
+        ? `${start.time || "—"} – ${end.time}`
+        : (start.time || "");
+
+      const left = document.createElement("div");
+      left.className = "route-line";
+      left.innerHTML = `
+        <span class="addr"><strong>${pt.address || "—"}</strong></span>
+        <span class="muted">—</span>
+        <span class="date">${datePart}</span>
+        <span class="muted">—</span>
+        <span class="time">${timePart || "—"}</span>
+        <span class="muted">—</span>
+        <span class="chip">${typeLabel(pt.type)}</span>
+        <span class="muted">—</span>
+        <span class="broker">${brokerName}</span>
+        <span class="muted">—</span>
+        <span class="load-num">${loadNum}</span>
+      `;
+
+      if (pt.order != null) {
+        const badge = document.createElement("span");
+        badge.className = "order-badge";
+        badge.textContent = String(pt.order);
+        left.appendChild(badge);
+        li.dataset.order = String(pt.order);
       }
 
-      const pickups = data.pickup_points || [];
-      const deliveries = data.delivery_points || [];
-      const loads = data.loads || [];
+      li.dataset.id = String(pt.load_id || "");           // для submit (oid)
+      li.dataset.address = String(pt.address || "");
+      li.dataset.scheduledAt = String(pt.scheduled_at || "");
+      li.dataset.type = String(pt.type || "");
 
-      // ➜ Рисуем списки с учётом order (если он пришёл)
-      const makeLi = (point) => {
-        const li = document.createElement("li");
-        li.className = "list-group-item";
-        // Оставляем только адрес (как и раньше), не добавляя дату в текст,
-        // чтобы не ломать текущую логику извлечения scheduled_at.
-        li.textContent = point.address || "";
-        li.dataset.id = point.load_id || "";
-        if (point.order != null) {
-          li.dataset.order = String(point.order);
-          const badge = document.createElement("span");
-          badge.className = "order-badge";
-          badge.innerText = String(point.order);
-          li.appendChild(badge);
-        }
-        return li;
-      };
-
-      pickups.forEach(p => pickupList.appendChild(makeLi(p)));
-      deliveries.forEach(d => deliveryList.appendChild(makeLi(d)));
-
-      if (pickups.length > 0 || deliveries.length > 0) {
-        // Отрисовать таблицу грузов — без изменений
-        loads.forEach((load, idx) => {
-          const tr = document.createElement("tr");
-          const id = load._id || load.id || "—";
-          const broker = load.broker?.name || "—";
-          const price = parseFloat(load.total_price ?? load.price ?? 0);
-          const miles = parseFloat(load.miles ?? 0);
-          const rpm = miles ? (price / miles).toFixed(2) : "—";
-
-          const pickupAddresses = [
-            ...(load.extra_pickup || []),
-            ...(load.pickup ? [load.pickup] : [])
-          ].map(p => p.address).join(" → ") || "—";
-
-          const deliveryAddresses = [
-            ...(load.delivery ? [load.delivery] : []),
-            ...(load.extra_delivery || [])
-          ].map(d => d.address).join(" → ") || "—";
-
-          tr.innerHTML = `
-            <td>${id}</td>
-            <td>${broker}</td>
-            <td>${pickupAddresses}</td>
-            <td>${deliveryAddresses}</td>
-            <td>${rpm}</td>
-            <td>$${price.toFixed(2)}</td>
-          `;
-          loadsTableBody.appendChild(tr);
-        });
-      }
-
-      renderConsolidatedLoadsTable(loads);
-      initSortableListsDispatch();
-
-      // ⬇️ ВАЖНО: инициализируем обработчики кликов с автосидированием порядка из бэка
-      setupPointClickOrderingDispatch(true);
-    })
-    .catch(err => {
-      console.error("❌ Ошибка при получении грузов для консолидации:", err);
+      li.appendChild(left);
+      routeList.appendChild(li);
     });
+
+    // Таблица грузов — как была (без обязательной правки)
+    loads.forEach(load => {
+      const tr = document.createElement("tr");
+      const pickupAddresses = [
+        ...(load.extra_pickup || []).map(p => p.address),
+        load.pickup?.address
+      ].filter(Boolean).join("<br>") || "—";
+      const deliveryAddresses = [
+        ...(load.extra_delivery || []).map(d => d.address),
+        load.delivery?.address
+      ].filter(Boolean).join("<br>") || "—";
+      const price = parseFloat(load.total_price ?? load.price ?? 0);
+      const miles = parseFloat(load.miles ?? 0);
+      const rpm = miles ? (price / miles).toFixed(2) : "—";
+
+      tr.innerHTML = `
+        <td>${load._id || load.id || "—"}</td>
+        <td>${safeBrokerName(load.broker)}</td>
+        <td>${pickupAddresses}</td>
+        <td>${deliveryAddresses}</td>
+        <td>${rpm}</td>
+        <td>$${price.toFixed(2)}</td>
+      `;
+      loadsTableBody.appendChild(tr);
+    });
+
+    renderConsolidatedLoadsTable(loads);
+    initSortableListsDispatch();
+    setupPointClickOrderingDispatch(true);
+  })
+  .catch(err => {
+    console.error("❌ Ошибка при получении данных для консолидации:", err);
+  });
 }
 
 
@@ -608,16 +649,16 @@ function closeConsolidationModalDispatch() {
 }
 
 function initSortableListsDispatch() {
-  new Sortable(document.getElementById("pickupListDispatch"), {
-    animation: 150,
-    ghostClass: 'sortable-ghost'
-  });
+  const list = document.getElementById("routeListDispatch");
+  if (!list) return;
 
-  new Sortable(document.getElementById("deliveryListDispatch"), {
+  new Sortable(list, {
     animation: 150,
-    ghostClass: 'sortable-ghost'
+    ghostClass: "sortable-ghost"
   });
 }
+
+
 
 function renderConsolidatedLoadsTable(loads) {
   const tbody = document.getElementById("consolidatedLoadsBody");
@@ -652,79 +693,53 @@ function renderConsolidatedLoadsTable(loads) {
 }
 
 function setupPointClickOrderingDispatch(seedFromBackend = false) {
-  const allItems = Array.from(document.querySelectorAll('#pickupListDispatch li, #deliveryListDispatch li'));
+  const allItems = Array.from(document.querySelectorAll('#routeListDispatch li'));
   const saveBtn = document.getElementById('saveConsolidationBtnDispatch');
 
-  // Текущее выбранное упорядочивание
   const selectionOrder = [];
 
-  // Проставляет бейджи согласно текущему selectionOrder
   function redrawBadges() {
-    // Снимаем старые бейджи
     allItems.forEach(li => li.querySelector('.order-badge')?.remove());
-    // Рендерим новые по порядку selectionOrder
     selectionOrder.forEach((li, idx) => {
       const badge = document.createElement('span');
       badge.className = 'order-badge';
       badge.innerText = String(idx + 1);
-      li.appendChild(badge);
+      // вставляем в конец левой части
+      li.querySelector('.route-line')?.appendChild(badge);
     });
   }
 
-  // ——— Автосидирование из бэка (если order пришёл) ———
   if (seedFromBackend) {
-    const withOrder = allItems.filter(li => li.dataset.order != null && li.dataset.order !== "");
-    const withoutOrder = allItems.filter(li => !(li.dataset.order != null && li.dataset.order !== ""));
-
-    // Сортируем элементы с order по возрастанию
+    const withOrder = allItems.filter(li => li.dataset.order);
     withOrder.sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order));
-
-    // Наполняем selectionOrder сначала бэковским порядком, далее — как кликнут пользователь
     withOrder.forEach(li => selectionOrder.push(li));
-
-    // Отрисовываем бейджи 1..N согласно текущему selectionOrder
     redrawBadges();
-
-    // Если бэк дал порядок на все точки — сразу показываем кнопку "Сохранить"
     saveBtn.style.display = (selectionOrder.length === allItems.length) ? 'inline-block' : 'none';
-
-    // Остальные остаются без номера до клика пользователя
-    // (никаких бейджей не добавляем для них на этом шаге)
   } else {
-    // По умолчанию — скрыть кнопку, пока пользователь не отметит все точки
     saveBtn.style.display = 'none';
   }
 
-  // ——— Логика кликов пользователя (добавить/удалить из порядка) ———
   allItems.forEach(item => {
     item.addEventListener('click', () => {
       const i = selectionOrder.indexOf(item);
-      if (i !== -1) {
-        // Удаляем из порядка
-        selectionOrder.splice(i, 1);
-      } else {
-        // Добавляем в конец
-        selectionOrder.push(item);
-      }
+      if (i !== -1) selectionOrder.splice(i, 1);
+      else selectionOrder.push(item);
 
       redrawBadges();
       saveBtn.style.display = selectionOrder.length === allItems.length ? 'inline-block' : 'none';
     });
   });
 
-  // ——— Кнопка "Сохранить": формируем payload из selectionOrder ———
   saveBtn.addEventListener('click', () => {
     const result = selectionOrder.map(li => ({
-      // адрес оставляем как раньше
-      address: li.innerText.replace(/\s+—\s+\d{2}\/\d{2}\/\d{4}$/, '').trim(),
-      // пытаемся выдернуть дату из текста, как и было
-      scheduled_at: li.innerText.match(/\d{2}\/\d{2}\/\d{4}$/)?.[0],
+      address: li.dataset.address,
+      scheduled_at: li.dataset.scheduledAt,
       load_id: li.dataset.id
     }));
-
     submitConsolidationOrderDispatch(result);
   });
 }
+
 
 
 async function submitConsolidationOrderDispatch(orderedPoints) {
