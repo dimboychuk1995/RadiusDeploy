@@ -467,97 +467,145 @@ def prep_consolidation():
 
 
 
-
 @dispatch_bp.route('/api/consolidation/save', methods=['POST'])
 @login_required
 def save_consolidation():
-    try:
-        data = request.get_json()
-        raw_load_ids = data.get('load_ids', [])
-        route_points = data.get('route_points', [])
+    """
+    Принимает уже посчитанные на фронте значения и сохраняет их
+    БЕЗ повторных расчётов расстояния/цены.
 
-        # 🧼 Преобразуем в ObjectId и фильтруем мусор
+    Ожидаемый payload:
+    {
+      "load_ids": ["...oid1...", "...oid2...", ...],
+      "route_points": [
+        {
+          "order": 1,                       # не обязателен, если нет — будет проставлен по порядку
+          "type": "pickup" | "delivery",    # опционально
+          "address": "str",
+          "date_from_iso": "2025-08-27T08:00:00-05:00",  # опционально
+          "date_to_iso":   "2025-08-27T12:00:00-05:00",  # опционально
+          "time_from": "08:00",             # опционально
+          "time_to":   "12:00",             # опционально
+          "lng": -87.65,                    # опционально
+          "lat": 41.88,                     # опционально
+          "scheduled_at": "ISO",            # опционально (для обратной совместимости)
+          "load_id": "...oid..."
+        },
+        ...
+      ],
+      "total_miles": 1667.81,              # присылает фронт
+      "total_price": 1250.00,              # присылает фронт (сумма цен уникальных грузов)
+      "rpm": 0.75                          # опционально; если не пришёл, посчитаем price/miles
+    }
+    """
+    try:
+        from bson import ObjectId
+        from datetime import datetime
+        from flask import jsonify, request
+
+        data = request.get_json(silent=True) or {}
+
+        raw_load_ids = data.get('load_ids') or []
+        route_points = data.get('route_points') or []
+
+        # --- Валидация ID грузов ---
         object_ids = []
         for lid in raw_load_ids:
             try:
                 object_ids.append(ObjectId(lid))
-            except Exception as e:
-                print(f"⚠️ Пропущен невалидный ID: {lid}")
+            except Exception:
+                # пропускаем невалидные
+                pass
 
-        if not object_ids or not route_points:
-            return jsonify({"success": False, "error": "Missing data"}), 400
+        if not object_ids:
+            return jsonify({"success": False, "error": "Missing load_ids"}), 400
+        if not route_points:
+            return jsonify({"success": False, "error": "Missing route_points"}), 400
 
-        # 📦 Получаем грузы для подсчета total_price
-        loads = list(loads_collection.find({'_id': {'$in': object_ids}}, {'price': 1}))
-        total_price = sum(float(load.get('price') or 0) for load in loads)
+        # --- Берём готовые итоги от фронта ---
+        total_miles = float(data.get("total_miles") or data.get("miles") or 0) or 0.0
+        total_price = float(data.get("total_price") or data.get("price_total") or 0) or 0.0
+        rpm = data.get("rpm")
 
-        # 🗺️ Получаем API-ключ
-        integration = integrations_settings_collection.find_one({"name": "Google Maps API"})
-        if not integration or not integration.get("api_key"):
-            return jsonify({"success": False, "error": "Google API key not found"}), 500
+        # Если total_price не прислали — fallback: суммируем по БД (total_price > price)
+        if not total_price:
+            loads = list(loads_collection.find(
+                {'_id': {'$in': object_ids}},
+                {'price': 1, 'total_price': 1}
+            ))
+            total_price = sum(float(l.get('total_price') if l.get('total_price') is not None else l.get('price') or 0) for l in loads)
 
-        api_key = integration["api_key"]
+        # Если rpm не прислали, а мили есть — считаем простым делением
+        if rpm is None and total_miles > 0:
+            rpm = round(total_price / total_miles, 2)
+        else:
+            try:
+                rpm = round(float(rpm), 2)
+            except Exception:
+                rpm = 0.0
 
-        # 🚗 Формируем список адресов
-        addresses = [point['address'] for point in route_points]
+        # --- Нормализуем точки маршрута и сохраняем все поля ---
+        normalized_points = []
+        for idx, p in enumerate(route_points, start=1):
+            lid = p.get("load_id")
+            lid_oid = ObjectId(lid) if lid and ObjectId.is_valid(lid) else None
+            if not lid_oid:
+                continue
 
-        from urllib.parse import urlencode
-        import requests
+            normalized_points.append({
+                "order": int(p.get("order") or idx),
+                "type": (p.get("type") or "").strip(),
+                "address": (p.get("address") or "").strip(),
+                "load_id": lid_oid,
 
-        url = f"https://maps.googleapis.com/maps/api/directions/json?" + urlencode({
-            'origin': addresses[0],
-            'destination': addresses[-1],
-            'waypoints': '|'.join(addresses[1:-1]),
-            'key': api_key
-        })
+                # временные окна, если пришли
+                "date_from_iso": p.get("date_from_iso") or "",
+                "date_to_iso":   p.get("date_to_iso") or "",
+                "time_from":     p.get("time_from") or "",
+                "time_to":       p.get("time_to") or "",
 
-        response = requests.get(url)
-        if response.status_code != 200:
-            return jsonify({"success": False, "error": f"Google API error: {response.status_code}"}), 500
+                # координаты, если пришли
+                "lng": p.get("lng", None),
+                "lat": p.get("lat", None),
 
-        data = response.json()
-        total_miles = 0
-        for leg in data.get("routes", [])[0].get("legs", []):
-            total_miles += leg.get("distance", {}).get("value", 0) / 1609.34  # meters to miles
+                # обратная совместимость со старым полем
+                "scheduled_at": p.get("scheduled_at") or p.get("date_from_iso") or ""
+            })
 
-        rpm = round(total_price / total_miles, 2) if total_miles else 0
+        if not normalized_points:
+            return jsonify({"success": False, "error": "No valid points after normalization"}), 400
 
         consolidated_doc = {
             "load_ids": object_ids,
-            "route_points": [
-                {
-                    "address": p.get("address", ""),
-                    "scheduled_at": p.get("scheduled_at", ""),
-                    "load_id": ObjectId(p["load_id"]) if ObjectId.is_valid(p["load_id"]) else None
-                } for p in route_points
-            ],
-            "total_miles": round(total_miles, 2),
-            "total_price": round(total_price, 2),
-            "rpm": rpm,
+            "route_points": normalized_points,
+            "total_miles": round(float(total_miles), 2),
+            "total_price": round(float(total_price), 2),
+            "rpm": float(rpm),
             "created_at": datetime.utcnow(),
             "created_by": ObjectId(current_user.id)
         }
 
-        consolidated_doc["route_points"] = [p for p in consolidated_doc["route_points"] if p["load_id"]]
+        res = consolidated_loads_collection.insert_one(consolidated_doc)
+        consolidate_id = res.inserted_id
 
-        result = consolidated_loads_collection.insert_one(consolidated_doc)
-        consolidate_id = result.inserted_id
-
-        # 🔁 Обновляем грузы
+        # помечаем грузы
         loads_collection.update_many(
             {'_id': {'$in': object_ids}},
-            {'$set': {
-                'consolidated': True,
-                'consolidateId': consolidate_id
-            }}
+            {'$set': {'consolidated': True, 'consolidateId': consolidate_id}}
         )
 
-        return jsonify({"success": True, "miles": round(total_miles, 2), "rpm": rpm})
+        return jsonify({
+            "success": True,
+            "miles": consolidated_doc["total_miles"],
+            "rpm": consolidated_doc["rpm"]
+        })
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
 
 
 @dispatch_bp.route('/api/drivers/break', methods=['POST'])

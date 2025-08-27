@@ -726,18 +726,23 @@ function setupPointClickOrderingDispatch() {
   const saveBtn = document.getElementById("saveConsolidationBtnDispatch");
   if (!list || !saveBtn) return;
 
-  // Нумерация уже делает initSortableListsDispatch → renumberRouteList()
-
   saveBtn.onclick = () => {
     const items = Array.from(list.querySelectorAll("li.list-group-item.route-item"));
 
-    // Формируем orderedPoints в текущем порядке
-    const orderedPoints = items.map(li => ({
+    // Полные точки с порядком и всеми полями
+    const orderedPoints = items.map((li, idx) => ({
+      order: Number(li.dataset.order || (idx + 1)),
+      type: li.dataset.type || "",
       address: li.dataset.address || "",
-      // отдаём начало окна как scheduled_at (совместимо с текущим /save)
-      scheduled_at: li.dataset.dateFromIso || li.dataset.scheduledAt || "",
-      load_id: li.dataset.id || ""
-      // при необходимости можно расширить: date_to_iso, time_from, time_to, type
+      date_from_iso: li.dataset.dateFromIso || "",
+      date_to_iso:   li.dataset.dateToIso || "",
+      time_from:     li.dataset.timeFrom || "",
+      time_to:       li.dataset.timeTo || "",
+      lng:           li.dataset.lng ? Number(li.dataset.lng) : null,
+      lat:           li.dataset.lat ? Number(li.dataset.lat) : null,
+      // для обратной совместимости со старым /save
+      scheduled_at:  li.dataset.dateFromIso || "",
+      load_id:       li.dataset.id || ""
     }));
 
     submitConsolidationOrderDispatch(orderedPoints);
@@ -747,31 +752,29 @@ function setupPointClickOrderingDispatch() {
 
 
 async function submitConsolidationOrderDispatch(orderedPoints) {
-  const cleanedPoints = orderedPoints
-    .map(p => ({
-      address: p.address?.trim(),
-      scheduled_at: p.scheduled_at || p.date || '',
-      load_id: p.load_id || null
-    }))
-    .filter(p => p.load_id && p.address);
+  // не чистим поля — сохраняем ВСЕ, но фильтруем пустые load_id/адрес
+  const cleanedPoints = orderedPoints.filter(p => p.load_id && p.address);
 
   const loadIds = [...new Set(cleanedPoints.map(p => p.load_id))];
-
   if (!loadIds.length) {
     alert("❌ Нет валидных грузов для консолидации.");
     return;
   }
 
+  const summary = window.__consolidationSummary || {};
+  const payload = {
+    load_ids: loadIds,
+    route_points: cleanedPoints,
+    total_miles: Number(summary.miles || 0),
+    total_price: Number(summary.total_price || getConsolidationTotalPrice()),
+    rpm: Number(summary.rpm || 0)
+  };
+
   try {
     const res = await fetch('/api/consolidation/save', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        load_ids: loadIds,
-        route_points: cleanedPoints
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
 
     const json = await res.json();
@@ -779,7 +782,7 @@ async function submitConsolidationOrderDispatch(orderedPoints) {
       closeConsolidationModalDispatch();
       alert(`✅ Грузы успешно консолидированы\n🚚 Miles: ${json.miles}\n📊 RPM: ${json.rpm}`);
     } else {
-      alert("Ошибка сервера: " + json.error);
+      alert("Ошибка сервера: " + (json.error || "Unknown"));
     }
   } catch (err) {
     console.error(err);
@@ -844,7 +847,6 @@ async function updateConsolidationMapRoute() {
   const list = document.getElementById("routeListDispatch");
   if (!map || !list) return;
 
-  // Собираем точки в текущем порядке DOM
   const pts = Array.from(list.querySelectorAll("li.list-group-item.route-item")).map(li => {
     const lng = parseFloat(li.dataset.lng || "NaN");
     const lat = parseFloat(li.dataset.lat || "NaN");
@@ -860,13 +862,11 @@ async function updateConsolidationMapRoute() {
     };
   });
 
-  // Снимаем старые маркеры
+  // снять старые маркеры
   CONSOLIDATION_MARKERS.forEach(m => { try { m.marker.remove(); } catch(e) {} });
   CONSOLIDATION_MARKERS = [];
 
-  // Маркеры: пикапы — зелёные, деливери — красные
   const bounds = new mapboxgl.LngLatBounds();
-
   pts.forEach(p => {
     if (isFinite(p.lng) && isFinite(p.lat)) {
       const color = (p.type === "pickup") ? "#22c55e" : "#ef4444";
@@ -882,22 +882,19 @@ async function updateConsolidationMapRoute() {
     }
   });
 
-  // Подгоняем камеру
   if (!bounds.isEmpty()) {
     map.fitBounds(bounds, { padding: 40, duration: 300 });
   }
 
-  // Рисуем линию маршрута по дорогам (Mapbox Directions). Если координат <2 — очищаем.
   const coords = pts.filter(p => isFinite(p.lng) && isFinite(p.lat)).map(p => [p.lng, p.lat]);
 
   let miles = 0;
   if (coords.length >= 2) {
-    const geojson = await fetchDirectionsGeoJSON(coords); // едет по дорогам
+    const geojson = await fetchDirectionsGeoJSON(coords);
     if (geojson) {
       map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData(geojson);
       miles = (geojson.properties?.distance_miles) || 0;
     } else {
-      // fallback: прямая линия по шаровой дистанции
       miles = haversineTotalMiles(coords);
       map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData({
         type: "FeatureCollection",
@@ -912,11 +909,16 @@ async function updateConsolidationMapRoute() {
     map.getSource(CONSOLIDATION_ROUTE_SOURCE_ID)?.setData({ type: "FeatureCollection", features: [] });
   }
 
-  // Считаем RPM = сумма цен / мили (цены берём по уникальным грузам из таблицы loads, сохранённой при открытии модалки)
   const priceTotal = getConsolidationTotalPrice();
   const rpm = miles > 0 ? (priceTotal / miles) : 0;
 
-  // Обновляем сводку
+  // 👉 сохраняем сводку для /save
+  window.__consolidationSummary = {
+    miles: Number(miles || 0),
+    total_price: Number(priceTotal || 0),
+    rpm: Number(isFinite(rpm) ? rpm : 0)
+  };
+
   document.getElementById("summaryMiles").textContent = miles.toFixed(2);
   document.getElementById("summaryRPM").textContent   = isFinite(rpm) ? rpm.toFixed(2) : "—";
 }
