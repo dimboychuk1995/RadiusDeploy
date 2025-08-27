@@ -812,7 +812,7 @@ async function initConsolidationMap(center = [-89.4, 40.5], zoom = 4) {
 
   CONSOLIDATION_MAP = new mapboxgl.Map({
     container: "consolidationMap",
-    style: "mapbox://styles/mapbox/streets-v12",
+    style: "mapbox://styles/mapbox/navigation-day-v1",
     center,
     zoom
   });

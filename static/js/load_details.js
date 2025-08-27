@@ -67,7 +67,7 @@ function initLoadDetails() {
 
   const map = new mapboxgl.Map({
     container: 'loadMap',
-    style: 'mapbox://styles/mapbox/light-v11',
+    style: "mapbox://styles/mapbox/navigation-day-v1",
     center: [-98, 38],
     zoom: 4
   });
