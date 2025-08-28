@@ -1,87 +1,49 @@
-document.addEventListener("DOMContentLoaded", () => {
-  TimezoneSettings.init();
-});
+// Таймзоны: загрузка списка, выбор и сохранение
+window.initTimezoneSettings = function initTimezoneSettings(currentTz) {
+  const sel = document.getElementById('timezoneSelect');
+  const cur = document.getElementById('timezoneCurrent');
+  const btn = document.getElementById('btnSaveTimezone');
 
-const TimezoneSettings = {
-  selectEl: null,
-  saveBtn: null,
-  currentTimezone: null,
+  if (!sel || !btn) return;
 
-  init() {
-    this.selectEl = document.getElementById("timezoneSelect");
-    this.saveBtn = document.getElementById("saveTimezoneBtn");
-    this.currentTimezone = this.selectEl.dataset.current;
-
-    this.loadTimezones();
-    this.bindEvents();
-  },
-
-  loadTimezones() {
-    fetch("/api/settings/timezones")
-      .then(res => res.json())
-      .then(timezones => {
-        this.populateSelect(timezones);
-      })
-      .catch(err => {
-        console.error("Ошибка загрузки таймзон:", err);
-        this.showError("Ошибка загрузки таймзон");
+  // загрузить список
+  fetch('/api/settings/timezones', { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) throw new Error('Failed to load timezones');
+      const zones = data.timezones || [];
+      sel.innerHTML = '';
+      zones.forEach(z => {
+        const opt = document.createElement('option');
+        opt.value = z;
+        opt.textContent = z;
+        if (z === currentTz) opt.selected = true;
+        sel.appendChild(opt);
       });
-  },
-
-  populateSelect(timezones) {
-    this.selectEl.innerHTML = "";
-
-    timezones.forEach(tz => {
-      const option = document.createElement("option");
-      option.value = tz;
-      option.textContent = tz;
-      if (tz === this.currentTimezone) {
-        option.selected = true;
-      }
-      this.selectEl.appendChild(option);
-    });
-  },
-
-  bindEvents() {
-    this.saveBtn.addEventListener("click", () => {
-      this.saveSelectedTimezone();
-    });
-  },
-
-  saveSelectedTimezone() {
-    const selected = this.selectEl.value;
-
-    fetch("/api/settings/timezone", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ timezone: selected })
     })
-      .then(res => res.json())
+    .catch(err => {
+      console.error(err);
+      if (window.Swal) Swal.fire('Error', 'Failed to load timezones', 'error');
+    });
+
+  // сохранить
+  btn.addEventListener('click', () => {
+    const tz = sel.value;
+    fetch('/api/settings/timezone', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone: tz })
+    })
+      .then(r => r.json())
       .then(data => {
-        console.log("Timezone saved:", data);
-        this.showSuccess("Таймзона успешно сохранена");
+        if (!data.success) throw new Error(data.error || 'Save failed');
+        if (cur) cur.textContent = data.timezone;
+        if (window.Swal) Swal.fire({ icon: 'success', title: 'Saved', timer: 1200, showConfirmButton: false });
       })
       .catch(err => {
-        console.error("Ошибка при сохранении таймзоны:", err);
-        this.showError("Ошибка при сохранении таймзоны");
+        console.error(err);
+        if (window.Swal) Swal.fire('Error', err.message || 'Failed to save', 'error');
       });
-  },
-
-  showSuccess(message) {
-    Swal.fire({
-      icon: 'success',
-      title: 'Готово!',
-      text: message,
-      timer: 2000,
-      showConfirmButton: false
-    });
-  },
-
-  showError(message) {
-    Swal.fire({
-      icon: 'error',
-      title: 'Ошибка',
-      text: message
-    });
-  }
+  });
 };
