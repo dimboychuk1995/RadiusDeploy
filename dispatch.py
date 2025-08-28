@@ -915,3 +915,80 @@ def delete_driver_break():
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@dispatch_bp.route('/api/consolidation/delete', methods=['POST'])
+@login_required
+def delete_consolidation():
+    """
+    Удаляет консолидацию и снимает флаги у связанных грузов.
+
+    Вход:
+      { "consolidate_id": "<oid>" }
+      # опционально вместо этого:
+      { "load_id": "<oid>" }  -> найдём его consolidateId и удалим соответствующую группу
+
+    Ответ:
+      { "success": true, "cleared_load_ids": ["..."] }
+    """
+    try:
+        from flask import request, jsonify
+        from bson import ObjectId
+
+        payload = request.get_json(silent=True) or {}
+        consolidate_id_raw = payload.get("consolidate_id") or payload.get("id")
+        load_id_raw = payload.get("load_id")
+
+        consolidate_oid = None
+
+        # 1) если нам передали consolidate_id — используем его
+        if consolidate_id_raw and ObjectId.is_valid(consolidate_id_raw):
+            consolidate_oid = ObjectId(consolidate_id_raw)
+
+        # 2) иначе если передали load_id — найдём его группу
+        if not consolidate_oid and load_id_raw and ObjectId.is_valid(load_id_raw):
+            doc = loads_collection.find_one(
+                {"_id": ObjectId(load_id_raw)},
+                {"consolidateId": 1}
+            )
+            cid = (doc or {}).get("consolidateId")
+            if cid and ObjectId.is_valid(str(cid)):
+                consolidate_oid = ObjectId(str(cid))
+
+        if not consolidate_oid:
+            return jsonify({"success": False, "error": "Invalid or missing consolidate_id"}), 400
+
+        # найдём сам документ группы, чтобы знать её состав
+        group = consolidated_loads_collection.find_one(
+            {"_id": consolidate_oid},
+            {"_id": 1, "load_ids": 1}
+        )
+        if not group:
+            return jsonify({"success": False, "error": "Consolidation not found"}), 404
+
+        load_ids = group.get("load_ids") or []
+
+        # 1) снимаем флаг и ссылку на группу у всех грузов из группы
+        loads_collection.update_many(
+            {
+                "$or": [
+                    {"consolidateId": consolidate_oid},
+                    {"_id": {"$in": load_ids}}
+                ]
+            },
+            {
+                "$unset": {"consolidateId": ""},
+                "$set": {"consolidated": False}
+            }
+        )
+
+        # 2) удаляем сам документ группы
+        consolidated_loads_collection.delete_one({"_id": consolidate_oid})
+
+        return jsonify({
+            "success": True,
+            "cleared_load_ids": [str(i) for i in load_ids]
+        })
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

@@ -459,27 +459,34 @@ async function highlightConsolidatedLoadsOnSchedule() {
     const json = await res.json();
     if (!json.success) return;
 
-    // Сброс прошлой подсветки консолидации
-    chips.forEach(el => el.classList.remove("consolidated-delivery"));
-
-    // Помечаем все чипы тех грузов, которые consolidated
-    const consolidatedSet = new Set(
-      (json.items || [])
-        .filter(x => x.consolidated && x.consolidateId)
-        .map(x => x.load_id)
-    );
-
+    // Сброс прошлой подсветки и атрибутов группы
     chips.forEach(el => {
-      const id = el.dataset.loadId;
-      if (consolidatedSet.has(id)) {
-        el.classList.add("consolidated-delivery");
+      el.classList.remove("consolidated-delivery");
+      delete el.dataset.consolidateId;
+    });
+
+    // Карта: load_id -> consolidateId
+    const loadToGroup = {};
+    (json.items || []).forEach(x => {
+      if (x.consolidated && x.consolidateId) {
+        loadToGroup[x.load_id] = String(x.consolidateId);
       }
     });
 
-    // Пригодится в будущем: кэш групп по consolidateId
+    // Помечаем чипы и проставляем data-consolidate-id
+    chips.forEach(el => {
+      const id = el.dataset.loadId;
+      const gid = loadToGroup[id];
+      if (gid) {
+        el.classList.add("consolidated-delivery");
+        el.dataset.consolidateId = gid;
+      }
+    });
+
+    // Кэш самих групп (как было), пригодится для других фич
     window.__consolidationGroups = {};
     (json.groups || []).forEach(g => {
-      window.__consolidationGroups[String(g._id)] = g; // { _id, load_ids[], route_points[], ... }
+      window.__consolidationGroups[String(g._id)] = g;
     });
   } catch (e) {
     console.error("highlightConsolidatedLoadsOnSchedule error:", e);
@@ -559,71 +566,67 @@ function hideTooltip() {
 let selectedLoadCell = null;
 let selectedConsolidationCells = [];
 
-
 function bindLoadContextMenuHandlers() {
   const menu = document.getElementById("loadContextMenu");
   const excludeBtn = document.getElementById("excludeFromGrossBtn");
   const consolidateBtn = document.getElementById("consolidateLoadsBtn");
+  const deleteConsBtn = document.getElementById("deleteConsolidationBtn"); // <-- новый пункт
 
-  let selectedLoadCell = null;
+  let clickedChip = null;
+  selectedLoadCell = null;
 
   document.addEventListener("contextmenu", function (e) {
     const cell = e.target.closest(".load-cell");
     if (!cell) return;
 
-    // Проверка: есть ли внутри хоть что-то относящееся к грузам
+    // Если клик прямо по "чипу" груза — учтём это
+    clickedChip = e.target.closest(".delivery-item");
+
+    // Проверка, что в ячейке вообще есть данные по грузам
     const hasDeliveryText = cell.textContent.trim() !== "";
     const hasDropdown = cell.querySelector(".dropdown");
     const hasDeliveryItem = cell.querySelector(".delivery-item");
-
     if (!hasDeliveryText && !hasDropdown && !hasDeliveryItem) return;
 
     e.preventDefault();
     selectedLoadCell = cell;
 
-    // --- ВАЖНО: считаем выделенные ЧИПЫ грузов, а не ячейки ---
+    // --- Выбор «чипов» для консолидации (как раньше) ---
     const selectedDeliveries = Array.from(document.querySelectorAll(".delivery-item.selected-delivery"));
 
-    // Уникальные load_id среди выбранных чипов
-    const uniqueLoadIds = Array.from(
-      new Set(
-        selectedDeliveries
-          .map(it => it.dataset.loadId)
-          .filter(Boolean)
-      )
-    );
+    const uniqueLoadIds = Array.from(new Set(
+      selectedDeliveries.map(it => it.dataset.loadId).filter(Boolean)
+    ));
+    const uniqueDriverIds = Array.from(new Set(
+      selectedDeliveries.map(it => it.dataset.driverId).filter(Boolean)
+    ));
 
-    // Уникальные водители среди выбранных чипов
-    const uniqueDriverIds = Array.from(
-      new Set(
-        selectedDeliveries
-          .map(it => it.dataset.driverId)
-          .filter(Boolean)
-      )
-    );
-
-    // Водитель строки, по которой кликнули правой кнопкой
     const clickedRow = cell.closest(".driver-row");
     const clickedDriverId = clickedRow?.dataset.driverId || null;
 
-    // Условие: выбрано ≥2 разных грузов, все у одного водителя,
-    // и правый клик был в строке этого же водителя
     const canConsolidate =
       uniqueLoadIds.length >= 2 &&
       uniqueDriverIds.length === 1 &&
       clickedDriverId &&
       uniqueDriverIds[0] === clickedDriverId;
 
-    // Показ/скрытие опции "Консолидировать грузы"
     consolidateBtn.style.display = canConsolidate ? "block" : "none";
 
-    // Показ контекстного меню у курсора
+    // --- Показать «Удалить консолидацию», если правый клик по синему чипу ---
+    const consId = clickedChip?.dataset?.consolidateId || "";
+    if (deleteConsBtn) {
+      deleteConsBtn.style.display = consId ? "block" : "none";
+    }
+
+    // Позиционирование и открытие меню
     menu.style.top = `${e.pageY}px`;
     menu.style.left = `${e.pageX}px`;
     menu.style.display = "block";
 
-    // Сохраняем актуальный набор load_ids для обработчика кнопки
+    // Сохраняем полезные данные в менюшку
     menu.dataset.consolidateLoadIds = JSON.stringify(uniqueLoadIds);
+    if (consId) menu.dataset.deleteConsolidateId = consId;
+    else delete menu.dataset.deleteConsolidateId;
   });
 
   // Клик вне — закрываем меню
@@ -631,34 +634,65 @@ function bindLoadContextMenuHandlers() {
     menu.style.display = "none";
   });
 
-  // 🚫 Не учитывать в гросс — помечаем именно ячейку, как и раньше
+  // 🚫 Не учитывать в гросс — как раньше помечаем ячейку
   excludeBtn.addEventListener("click", () => {
     if (!selectedLoadCell) return;
-
     selectedLoadCell.classList.add("excluded-from-gross");
     selectedLoadCell.dataset.excludeFromGross = "true";
-
-    console.log("🚫 Исключена ячейка из gross");
     menu.style.display = "none";
   });
 
-  // 🔗 Консолидировать грузы — используем load_ids из выбранных ЧИПов
+  // 🔗 Консолидировать — как было
   consolidateBtn.addEventListener("click", () => {
     const serialized = menu.dataset.consolidateLoadIds || "[]";
     let allLoadIds = [];
-    try {
-      allLoadIds = JSON.parse(serialized);
-    } catch (e) {
-      allLoadIds = [];
-    }
-
+    try { allLoadIds = JSON.parse(serialized); } catch (_) { allLoadIds = []; }
     if (!allLoadIds.length) return;
 
-    console.log("🔗 Консолидация грузов:", allLoadIds);
     startConsolidationModal(allLoadIds);
-
     menu.style.display = "none";
   });
+
+  // 🗑️ Удалить консолидацию — НОВОЕ
+  if (deleteConsBtn) {
+    deleteConsBtn.addEventListener("click", async () => {
+      const consId = menu.dataset.deleteConsolidateId;
+      if (!consId) return;
+
+      const ok = await Swal.fire({
+        icon: "warning",
+        title: "Удалить консолидацию?",
+        text: "Будет удалён документ группы, а у всех грузов снимутся флаги консолидации.",
+        showCancelButton: true,
+        confirmButtonText: "Удалить",
+        cancelButtonText: "Отмена"
+      }).then(r => r.isConfirmed);
+
+      if (!ok) return;
+
+      try {
+        const resp = await fetch('/api/consolidation/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consolidate_id: consId })
+        });
+        const json = await resp.json();
+        if (!json.success) {
+          return Swal.fire("Ошибка", json.error || "Не удалось удалить", "error");
+        }
+
+        await Swal.fire("Готово", "Консолидация удалена", "success");
+
+        // Обновляем текущий диапазон на странице, чтобы убрать синюю подсветку
+        await reloadCurrentScheduleRange();
+      } catch (e) {
+        console.error(e);
+        Swal.fire("Ошибка", "Не удалось удалить", "error");
+      } finally {
+        menu.style.display = "none";
+      }
+    });
+  }
 }
 
 
