@@ -992,3 +992,183 @@ def delete_consolidation():
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+    
+
+
+
+@dispatch_bp.route('/api/driver/location_updated', methods=['POST'])
+@login_required
+def get_driver_current_location():
+    """
+    Вход (JSON):
+      { "driver_id": "<oid>" }
+
+    Логика:
+      drivers[_id] -> truck(ObjectId)
+      trucks[_id=truck] -> samsara_vehicle_id
+      integrations_settings[name='samsara'] -> api_key
+      -> Samsara: GET https://api.samsara.com/fleet/vehicles/stats?types=gps&ids=<samsara_vehicle_id>
+
+    Выход (JSON):
+      {
+        "success": true,
+        "driver": { "_id": "...", "name": "..." },
+        "truck": { "_id": "...", "number": "...", "samsara_vehicle_id": "..." },
+        "location": {
+          "lat": 41.88, "lng": -87.62,
+          "speed": 53.2, "heading": 180,
+          "address": "Chicago, IL",
+          "time": "2025-08-27T21:12:03Z"
+        }
+      }
+    """
+    try:
+        import requests
+        from flask import request, jsonify
+        from bson import ObjectId
+        from datetime import datetime, timezone
+
+        payload = request.get_json(silent=True) or {}
+        driver_id_raw = (payload.get("driver_id") or "").strip()
+
+        # --- validate driver id
+        if not driver_id_raw or not ObjectId.is_valid(driver_id_raw):
+            return jsonify({"success": False, "error": "Invalid driver_id"}), 400
+        driver_oid = ObjectId(driver_id_raw)
+
+        # --- find driver -> truck
+        driver = db.drivers.find_one({"_id": driver_oid}, {"first_name": 1, "last_name": 1, "name": 1, "truck": 1})
+        if not driver:
+            return jsonify({"success": False, "error": "Driver not found"}), 404
+
+        truck_ref = driver.get("truck")
+        if not truck_ref:
+            return jsonify({"success": False, "error": "Driver has no assigned truck"}), 404
+
+        # truck_ref может быть OID или строка
+        if isinstance(truck_ref, str) and ObjectId.is_valid(truck_ref):
+            truck_oid = ObjectId(truck_ref)
+        elif isinstance(truck_ref, ObjectId):
+            truck_oid = truck_ref
+        else:
+            return jsonify({"success": False, "error": "Invalid truck reference on driver"}), 400
+
+        # --- find truck -> samsara_vehicle_id
+        truck = db.trucks.find_one({"_id": truck_oid}, {"number": 1, "samsara_vehicle_id": 1})
+        if not truck:
+            return jsonify({"success": False, "error": "Truck not found"}), 404
+
+        samsara_vehicle_id = truck.get("samsara_vehicle_id")
+        if not samsara_vehicle_id:
+            return jsonify({"success": False, "error": "Truck has no samsara_vehicle_id"}), 404
+
+        # --- get samsara api token from integrations_settings
+        integ = db.integrations_settings.find_one({"name": {"$regex": r"^samsara$", "$options": "i"}}) or {}
+        api_key = (integ.get("api_key") or "").strip()
+        if not api_key:
+            return jsonify({"success": False, "error": "Samsara API token not found"}), 500
+
+        # --- call Samsara Vehicle Stats snapshot (types=gps), filtered by ids
+        # Docs: /fleet/vehicles/stats with types=gps (snapshot of last known GPS) and filtering by ids.
+        # https://api.samsara.com/fleet/vehicles/stats?types=gps&ids=<ID>
+        url = "https://api.samsara.com/fleet/vehicles/stats"
+        params = {
+            "types": "gps",
+            "ids": str(samsara_vehicle_id)
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json"
+        }
+
+        try:
+            resp = requests.get(url, headers=headers, params=params, timeout=10)
+        except Exception as ex:
+            return jsonify({"success": False, "error": f"Samsara request failed: {ex}"}), 502
+
+        if resp.status_code == 401:
+            return jsonify({"success": False, "error": "Samsara unauthorized (check API key/permissions)"}), 502
+        if resp.status_code == 404:
+            return jsonify({"success": False, "error": "Samsara vehicle not found"}), 404
+        if resp.status_code >= 400:
+            return jsonify({"success": False, "error": f"Samsara error: HTTP {resp.status_code}"}), 502
+
+        data = {}
+        try:
+            data = resp.json() or {}
+        except Exception:
+            return jsonify({"success": False, "error": "Invalid JSON from Samsara"}), 502
+
+        # --- parse result
+        # ожидаем структуру вида: { "data": [ { "id": "...", "gps": [ { latitude, longitude, time, heading, speed, reverseGeo{formattedLocation} } ] } ], "pagination": ... }
+        found = None
+        for entry in (data.get("data") or []):
+            # подстрахуемся по id совпадению
+            if str(entry.get("id")) == str(samsara_vehicle_id):
+                found = entry
+                break
+        if not found and (data.get("data") or []):
+            # если единственный элемент — берём его
+            if len(data["data"]) == 1:
+                found = data["data"][0]
+
+        if not found:
+            return jsonify({"success": False, "error": "No GPS data for this vehicle"}), 404
+
+        gps_arr = found.get("gps") or []
+        # иногда API может вернуть объект; приведём к списку
+        if isinstance(gps_arr, dict):
+            gps_arr = [gps_arr]
+        last = gps_arr[-1] if gps_arr else {}
+
+        # вытащим координаты/адрес/скорость/heading/время
+        lat = last.get("latitude") or last.get("lat")
+        lng = last.get("longitude") or last.get("lon") or last.get("lng")
+        heading = last.get("heading")
+        speed = last.get("speed") or last.get("speedMph") or last.get("speedKph")
+        ts = last.get("time") or last.get("timestamp") or last.get("reportedAtTime")
+        address = None
+        rev = last.get("reverseGeo") or {}
+        if isinstance(rev, dict):
+            address = rev.get("formattedLocation") or rev.get("name") or None
+
+        # нормализуем время в ISO
+        time_iso = None
+        if ts:
+            try:
+                # 'Z' -> +00:00
+                time_iso = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
+            except Exception:
+                time_iso = str(ts)
+
+        result = {
+            "success": True,
+            "driver": {
+                "_id": str(driver["_id"]),
+                "name": (driver.get("name")
+                         or f"{driver.get('first_name','').strip()} {driver.get('last_name','').strip()}").strip()
+            },
+            "truck": {
+                "_id": str(truck["_id"]),
+                "number": truck.get("number", ""),
+                "samsara_vehicle_id": str(samsara_vehicle_id)
+            },
+            "location": {
+                "lat": float(lat) if lat is not None else None,
+                "lng": float(lng) if lng is not None else None,
+                "heading": float(heading) if heading is not None else None,
+                "speed": float(speed) if speed is not None else None,
+                "address": address,
+                "time": time_iso
+            }
+        }
+
+        # если координат нет — отдаём понятную ошибку
+        if result["location"]["lat"] is None or result["location"]["lng"] is None:
+            return jsonify({"success": False, "error": "GPS location not available for this vehicle"}), 404
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

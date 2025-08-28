@@ -1270,3 +1270,173 @@ async function ensureMapboxToken() {
   mapboxgl.accessToken = token;
   return token;
 }
+
+
+
+
+
+////////////////////////////////////// driver on map /////////////////////////////////
+
+// ===== Водитель на карте =====
+let DRIVER_MAP = null;
+let DRIVER_MAP_READY = false;
+let DRIVER_MARKERS = [];
+
+// Разрешаем оба id контейнера: "driverMap" (старый) и "driverMapContainer" (как в шаблоне)
+const DRIVER_MAP_CONTAINER_IDS = ["driverMap", "driverMapContainer"];
+function resolveDriverMapContainerId() {
+  for (const id of DRIVER_MAP_CONTAINER_IDS) {
+    const el = document.getElementById(id);
+    if (el) return id;
+  }
+  return null;
+}
+
+async function initDriverMap() {
+  const containerId = resolveDriverMapContainerId();
+  if (!containerId) {
+    throw new Error("Driver map container #driverMap/#driverMapContainer not found in DOM");
+  }
+
+  if (DRIVER_MAP && DRIVER_MAP_READY) return;
+
+  await ensureMapboxToken();
+
+  // пересоздаём карту на всякий случай
+  if (DRIVER_MAP) {
+    try { DRIVER_MAP.remove(); } catch (e) {}
+    DRIVER_MAP = null;
+    DRIVER_MAP_READY = false;
+  }
+
+  DRIVER_MAP = new mapboxgl.Map({
+    container: containerId,
+    style: "mapbox://styles/mapbox/light-v11",
+    center: [-96, 37.8],
+    zoom: 3.5
+  });
+
+  await new Promise(res => DRIVER_MAP.on("load", () => { DRIVER_MAP_READY = true; res(); }));
+}
+
+function clearDriverMapMarkers() {
+  try { DRIVER_MARKERS.forEach(m => m.remove()); } catch(e) {}
+  DRIVER_MARKERS = [];
+}
+
+function driverHeadingMarker(bearingDeg = 0, color = "#0d6efd") {
+  const el = document.createElement("div");
+  el.style.width = "0";
+  el.style.height = "0";
+  el.style.borderLeft = "10px solid transparent";
+  el.style.borderRight = "10px solid transparent";
+  el.style.borderBottom = `18px solid ${color}`;
+  el.style.transform = `rotate(${bearingDeg}deg)`;
+  el.style.filter = "drop-shadow(0 0 2px rgba(0,0,0,.5))";
+  return el;
+}
+
+function setDriverMapView([lng, lat], bearing = null) {
+  if (!DRIVER_MAP) return;
+  const opts = { center: [lng, lat], zoom: 12, pitch: 0, duration: 400 };
+  if (bearing != null && isFinite(bearing)) opts.bearing = bearing;
+  DRIVER_MAP.flyTo(opts);
+}
+
+async function openDriverMapModal(driverId) {
+  if (!driverId) return;
+
+  // если модалка уже есть в DOM — используем её; если нет — создаём стандартную (с id=driverMap)
+  ensureDriverMapModalMarkup();
+
+  const modal = document.getElementById("driverMapModalDispatch");
+  const backdrop = document.getElementById("driverMapBackdropDispatch");
+  modal.classList.add("show");
+  backdrop.classList.add("show");
+
+  await initDriverMap();
+  setTimeout(() => { try { DRIVER_MAP.resize(); } catch(e) {} }, 180);
+
+  clearDriverMapMarkers();
+  const info = document.getElementById("driverMapInfo");
+  if (info) info.textContent = "Загружаем текущую локацию...";
+
+  try {
+    const resp = await fetch("/api/driver/location_updated", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driver_id: driverId })
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || !data.success) {
+      const err = data?.error || `HTTP ${resp.status}`;
+      if (info) info.textContent = "Ошибка: " + err;
+      return;
+    }
+
+    const { driver, truck, location } = data;
+    const lat = location.lat, lng = location.lng;
+    const heading = location.heading ?? 0;
+    const speed = location.speed ?? null;
+    const addr = location.address || "";
+    const time = location.time ? moment(location.time).format("MM/DD/YYYY HH:mm") : "";
+
+    const el = driverHeadingMarker(heading || 0, "#0d6efd");
+    const marker = new mapboxgl.Marker({ element: el }).setLngLat([lng, lat]).addTo(DRIVER_MAP);
+    DRIVER_MARKERS.push(marker);
+
+    setDriverMapView([lng, lat], heading);
+
+    if (info) {
+      const name = (driver?.name || "").trim();
+      const truckNum = (truck?.number || truck?.unit_number || "").trim?.() || "";
+      const sp = (speed != null && isFinite(speed)) ? `${Number(speed).toFixed(1)} mph` : "—";
+      info.innerHTML = `
+        <b>${name || "Driver"}</b>${truckNum ? ` • Truck ${truckNum}` : ""}<br>
+        ${addr ? addr + "<br>" : ""} 
+        ${time ? `Time: ${time}` : ""} ${heading != null ? ` • Heading: ${Math.round(heading)}°` : ""} • Speed: ${sp}
+      `;
+    }
+  } catch (e) {
+    console.error(e);
+    if (info) info.textContent = "Ошибка запроса";
+  }
+}
+
+function closeDriverMapModal() {
+  const modal = document.getElementById("driverMapModalDispatch");
+  const backdrop = document.getElementById("driverMapBackdropDispatch");
+  modal?.classList.remove("show");
+  backdrop?.classList.remove("show");
+}
+
+// Если модалка уже присутствует в шаблоне (как у тебя), эта функция просто ничего не делает.
+// Если её нет — вставит стандартную версию с <div id="driverMap">.
+function ensureDriverMapModalMarkup() {
+  if (document.getElementById("driverMapModalDispatch")) return;
+
+  const html = `
+  <div class="custom-offcanvas custom-offcanvas-right" id="driverMapModalDispatch">
+    <div class="custom-offcanvas-content">
+      <div class="custom-offcanvas-header">
+        <h4>Водитель на карте</h4>
+        <button class="btn btn-sm btn-secondary" onclick="closeDriverMapModal()">✖</button>
+      </div>
+      <div class="custom-offcanvas-body">
+        <div class="load-modal-content">
+          <div class="load-modal-left" style="width:100%;">
+            <div id="driverMap" style="height:340px;border-radius:8px;overflow:hidden;background:#f8f9fa" class="mb-2"></div>
+            <div class="d-flex justify-content-between align-items-center">
+              <div id="driverMapInfo" class="small text-muted"></div>
+              <div><button class="btn btn-outline-secondary btn-sm" onclick="closeDriverMapModal()">Close</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="custom-offcanvas-backdrop" id="driverMapBackdropDispatch" onclick="closeDriverMapModal()"></div>
+  `;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
