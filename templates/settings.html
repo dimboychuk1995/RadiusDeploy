@@ -3,16 +3,12 @@
 
 {% block sidebar %}
 <div class="list-group sidebar">
-  <!-- Левое меню Settings (как в index) -->
   <a class="list-group-item list-group-item-action d-flex align-items-center {% if active_tab=='timezone' %}active{% endif %}"
-     href="{{ url_for('settings_bp.settings_timezone') }}"
-     data-settings-link>
+     href="{{ url_for('settings_bp.settings_timezone') }}" data-settings-link>
     <i class="fas fa-clock me-2"></i> Timezone
   </a>
-
   <a class="list-group-item list-group-item-action d-flex align-items-center {% if active_tab=='permissions' %}active{% endif %}"
-     href="{{ url_for('settings_bp.settings_permissions') }}"
-     data-settings-link>
+     href="{{ url_for('settings_bp.settings_permissions') }}" data-settings-link>
     <i class="fas fa-user-shield me-2"></i> Permissions
   </a>
 </div>
@@ -20,8 +16,6 @@
 
 {% block content %}
 <div class="content">
-
-  <!-- Контейнер для подмены вкладок -->
   <div id="settings-content" class="content-section">
     {% if active_tab == 'timezone' %}
       {% include "settings/timezone.html" %}
@@ -31,26 +25,21 @@
       <div class="p-3">Choose a setting on the left.</div>
     {% endif %}
   </div>
-
 </div>
 
-<!-- Прогрессивное улучшение: плавная подмена без "ощущения перезагрузки" -->
 <script src="{{ url_for('static', filename='js/settings_nav.js') }}"></script>
 
 {% if active_tab == 'timezone' %}
   <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
   <script>window.initTimezoneSettings && window.initTimezoneSettings({{ current_tz|tojson|safe }});</script>
 {% elif active_tab == 'permissions' %}
-  <script>
-    // сюда позже подключим JS для управления правами
-  </script>
+  <script src="{{ url_for('static', filename='js/settings_permissions.js') }}"></script>
+  <script>window.initPermissions && window.initPermissions();</script>
 {% endif %}
 
 <style>
-  /* Лёгкая анимация смены вкладки */
   #settings-content.fade-enter { opacity: 0; transform: translateY(4px); }
   #settings-content.fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity .15s ease, transform .15s ease; }
-  /* Фикс высоты сайдбара, чтобы он не "дёргался" на быстрой подмене */
   .sidebar { min-height: 70vh; }
 </style>
 {% endblock %}

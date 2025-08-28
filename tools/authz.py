@@ -17,30 +17,30 @@ try:
 except Exception:
     from db import db  # type: ignore
 
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 # Конфиг
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 SHADOW_MODE = os.getenv("AUTHZ_SHADOW", "false").lower() == "true"
 AUTHZ_CACHE_TTL = int(os.getenv("AUTHZ_CACHE_TTL", "60"))  # сек кэша
 
-# =========================
-# Кэш (эффективные allow + deny)
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
+# Кэш (эффективные allow/deny)
+# ────────────────────────────────────────────────────────────────────────────────
 _caps_cache: Dict[str, Dict[str, Any]] = {}  # key -> {"caps": set[str], "deny": set[str], "ts": float}
 
 def _cache_key(user_id: Any, company: Any) -> str:
     return f"{str(user_id)}:{str(company)}"
 
 def invalidate_caps_cache(user_id: Any = None, company: Any = None):
-    """Сбросить кэш (вызывай после изменений ролей/оверрайдов)."""
+    """Сбросить кэш (вызови после изменения ролей/оверрайдов)."""
     if user_id is None and company is None:
         _caps_cache.clear()
     else:
         _caps_cache.pop(_cache_key(user_id, company), None)
 
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 # Subject (кто)
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 def _subject() -> Dict[str, Any]:
     u = getattr(g, "user", None) or current_user
     if not u or not getattr(u, "is_authenticated", False):
@@ -53,6 +53,7 @@ def _subject() -> Dict[str, Any]:
         except Exception:
             driver_id = None
 
+    # Мягко пытаемся найти связанную запись драйвера
     if driver_id is None:
         try:
             doc = db["drivers"].find_one({"user_id": getattr(u, "id", None)}, {"_id": 1})
@@ -65,34 +66,25 @@ def _subject() -> Dict[str, Any]:
         "auth": True,
         "user_id": getattr(u, "id", None) or getattr(u, "_id", None),
         "username": getattr(u, "username", None),
-        "role": (getattr(u, "role", None) or "").lower(),   # legacy single-role
+        "role": (getattr(u, "role", None) or "").lower(),  # legacy поле, может участвовать
         "company": getattr(u, "company", None),
         "driver_id": driver_id,
     }
 
-# =========================
-# Фоллбек ролей → капабилити
-# =========================
-FALLBACK_ROLE_CAPS = {
-    "superadmin": {"*"},
-    "admin":     {"trucks:view", "trucks:create", "trucks:delete", "trucks:file:view", "trucks:assign"},
-    "dispatch":  {"trucks:view", "trucks:file:view", "trucks:assign"},
-    "user":      {"trucks:view"},
-    "driver":    {"trucks:view", "trucks:file:view"},
-}
+# ────────────────────────────────────────────────────────────────────────────────
+# Утилиты
+# ────────────────────────────────────────────────────────────────────────────────
+def _collections_available() -> Set[str]:
+    try:
+        return set(db.list_collection_names())
+    except Exception:
+        return set()
 
-def _caps_from_fallback(role: str) -> Set[str]:
-    return set(FALLBACK_ROLE_CAPS.get((role or "").lower(), set()))
-
-# =========================
-# Wildcard-утилиты
-# =========================
 def _matches(cap_slug: str, pattern: str) -> bool:
     if pattern == cap_slug:
         return True
-    if pattern.endswith("*"):
-        prefix = pattern[:-1]
-        return cap_slug.startswith(prefix)
+    if isinstance(pattern, str) and pattern.endswith("*"):
+        return cap_slug.startswith(pattern[:-1])
     return False
 
 def _is_denied(cap_slug: str, deny: Set[str]) -> bool:
@@ -101,41 +93,30 @@ def _is_denied(cap_slug: str, deny: Set[str]) -> bool:
             return True
     return False
 
-def _collections_available() -> Set[str]:
-    try:
-        return set(db.list_collection_names())
-    except Exception:
-        return set()
-
-# =========================
-# Загрузка политик из БД с оверрайдами
-# (user_roles + role_defs) + ПОДДЕРЖКА users.allow/users.deny
-# =========================
 def _to_oid_or_str(v: Any) -> Tuple[Any, Any]:
-    """
-    Возвращает пару (as_oid, as_str) для удобного поиска.
-    """
-    as_oid = None
-    as_str = None
+    """Возвращает пару (as_oid, as_str) для удобных поисков."""
     if isinstance(v, ObjectId):
-        as_oid = v
-        as_str = str(v)
-    elif isinstance(v, str):
-        as_str = v
+        return v, str(v)
+    if isinstance(v, str):
         try:
-            as_oid = ObjectId(v)
+            return ObjectId(v), v
         except Exception:
-            as_oid = None
-    return as_oid, as_str
+            return None, v
+    return None, None
 
+# ────────────────────────────────────────────────────────────────────────────────
+# Загрузка политики ТОЛЬКО из БД (role_defs, user_roles, users)
+# ────────────────────────────────────────────────────────────────────────────────
 def _load_policy_from_db(user_id: Any, company: Any, legacy_role: str) -> Tuple[Set[str], Set[str]]:
     """
-    Возвращает (caps_allow, caps_deny) для пользователя внутри компании.
-    Источники (в таком порядке):
-      1) user_roles.roles → role_defs.caps   (если есть user_roles)
-         иначе legacy_role (users.role) → role_defs или фоллбек-словарь.
-      2) user_roles.allow / user_roles.deny  (персональные оверрайды)
-      3) users.allow / users.deny            (ПОДДЕРЖАНО ТЕПЕРЬ как фоллбек-персона)
+    Возвращает (caps_allow, caps_deny) для пользователя.
+    Источники (в таком порядке, все в БД):
+      1) user_roles.roles → role_defs.caps
+         иначе legacy_role (users.role) → role_defs.caps (если такая роль есть в БД)
+      2) user_roles.allow / user_roles.deny
+      3) users.allow / users.deny
+    Никаких словарей в коде: если нет role_defs — базовых прав с ролей не будет
+    (но персональные allow/deny всё равно сработают).
     """
     caps: Set[str] = set()
     deny: Set[str] = set()
@@ -149,63 +130,44 @@ def _load_policy_from_db(user_id: Any, company: Any, legacy_role: str) -> Tuple[
     rd_coll = db["role_defs"] if have_rd else None
     users_coll = db["users"] if have_users else None
 
-    # --- База caps: роли из user_roles или legacy_role ---
-    if have_ur and have_rd:
-        # ищем user_roles с гибкой проверкой типов user_id
+    # 1) База прав из ролей: приоритет user_roles.roles, далее users.role (если есть в role_defs)
+    user_roles_doc = None
+    if ur_coll is not None:
         oid, s = _to_oid_or_str(user_id)
-        user_roles_doc = None
         if oid is not None:
             user_roles_doc = ur_coll.find_one({"user_id": oid, "company": company})
         if not user_roles_doc and s is not None:
             user_roles_doc = ur_coll.find_one({"user_id": s, "company": company})
 
-        if user_roles_doc and user_roles_doc.get("roles"):
-            role_slugs = [str(x).lower() for x in user_roles_doc["roles"]]
-            for r in rd_coll.find({"slug": {"$in": role_slugs}}):
-                caps.update([str(c) for c in (r.get("caps") or [])])
-        else:
-            # legacy_role через role_defs → иначе фоллбек-словарь
-            if legacy_role and have_rd:
-                rd_doc = rd_coll.find_one({"slug": legacy_role.lower()})
-                if rd_doc and rd_doc.get("caps"):
-                    caps.update([str(c) for c in (rd_doc.get("caps") or [])])
-                else:
-                    caps.update(_caps_from_fallback(legacy_role))
-            else:
-                caps.update(_caps_from_fallback(legacy_role))
+    if user_roles_doc and user_roles_doc.get("roles") and rd_coll is not None:
+        role_slugs = [str(x).lower() for x in user_roles_doc["roles"]]
+        for r in rd_coll.find({"slug": {"$in": role_slugs}}):
+            caps.update([str(c) for c in (r.get("caps") or [])])
     else:
-        # нет коллекций политик — чистый фоллбек
-        caps.update(_caps_from_fallback(legacy_role))
+        # legacy_role только если такая запись существует в role_defs
+        if legacy_role and rd_coll is not None:
+            rd_doc = rd_coll.find_one({"slug": legacy_role.lower()})
+            if rd_doc and rd_doc.get("caps"):
+                caps.update([str(c) for c in (rd_doc.get("caps") or [])])
 
-    # --- Персональные оверрайды из user_roles (если есть doc) ---
-    if have_ur:
-        oid, s = _to_oid_or_str(user_id)
-        user_roles_doc = None
-        if oid is not None:
-            user_roles_doc = db["user_roles"].find_one({"user_id": oid, "company": company})
-        if not user_roles_doc and s is not None:
-            user_roles_doc = db["user_roles"].find_one({"user_id": s, "company": company})
+    # 2) Персональные оверрайды из user_roles
+    if user_roles_doc:
+        allow_add = set([str(x) for x in (user_roles_doc.get("allow") or [])])
+        deny_add  = set([str(x) for x in (user_roles_doc.get("deny")  or [])])
+        caps |= allow_add
+        deny |= deny_add
 
-        if user_roles_doc:
-            allow_add = set([str(x) for x in (user_roles_doc.get("allow") or [])])
-            deny_add  = set([str(x) for x in (user_roles_doc.get("deny")  or [])])
-            caps |= allow_add
-            deny |= deny_add
-
-    # --- Персональные оверрайды ИЗ users (как у тебя у Olena) ---
-    if have_users:
+    # 3) Персональные оверрайды из users
+    if users_coll is not None:
         oid, s = _to_oid_or_str(user_id)
         user_doc = None
         if oid is not None:
             user_doc = users_coll.find_one({"_id": oid}, {"allow": 1, "deny": 1})
         if not user_doc and s is not None:
             user_doc = users_coll.find_one({"_id": s}, {"allow": 1, "deny": 1})
-
         if user_doc:
-            allow_add_u = set([str(x) for x in (user_doc.get("allow") or [])])
-            deny_add_u  = set([str(x) for x in (user_doc.get("deny")  or [])])
-            caps |= allow_add_u
-            deny |= deny_add_u
+            caps |= set([str(x) for x in (user_doc.get("allow") or [])])
+            deny |= set([str(x) for x in (user_doc.get("deny")  or [])])
 
     return caps, deny
 
@@ -220,9 +182,9 @@ def _policy_for_user(subj: Dict[str, Any]) -> Tuple[Set[str], Set[str]]:
     _caps_cache[key] = {"caps": caps, "deny": deny, "ts": now}
     return caps, deny
 
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 # PDP: решение по capability
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 def decide(cap_slug: str, ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     subj = _subject()
     if not subj.get("auth"):
@@ -230,11 +192,11 @@ def decide(cap_slug: str, ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any
 
     caps, deny = _policy_for_user(subj)
 
-    # 1) Персональный DENY перекрывает всё
+    # 1) Персональный DENY имеет приоритет
     if _is_denied(cap_slug, deny):
         return {"allow": False, "reason": "user-deny", "subj": subj}
 
-    # 2) ALLOW (прямой или по wildcard)
+    # 2) ALLOW: прямой или по wildcard
     allow = False
     if "*" in caps:
         allow = True
@@ -246,11 +208,11 @@ def decide(cap_slug: str, ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any
                 allow = True
                 break
 
-    return {"allow": allow, "reason": "db-rbac-overrides" if caps else "role-fallback", "subj": subj}
+    return {"allow": allow, "reason": "db-only", "subj": subj}
 
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 # Аудит
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 def _audit(decision: Dict[str, Any], cap_slug: str, extra: Dict[str, Any] | None = None):
     try:
         db["audit_logs"].insert_one({
@@ -266,9 +228,9 @@ def _audit(decision: Dict[str, Any], cap_slug: str, extra: Dict[str, Any] | None
     except Exception:
         pass
 
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 # PEP-декоратор
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
 def require_cap(cap_slug: str):
     """
     Применяет решение PDP и, если SHADOW_MODE=false, возвращает 403 для API или
@@ -291,16 +253,16 @@ def require_cap(cap_slug: str):
         return wrapper
     return deco
 
-# =========================
-# Row-Level Security (фильтр)
-# =========================
+# ────────────────────────────────────────────────────────────────────────────────
+# Row-Level Security (пример для водителей / trucks:view)
+# ────────────────────────────────────────────────────────────────────────────────
 from datetime import datetime, timezone
 def apply_authz_filter(resource: str, action: str, base_filter: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """
     Возвращает Mongo-фильтр (RLS).
-    Минимум:
-      - ограничение по company
-      - для role=driver на trucks:view — только свой юнит (drivers.truck) или прямое назначение assigned_driver_id
+      - всегда ограничиваем company субъектом;
+      - для role=driver на trucks:view — только свой юнит (drivers.truck) или
+        прямое назначение assigned_driver_id.
     """
     f = dict(base_filter or {})
     subj = _subject()
