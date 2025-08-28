@@ -81,6 +81,7 @@
 <div id="driverContextMenu" class="dropdown-menu" style="position: absolute; display: none; z-index: 9999;">
   <button class="dropdown-item" id="setBreakBtn">Назначить брейк</button>
   <button class="dropdown-item" id="showOnMapBtn">Водитель на карте</button>
+  <button class="dropdown-item text-danger" id="removeBreakBtn" type="button">Убрать брейк…</button>
 </div>
 
 <!-- Контекстное меню для грузов -->
@@ -90,6 +91,9 @@
   <button class="dropdown-item text-primary" id="consolidateLoadsBtn">Консолидировать грузы</button>
 </div>
 
+<script id="driver-breaks-data" type="application/json">
+  {{ driver_breaks|tojson }}
+</script>
 
 <!-- ============== Модалка назначения брейка водителю ============== -->
 <div class="custom-offcanvas custom-offcanvas-right" id="driverBreakModalDispatch">

@@ -5,13 +5,14 @@ function initDispatchSchedule() {
   initDriverScheduleWeekNavigation();
   calculateAndBindDriverAmounts();
   bindLoadContextMenuHandlers();
+  highlightConsolidatedLoadsOnSchedule();
   }
 
 function initDriverScheduleWeekNavigation() {
   let currentOffset = 0;
 
   const prevBtn = document.getElementById("prevWeekBtn");
-  const nextBtn = document.getElementById("nextWeekBtn");
+  const nextBtn = document.getElementById("currentWeekBtn") ? document.getElementById("nextWeekBtn") : null;
   const currentBtn = document.getElementById("currentWeekBtn");
 
   if (prevBtn) {
@@ -55,6 +56,8 @@ function initDriverScheduleWeekNavigation() {
         bindDriverContextMenuHandlers();
         bindLoadCellClicks();
         updateWeekLabel();
+
+        highlightConsolidatedLoadsOnSchedule();
       })
       .catch(err => console.error("Ошибка при загрузке фрагмента:", err));
   }
@@ -66,6 +69,11 @@ function initDriverScheduleWeekNavigation() {
     if (label) {
       label.textContent = `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`;
     }
+    // ➕ сохраняем в глобал для REST-выборок
+    window.__scheduleRange = {
+      startISO: start.startOf('day').toISOString(),
+      endISO: end.endOf('day').toISOString()
+    };
   }
 
   // при первой инициализации
@@ -135,7 +143,15 @@ function bindDriverContextMenuHandlers() {
   document.getElementById("showOnMapBtn").addEventListener("click", () => {
     openDriverMapModal?.(selectedDriverId);
   });
+
+  // ➕ Новый пункт: убрать брейк
+  document.getElementById("removeBreakBtn").addEventListener("click", async () => {
+    if (!selectedDriverId) return;
+    await removeDriverBreakFlow(selectedDriverId);
+    menu.style.display = "none";
+  });
 }
+
 
 function openDriverBreakModalDispatch(driverId) {
   if (!driverId) return;
@@ -245,6 +261,125 @@ function initDriverBreakFormListenerDispatch() {
   });
 }
 
+function getDriverBreaksFromPage() {
+  const tag = document.getElementById('driver-breaks-data');
+  if (!tag) return [];
+  try {
+    return JSON.parse(tag.textContent || '[]');
+  } catch (e) {
+    console.error('Bad driver-breaks-data JSON', e);
+    return [];
+  }
+}
+
+function breakOverlapsRange(br, startISO, endISO) {
+  // br.start_date / end_date приходят как 'YYYY-MM-DD' из бэка (см. get_driver_break_map)
+  const s = new Date(`${br.start_date}T00:00:00`);
+  const e = new Date(`${br.end_date}T23:59:59`);
+  const rs = startISO ? new Date(startISO) : null;
+  const re = endISO ? new Date(endISO) : null;
+  return (!rs || e >= rs) && (!re || s <= re);
+}
+
+
+async function removeDriverBreakFlow(driverId) {
+  try {
+    const all = getDriverBreaksFromPage(); // уже отрисованные/переданные брейки
+    const range = window.__scheduleRange || {};
+    // фильтруем только по этому водителю и видимому диапазону
+    const items = all.filter(b => String(b.driver_id) === String(driverId))
+                     .filter(b => breakOverlapsRange(b, range.startISO, range.endISO));
+
+    if (!items.length) {
+      return Swal.fire("Нет брейков", "В видимом диапазоне у этого водителя нет брейков.", "info");
+    }
+
+    // построим радио-список
+    const optionsHtml = items.map((b, idx) => {
+      const start = moment(b.start_date).format("MM/DD/YYYY");
+      const end   = moment(b.end_date).format("MM/DD/YYYY");
+      const label = `${start} – ${end}   (${b.reason || "—"})`;
+      return `
+        <label style="display:flex;gap:8px;align-items:center;margin:.25rem 0;">
+          <input type="radio" name="breakPick" value="${b.id}" ${idx===0?'checked':''}>
+          <span>${label}</span>
+        </label>
+      `;
+    }).join("");
+
+    const { value: confirmed } = await Swal.fire({
+      title: "Удалить брейк",
+      html: `
+        <div style="text-align:left">
+          <p>Выбери брейк для удаления:</p>
+          ${optionsHtml}
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Удалить",
+      cancelButtonText: "Отмена",
+      focusConfirm: false,
+      preConfirm: () => {
+        const input = document.querySelector('input[name="breakPick"]:checked');
+        if (!input) {
+          Swal.showValidationMessage("Выберите брейк");
+          return false;
+        }
+        return input.value; // это break_id из Mongo
+      }
+    });
+
+    if (!confirmed) return;
+
+    const delRes = await fetch('/api/drivers/break/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ break_id: confirmed })
+    });
+    const delJson = await delRes.json();
+    if (!delJson.success) {
+      return Swal.fire("Ошибка", delJson.error || "Не удалось удалить", "error");
+    }
+
+    await Swal.fire("Готово", "Брейк удалён", "success");
+    // Быстро перерисуем текущий диапазон, у тебя функция уже есть
+    await reloadCurrentScheduleRange(); // см. её реализацию ниже в файле
+  } catch (e) {
+    console.error(e);
+    Swal.fire("Ошибка", "Непредвиденная ошибка", "error");
+  }
+}
+
+async function reloadCurrentScheduleRange() {
+  const wrap = document.querySelector("#dispatch-table-wrapper");
+  const range = window.__scheduleRange || {};
+  if (!wrap || !range.startISO || !range.endISO) {
+    // запасной вариант
+    return location.reload();
+  }
+
+  const start = moment(range.startISO).format("YYYY-MM-DD");
+  const end   = moment(range.endISO).format("YYYY-MM-DD");
+
+  const resp = await fetch(`/fragment/dispatch_schedule?start=${start}&end=${end}`);
+  const html = await resp.text();
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const newContent = doc.querySelector("#dispatch-table-wrapper");
+  if (newContent) {
+    wrap.innerHTML = newContent.innerHTML;
+
+    // перевешиваем обработчики
+    bindDispatcherToggleHandlers();
+    bindDriverContextMenuHandlers();
+    bindLoadCellClicks();
+    calculateAndBindDriverAmounts();
+    bindLoadContextMenuHandlers();
+    highlightConsolidatedLoadsOnSchedule();
+  }
+}
+
 
 
 function bindLoadCellClicks() {
@@ -261,7 +396,9 @@ function bindLoadCellClicks() {
         line-height: 1.2;
         display: inline-block;
       }
-      .selected-delivery {
+      /* Обычный выбор кликом и постоянная подсветка консолидации выглядят одинаково */
+      .selected-delivery,
+      .consolidated-delivery {
         background-color: #0d6efd !important;
         color: #fff !important;
       }
@@ -283,7 +420,7 @@ function bindLoadCellClicks() {
       const row = item.closest("tr.driver-row");
       const driverId = row?.dataset.driverId;
 
-      // Если переключились на другого водителя — очистить предыдущие выборы
+      // Если переключились на другого водителя — очистить предыдущие ВЫБОРЫ (но не подсветку консолидации)
       if (currentDriverId && currentDriverId !== driverId) {
         clearAllSelections();
       }
@@ -291,18 +428,66 @@ function bindLoadCellClicks() {
 
       // Переключаем выбор ТОЛЬКО на этом грузе
       item.classList.toggle("selected-delivery");
-
       // НИКАКОЙ рамки у ячейки не ставим
     });
   });
 
   function clearAllSelections() {
     document.querySelectorAll(".delivery-item").forEach(i => {
-      i.classList.remove("selected-delivery");
+      i.classList.remove("selected-delivery"); // важно: НЕ трогаем .consolidated-delivery
     });
     currentDriverId = null;
   }
 }
+
+
+async function highlightConsolidatedLoadsOnSchedule() {
+  const chips = Array.from(document.querySelectorAll(".delivery-item[data-load-id]"));
+  if (!chips.length) return;
+
+  // Собираем уникальные load_ids, видимые на странице
+  const loadIds = Array.from(
+    new Set(chips.map(el => el.dataset.loadId).filter(Boolean))
+  );
+
+  try {
+    const res = await fetch('/api/loads/consolidation_status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ load_ids: loadIds, include_docs: true })
+    });
+    const json = await res.json();
+    if (!json.success) return;
+
+    // Сброс прошлой подсветки консолидации
+    chips.forEach(el => el.classList.remove("consolidated-delivery"));
+
+    // Помечаем все чипы тех грузов, которые consolidated
+    const consolidatedSet = new Set(
+      (json.items || [])
+        .filter(x => x.consolidated && x.consolidateId)
+        .map(x => x.load_id)
+    );
+
+    chips.forEach(el => {
+      const id = el.dataset.loadId;
+      if (consolidatedSet.has(id)) {
+        el.classList.add("consolidated-delivery");
+      }
+    });
+
+    // Пригодится в будущем: кэш групп по consolidateId
+    window.__consolidationGroups = {};
+    (json.groups || []).forEach(g => {
+      window.__consolidationGroups[String(g._id)] = g; // { _id, load_ids[], route_points[], ... }
+    });
+  } catch (e) {
+    console.error("highlightConsolidatedLoadsOnSchedule error:", e);
+  }
+}
+
+
+
 
 function calculateAndBindDriverAmounts() {
   const rows = document.querySelectorAll("tr.driver-row");

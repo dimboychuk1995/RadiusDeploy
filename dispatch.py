@@ -606,6 +606,121 @@ def save_consolidation():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@dispatch_bp.route('/api/loads/consolidation_status', methods=['POST'])
+@login_required
+def consolidation_status_for_loads():
+    """
+    Вход:
+      {
+        "load_ids": ["<oid>", "<oid>", ...],
+        "include_docs": true|false
+      }
+
+    Ответ:
+      {
+        "success": true,
+        "items": [
+          {"load_id": "<oid>", "consolidated": true/false, "consolidateId": "<oid>|null"}
+        ],
+        "groups": [           # если include_docs = true
+          {
+            "_id": "<oid>",
+            "load_ids": ["<oid>", ...],
+            "route_points": [ { ... , "load_id": "<oid>", ... } ],
+            "total_miles": 0.0,
+            "total_price": 0.0,
+            "rpm": 0.0
+          }
+        ]
+      }
+    """
+    try:
+        from flask import request, jsonify
+        from bson import ObjectId
+        import traceback
+
+        payload = request.get_json(silent=True) or {}
+        raw_ids = payload.get("load_ids") or []
+        include_docs = bool(payload.get("include_docs"))
+
+        # --- нормализация входных id ---
+        obj_ids = []
+        for s in raw_ids:
+            try:
+                obj_ids.append(ObjectId(s))
+            except Exception:
+                pass
+
+        items = []
+        consolidate_ids = set()
+
+        if obj_ids:
+            cursor = loads_collection.find(
+                {"_id": {"$in": obj_ids}},
+                {"_id": 1, "consolidated": 1, "consolidateId": 1}
+            )
+            for doc in cursor:
+                cid = doc.get("consolidateId")
+                # собрать id групп для догрузки
+                if cid:
+                    if isinstance(cid, ObjectId):
+                        consolidate_ids.add(cid)
+                    else:
+                        try:
+                            consolidate_ids.add(ObjectId(cid))
+                        except Exception:
+                            pass
+
+                items.append({
+                    "load_id": str(doc["_id"]),
+                    "consolidated": bool(doc.get("consolidated", False)),
+                    "consolidateId": str(cid) if cid else None
+                })
+
+        result = {"success": True, "items": items}
+
+        # --- по запросу подтягиваем сами документы консолидаций ---
+        if include_docs and consolidate_ids:
+            groups = []
+            for g in consolidated_loads_collection.find({"_id": {"$in": list(consolidate_ids)}}):
+                # сериализуем вложенные load_id в route_points
+                norm_points = []
+                for p in (g.get("route_points") or []):
+                    q = dict(p)  # неглубокая копия
+                    lid = q.get("load_id")
+                    if isinstance(lid, ObjectId):
+                        q["load_id"] = str(lid)
+                    elif lid is not None:
+                        # иногда мог сохраниться как строка — оставим как есть
+                        q["load_id"] = str(lid)
+                    # привести order к int, lng/lat к float (если есть)
+                    if "order" in q:
+                        try: q["order"] = int(q["order"])
+                        except Exception: pass
+                    if "lng" in q:
+                        try: q["lng"] = float(q["lng"])
+                        except Exception: pass
+                    if "lat" in q:
+                        try: q["lat"] = float(q["lat"])
+                        except Exception: pass
+                    norm_points.append(q)
+
+                groups.append({
+                    "_id": str(g["_id"]),
+                    "load_ids": [str(x) for x in (g.get("load_ids") or [])],
+                    "route_points": norm_points,
+                    "total_miles": float(g.get("total_miles") or 0),
+                    "total_price": float(g.get("total_price") or 0),
+                    "rpm": float(g.get("rpm") or 0)
+                })
+            result["groups"] = groups
+
+        return jsonify(result)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 @dispatch_bp.route('/api/drivers/break', methods=['POST'])
@@ -766,3 +881,37 @@ def get_driver_location(driver_id):
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
+@dispatch_bp.route('/api/drivers/break/delete', methods=['POST'])
+@login_required
+def delete_driver_break():
+    """
+    Вход:  { "break_id": "<oid>" }
+    Выход: { "success": true } | { "success": false, "error": "..." }
+    """
+    try:
+        from flask import request, jsonify
+        from bson import ObjectId
+
+        payload = request.get_json(silent=True) or {}
+        bid = payload.get("break_id")
+
+        if not bid:
+            return jsonify({"success": False, "error": "Missing break_id"}), 400
+        if not ObjectId.is_valid(bid):
+            return jsonify({"success": False, "error": "Invalid break_id"}), 400
+
+        # Используем ТУ ЖЕ коллекцию, что и в get_driver_break_map:
+        # db.drivers_brakes.find(...)
+        res = db.drivers_brakes.delete_one({"_id": ObjectId(bid)})
+
+        if res.deleted_count == 0:
+            return jsonify({"success": False, "error": "Not found"}), 404
+
+        return jsonify({"success": True})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

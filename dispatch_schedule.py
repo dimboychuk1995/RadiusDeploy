@@ -132,7 +132,7 @@ def get_driver_break_map(tz, start_of_week, end_of_week):
 
     breaks_cursor = db.drivers_brakes.find({
         "start_date": {"$lte": datetime.combine(end_of_week, datetime.max.time())},
-        "end_date": {"$gte": datetime.combine(start_of_week, datetime.min.time())}
+        "end_date":   {"$gte": datetime.combine(start_of_week, datetime.min.time())}
     })
 
     break_map = defaultdict(list)
@@ -140,15 +140,16 @@ def get_driver_break_map(tz, start_of_week, end_of_week):
 
     for br in breaks_cursor:
         start_utc = br["start_date"]
-        end_utc = br["end_date"]
+        end_utc   = br["end_date"]
         driver_id = str(br["driver_id"])
-        reason = br.get("reason", "")
+        reason    = br.get("reason", "")
 
         start_local = start_utc.replace(tzinfo=timezone.utc).astimezone(tz)
-        end_local = end_utc.replace(tzinfo=timezone.utc).astimezone(tz)
+        end_local   = end_utc.replace(tzinfo=timezone.utc).astimezone(tz)
 
-        start_date_local = start_local.date()
+        # если end_local ровно 00:00, считаем, что брейк заканчивается предыдущим днём
         end_date_local = end_local.date() if end_local.time() != time(0, 0) else (end_local - timedelta(seconds=1)).date()
+        start_date_local = start_local.date()
 
         current = start_date_local
         while current <= end_date_local:
@@ -165,7 +166,6 @@ def get_driver_break_map(tz, start_of_week, end_of_week):
         })
 
     return break_list, break_map
-
 
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
