@@ -211,7 +211,7 @@ def api_login():
 
 
 
-# ======================= API: Смена пароля =======================
+# ======================= API: Смена пароля Mobile =======================
 @auth_bp.route("/api/change_password", methods=["POST"])
 @cross_origin()
 def api_change_password():
