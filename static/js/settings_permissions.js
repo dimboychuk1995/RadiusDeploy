@@ -5,136 +5,100 @@
   const ICON_OK = '<span class="perm-check">✓</span>';
   const ICON_NO = '<span class="perm-cross">✗</span>';
 
-  function renderTabs(categories) {
-    const tabs = $('#perm-tabs');
-    tabs.innerHTML = '';
-    categories.forEach((cat, idx) => {
-      const a = document.createElement('button');
-      a.className = 'perm-tab btn border-0' + (idx === 0 ? ' active' : '');
-      a.type = 'button';
-      a.dataset.cat = cat.category;
-      a.textContent = cat.category;
-      a.addEventListener('click', () => {
-        $$('.perm-tab', tabs).forEach(x => x.classList.remove('active'));
-        a.classList.add('active');
-        renderTable(cat);
+  function alertFallback(title, text, type) {
+    if (window.Swal) {
+      Swal.fire({
+        icon: type || 'info',
+        title,
+        text,
+        timer: type==='success' ? 1400 : undefined,
+        showConfirmButton: type!=='success'
       });
-      tabs.appendChild(a);
+    } else {
+      window.alert(`${title}${text ? ': ' + text : ''}`);
+    }
+  }
+
+  // Делегированное переключение прав (клики по любой ячейке .perm-cell)
+  function enableDelegatedToggle() {
+    const root = $('#perm-root');
+    if (!root) return;
+
+    root.addEventListener('click', (e) => {
+      const td = e.target.closest('td.perm-cell');
+      if (!td || !root.contains(td)) return;
+      toggleCell(td);
+    });
+
+    // Поддержка клавиатуры (Space/Enter)
+    root.addEventListener('keydown', (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      const td = e.target.closest('td.perm-cell[tabindex]');
+      if (!td) return;
+      e.preventDefault();
+      toggleCell(td);
     });
   }
 
-  function buildHeader(roles) {
-    const tr = document.createElement('tr');
-    tr.className = 'perm-sticky-head';
-    const th0 = document.createElement('th');
-    th0.className = 'perm-function perm-sticky-first';
-    th0.textContent = 'Function';
-    tr.appendChild(th0);
-    roles.forEach(r => {
-      const th = document.createElement('th');
-      th.innerHTML = `<span class="badge perm-badge-role text-wrap">${r}</span>`;
-      tr.appendChild(th);
-    });
-    return tr;
+  function toggleCell(td) {
+    // не даём случайно переключать "служебные" клетки, если такие появятся
+    if (td.hasAttribute('data-disabled')) return;
+
+    const has = td.dataset.has === '1';
+    const next = has ? '0' : '1';
+    td.dataset.has = next;
+    td.setAttribute('aria-pressed', next === '1' ? 'true' : 'false');
+    td.innerHTML = next === '1' ? ICON_OK : ICON_NO;
   }
 
-  function rowGroup(title, count) {
-    const tr = document.createElement('tr');
-    tr.className = 'perm-group-row';
-    const td = document.createElement('td');
-    td.className = 'perm-sticky-first';
-    td.innerHTML = `<span class="me-2">›</span> ${title} ${count != null ? `(${count})` : ''}`;
-    td.colSpan = 999;
-    tr.appendChild(td);
-    return tr;
-  }
-
-  function rowItem(item, roles, state) {
-    const tr = document.createElement('tr');
-    const td0 = document.createElement('td');
-    td0.className = 'perm-sticky-first';
-    td0.textContent = item.label;
-    tr.appendChild(td0);
-
-    roles.forEach(r => {
-      const td = document.createElement('td');
-      td.className = 'perm-cell text-center';
-      const has = (state[r] && state[r].has(item.slug)) ? 1 : 0;
-      td.dataset.slug = item.slug;
-      td.dataset.role = r;
-      td.innerHTML = has ? ICON_OK : ICON_NO;
-      td.addEventListener('click', () => {
-        toggle(state, r, item.slug);
-        td.innerHTML = (state[r].has(item.slug)) ? ICON_OK : ICON_NO;
+  function wireTabs() {
+    const tabs = $$('.perm-tab');
+    const cats = $$('.perm-cat');
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const target = btn.dataset.target;
+        cats.forEach(c => c.classList.toggle('d-none', c.id !== target));
       });
-      tr.appendChild(td);
     });
-
-    return tr;
   }
 
-  function toggle(state, role, slug) {
-    if (!state[role]) state[role] = new Set();
-    if (state[role].has(slug)) state[role].delete(slug);
-    else state[role].add(slug);
-  }
-
-  function serialize(state) {
+  function gatherPayload() {
+    const roles = {};
+    $$('.perm-cell').forEach(td => {
+      const role = td.dataset.role;
+      const slug = td.dataset.slug;
+      const has = td.dataset.has === '1';
+      if (!roles[role]) roles[role] = new Set();
+      if (has) roles[role].add(slug);
+    });
     const out = {};
-    Object.entries(state).forEach(([role, set]) => {
+    Object.entries(roles).forEach(([role, set]) => {
       out[role] = Array.from(set).sort();
     });
-    return out;
+    return { roles: out };
   }
 
-  let CATEGORIES = [];
-  let ROLES = [];
-  let STATE = {};
-
-  function renderTable(category) {
-    const wrap = $('#perm-table-wrapper');
-    wrap.innerHTML = '';
-
-    const table = document.createElement('table');
-    table.className = 'table table-hover align-middle';
-    const thead = document.createElement('thead');
-    const tbody = document.createElement('tbody');
-
-    thead.appendChild(buildHeader(ROLES));
-    table.appendChild(thead);
-
-    category.groups.forEach(grp => {
-      tbody.appendChild(rowGroup(grp.group, grp.items.length));
-      grp.items.forEach(item => {
-        tbody.appendChild(rowItem(item, ROLES, STATE));
-      });
+  async function saveRoles() {
+    const payload = gatherPayload();
+    const res = await fetch('/api/authz/roles', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
-
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-  }
-
-  async function loadAll() {
-    const [catRes, roleRes] = await Promise.all([
-      fetch('/api/authz/catalog', { credentials: 'same-origin' }),
-      fetch('/api/authz/roles',   { credentials: 'same-origin' }),
-    ]);
-    const cat = await catRes.json();
-    const roles = await roleRes.json();
-    if (!cat.success || !roles.success) throw new Error('load failed');
-
-    CATEGORIES = cat.categories || [];
-    ROLES = (cat.roles || []).filter(r => r !== 'superadmin');
-
-    const rolesMap = roles.roles || {};
-    STATE = {};
-    ROLES.forEach(r => {
-      const caps = new Set((rolesMap[r] || []).filter(Boolean));
-      STATE[r] = caps;
-    });
-
-    renderTabs(CATEGORIES);
-    renderTable(CATEGORIES[0]);
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try {
+        const t = await res.json();
+        if (t && t.error) msg = t.error;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Save failed');
+    return data;
   }
 
   function wireSave() {
@@ -142,31 +106,23 @@
     if (!btn) return;
     btn.addEventListener('click', async () => {
       btn.disabled = true;
+      btn.classList.add('disabled');
       try {
-        const payload = { roles: serialize(STATE) };
-        const res = await fetch('/api/authz/roles', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'Save failed');
-        if (window.Swal) Swal.fire({ icon: 'success', title: 'Saved', timer: 1200, showConfirmButton: false });
+        await saveRoles();
+        alertFallback('Saved', '', 'success');
       } catch (e) {
         console.error(e);
-        if (window.Swal) Swal.fire('Error', e.message || 'Failed to save', 'error');
+        alertFallback('Error', e.message || 'Failed to save', 'error');
       } finally {
         btn.disabled = false;
+        btn.classList.remove('disabled');
       }
     });
   }
 
-  window.initPermissions = function initPermissions() {
-    loadAll().then(wireSave).catch(err => {
-      console.error(err);
-      const wrap = $('#perm-table-wrapper');
-      if (wrap) wrap.innerHTML = '<div class="alert alert-danger">Failed to load permissions.</div>';
-    });
-  };
+  document.addEventListener('DOMContentLoaded', () => {
+    wireTabs();
+    enableDelegatedToggle();
+    wireSave();
+  });
 })();

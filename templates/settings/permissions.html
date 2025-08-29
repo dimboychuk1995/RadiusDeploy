@@ -10,14 +10,73 @@
     </div>
   </div>
 
-  <div id="perm-tabs" class="nav nav-pills mb-3 gap-2" role="tablist"></div>
-  <div id="perm-table-wrapper" class="table-responsive"></div>
+  <!-- Tabs -->
+  <div id="perm-tabs" class="nav nav-pills mb-3 gap-2" role="tablist">
+    {% for cat in categories %}
+      <button type="button"
+              class="perm-tab btn border-0 {% if loop.first %}active{% endif %}"
+              data-target="cat-{{ loop.index0 }}">
+        {{ cat.category }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <!-- Category tables -->
+  {% for cat in categories %}
+  <div class="perm-cat {% if not loop.first %}d-none{% endif %}" id="cat-{{ loop.index0 }}">
+    <div class="table-responsive" id="perm-table-wrapper">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr class="perm-sticky-head">
+            <th class="perm-function perm-sticky-first">Function</th>
+            {% for r in roles %}
+              <th>
+                <span class="badge perm-badge-role text-wrap">{{ r }}</span>
+              </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for grp in cat.groups %}
+            <tr class="perm-group-row">
+              <td class="perm-sticky-first" colspan="{{ 1 + roles|length }}">
+                <span class="me-2">›</span> {{ grp.group }} ({{ grp['items']|length }})
+              </td>
+            </tr>
+            {% for item in grp['items'] %}
+              <tr>
+                <td class="perm-sticky-first">{{ item.label }}</td>
+                {% for r in roles %}
+                  {% set caps = role_caps.get(r, []) %}
+                  {% set has = (item.slug in caps) or ('*' in caps) %}
+                  <td class="perm-cell text-center"
+                      role="button"
+                      tabindex="0"
+                      aria-pressed="{{ 'true' if has else 'false' }}"
+                      data-role="{{ r }}"
+                      data-slug="{{ item.slug }}"
+                      data-has="{{ 1 if has else 0 }}">
+                    {% if has %}
+                      <span class="perm-check">✓</span>
+                    {% else %}
+                      <span class="perm-cross">✗</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
 </div>
 
 <style>
   .perm-check { color: #28a745; }
   .perm-cross { color: #dc3545; }
-  .perm-cell { cursor: pointer; user-select: none; }
+  .perm-cell { cursor: pointer; user-select: none; pointer-events: auto; }
   .perm-group-row { background: #f8f9fb; font-weight: 600; }
   .perm-sticky-head th { position: sticky; top: 0; background: #fff; z-index: 2; }
   .perm-sticky-first { position: sticky; left: 0; background: inherit; z-index: 1; }
@@ -26,3 +85,5 @@
   .perm-tab.active { background: #5b5bff; color: #fff; }
   .perm-badge-role { background: #eef1ff; color: #2c2ce6; }
 </style>
+
+<script src="{{ url_for('static', filename='js/settings_permissions.js') }}"></script>
