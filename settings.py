@@ -11,8 +11,7 @@ import pytz
 try:
     from bson import ObjectId
 except Exception:
-    # если нет bson в окружении, пусть будет заглушка
-    class ObjectId(str):  # type: ignore
+    class ObjectId(str):  # fallback
         pass
 
 try:
@@ -26,21 +25,23 @@ except Exception:
 settings_bp = Blueprint("settings_bp", __name__, template_folder="templates")
 
 # ────────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Config
 # ────────────────────────────────────────────────────────────────────────────────
-
 SLUG_RE = re.compile(r"^[a-z][a-z0-9_:-]{1,99}$")
 ADMIN_ROLES = {"admin", "superadmin"}
 ORDERED_ROLES = ["admin", "dispatch", "accounting", "hr", "fleet_manager", "user", "driver", "superadmin"]
 
+# чёрный список категорий для UI/каталога
+HIDE_CATEGORIES_LOWER = {"fleet"}
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ────────────────────────────────────────────────────────────────────────────────
 def _current_company() -> Optional[str]:
     return getattr(current_user, "company", None) or getattr(current_user, "org", None)
 
 def _current_user_oid() -> Optional[ObjectId]:
-    """
-    Аккуратно достаём ObjectId текущего пользователя из разных возможных полей.
-    """
-    # 1) get_id() (flask-login)
+    # 1) get_id()
     try:
         val = current_user.get_id()  # type: ignore[attr-defined]
         if isinstance(val, str) and len(val) == 24:
@@ -78,12 +79,10 @@ def _current_user_oid() -> Optional[ObjectId]:
 
 def _is_admin() -> bool:
     """
-    Логика «я могу сохранять права?»:
-    1) Явные роли/имя пользователя: admin/superadmin.
-    2) Документ в user_roles по (user_id, company) — наличие разрешения 'settings:permissions:write'
-       или общего 'admin'/'*'.
-    3) Фолбэк: если ничего не нашли — НЕ блокируем (возвращаем True), чтобы не ломать дев-окружение.
-       Если хотите строже — поменяйте return True -> False.
+    Можно сохранять права?
+    1) роль/username: admin/superadmin;
+    2) allow в user_roles: ['settings:permissions:write' | 'admin' | '*'];
+    3) фолбэк (dev): True.
     """
     role = (getattr(current_user, "role", "") or "").lower()
     username = (getattr(current_user, "username", "") or "").lower()
@@ -99,11 +98,8 @@ def _is_admin() -> bool:
             if any(x in allow for x in ("settings:permissions:write", "admin", "*")):
                 return True
     except Exception:
-        # если коллекции нет — не валим сохранение
         return True
-
-    # Фолбэк: НЕ ломаем сохранение в деве
-    return True
+    return True  # сделайте False, если нужно строго
 
 def _ensure_indexes():
     names = set(db.list_collection_names())
@@ -115,25 +111,40 @@ def _ensure_indexes():
     db["permission_defs"].create_index([("category", 1), ("group", 1), ("order", 1)])
     db["role_defs"].create_index([("slug", 1)], unique=True)
 
+def _cat_visible(raw_cat: str | None) -> bool:
+    name = (raw_cat or "General").strip().lower()
+    return name not in HIDE_CATEGORIES_LOWER
+
 def _fetch_catalog_from_db() -> List[Dict[str, Any]]:
+    """
+    Собираем каталог прав для UI.
+    Специально ПЕРЕИМЕНОВЫВАЕМ категорию 'Fleet' (в любом регистре) в 'General',
+    чтобы вкладка 'Fleet' не появлялась, но её права были видны в общем списке.
+    """
     items = list(db["permission_defs"].find(
         {"enabled": {"$ne": False}},
         {"_id": 0, "slug": 1, "label": 1, "category": 1, "group": 1, "order": 1}
     ).sort([("category", 1), ("group", 1), ("order", 1), ("slug", 1)]))
 
+    # Переносим все права из Fleet → General на уровне рендера
+    RENAME_LOWER = {"fleet": "General"}
+
     by_cat: Dict[str, Dict[str, Any]] = {}
     for it in items:
-        cat = it.get("category") or "General"
-        grp = it.get("group") or "Common"
+        raw_cat = (it.get("category") or "General").strip()
+        cat = RENAME_LOWER.get(raw_cat.lower(), raw_cat)  # 'fleet' → 'General'
+        grp = (it.get("group") or "Common").strip()
+
         node = by_cat.setdefault(cat, {"category": cat, "groups": {}})
         g = node["groups"].setdefault(grp, {"group": grp, "items": []})
-        g["items"].append({"slug": it["slug"], "label": it.get("label") or it["slug"]})
+        g["items"].append({
+            "slug": it["slug"],
+            "label": (it.get("label") or it["slug"]).strip()
+        })
 
     out = []
     for cat, node in by_cat.items():
-        groups_arr = []
-        for grp, gnode in node["groups"].items():
-            groups_arr.append(gnode)
+        groups_arr = list(node["groups"].values())
         groups_arr.sort(key=lambda x: x["group"])
         out.append({"category": cat, "groups": groups_arr})
     out.sort(key=lambda x: x["category"])
@@ -222,8 +233,20 @@ def api_set_timezone():
     return jsonify({"success": True, "timezone": tz})
 
 # ────────────────────────────────────────────────────────────────────────────────
-# AuthZ API
+# AuthZ: Catalog & Roles
 # ────────────────────────────────────────────────────────────────────────────────
+@settings_bp.route("/api/authz/permissions", methods=["GET"])
+@login_required
+def api_perm_list():
+    """
+    Возвращаем полный список прав (без скрытия категорий).
+    UI всё равно отображает 'Fleet' как 'General'.
+    """
+    _ensure_indexes()
+    docs = list(db["permission_defs"].find(
+        {}, {"_id": 0}
+    ).sort([("category", 1), ("group", 1), ("order", 1), ("slug", 1)]))
+    return jsonify({"success": True, "permissions": docs})
 
 @settings_bp.route("/api/authz/catalog", methods=["GET"])
 @login_required
@@ -256,7 +279,6 @@ def api_authz_roles_set():
     _ensure_indexes()
     known = _known_caps()
 
-    # аккуратнее очищаем и записываем
     for slug, caps in roles.items():
         s = (slug or "").lower().strip()
         if s == "superadmin":
@@ -275,6 +297,117 @@ def api_authz_roles_set():
             {"$set": {"caps": sorted(list(set(cleaned)))}},
             upsert=True
         )
+
+    invalidate_caps_cache()
+    return jsonify({"success": True})
+
+# ────────────────────────────────────────────────────────────────────────────────
+# AuthZ: Users (персональные allow/deny)
+# ────────────────────────────────────────────────────────────────────────────────
+@settings_bp.route("/api/authz/users", methods=["GET"])
+@login_required
+def api_authz_users():
+    """
+    Список пользователей компании для выбора в UI.
+    Параметр q — опциональный поиск по username/real_name/email (регистронезависимо).
+    """
+    company = _current_company()
+    if not company:
+        return jsonify({"success": False, "error": "No company in context"}), 400
+
+    q = (request.args.get("q") or "").strip()
+    filt: Dict[str, Any] = {"company": company}
+    if q:
+        filt["$or"] = [
+            {"username": {"$regex": q, "$options": "i"}},
+            {"real_name": {"$regex": q, "$options": "i"}},
+            {"email": {"$regex": q, "$options": "i"}},
+        ]
+    cur = db["users"].find(filt, {"_id": 1, "username": 1, "real_name": 1, "role": 1}).sort([("username", 1)]).limit(200)
+    users = [{"_id": str(d["_id"]), "username": d.get("username"), "real_name": d.get("real_name"), "role": d.get("role")} for d in cur]
+    return jsonify({"success": True, "users": users})
+
+@settings_bp.route("/api/authz/user_caps", methods=["GET"])
+@login_required
+def api_authz_user_caps_get():
+    """
+    Получаем allow/deny и роль пользователя (для расчёта inherit).
+    """
+    company = _current_company()
+    if not company:
+        return jsonify({"success": False, "error": "No company in context"}), 400
+
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "error": "user_id is required"}), 400
+
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return jsonify({"success": False, "error": "invalid user_id"}), 400
+
+    user = db["users"].find_one({"_id": oid, "company": company}, {"role": 1, "allow": 1, "deny": 1})
+    if not user:
+        return jsonify({"success": False, "error": "user not found"}), 404
+
+    return jsonify({
+        "success": True,
+        "role": (user.get("role") or "").lower(),
+        "allow": list(user.get("allow") or []),
+        "deny": list(user.get("deny") or []),
+    })
+
+@settings_bp.route("/api/authz/user_caps", methods=["POST"])
+@login_required
+def api_authz_user_caps_set():
+    """
+    Сохраняем allow/deny для конкретного пользователя.
+    """
+    if not _is_admin():
+        return jsonify({"success": False, "error": "forbidden"}), 403
+
+    company = _current_company()
+    if not company:
+        return jsonify({"success": False, "error": "No company in context"}), 400
+
+    payload = request.get_json(force=True, silent=True) or {}
+    user_id = payload.get("user_id")
+    allow = payload.get("allow", [])
+    deny  = payload.get("deny", [])
+
+    if not user_id:
+        return jsonify({"success": False, "error": "user_id is required"}), 400
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return jsonify({"success": False, "error": "invalid user_id"}), 400
+    if not isinstance(allow, list) or not isinstance(deny, list):
+        return jsonify({"success": False, "error": "allow/deny must be arrays"}), 400
+
+    _ensure_indexes()
+    known = _known_caps()
+    def _clean(arr):
+        out = []
+        for c in arr:
+            if not isinstance(c, str):
+                continue
+            c = c.strip()
+            if c == "*" or c in known:
+                out.append(c)
+        return sorted(list(set(out)))
+
+    allow_clean = _clean(allow)
+    deny_clean  = _clean(deny)
+
+    # Нельзя одновременно указывать один и тот же slug в allow и deny → отдадим приоритет deny
+    allow_clean = [c for c in allow_clean if c not in set(deny_clean)]
+
+    res = db["users"].update_one(
+        {"_id": oid, "company": company},
+        {"$set": {"allow": allow_clean, "deny": deny_clean, "updated_at": datetime.utcnow()}},
+    )
+    if res.matched_count == 0:
+        return jsonify({"success": False, "error": "user not found"}), 404
 
     invalidate_caps_cache()
     return jsonify({"success": True})

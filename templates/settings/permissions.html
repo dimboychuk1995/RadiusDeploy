@@ -1,82 +1,123 @@
-<div class="p-3" id="perm-root">
+<div class="p-3" id="perm-root" data-mode="roles">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h5 class="mb-0">
       <i class="fas fa-user-shield me-2"></i> Permissions
     </h5>
-    <div>
+    <div class="d-flex align-items-center gap-2">
+      <!-- Переключатель режима -->
+      <div class="btn-group" role="group" aria-label="Mode">
+        <button type="button" class="btn btn-outline-secondary" id="modeRolesBtn" data-mode="roles">Roles</button>
+        <button type="button" class="btn btn-outline-secondary" id="modeUserBtn" data-mode="user">User</button>
+      </div>
+
+      <!-- Выбор пользователя (без поиска/релоуда) -->
+      <div id="userPicker" class="d-flex align-items-center gap-2 d-none">
+        <select id="userSelect" class="form-select form-select-sm" style="min-width: 280px;">
+          <option value="">Select user…</option>
+        </select>
+      </div>
+
       <button id="btnPermSave" class="btn btn-primary">
         <i class="fas fa-save me-1"></i> Save
       </button>
     </div>
   </div>
 
-  <!-- Tabs -->
-  <div id="perm-tabs" class="nav nav-pills mb-3 gap-2" role="tablist">
-    {% for cat in categories %}
-      <button type="button"
-              class="perm-tab btn border-0 {% if loop.first %}active{% endif %}"
-              data-target="cat-{{ loop.index0 }}">
-        {{ cat.category }}
-      </button>
-    {% endfor %}
-  </div>
-
-  <!-- Category tables -->
-  {% for cat in categories %}
-  <div class="perm-cat {% if not loop.first %}d-none{% endif %}" id="cat-{{ loop.index0 }}">
-    <div class="table-responsive" id="perm-table-wrapper">
-      <table class="table table-hover align-middle">
-        <thead>
-          <tr class="perm-sticky-head">
-            <th class="perm-function perm-sticky-first">Function</th>
-            {% for r in roles %}
-              <th>
-                <span class="badge perm-badge-role text-wrap">{{ r }}</span>
-              </th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for grp in cat.groups %}
-            <tr class="perm-group-row">
-              <td class="perm-sticky-first" colspan="{{ 1 + roles|length }}">
-                <span class="me-2">›</span> {{ grp.group }} ({{ grp['items']|length }})
-              </td>
-            </tr>
-            {% for item in grp['items'] %}
-              <tr>
-                <td class="perm-sticky-first">{{ item.label }}</td>
-                {% for r in roles %}
-                  {% set caps = role_caps.get(r, []) %}
-                  {% set has = (item.slug in caps) or ('*' in caps) %}
-                  <td class="perm-cell text-center"
-                      role="button"
-                      tabindex="0"
-                      aria-pressed="{{ 'true' if has else 'false' }}"
-                      data-role="{{ r }}"
-                      data-slug="{{ item.slug }}"
-                      data-has="{{ 1 if has else 0 }}">
-                    {% if has %}
-                      <span class="perm-check">✓</span>
-                    {% else %}
-                      <span class="perm-cross">✗</span>
-                    {% endif %}
-                  </td>
-                {% endfor %}
-              </tr>
-            {% endfor %}
-          {% endfor %}
-        </tbody>
-      </table>
+  <div class="alert alert-light border d-flex align-items-center gap-3 py-2">
+    <div><strong>Mode:</strong> <span id="modeLabel">Roles</span></div>
+    <div class="small text-muted">
+      <span class="me-3">Roles → изменяем права для <em>роли</em>.</span>
+      <span>User → выбираем конкретного пользователя, видим итог (учитывая его роль + его override) и кликом ставим <span class="text-success">allow</span> / <span class="text-danger">deny</span> (повторный клик убирает override).</span>
     </div>
   </div>
-  {% endfor %}
+
+  {% if categories|length == 0 %}
+    <div class="alert alert-warning">Каталог прав пуст. Проверьте <code>permission_defs</code>.</div>
+  {% else %}
+    <!-- Tabs -->
+    <div id="perm-tabs" class="nav nav-pills mb-3 gap-2" role="tablist">
+      {% for cat in categories %}
+        <button type="button"
+                class="perm-tab btn border-0 {% if loop.first %}active{% endif %}"
+                data-target="cat-{{ loop.index0 }}">
+          {{ cat.category }}
+        </button>
+      {% endfor %}
+    </div>
+
+    <!-- Category tables -->
+    {% for cat in categories %}
+    <div class="perm-cat {% if not loop.first %}d-none{% endif %}" id="cat-{{ loop.index0 }}">
+      <div class="table-responsive" id="perm-table-wrapper">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr class="perm-sticky-head">
+              <th class="perm-function perm-sticky-first">Function</th>
+              {% for r in roles %}
+                <th class="role-col">
+                  <span class="badge perm-badge-role text-wrap">{{ r }}</span>
+                </th>
+              {% endfor %}
+              <th class="perm-user-head d-none">
+                <span class="badge perm-badge-role text-wrap">User</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for grp in cat.groups %}
+              <tr class="perm-group-row">
+                <td class="perm-sticky-first" colspan="{{ 1 + roles|length + 1 }}">
+                  <span class="me-2">›</span> {{ grp.group }} ({{ grp['items']|length }})
+                </td>
+              </tr>
+              {% for item in grp['items'] %}
+                <tr>
+                  <td class="perm-sticky-first">
+                    <span class="perm-label" data-slug="{{ item.slug }}">{{ item.label }}</span>
+                  </td>
+
+                  {% for r in roles %}
+                    {% set caps = role_caps.get(r, []) %}
+                    {% set has = (item.slug in caps) or ('*' in caps) %}
+                    <td class="perm-cell text-center role-col"
+                        role="button"
+                        tabindex="0"
+                        aria-pressed="{{ 'true' if has else 'false' }}"
+                        data-role="{{ r }}"
+                        data-slug="{{ item.slug }}"
+                        data-has="{{ 1 if has else 0 }}">
+                      {% if has %}
+                        <span class="perm-check">✓</span>
+                      {% else %}
+                        <span class="perm-cross">✗</span>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+
+                  <!-- ЕДИНСТВЕННЫЙ СТОЛБЕЦ для режима User -->
+                  <td class="perm-user-cell text-center d-none"
+                      role="button"
+                      tabindex="0"
+                      data-slug="{{ item.slug }}"
+                      data-u=""     <!-- override: '' | 'allow' | 'deny' -->
+                      data-eff="">  <!-- effective: '1' | '0' (для отрисовки) -->
+                    <!-- иконка будет проставлена JS -->
+                  </td>
+                </tr>
+              {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
 </div>
 
 <style>
   .perm-check { color: #28a745; }
   .perm-cross { color: #dc3545; }
-  .perm-cell { cursor: pointer; user-select: none; pointer-events: auto; }
+  .perm-cell, .perm-user-cell { cursor: pointer; user-select: none; pointer-events: auto; }
   .perm-group-row { background: #f8f9fb; font-weight: 600; }
   .perm-sticky-head th { position: sticky; top: 0; background: #fff; z-index: 2; }
   .perm-sticky-first { position: sticky; left: 0; background: inherit; z-index: 1; }
@@ -84,6 +125,10 @@
   .perm-tab { padding: .45rem .9rem; border-radius: .5rem; background: #f5f4ff; color: #5b5bff; }
   .perm-tab.active { background: #5b5bff; color: #fff; }
   .perm-badge-role { background: #eef1ff; color: #2c2ce6; }
+
+  /* подчёркиваем именно пользовательский override лёгкой тенью, но без слов "inherit" */
+  .perm-user-cell[data-u="allow"]  { box-shadow: inset 0 0 0 2px rgba(40,167,69,.2); }
+  .perm-user-cell[data-u="deny"]   { box-shadow: inset 0 0 0 2px rgba(220,53,69,.2); }
 </style>
 
 <script src="{{ url_for('static', filename='js/settings_permissions.js') }}"></script>
