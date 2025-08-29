@@ -2,17 +2,30 @@
   const $ = (sel, el=document) => el.querySelector(sel);
   const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
 
-  const ICON_OK = '<span class="perm-check">✓</span>';
-  const ICON_NO = '<span class="perm-cross">✗</span>';
+  // SVG-иконки без изгибов
+  const ICON_OK =
+    '<svg class="perm-ico perm-check" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<polyline points="4 12 9 17 20 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/></svg>';
+
+  const ICON_NO =
+    '<svg class="perm-ico perm-cross" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>' +
+    '<line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square"/></svg>';
 
   const root = $('#perm-root');
   let currentMode = 'roles'; // 'roles' | 'user'
-  let usersCache = [];
+
+  // user state
   let currentUserId = '';
   let userRole = '';
   let userAllow = new Set();
   let userDeny  = new Set();
+
+  // role map
   let roleCapsMap = null; // { role: [caps...] }
+
+  // Select2 init flag
+  let s2Ready = false;
 
   function alertFallback(title, text, type) {
     if (window.Swal) {
@@ -41,6 +54,40 @@
     return res.json();
   }
 
+  // ── Select2 (AJAX search) ────────────────────────────────────────────────────
+  function initSelect2() {
+    if (s2Ready) return;
+    const jq = window.jQuery;
+    if (!jq || !jq.fn || !jq.fn.select2) return; // защитный фолбэк
+
+    jq('#userSelect').select2({
+      placeholder: 'Select user…',
+      allowClear: true,
+      width: 'resolve',
+      minimumInputLength: 0,
+      ajax: {
+        url: '/api/authz/users',
+        dataType: 'json',
+        delay: 200,
+        data: function (params) {
+          return { q: params.term || '' }; // поиск по username/real_name/email
+        },
+        processResults: function (data/*, params*/) {
+          const results = (data.users || []).map(u => ({
+            id: u._id,
+            text: (u.real_name || u.username) + (u.role ? ' · ' + u.role : '')
+          }));
+          return { results };
+        },
+        cache: true
+      }
+    });
+
+    // событие выбора → на нашу логику
+    jq('#userSelect').on('change', onUserChange);
+    s2Ready = true;
+  }
+
   // ── Режимы ───────────────────────────────────────────────────────────────────
   function setMode(mode) {
     currentMode = mode;
@@ -53,7 +100,7 @@
     $('#modeUserBtn').classList.toggle('btn-primary', mode === 'user');
     $('#modeUserBtn').classList.toggle('btn-outline-secondary', mode !== 'user');
 
-    // показ селекта пользователя
+    // селект пользователя
     $('#userPicker').classList.toggle('d-none', mode !== 'user');
 
     // переключение столбцов
@@ -64,10 +111,18 @@
     if (mode === 'user') {
       roleCols.forEach(el => el.classList.add('d-none'));
       userHead.forEach(el => el.classList.remove('d-none'));
-      // очистим, затем, если выбран пользователь — сразу перерисуем итог
       userCells.forEach(el => { el.classList.remove('d-none'); el.innerHTML=''; el.dataset.u=''; el.dataset.eff=''; });
-      if (currentUserId) {
-        // если уже есть выбранный пользователь — дорисуем иконки без необходимости менять селект
+
+      // инициализируем Select2 при первом входе
+      initSelect2();
+
+      // гарантируем наличие карт ролей
+      if (!roleCapsMap) {
+        fetchJSON('/api/authz/roles').then(d => {
+          roleCapsMap = d.roles || {};
+          if (currentUserId) paintUserColumn();
+        });
+      } else if (currentUserId) {
         paintUserColumn();
       }
     } else {
@@ -79,37 +134,14 @@
 
   function wireModeButtons() {
     $('#modeRolesBtn')?.addEventListener('click', () => setMode('roles'));
-    $('#modeUserBtn')?.addEventListener('click', async () => {
-      setMode('user');
-      // при входе в User — гарантируем наличие пользователей и карт ролей
-      if (usersCache.length === 0) await reloadUsers();
-      if (!roleCapsMap) {
-        const data = await fetchJSON('/api/authz/roles');
-        roleCapsMap = data.roles || {};
-      }
-      // если уже выбран пользователь — ещё раз подстрахуем перерисовку
-      if (currentUserId) paintUserColumn();
-    });
+    $('#modeUserBtn')?.addEventListener('click', () => setMode('user'));
   }
 
-  // ── Пользователи ─────────────────────────────────────────────────────────────
-  async function reloadUsers() {
-    const data = await fetchJSON('/api/authz/users');
-    usersCache = data.users || [];
-    const sel = $('#userSelect');
-    sel.innerHTML = '<option value="">Select user…</option>';
-    for (const u of usersCache) {
-      const label = `${u.real_name || u.username}${u.role ? ' · ' + u.role : ''}`;
-      const opt = document.createElement('option');
-      opt.value = u._id;
-      opt.textContent = label;
-      sel.appendChild(opt);
-    }
-  }
-
+  // ── Пользователь: загрузка и отрисовка ───────────────────────────────────────
   async function onUserChange() {
-    const userId = $('#userSelect').value;
-    currentUserId = userId || '';
+    const jq = window.jQuery;
+    const userId = jq ? String(jq('#userSelect').val() || '') : ($('#userSelect').value || '');
+    currentUserId = userId;
     userAllow.clear(); userDeny.clear(); userRole = '';
 
     const userCells = $$('.user-col');
@@ -130,20 +162,18 @@
     $$('.user-col').forEach(td => {
       const slug = td.dataset.slug;
 
-      // пользовательский override
       let ovr = '';
       if (userAllow.has(slug)) ovr = 'allow';
       else if (userDeny.has(slug)) ovr = 'deny';
       td.dataset.u = ovr;
 
-      // эффективное право: override > роль
       const eff = ovr === 'allow' ? true : ovr === 'deny' ? false : (base.has(slug) || base.has('*'));
       td.dataset.eff = eff ? '1' : '0';
       td.innerHTML = eff ? ICON_OK : ICON_NO;
     });
   }
 
-  // ── Вкладки ──────────────────────────────────────────────────────────────────
+  // ── Tabs ─────────────────────────────────────────────────────────────────────
   function wireTabs() {
     const tabs = $$('.perm-tab');
     const cats = $$('.perm-cat');
@@ -153,7 +183,6 @@
         btn.classList.add('active');
         const target = btn.dataset.target;
         cats.forEach(c => c.classList.toggle('d-none', c.id !== target));
-        // если мы в режиме User и пользователь выбран — перерисовать новый таб
         if (currentMode === 'user' && currentUserId) paintUserColumn();
       });
     });
@@ -257,7 +286,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      // после сохранения принудительно перерисовываем (на случай внешних модификаций)
       await onUserChange();
     }
   }
@@ -281,17 +309,12 @@
     });
   }
 
-  function wireUserPicker() {
-    $('#userSelect')?.addEventListener('change', onUserChange);
-  }
-
   // init
   document.addEventListener('DOMContentLoaded', () => {
     wireTabs();
     enableDelegatedToggle();
     wireSave();
     wireModeButtons();
-    wireUserPicker();
     setMode('roles');
   });
 })();
