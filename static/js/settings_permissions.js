@@ -57,23 +57,23 @@
     $('#userPicker').classList.toggle('d-none', mode !== 'user');
 
     // переключение столбцов
-    const roleHeads = $$('.role-col');
-    const roleCells = $$('.role-col');
-    const userHeads = $$('.perm-user-head');
-    const userCells = $$('.perm-user-cell');
+    const roleCols  = $$('.role-col');
+    const userHead  = $$('.user-col-head');
+    const userCells = $$('.user-col');
 
     if (mode === 'user') {
-      roleHeads.forEach(th => th.classList.add('d-none'));
-      roleCells.forEach(td => td.classList.add('d-none'));
-      userHeads.forEach(th => th.classList.remove('d-none'));
-      userCells.forEach(td => td.classList.remove('d-none'));
-      // очистим иконки в user-столбце — перерисуем после выбора пользователя
-      userCells.forEach(td => { td.innerHTML = ''; td.dataset.u = ''; td.dataset.eff = ''; });
+      roleCols.forEach(el => el.classList.add('d-none'));
+      userHead.forEach(el => el.classList.remove('d-none'));
+      // очистим, затем, если выбран пользователь — сразу перерисуем итог
+      userCells.forEach(el => { el.classList.remove('d-none'); el.innerHTML=''; el.dataset.u=''; el.dataset.eff=''; });
+      if (currentUserId) {
+        // если уже есть выбранный пользователь — дорисуем иконки без необходимости менять селект
+        paintUserColumn();
+      }
     } else {
-      userHeads.forEach(th => th.classList.add('d-none'));
-      userCells.forEach(td => td.classList.add('d-none'));
-      roleHeads.forEach(th => th.classList.remove('d-none'));
-      roleCells.forEach(td => td.classList.remove('d-none'));
+      userHead.forEach(el => el.classList.add('d-none'));
+      userCells.forEach(el => el.classList.add('d-none'));
+      roleCols.forEach(el => el.classList.remove('d-none'));
     }
   }
 
@@ -81,12 +81,14 @@
     $('#modeRolesBtn')?.addEventListener('click', () => setMode('roles'));
     $('#modeUserBtn')?.addEventListener('click', async () => {
       setMode('user');
-      // подгружаем пользователей и роли при переходе в User
+      // при входе в User — гарантируем наличие пользователей и карт ролей
       if (usersCache.length === 0) await reloadUsers();
       if (!roleCapsMap) {
         const data = await fetchJSON('/api/authz/roles');
         roleCapsMap = data.roles || {};
       }
+      // если уже выбран пользователь — ещё раз подстрахуем перерисовку
+      if (currentUserId) paintUserColumn();
     });
   }
 
@@ -110,7 +112,7 @@
     currentUserId = userId || '';
     userAllow.clear(); userDeny.clear(); userRole = '';
 
-    const userCells = $$('.perm-user-cell');
+    const userCells = $$('.user-col');
     userCells.forEach(td => { td.innerHTML = ''; td.dataset.u = ''; td.dataset.eff = ''; });
 
     if (!userId) return;
@@ -125,10 +127,10 @@
 
   function paintUserColumn() {
     const base = new Set((roleCapsMap && roleCapsMap[userRole]) || []);
-    $$('.perm-user-cell').forEach(td => {
+    $$('.user-col').forEach(td => {
       const slug = td.dataset.slug;
 
-      // override из пользователя
+      // пользовательский override
       let ovr = '';
       if (userAllow.has(slug)) ovr = 'allow';
       else if (userDeny.has(slug)) ovr = 'deny';
@@ -141,7 +143,7 @@
     });
   }
 
-  // ── Таб/клики ────────────────────────────────────────────────────────────────
+  // ── Вкладки ──────────────────────────────────────────────────────────────────
   function wireTabs() {
     const tabs = $$('.perm-tab');
     const cats = $$('.perm-cat');
@@ -151,37 +153,32 @@
         btn.classList.add('active');
         const target = btn.dataset.target;
         cats.forEach(c => c.classList.toggle('d-none', c.id !== target));
+        // если мы в режиме User и пользователь выбран — перерисовать новый таб
+        if (currentMode === 'user' && currentUserId) paintUserColumn();
       });
     });
   }
 
-  // делегированные клики
+  // ── Клики ────────────────────────────────────────────────────────────────────
   function enableDelegatedToggle() {
     if (!root) return;
 
     root.addEventListener('click', (e) => {
-      // user mode: кликаем по .perm-user-cell
       if (currentMode === 'user') {
-        const tdU = e.target.closest('td.perm-user-cell');
-        if (tdU && root.contains(tdU)) {
-          toggleUserOverride(tdU);
-          return;
-        }
+        const tdU = e.target.closest('td.perm-cell.user-col');
+        if (tdU && root.contains(tdU)) { toggleUserOverride(tdU); return; }
       }
-      // roles mode: кликаем по .perm-cell (клетки ролей)
-      const td = e.target.closest('td.perm-cell');
-      if (td && root.contains(td) && currentMode === 'roles') {
-        toggleRoleCell(td);
-      }
+      const td = e.target.closest('td.perm-cell.role-col');
+      if (td && root.contains(td) && currentMode === 'roles') toggleRoleCell(td);
     });
 
     root.addEventListener('keydown', (e) => {
       if (e.key !== ' ' && e.key !== 'Enter') return;
       if (currentMode === 'user') {
-        const tdU = e.target.closest('td.perm-user-cell[tabindex]');
+        const tdU = e.target.closest('td.perm-cell.user-col[tabindex]');
         if (tdU) { e.preventDefault(); toggleUserOverride(tdU); }
       } else {
-        const td = e.target.closest('td.perm-cell[tabindex]');
+        const td = e.target.closest('td.perm-cell.role-col[tabindex]');
         if (td) { e.preventDefault(); toggleRoleCell(td); }
       }
     });
@@ -195,17 +192,17 @@
     td.innerHTML = next === '1' ? ICON_OK : ICON_NO;
   }
 
-  // цикл override: none → allow → deny → none
+  // deny → allow → ''(clear) → deny
   function toggleUserOverride(td) {
     if (!currentUserId) {
       alertFallback('Select user', 'Choose a user first', 'info');
       return;
     }
     const slug = td.dataset.slug;
-    const next = (td.dataset.u === '' ? 'allow' : td.dataset.u === 'allow' ? 'deny' : '');
+    const cur  = td.dataset.u || '';
+    const next = (cur === 'deny') ? 'allow' : (cur === 'allow') ? '' : 'allow';
     td.dataset.u = next;
 
-    // пересчитать и отрисовать эффективный результат
     const base = new Set((roleCapsMap && roleCapsMap[userRole]) || []);
     const eff = next === 'allow' ? true : next === 'deny' ? false : (base.has(slug) || base.has('*'));
     td.dataset.eff = eff ? '1' : '0';
@@ -215,7 +212,7 @@
   // ── Сохранение ───────────────────────────────────────────────────────────────
   function gatherPayloadRoles() {
     const roles = {};
-    $$('.perm-cell').forEach(td => {
+    $$('.perm-cell.role-col').forEach(td => {
       const role = td.dataset.role;
       const slug = td.dataset.slug;
       const has = td.dataset.has === '1';
@@ -232,7 +229,7 @@
   function gatherPayloadUser() {
     const allow = [];
     const deny  = [];
-    $$('.perm-user-cell').forEach(td => {
+    $$('.perm-cell.user-col').forEach(td => {
       const slug = td.dataset.slug;
       const ovr = td.dataset.u || '';
       if (ovr === 'allow') allow.push(slug);
@@ -260,7 +257,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      // перезагрузим состояние пользователя (на случай внешних изменений)
+      // после сохранения принудительно перерисовываем (на случай внешних модификаций)
       await onUserChange();
     }
   }
