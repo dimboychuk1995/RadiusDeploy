@@ -39,22 +39,49 @@ except Exception:
                          f"Checked sys.path[0]={sys.path[0]}.\n"
                          f"Run from project root or ensure tools/db.py is accessible.")
 
-# === CATALOG: permissions (Fleet -> Trucks) ===
+# === CATALOG: permissions ===
+# Trucks (Fleet -> Trucks)
 PERMISSIONS = [
-    {"slug": "trucks:view",      "label": "View units",            "category": "Fleet", "group": "Trucks", "order": 10, "enabled": True},
-    {"slug": "trucks:create",    "label": "Create unit",           "category": "Fleet", "group": "Trucks", "order": 20, "enabled": True},
-    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "Fleet", "group": "Trucks", "order": 30, "enabled": True},
-    {"slug": "trucks:file:view", "label": "View unit files",       "category": "Fleet", "group": "Trucks", "order": 40, "enabled": True},
-    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "Fleet", "group": "Trucks", "order": 50, "enabled": True},
+    {"slug": "trucks:view",      "label": "View units",            "category": "Fleet",      "group": "Trucks", "order": 10, "enabled": True},
+    {"slug": "trucks:create",    "label": "Create unit",           "category": "Fleet",      "group": "Trucks", "order": 20, "enabled": True},
+    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "Fleet",      "group": "Trucks", "order": 30, "enabled": True},
+    {"slug": "trucks:file:view", "label": "View unit files",       "category": "Fleet",      "group": "Trucks", "order": 40, "enabled": True},
+    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "Fleet",      "group": "Trucks", "order": 50, "enabled": True},
+]
+
+# Loads (Operations -> Loads)
+PERMISSIONS += [
+    {"slug": "loads:view",       "label": "View loads",            "category": "Operations", "group": "Loads",  "order": 10, "enabled": True},
+    {"slug": "loads:create",     "label": "Create load",           "category": "Operations", "group": "Loads",  "order": 20, "enabled": True},
+    {"slug": "loads:delete",     "label": "Delete load",           "category": "Operations", "group": "Loads",  "order": 30, "enabled": True},
+    {"slug": "loads:file:view",  "label": "View load files",       "category": "Operations", "group": "Loads",  "order": 40, "enabled": True},
+    {"slug": "loads:assign",     "label": "Assign load to driver", "category": "Operations", "group": "Loads",  "order": 50, "enabled": True},
 ]
 
 # === ROLES: role -> capabilities ===
+# Сохранён принцип как у trucks: admin — полный доступ модуля, dispatch — просмотр/файлы/assign, user/driver — только просмотр (+ файлы для driver)
 ROLES = {
     "superadmin": ["*"],
-    "admin":      ["trucks:view", "trucks:create", "trucks:delete", "trucks:file:view", "trucks:assign"],
-    "dispatch":   ["trucks:view", "trucks:file:view", "trucks:assign"],
-    "user":       ["trucks:view"],
-    "driver":     ["trucks:view", "trucks:file:view"],
+    "admin": [
+        # trucks
+        "trucks:view", "trucks:create", "trucks:delete", "trucks:file:view", "trucks:assign",
+        # loads
+        "loads:view", "loads:create", "loads:delete", "loads:file:view", "loads:assign",
+    ],
+    "dispatch": [
+        # trucks
+        "trucks:view", "trucks:file:view", "trucks:assign",
+        # loads (аналогично trucks)
+        "loads:view", "loads:file:view", "loads:assign",
+    ],
+    "user": [
+        "trucks:view",
+        "loads:view",
+    ],
+    "driver": [
+        "trucks:view", "trucks:file:view",
+        "loads:view",  "loads:file:view",
+    ],
 }
 
 def ensure_indexes():
@@ -79,9 +106,11 @@ def upsert_permissions():
 
 def upsert_roles():
     for slug, caps in ROLES.items():
+        # уникализируем и сортируем для идемпотентности
+        caps_unique_sorted = sorted(set(caps))
         db["role_defs"].update_one(
             {"slug": slug},
-            {"$set": {"caps": sorted(list(set(caps)))}},
+            {"$set": {"caps": caps_unique_sorted}},
             upsert=True
         )
 

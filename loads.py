@@ -36,6 +36,7 @@ from bson.errors import InvalidId
 from flask import Response, stream_with_context
 from urllib.parse import urlparse
 import requests
+from tools.authz import require_cap, apply_authz_filter
 
 
 loads_bp = Blueprint('loads', __name__)
@@ -488,6 +489,7 @@ def extract_time_block(form, prefix):
 
 @loads_bp.route('/add_load', methods=['POST'])
 @requires_role(['admin', 'dispatch'])
+@require_cap('loads:create')
 def add_load():
     def try_parse_float(value):
         try:
@@ -723,6 +725,7 @@ def customers_list():
 
 @loads_bp.route('/fragment/loads_fragment', methods=['GET'])
 @login_required
+@require_cap('loads:view')
 def loads_fragment():
     try:
         local_tz = get_current_company_tz()
@@ -822,6 +825,7 @@ def loads_fragment():
 
 @loads_bp.route('/fragment/more_loads/<company_id>', methods=['GET'])
 @login_required
+@require_cap('loads:view')
 def more_loads(company_id):
 
     try:
@@ -918,6 +922,7 @@ def more_loads(company_id):
 
 @loads_bp.route('/fragment/search_all_loads', methods=['GET'])
 @login_required
+@require_cap('loads:view')
 def search_all_loads():
     from datetime import datetime, timezone
     import pytz
@@ -1183,6 +1188,7 @@ def generate_load_pdf(load_info):
 
 @loads_bp.route('/api/delete_load/<load_id>', methods=['DELETE'])
 @login_required
+@require_cap('loads:delete')
 def delete_load(load_id):
     try:
         load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
@@ -1203,6 +1209,7 @@ def delete_load(load_id):
 
 @loads_bp.route("/api/load/<load_id>/ratecon")
 @login_required
+@require_cap('loads:file:view')
 def download_ratecon(load_id):
     try:
         load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
@@ -1217,6 +1224,7 @@ def download_ratecon(load_id):
 
 @loads_bp.route("/api/load/<load_id>/bol")
 @login_required
+@require_cap('loads:file:view')
 def download_bol(load_id):
     try:
         load = loads_collection.find_one({"_id": ObjectId(load_id), "company": current_user.company})
@@ -1233,6 +1241,7 @@ def download_bol(load_id):
 
 @loads_bp.route('/fragment/load_details_fragment')
 @login_required
+@require_cap('loads:view')
 def load_details_fragment():
     try:
         load_id = request.args.get("id")
