@@ -2,6 +2,41 @@
 
 <button class="btn btn-secondary mb-3" onclick="returnToLoads()">← Назад к списку грузов</button>
 
+<!-- === ПАНЕЛЬ СТАТУСА ГРУЗА (green, bigger) === -->
+<div class="card mb-3">
+  <div class="card-body">
+    <ul id="loadStatusStepper"
+        class="ld-stepper"
+        data-status="{{ (load.status or '')|lower }}"
+        data-payment="{{ (load.payment_status or '')|lower }}">
+      <li class="step" data-key="new">
+        <span class="dot">1</span><span class="lbl">New</span>
+      </li>
+      <li class="step" data-key="dispatched">
+        <span class="dot">2</span><span class="lbl">Dispatched</span>
+      </li>
+      <li class="step" data-key="picked_up">
+        <span class="dot">3</span><span class="lbl">Picked Up</span>
+      </li>
+      <li class="step" data-key="delivered">
+        <span class="dot">4</span><span class="lbl">Delivered</span>
+      </li>
+      <li class="step" data-key="canceled">
+        <span class="dot">5</span><span class="lbl">Canceled</span>
+      </li>
+      <li class="step" data-key="tonu">
+        <span class="dot">6</span><span class="lbl">TONU</span>
+      </li>
+      <li class="step" data-key="invoiced">
+        <span class="dot">7</span><span class="lbl">Invoiced</span>
+      </li>
+      <li class="step" data-key="paid">
+        <span class="dot">8</span><span class="lbl">Paid</span>
+      </li>
+    </ul>
+  </div>
+</div>
+
 <div class="container-fluid">
   <div class="row">
     <!-- Левая колонка -->

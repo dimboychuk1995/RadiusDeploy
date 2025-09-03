@@ -993,3 +993,95 @@ table .driver-row > td {
   .perm-cat.is-fade-exit { opacity: 1; }
   .perm-cat.is-fade-exit.is-fade-exit-active { opacity: 0; }
 /* === ---------------------------- === */
+
+
+  /* === Load Status Stepper === */
+  /* === Load Status Stepper (edge-to-edge lines) === */
+  .ld-stepper{
+    list-style:none; padding-left:0; margin:10px 0 0;
+
+    /* размеры/цвета */
+    --dot: 56px;                 /* диаметр кружка */
+    --line: 9px;                 /* толщина линии */
+    --space: 36px;               /* внутренний горизонтальный отступ у шага */
+    --c-done: var(--sidebar-accent, var(--bs-success, #22c55e));
+    --c-done-rgb: var(--sidebar-accent-rgb, var(--bs-success-rgb, 34, 197, 94));
+    --c-gray:#e9ecef; --c-text:#212529; --c-muted:#98a2b3;
+    --c-danger:#e03131; --c-warn:#f08c00;
+
+    display:flex; align-items:center; justify-content:space-between;
+    gap:0;                        /* ВАЖНО: без межэлементных разрывов */
+    padding:14px 14px 8px;
+  }
+
+  .ld-stepper .step{
+    position:relative; flex:1 1 0; text-align:center; min-width:112px;
+    padding:0 var(--space);       /* контролируем «воздух» сами */
+    box-sizing:border-box;
+  }
+
+  /* Линия: идёт ПОД кружками, строго от края предыдущего круга до края текущего */
+  .ld-stepper .step:not(:first-child)::before{
+    content:""; position:absolute;
+    top: calc(var(--dot)/2 - var(--line)/2);
+    left:  calc(-50% + var(--dot)/2 + var(--space));
+    right: calc( 50% + var(--dot)/2 + var(--space));
+    height: var(--line);
+    background: var(--c-gray);
+    z-index: 1;
+    border-radius: 999px;
+  }
+  /* Всё до текущего шага включительно — зелёное */
+  .ld-stepper .step.done::before,
+  .ld-stepper .step.current::before{ background: var(--c-done); }
+
+  .ld-stepper .step .dot{
+    position: relative; z-index: 2;  /* кружок над линией */
+    display:inline-grid; place-items:center;
+    width:var(--dot); height:var(--dot); border-radius:50%;
+    font-weight:800; font-size:18px; line-height:1;
+    font-variant-numeric: tabular-nums;
+
+    /* базовый стиль (для future) */
+    background:#f3f4f6; color:var(--c-muted); border:0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.65),
+                inset 0 -2px 4px rgba(0,0,0,.06),
+                0 1px 2px rgba(16,24,40,.06);
+  }
+  .ld-stepper .step .lbl{
+    display:block; margin-top:10px; font-weight:600; color:var(--c-text); font-size:15px;
+  }
+
+  /* пройденные и текущий — полная зелёная заливка */
+  .ld-stepper .step.done .dot,
+  .ld-stepper .step.current .dot{
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.06)), var(--c-done);
+    color:#fff;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.20),
+                inset 0 -3px 6px rgba(0,0,0,.12),
+                0 2px 6px rgba(var(--c-done-rgb), .22);
+  }
+
+  /* терминальные — своей заливкой */
+  .ld-stepper .step.current.is-canceled .dot{
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.06)), var(--c-danger);
+    color:#fff;
+  }
+  .ld-stepper .step.current.is-tonu .dot{
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.06)), var(--c-warn);
+    color:#fff;
+  }
+
+  /* подписи будущих шагов */
+  .ld-stepper .step.future .lbl{ color:var(--c-muted); font-weight:500; }
+
+  /* адаптив */
+  @media (max-width: 1200px){
+    .ld-stepper{ --space:28px; }
+    .ld-stepper .step{ min-width:102px; }
+  }
+  @media (max-width: 992px){
+    .ld-stepper{ --dot:48px; --line:8px; --space:22px; }
+    .ld-stepper .step .dot{ font-size:16px; }
+    .ld-stepper .step .lbl{ font-size:14px; }
+  }

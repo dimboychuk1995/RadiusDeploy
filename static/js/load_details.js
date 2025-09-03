@@ -1,3 +1,4 @@
+// === ЗАМЕНИТЕ метод полностью ===
 function showLoadDetails(loadId) {
   const section = document.getElementById("section-loads_fragment");
   const details = document.getElementById("load-details");
@@ -14,21 +15,70 @@ function showLoadDetails(loadId) {
       details.innerHTML = html;
       details.style.display = "block";
 
-      // ✅ Инициализация карты и предпросмотра фото (как было)
+      // карта/фото (как было)
       if (typeof initLoadDetails === "function") {
         initLoadDetails();
         initPhotoPreviewModal();
       }
 
-      // ✅ Ленивая подгрузка BOL-предпросмотра (src подставится при раскрытии блока)
+      // ленивая подгрузка BOL (как было)
       if (typeof initBolLazyPreview === "function") {
-        initBolLazyPreview(details); // передаём корень фрагмента
+        initBolLazyPreview(details);
+      }
+
+      // 🔥 новый степпер статуса
+      if (typeof initLoadStatusStepper === "function") {
+        initLoadStatusStepper(details);
       }
     })
     .catch(error => {
       console.error("Ошибка загрузки деталей груза:", error);
     });
 }
+
+// === ДОБАВЬТЕ НИЖЕ: инициализация панели статуса ===
+function initLoadStatusStepper(root = document) {
+  const el = root.querySelector('#loadStatusStepper');
+  if (!el) return;
+
+  // нормализация статусов
+  const norm = (s) => String(s || '')
+    .toLowerCase()
+    .replace(/cancelled/g, 'canceled')
+    .replace(/[\s-]+/g, '_')
+    .trim();
+
+  const status = norm(el.dataset.status);           // из load.status
+  const pay    = norm(el.dataset.payment);          // из load.payment_status
+
+  // порядок шагов панели
+  const ORDER = ['new', 'dispatched', 'picked_up', 'delivered', 'canceled', 'tonu', 'invoiced', 'paid'];
+
+  // вычисляем "текущий" индекс
+  let idx = Math.max(0, ORDER.indexOf(status));
+  const isTerminal = (status === 'canceled' || status === 'tonu');
+
+  // если не терминальный — учитываем оплату
+  if (!isTerminal) {
+    if (pay === 'paid') idx = ORDER.indexOf('paid');
+    else if (pay === 'invoiced') idx = Math.max(idx, ORDER.indexOf('invoiced'));
+  }
+
+  // подсветка шагов
+  const steps = el.querySelectorAll('.step');
+  steps.forEach((li, i) => {
+    li.classList.remove('done', 'current', 'future', 'is-canceled', 'is-tonu');
+    if (i < idx) li.classList.add('done');
+    else if (i === idx) {
+      li.classList.add('current');
+      if (status === 'canceled') li.classList.add('is-canceled');
+      if (status === 'tonu')     li.classList.add('is-tonu');
+    } else {
+      li.classList.add('future');
+    }
+  });
+}
+
 
 
 function returnToLoads() {
