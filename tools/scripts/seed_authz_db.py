@@ -3,10 +3,7 @@ from __future__ import annotations
 """
 Seed permission_defs (catalog) and role_defs (role->caps) into MongoDB.
 
-Safe to run multiple times (idempotent).
-Works whether you run:
-  - python tools/scripts/seed_authz_db.py
-  - python -m tools.scripts.seed_authz_db
+Idempotent: можно запускать многократно.
 """
 
 import sys
@@ -40,35 +37,49 @@ except Exception:
                          f"Run from project root or ensure tools/db.py is accessible.")
 
 # === CATALOG: permissions ===
+# ВНИМАНИЕ: category теперь равен названию модуля нижнего уровня:
+# statements, drivers, units, brokers, dispatch, loads
 PERMISSIONS = [
-    # Fleet -> Trucks
-    {"slug": "trucks:view",      "label": "View units",            "category": "Fleet",      "group": "Trucks",   "order": 10, "enabled": True},
-    {"slug": "trucks:create",    "label": "Create unit",           "category": "Fleet",      "group": "Trucks",   "order": 20, "enabled": True},
-    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "Fleet",      "group": "Trucks",   "order": 30, "enabled": True},
-    {"slug": "trucks:file:view", "label": "View unit files",       "category": "Fleet",      "group": "Trucks",   "order": 40, "enabled": True},
-    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "Fleet",      "group": "Trucks",   "order": 50, "enabled": True},
+    # units (ранее "trucks:*")
+    {"slug": "trucks:view",      "label": "View units",            "category": "units",     "group": "units",     "order": 10, "enabled": True},
+    {"slug": "trucks:create",    "label": "Create unit",           "category": "units",     "group": "units",     "order": 20, "enabled": True},
+    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "units",     "group": "units",     "order": 30, "enabled": True},
+    {"slug": "trucks:file:view", "label": "View unit files",       "category": "units",     "group": "units",     "order": 40, "enabled": True},
+    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "units",     "group": "units",     "order": 50, "enabled": True},
 
-    # Operations -> Loads
-    {"slug": "loads:view",       "label": "View loads",            "category": "Operations", "group": "Loads",    "order": 10, "enabled": True},
-    {"slug": "loads:create",     "label": "Create load",           "category": "Operations", "group": "Loads",    "order": 20, "enabled": True},
-    {"slug": "loads:delete",     "label": "Delete load",           "category": "Operations", "group": "Loads",    "order": 30, "enabled": True},
-    {"slug": "loads:file:view",  "label": "View load files",       "category": "Operations", "group": "Loads",    "order": 40, "enabled": True},
-    {"slug": "loads:assign",     "label": "Assign load to driver", "category": "Operations", "group": "Loads",    "order": 50, "enabled": True},
+    # drivers
+    {"slug": "driver:view",          "label": "View drivers",          "category": "drivers",  "group": "drivers",  "order": 10, "enabled": True},
+    {"slug": "driver:view_details",  "label": "View driver details",   "category": "drivers",  "group": "drivers",  "order": 15, "enabled": True},
+    {"slug": "driver:create",        "label": "Create driver",         "category": "drivers",  "group": "drivers",  "order": 20, "enabled": True},
+    {"slug": "driver:delete",        "label": "Delete driver",         "category": "drivers",  "group": "drivers",  "order": 30, "enabled": True},
+    {"slug": "driver:assignment",    "label": "Assign truck/dispatcher","category": "drivers", "group": "drivers",  "order": 40, "enabled": True},
+    {"slug": "driver:salary_scheme", "label": "Edit salary scheme",    "category": "drivers",  "group": "drivers",  "order": 50, "enabled": True},
+    # при необходимости можно добавить: {"slug": "driver:file:view", ...} и повесить на выдачу файлов
 
-    # Finance -> Statements
-    {"slug": "statement:view",   "label": "View statements",       "category": "Finance",    "group": "Statements", "order": 10, "enabled": True},
-    {"slug": "statement:create", "label": "Create/confirm",        "category": "Finance",    "group": "Statements", "order": 20, "enabled": True},
-    {"slug": "statement:delete", "label": "Delete statement",      "category": "Finance",    "group": "Statements", "order": 30, "enabled": True},
+    # loads
+    {"slug": "loads:view",       "label": "View loads",            "category": "loads",     "group": "loads",     "order": 10, "enabled": True},
+    {"slug": "loads:create",     "label": "Create load",           "category": "loads",     "group": "loads",     "order": 20, "enabled": True},
+    {"slug": "loads:delete",     "label": "Delete load",           "category": "loads",     "group": "loads",     "order": 30, "enabled": True},
+    {"slug": "loads:file:view",  "label": "View load files",       "category": "loads",     "group": "loads",     "order": 40, "enabled": True},
+    {"slug": "loads:assign",     "label": "Assign load to driver", "category": "loads",     "group": "loads",     "order": 50, "enabled": True},
 
-    # Fleet -> Drivers  (по факту используемых слагов из drivers.py)
-    {"slug": "driver:view",          "label": "View drivers",          "category": "Fleet", "group": "Drivers", "order": 10, "enabled": True},
-    {"slug": "driver:view_details",  "label": "View driver details",   "category": "Fleet", "group": "Drivers", "order": 15, "enabled": True},
-    {"slug": "driver:create",        "label": "Create driver",         "category": "Fleet", "group": "Drivers", "order": 20, "enabled": True},
-    {"slug": "driver:delete",        "label": "Delete driver",         "category": "Fleet", "group": "Drivers", "order": 30, "enabled": True},
-    {"slug": "driver:assignment",    "label": "Assign truck/dispatcher","category": "Fleet","group": "Drivers", "order": 40, "enabled": True},
-    {"slug": "driver:salary_scheme", "label": "Edit salary scheme",    "category": "Fleet", "group": "Drivers", "order": 50, "enabled": True},
-    # при желании можно добавить ещё:
-    # {"slug": "driver:file:view",  "label": "View driver files",     "category": "Fleet", "group": "Drivers", "order": 60, "enabled": True},
+    # statements
+    {"slug": "statement:view",   "label": "View statements",       "category": "statements","group": "statements","order": 10, "enabled": True},
+    {"slug": "statement:create", "label": "Create/confirm",        "category": "statements","group": "statements","order": 20, "enabled": True},
+    {"slug": "statement:delete", "label": "Delete statement",      "category": "statements","group": "statements","order": 30, "enabled": True},
+
+    # brokers (brokers & customers)
+    {"slug": "brokers:view",     "label": "View brokers/customers","category": "brokers",   "group": "brokers",   "order": 10, "enabled": True},
+    {"slug": "brokers:create",   "label": "Create broker/customer","category": "brokers",   "group": "brokers",   "order": 20, "enabled": True},
+    {"slug": "brokers:update",   "label": "Update broker/customer","category": "brokers",   "group": "brokers",   "order": 30, "enabled": True},
+    {"slug": "brokers:delete",   "label": "Delete broker/customer","category": "brokers",   "group": "brokers",   "order": 40, "enabled": True},
+
+    # dispatch
+    {"slug": "dispatch:view",                 "label": "View dispatch board", "category": "dispatch",  "group": "dispatch",  "order": 10, "enabled": True},
+    {"slug": "dispatch:consolidation_create", "label": "Create consolidation", "category": "dispatch",  "group": "dispatch",  "order": 20, "enabled": True},
+    {"slug": "dispatch:consolidation_delete", "label": "Delete consolidation", "category": "dispatch",  "group": "dispatch",  "order": 30, "enabled": True},
+    {"slug": "dispatch:driver_break_create",  "label": "Create driver break",  "category": "dispatch",  "group": "dispatch",  "order": 40, "enabled": True},
+    {"slug": "dispatch:driver_break_delete",  "label": "Delete driver break",  "category": "dispatch",  "group": "dispatch",  "order": 50, "enabled": True},
 ]
 
 # === ROLES: role -> capabilities ===
@@ -76,29 +87,36 @@ ROLES = {
     "superadmin": ["*"],
 
     "admin": [
-        # trucks
+        # units
         "trucks:view", "trucks:create", "trucks:delete", "trucks:file:view", "trucks:assign",
+        # drivers
+        "driver:view", "driver:view_details", "driver:create", "driver:delete",
+        "driver:assignment", "driver:salary_scheme",
         # loads
         "loads:view", "loads:create", "loads:delete", "loads:file:view", "loads:assign",
         # statements
         "statement:view", "statement:create", "statement:delete",
-        # drivers
-        "driver:view", "driver:view_details", "driver:create", "driver:delete",
-        "driver:assignment", "driver:salary_scheme",
-        # "driver:file:view",  # включи, если защитишь выдачу файлов капом
+        # brokers
+        "brokers:view", "brokers:create", "brokers:update", "brokers:delete",
+        # dispatch
+        "dispatch:view", "dispatch:consolidation_create", "dispatch:consolidation_delete",
+        "dispatch:driver_break_create", "dispatch:driver_break_delete",
     ],
 
     "dispatch": [
-        # trucks
+        # units
         "trucks:view", "trucks:file:view", "trucks:assign",
+        # drivers
+        "driver:view", "driver:view_details", "driver:assignment",
         # loads
         "loads:view", "loads:file:view", "loads:assign",
         # statements
         "statement:view", "statement:create",
-        # drivers (диспетчеру обычно нужны просмотр/детали + назначения)
-        "driver:view", "driver:view_details", "driver:assignment",
-        # при необходимости можешь дать create:
-        # "driver:create",
+        # brokers (создание/редактирование — да; удаление обычно админу)
+        "brokers:view", "brokers:create", "brokers:update",
+        # dispatch
+        "dispatch:view", "dispatch:consolidation_create", "dispatch:consolidation_delete",
+        "dispatch:driver_break_create", "dispatch:driver_break_delete",
     ],
 
     "user": [
@@ -106,6 +124,7 @@ ROLES = {
         "loads:view",
         "statement:view",
         "driver:view",
+        "brokers:view",
     ],
 
     "driver": [
@@ -113,7 +132,6 @@ ROLES = {
         "loads:view",  "loads:file:view",
         "statement:view",
         "driver:view",
-        # "driver:view_details",  # включи, если водителям нужен полный просмотр карточки
     ],
 }
 

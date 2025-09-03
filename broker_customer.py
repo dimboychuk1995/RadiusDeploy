@@ -3,6 +3,7 @@ import logging
 from flask import request, jsonify
 from flask_login import login_required, current_user
 from bson import ObjectId
+from tools.authz import require_cap, apply_authz_filter
 
 from tools.db import db  # централизованное подключение
 
@@ -13,6 +14,7 @@ customers_collection = db['customers']
 
 @broker_customer_bp.route('/fragment/dispatch_brokers', methods=['GET'])
 @login_required
+@require_cap('brokers:view')
 def dispatch_brokers_fragment():
     try:
         brokers = list(brokers_collection.find({'company': current_user.company}))
@@ -27,6 +29,7 @@ def dispatch_brokers_fragment():
 
 @broker_customer_bp.route('/api/add_broker_customer', methods=['POST'])
 @login_required
+@require_cap('brokers:create')
 def add_broker_customer():
     try:
         data = request.json
@@ -63,6 +66,7 @@ def add_broker_customer():
 
 @broker_customer_bp.route('/api/delete_broker_customer', methods=['POST'])
 @login_required
+@require_cap('brokers:delete')
 def delete_broker_customer():
     try:
         data = request.get_json()
@@ -85,6 +89,7 @@ def delete_broker_customer():
 
 @broker_customer_bp.route('/api/update_broker_customer', methods=['POST'])
 @login_required
+@require_cap('brokers:update')
 def update_broker_customer():
     try:
         data = request.json

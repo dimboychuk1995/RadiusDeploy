@@ -5,6 +5,7 @@ from flask import render_template, request
 from flask_login import login_required
 from datetime import datetime, timedelta, time, timezone
 from collections import defaultdict
+from tools.authz import require_cap, apply_authz_filter
 
 dispatch_schedule_bp = Blueprint("dispatch_schedule", __name__)
 
@@ -169,6 +170,7 @@ def get_driver_break_map(tz, start_of_week, end_of_week):
 
 @dispatch_schedule_bp.route("/fragment/dispatch_schedule")
 @login_required
+@require_cap('dispatch:view')
 def dispatch_schedule_fragment():
     tz = get_company_timezone()
 

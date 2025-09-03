@@ -488,7 +488,6 @@ def extract_time_block(form, prefix):
 
 
 @loads_bp.route('/add_load', methods=['POST'])
-@requires_role(['admin', 'dispatch'])
 @require_cap('loads:create')
 def add_load():
     def try_parse_float(value):

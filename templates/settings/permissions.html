@@ -10,7 +10,7 @@
         <button type="button" class="btn btn-outline-secondary" id="modeUserBtn" data-mode="user">User</button>
       </div>
 
-      <!-- Select2: выбор пользователя с поиском -->
+      <!-- Select2: выбор пользователя -->
       <div id="userPicker" class="d-flex align-items-center gap-2 d-none">
         <select id="userSelect" class="form-select form-select-sm" style="min-width: 320px;">
           <option value="">Select user…</option>
@@ -26,100 +26,103 @@
   <div class="alert alert-light border d-flex align-items-center gap-3 py-2">
     <div><strong>Mode:</strong> <span id="modeLabel">Roles</span></div>
     <div class="small text-muted">
-      <span class="me-3">Roles → изменяем права для <em>роли</em>.</span>
-      <span>User → выбираем пользователя (поиск в выпадающем списке), итог = роль + его override.
-        Клик: allow → deny → убрать override.</span>
+      <span class="me-3">Roles → меняем права для роли.</span>
+      <span>User → выбираем пользователя, итог = роль + его override. Клик: allow → deny → убрать override.</span>
     </div>
   </div>
 
   {% if categories|length == 0 %}
     <div class="alert alert-warning">Каталог прав пуст. Проверьте <code>permission_defs</code>.</div>
   {% else %}
-    <!-- Tabs -->
-    <div id="perm-tabs" class="nav nav-pills mb-3 gap-2" role="tablist">
+
+    <!-- Segmented tabs (категории) -->
+    <div class="segmented mb-3" id="perm-tabs" role="tablist" aria-label="Permission categories">
       {% for cat in categories %}
         <button type="button"
-                class="perm-tab btn border-0 {% if loop.first %}active{% endif %}"
+                class="perm-tab seg-item {% if loop.first %}active{% endif %}"
                 data-target="cat-{{ loop.index0 }}">
           {{ cat.category }}
         </button>
       {% endfor %}
     </div>
 
-    <!-- Category tables -->
-    {% for cat in categories %}
-    <div class="perm-cat {% if not loop.first %}d-none{% endif %}" id="cat-{{ loop.index0 }}">
-      <div class="table-responsive" id="perm-table-wrapper">
-        <table class="table table-hover align-middle">
-          <thead>
-            <tr class="perm-sticky-head">
-              <th class="perm-function perm-sticky-first">Function</th>
+    <!-- ОБЁРТКА ДЛЯ ПЛАВНОЙ АНИМАЦИИ ВЫСОТЫ -->
+    <div id="perm-cats">
+      <!-- Category tables -->
+      {% for cat in categories %}
+      <div class="perm-cat {% if not loop.first %}d-none{% endif %}" id="cat-{{ loop.index0 }}">
+        <div class="table-responsive" id="perm-table-wrapper">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr class="perm-sticky-head">
+                <th class="perm-function perm-sticky-first">Function</th>
 
-              <!-- столбцы ролей (режим Roles) -->
-              {% for r in roles %}
-                <th class="role-col">
-                  <span class="badge perm-badge-role text-wrap">{{ r }}</span>
-                </th>
-              {% endfor %}
+                <!-- столбцы ролей (режим Roles) -->
+                {% for r in roles %}
+                  <th class="role-col">
+                    <span class="badge perm-badge-role text-wrap">{{ r }}</span>
+                  </th>
+                {% endfor %}
 
-              <!-- пустая шапка для выравнивания user-колонки -->
-              <th class="user-col-head d-none"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for grp in cat.groups %}
-              <tr class="perm-group-row">
-                <td class="perm-sticky-first" colspan="{{ 1 + roles|length + 1 }}">
-                  <span class="me-2">›</span> {{ grp.group }} ({{ grp['items']|length }})
-                </td>
+                <!-- пустая шапка для выравнивания user-колонки -->
+                <th class="user-col-head d-none"></th>
               </tr>
-
-              {% for item in grp['items'] %}
-                <tr>
-                  <td class="perm-sticky-first">
-                    <span class="perm-label" data-slug="{{ item.slug }}">{{ item.label }}</span>
-                  </td>
-
-                  <!-- клетки РОЛЕЙ: сразу SVG без изгибов -->
-                  {% for r in roles %}
-                    {% set caps = role_caps.get(r, []) %}
-                    {% set has = (item.slug in caps) or ('*' in caps) %}
-                    <td class="perm-cell text-center role-col"
-                        role="button"
-                        tabindex="0"
-                        aria-pressed="{{ 'true' if has else 'false' }}"
-                        data-role="{{ r }}"
-                        data-slug="{{ item.slug }}"
-                        data-has="{{ 1 if has else 0 }}">
-                      {% if has %}
-                        <svg class="perm-ico perm-check" viewBox="0 0 24 24" aria-hidden="true">
-                          <polyline points="4 12 9 17 20 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" />
-                        </svg>
-                      {% else %}
-                        <svg class="perm-ico perm-cross" viewBox="0 0 24 24" aria-hidden="true">
-                          <line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square" />
-                          <line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square" />
-                        </svg>
-                      {% endif %}
-                    </td>
-                  {% endfor %}
-
-                  <!-- единый столбец для User (JS сам поставит SVG) -->
-                  <td class="perm-cell text-center user-col d-none"
-                      role="button"
-                      tabindex="0"
-                      data-slug="{{ item.slug }}"
-                      data-u=""      <!-- override: '' | 'allow' | 'deny' -->
-                      data-eff="">   <!-- effective: '1' | '0' -->
+            </thead>
+            <tbody>
+              {% for grp in cat.groups %}
+                <tr class="perm-group-row">
+                  <td class="perm-sticky-first" colspan="{{ 1 + roles|length + 1 }}">
+                    <span class="me-2">›</span> {{ grp.group }} ({{ grp['items']|length }})
                   </td>
                 </tr>
+
+                {% for item in grp['items'] %}
+                  <tr>
+                    <td class="perm-sticky-first">
+                      <span class="perm-label" data-slug="{{ item.slug }}">{{ item.label }}</span>
+                    </td>
+
+                    <!-- клетки РОЛЕЙ -->
+                    {% for r in roles %}
+                      {% set caps = role_caps.get(r, []) %}
+                      {% set has = (item.slug in caps) or ('*' in caps) %}
+                      <td class="perm-cell text-center role-col"
+                          role="button"
+                          tabindex="0"
+                          aria-pressed="{{ 'true' if has else 'false' }}"
+                          data-role="{{ r }}"
+                          data-slug="{{ item.slug }}"
+                          data-has="{{ 1 if has else 0 }}">
+                        {% if has %}
+                          <svg class="perm-ico perm-check" viewBox="0 0 24 24" aria-hidden="true">
+                            <polyline points="4 12 9 17 20 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter" />
+                          </svg>
+                        {% else %}
+                          <svg class="perm-ico perm-cross" viewBox="0 0 24 24" aria-hidden="true">
+                            <line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square" />
+                            <line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square" />
+                          </svg>
+                        {% endif %}
+                      </td>
+                    {% endfor %}
+
+                    <!-- единый столбец для User (JS сам поставит SVG) -->
+                    <td class="perm-cell text-center user-col d-none"
+                        role="button"
+                        tabindex="0"
+                        data-slug="{{ item.slug }}"
+                        data-u=""
+                        data-eff="">
+                    </td>
+                  </tr>
+                {% endfor %}
               {% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-    {% endfor %}
+      {% endfor %}
+    </div><!-- /#perm-cats -->
   {% endif %}
 </div>
 
@@ -137,20 +140,57 @@
   .perm-sticky-head th { position: sticky; top: 0; background: #fff; z-index: 2; }
   .perm-sticky-first { position: sticky; left: 0; background: inherit; z-index: 1; }
   .perm-function { min-width: 260px; }
-  .perm-tab { padding: .45rem .9rem; border-radius: .5rem; background: #f5f4ff; color: #5b5bff; }
-  .perm-tab.active { background: #5b5bff; color: #fff; }
   .perm-badge-role { background: #eef1ff; color: #2c2ce6; }
-
-  /* Размер и выравнивание SVG-иконок */
   .perm-ico { width: 22px; height: 22px; display: inline-block; vertical-align: middle; }
 
-  /* Нормальная высота Select2 под form-select-sm */
+  /* Select2 размер под form-select-sm */
   .select2-container .select2-selection--single { height: 31px; }
   .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 31px; }
   .select2-container--default .select2-selection--single .select2-selection__arrow { height: 31px; }
 
   #perm-root.busy { cursor: progress; }
   #perm-root.busy .perm-cell { pointer-events: none; }
+
+  /* --- Segmented tabs (как на скрине) --- */
+  .segmented {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 12px;
+    background: #f1f0ff;
+  }
+  .segmented .seg-item {
+    flex: 1 1 auto;
+    border: 0;
+    background: transparent;
+    color: #2b2b2b;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 10px;
+    line-height: 1.1;
+    outline: none;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
+  }
+  .segmented .seg-item:hover { background: rgba(255,255,255,0.5); }
+  .segmented .seg-item.active {
+    background: #ffffff;
+    color: #111;
+    box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 1px rgba(16,24,40,.04);
+  }
+  @media (max-width: 992px) {
+    .segmented { overflow:auto; white-space: nowrap; }
+    .segmented .seg-item { flex: 0 0 auto; }
+  }
+
+  /* --- Плавные переключения контента категорий --- */
+  #perm-cats { transition: height .22s ease; }
+  .perm-cat { opacity: 1; transform: none; transition: opacity .22s ease, transform .22s ease; }
+  .perm-cat.is-enter { opacity: 0; transform: translateY(6px); }
+  .perm-cat.is-enter.is-enter-active { opacity: 1; transform: none; }
+  .perm-cat.is-exit { opacity: 1; transform: none; }
+  .perm-cat.is-exit.is-exit-active { opacity: 0; transform: translateY(6px); }
 </style>
 
 <script src="{{ url_for('static', filename='js/settings_permissions.js') }}"></script>

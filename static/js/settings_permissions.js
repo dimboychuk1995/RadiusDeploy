@@ -1,46 +1,44 @@
+// settings_permissions.js (SPA-safe с плавным переключением категорий)
 (function () {
   'use strict';
 
-  /** Возвращает первый элемент по селектору. */
-  const $ = (sel, el = document) => el.querySelector(sel);
-
-  /** Возвращает массив элементов по селектору. */
+  // ── helpers ───────────────────────────────────────────────────────────
+  const $  = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
 
-  // Чёткие SVG-иконки (без изгибов)
+  function getRoot() {
+    return (
+      document.getElementById('perm-root') ||
+      document.querySelector('[data-permissions-root]') ||
+      document.getElementById('settings-content') ||
+      document
+    );
+  }
+
   const ICON_OK =
     '<svg class="perm-ico perm-check" viewBox="0 0 24 24" aria-hidden="true">' +
     '<polyline points="4 12 9 17 20 6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"/></svg>';
-
   const ICON_NO =
     '<svg class="perm-ico perm-cross" viewBox="0 0 24 24" aria-hidden="true">' +
     '<line x1="5" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square"/>' +
     '<line x1="19" y1="5" x2="5" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="square"/></svg>';
 
-  // ── Глобальное состояние страницы ────────────────────────────────────────────
-  const root = $('#perm-root');
+  // ── state ─────────────────────────────────────────────────────────────
   let currentMode = 'roles'; // 'roles' | 'user'
-
-  // Состояние выбранного пользователя
   let currentUserId = '';
   let userRole = '';
   let userAllow = new Set();
   let userDeny  = new Set();
-
-  // Карта прав для ролей: { role: [caps...] }
   let roleCapsMap = null;
 
-  // Координация асинхронной инициализации user-режима
   let isUserInit = false;
   let userLoadingPromise = null;
 
-  // Антидребезг первого клика
   const DEBOUNCE_MS = 150;
   const lastClickAt = new WeakMap(); // td -> timestamp
+  let listenersBound = false;
 
-  // ── Утилиты ──────────────────────────────────────────────────────────────────
-
-  /** Показать системное уведомление (Swal или alert). */
+  // ── utils ─────────────────────────────────────────────────────────────
   function alertFallback(title, text, type) {
     if (window.Swal) {
       Swal.fire({
@@ -55,28 +53,22 @@
     }
   }
 
-  /** fetch JSON с нормальной обработкой ошибок. */
   async function fetchJSON(url, opts = {}) {
     const res = await fetch(url, opts);
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
-      try {
-        const t = await res.json();
-        if (t && t.error) msg = t.error;
-      } catch (_) {}
+      try { const t = await res.json(); if (t && t.error) msg = t.error; } catch {}
       throw new Error(msg);
     }
     return res.json();
   }
 
-  /** Гарантированно загрузить карту прав по ролям (один раз). */
   async function ensureRoleCaps() {
     if (roleCapsMap) return;
     const data = await fetchJSON('/api/authz/roles');
     roleCapsMap = data.roles || {};
   }
 
-  /** Получить выбранного в Select2 пользователя (id). */
   function getSelectedUserId() {
     const jq = window.jQuery;
     if (jq && jq('#userSelect').length) {
@@ -84,20 +76,16 @@
       if (Array.isArray(v)) return v[0] || '';
       return v ? String(v) : '';
     }
-    const el = $('#userSelect');
+    const el = $('#userSelect', getRoot());
     return el ? String(el.value || '') : '';
   }
 
-  // ── Select2 ──────────────────────────────────────────────────────────────────
-
-  /** Инициализировать Select2 для выбора пользователя (с AJAX-поиском). */
+  // ── Select2 ───────────────────────────────────────────────────────────
   function initSelect2() {
     const jq = window.jQuery;
     if (!jq || !jq.fn || !jq.fn.select2) return;
-
     const $sel = jq('#userSelect');
 
-    // Пересоздаём каждый раз на входе в режим User (устойчиво к навигациям).
     if ($sel.data('select2')) {
       $sel.off('change.select2authz');
       $sel.select2('destroy');
@@ -126,24 +114,22 @@
     $sel.on('change.select2authz', onUserChange);
   }
 
-  // ── Переключение режима Roles/User ───────────────────────────────────────────
-
-  /** Установить режим страницы: 'roles' или 'user' и перерисовать колоноки. */
+  // ── режим Roles/User ──────────────────────────────────────────────────
   async function setMode(mode) {
     currentMode = mode;
+    const root = getRoot();
     root.dataset.mode = mode;
-    $('#modeLabel').textContent = mode === 'roles' ? 'Roles' : 'User';
+    $('#modeLabel', root).textContent = mode === 'roles' ? 'Roles' : 'User';
 
-    // Визуал кнопок/селекта
-    $('#modeRolesBtn').classList.toggle('btn-primary', mode === 'roles');
-    $('#modeRolesBtn').classList.toggle('btn-outline-secondary', mode !== 'roles');
-    $('#modeUserBtn').classList.toggle('btn-primary', mode === 'user');
-    $('#modeUserBtn').classList.toggle('btn-outline-secondary', mode !== 'user');
-    $('#userPicker').classList.toggle('d-none', mode !== 'user');
+    $('#modeRolesBtn', root)?.classList.toggle('btn-primary', mode === 'roles');
+    $('#modeRolesBtn', root)?.classList.toggle('btn-outline-secondary', mode !== 'roles');
+    $('#modeUserBtn',  root)?.classList.toggle('btn-primary', mode === 'user');
+    $('#modeUserBtn',  root)?.classList.toggle('btn-outline-secondary', mode !== 'user');
+    $('#userPicker',   root)?.classList.toggle('d-none', mode !== 'user');
 
-    const roleCols  = $$('.role-col');
-    const userHead  = $$('.user-col-head');
-    const userCells = $$('.user-col');
+    const roleCols  = $$('.role-col', root);
+    const userHead  = $$('.user-col-head', root);
+    const userCells = $$('.user-col', root);
 
     if (mode === 'user') {
       isUserInit = true;
@@ -158,7 +144,6 @@
 
       const pre = getSelectedUserId();
       if (pre) {
-        // Единый промис загрузки — клики ждут его завершения
         userLoadingPromise = (async () => {
           await loadUserCaps(pre);
           paintUserColumn();
@@ -176,15 +161,13 @@
     }
   }
 
-  /** Навешивает обработчики кнопок «Roles»/«User». */
   function wireModeButtons() {
-    $('#modeRolesBtn')?.addEventListener('click', () => setMode('roles'));
-    $('#modeUserBtn')?.addEventListener('click', () => setMode('user'));
+    const root = getRoot();
+    $('#modeRolesBtn', root)?.addEventListener('click', () => setMode('roles'));
+    $('#modeUserBtn',  root)?.addEventListener('click', () => setMode('user'));
   }
 
-  // ── Загрузка и отрисовка прав пользователя ──────────────────────────────────
-
-  /** Считать с бэка роль/allow/deny для выбранного пользователя. */
+  // ── user caps ─────────────────────────────────────────────────────────
   async function loadUserCaps(userId) {
     currentUserId = userId || '';
     userAllow.clear(); userDeny.clear(); userRole = '';
@@ -196,13 +179,13 @@
     userRole  = (data.role || '').toLowerCase();
   }
 
-  /** Обработчик смены пользователя в Select2: загрузить и перерисовать столбец. */
   async function onUserChange() {
+    const root = getRoot();
     isUserInit = true;
     root.classList.add('busy');
 
     const userId = getSelectedUserId();
-    $$('.user-col').forEach(td => { td.innerHTML = ''; td.dataset.u = ''; td.dataset.eff = ''; lastClickAt.delete(td); });
+    $$('.user-col', root).forEach(td => { td.innerHTML = ''; td.dataset.u = ''; td.dataset.eff = ''; lastClickAt.delete(td); });
 
     if (!userId) {
       currentUserId = '';
@@ -224,55 +207,112 @@
     root.classList.remove('busy');
   }
 
-  /** Перерисовать единственный столбец «User» (эффективные права). */
   function paintUserColumn() {
+    const root = getRoot();
     const base = new Set((roleCapsMap && roleCapsMap[userRole]) || []);
-    $$('.user-col').forEach(td => {
+    $$('.user-col', root).forEach(td => {
       const slug = td.dataset.slug;
-
-      // Текущий override
       let ovr = '';
       if (userAllow.has(slug)) ovr = 'allow';
       else if (userDeny.has(slug)) ovr = 'deny';
       td.dataset.u = ovr;
 
-      // Эффективное право: override > роль
       const eff = ovr === 'allow' ? true : ovr === 'deny' ? false : (base.has(slug) || base.has('*'));
       td.dataset.eff = eff ? '1' : '0';
       td.innerHTML = eff ? ICON_OK : ICON_NO;
     });
   }
 
-  // ── Вкладки категорий ────────────────────────────────────────────────────────
+  // ── tabs (с плавной анимацией) ────────────────────────────────────────
+  function handleTabClick(btn) {
+    const root = getRoot();
+    const tabs = $$('.perm-tab', root);
+    const cats = $$('.perm-cat', root);
+    const targetId = btn.dataset.target;
+    const next = $('#' + targetId, root);
+    if (!next) return;
 
-  /** Навигация по табам категорий: показать нужную таблицу и (при user) перерисовать. */
-  function wireTabs() {
-    const tabs = $$('.perm-tab');
-    const cats = $$('.perm-cat');
-    tabs.forEach(btn => {
-      btn.addEventListener('click', () => {
-        tabs.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const target = btn.dataset.target;
-        cats.forEach(c => c.classList.toggle('d-none', c.id !== target));
-        if (currentMode === 'user' && (currentUserId || getSelectedUserId())) paintUserColumn();
-      });
+    const prev = cats.find(el => !el.classList.contains('d-none')) || null;
+    if (prev === next) {
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      return;
+    }
+
+    tabs.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const wrap = $('#perm-cats', root) || next.parentElement;
+    const fromH = prev ? prev.offsetHeight : next.offsetHeight;
+    wrap.style.height = fromH + 'px';
+
+    next.classList.remove('d-none');
+    next.classList.add('is-enter');
+
+    requestAnimationFrame(() => {
+      const toH = next.offsetHeight;
+      wrap.style.height = toH + 'px';
+
+      next.classList.add('is-enter-active');
+      if (prev) {
+        prev.classList.add('is-exit', 'is-exit-active');
+      }
+
+      setTimeout(() => {
+        if (prev) {
+          prev.classList.add('d-none');
+          prev.classList.remove('is-exit', 'is-exit-active');
+        }
+        next.classList.remove('is-enter', 'is-enter-active');
+        wrap.style.height = '';
+
+        if (currentMode === 'user' && (currentUserId || getSelectedUserId())) {
+          paintUserColumn();
+        }
+      }, 220);
     });
   }
 
-  // ── Переключение клеток ──────────────────────────────────────────────────────
+  function wireTabs() {
+    const root = getRoot();
+    $$('.perm-tab', root).forEach(btn => {
+      btn.addEventListener('click', () => handleTabClick(btn));
+    });
+  }
 
-  /** Делегированный обработчик кликов/клавиш в таблице (и антидребезг). */
+  // ── toggles (делегировано) ────────────────────────────────────────────
   function enableDelegatedToggle() {
-    root.addEventListener('click', async (e) => {
+    if (listenersBound) return;
+
+    document.addEventListener('click', async (e) => {
+      const root = getRoot();
+      if (!root.querySelector('#modeRolesBtn') && !root.querySelector('#modeUserBtn')) return;
+
+      const rolesBtn = e.target.closest('#modeRolesBtn');
+      if (rolesBtn) { e.preventDefault(); await setMode('roles'); return; }
+
+      const userBtn = e.target.closest('#modeUserBtn');
+      if (userBtn) { e.preventDefault(); await setMode('user');  return; }
+
+      const tabBtn = e.target.closest('.perm-tab');
+      if (tabBtn && root.contains(tabBtn)) { e.preventDefault(); handleTabClick(tabBtn); return; }
+
+      const saveBtn = e.target.closest('#btnPermSave');
+      if (saveBtn && root.contains(saveBtn)) {
+        if (saveBtn.classList.contains('is-saving')) return;
+        saveBtn.classList.add('is-saving'); saveBtn.disabled = true;
+        try { await save(); alertFallback('Saved', '', 'success'); }
+        catch (err) { console.error(err); alertFallback('Error', err.message || 'Failed to save', 'error'); }
+        finally { saveBtn.disabled = false; saveBtn.classList.remove('is-saving'); }
+        return;
+      }
+
       if (currentMode === 'user') {
         const tdU = e.target.closest('td.perm-cell.user-col');
         if (tdU && root.contains(tdU)) {
           e.preventDefault();
-          e.stopPropagation();
-
           if (isUserInit) return;
-          if (userLoadingPromise) { try { await userLoadingPromise; } catch (_) {} }
+          if (userLoadingPromise) { try { await userLoadingPromise; } catch {} }
 
           const now = performance.now();
           const prev = lastClickAt.get(tdU) || 0;
@@ -285,19 +325,24 @@
           requestAnimationFrame(() => { tdU.dataset.lock = '0'; });
           return;
         }
+      } else {
+        const tdR = e.target.closest('td.perm-cell.role-col');
+        if (tdR && root.contains(tdR)) { e.preventDefault(); toggleRoleCell(tdR); return; }
       }
-      const td = e.target.closest('td.perm-cell.role-col');
-      if (td && root.contains(td) && currentMode === 'roles') toggleRoleCell(td);
     });
 
-    root.addEventListener('keydown', async (e) => {
+    document.addEventListener('keydown', async (e) => {
       if (e.key !== ' ' && e.key !== 'Enter') return;
+
+      const root = getRoot();
+      if (!root.querySelector('#modeRolesBtn') && !root.querySelector('#modeUserBtn')) return;
+
       if (currentMode === 'user') {
         const tdU = e.target.closest('td.perm-cell.user-col[tabindex]');
         if (tdU) {
           e.preventDefault();
           if (isUserInit) return;
-          if (userLoadingPromise) { try { await userLoadingPromise; } catch (_) {} }
+          if (userLoadingPromise) { try { await userLoadingPromise; } catch {} }
 
           const now = performance.now();
           const prev = lastClickAt.get(tdU) || 0;
@@ -310,13 +355,14 @@
           requestAnimationFrame(() => { tdU.dataset.lock = '0'; });
         }
       } else {
-        const td = e.target.closest('td.perm-cell.role-col[tabindex]');
-        if (td) { e.preventDefault(); toggleRoleCell(td); }
+        const tdR = e.target.closest('td.perm-cell.role-col[tabindex]');
+        if (tdR) { e.preventDefault(); toggleRoleCell(tdR); }
       }
     });
+
+    listenersBound = true;
   }
 
-  /** Переключить клетку в режиме ролей (галка ↔ крестик). */
   function toggleRoleCell(td) {
     const has = td.dataset.has === '1';
     const next = has ? '0' : '1';
@@ -325,11 +371,6 @@
     td.innerHTML = next === '1' ? ICON_OK : ICON_NO;
   }
 
-  /**
-   * Переключить override для одной capability в режиме пользователя.
-   * Обычный клик: allow ↔ deny. Если override пуст — поставить противоположное базовому.
-   * Ctrl/Meta/Alt: очистить override (вернуться к праву из роли).
-   */
   async function toggleUserOverride(td, evt) {
     if (!currentUserId) currentUserId = getSelectedUserId();
     if (!currentUserId) { alertFallback('Select user', 'Choose a user first', 'info'); return; }
@@ -358,12 +399,10 @@
     td.innerHTML = eff ? ICON_OK : ICON_NO;
   }
 
-  // ── Сохранение ───────────────────────────────────────────────────────────────
-
-  /** Собрать payload по ролям из таблицы. */
+  // ── save ──────────────────────────────────────────────────────────────
   function gatherPayloadRoles() {
     const roles = {};
-    $$('.perm-cell.role-col').forEach(td => {
+    $$('.perm-cell.role-col', getRoot()).forEach(td => {
       const role = td.dataset.role;
       const slug = td.dataset.slug;
       const has = td.dataset.has === '1';
@@ -375,11 +414,9 @@
     return { roles: out };
   }
 
-  /** Собрать payload override’ов пользователя. */
   function gatherPayloadUser() {
-    const allow = [];
-    const deny  = [];
-    $$('.perm-cell.user-col').forEach(td => {
+    const allow = [], deny = [];
+    $$('.perm-cell.user-col', getRoot()).forEach(td => {
       const slug = td.dataset.slug;
       const ovr = td.dataset.u || '';
       if (ovr === 'allow') allow.push(slug);
@@ -389,7 +426,6 @@
     return { user_id: currentUserId || getSelectedUserId(), allow, deny };
   }
 
-  /** Отправить изменения на бэк (режим ролей или пользователя). */
   async function save() {
     if (currentMode === 'roles') {
       const payload = gatherPayloadRoles();
@@ -409,37 +445,24 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      // Перезагрузим состояние после сохранения
       await loadUserCaps(currentUserId);
       paintUserColumn();
     }
   }
 
-  /** Навешивает обработчик на кнопку Save с защитой от повторных нажатий. */
   function wireSave() {
-    const btn = $('#btnPermSave');
+    const btn = $('#btnPermSave', getRoot());
     if (!btn) return;
-
     btn.addEventListener('click', async () => {
-      if (btn.classList.contains('is-saving')) return; // защёлка от дублей
-      btn.classList.add('is-saving');
-      btn.disabled = true;
-      try {
-        await save();
-        alertFallback('Saved', '', 'success');
-      } catch (e) {
-        console.error(e);
-        alertFallback('Error', e.message || 'Failed to save', 'error');
-      } finally {
-        btn.disabled = false;
-        btn.classList.remove('is-saving');
-      }
+      if (btn.classList.contains('is-saving')) return;
+      btn.classList.add('is-saving'); btn.disabled = true;
+      try { await save(); alertFallback('Saved', '', 'success'); }
+      catch (e) { console.error(e); alertFallback('Error', e.message || 'Failed to save', 'error'); }
+      finally { btn.disabled = false; btn.classList.remove('is-saving'); }
     });
   }
 
-  // ── Инициализация ────────────────────────────────────────────────────────────
-
-  /** Точка входа: навешиваем обработчики и стартуем в режиме ролей. */
+  // ── init ──────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
     wireTabs();
     enableDelegatedToggle();

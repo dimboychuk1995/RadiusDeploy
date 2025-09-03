@@ -12,6 +12,8 @@ from zoneinfo import ZoneInfo
 from auth import users_collection
 from tools.db import db
 from dateutil import parser
+from tools.authz import require_cap, apply_authz_filter
+
 dispatch_bp = Blueprint('dispatch', __name__)
 
 drivers_collection = db['drivers']
@@ -34,6 +36,7 @@ def convert_object_ids(obj):
 
 @dispatch_bp.route('/fragment/dispatch_fragment', methods=['GET'])
 @login_required
+@require_cap('dispatch:view')
 def dispatch_fragment():
     import time
     from datetime import datetime, timedelta, timezone
@@ -186,6 +189,7 @@ def get_mapbox_token():
 # we called this method from different places
 @dispatch_bp.route('/api/consolidation/prep', methods=['POST'])
 @login_required
+@require_cap('dispatch:consolidation_create')
 def prep_consolidation():
     """
     Готовит данные для консолидации.
@@ -469,6 +473,7 @@ def prep_consolidation():
 
 @dispatch_bp.route('/api/consolidation/save', methods=['POST'])
 @login_required
+@require_cap('dispatch:consolidation_create')
 def save_consolidation():
     """
     Принимает уже посчитанные на фронте значения и сохраняет их
@@ -725,6 +730,7 @@ def consolidation_status_for_loads():
 
 @dispatch_bp.route('/api/drivers/break', methods=['POST'])
 @login_required
+@require_cap('dispatch:driver_break_create')
 def save_driver_break():
     try:
         data = request.get_json()
@@ -887,6 +893,7 @@ def get_driver_location(driver_id):
 
 @dispatch_bp.route('/api/drivers/break/delete', methods=['POST'])
 @login_required
+@require_cap('dispatch:driver_break_delete')
 def delete_driver_break():
     """
     Вход:  { "break_id": "<oid>" }
@@ -919,6 +926,7 @@ def delete_driver_break():
 
 @dispatch_bp.route('/api/consolidation/delete', methods=['POST'])
 @login_required
+@require_cap('dispatch:consolidation_delete')
 def delete_consolidation():
     """
     Удаляет консолидацию и снимает флаги у связанных грузов.
