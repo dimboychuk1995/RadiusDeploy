@@ -224,6 +224,7 @@
   }
 
   // ── tabs (с плавной анимацией) ────────────────────────────────────────
+  /** Клик по табу: кросс-фейд без «уезжания» вниз */
   function handleTabClick(btn) {
     const root = getRoot();
     const tabs = $$('.perm-tab', root);
@@ -239,39 +240,49 @@
       return;
     }
 
+    // активная вкладка
     tabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
+    // обёртка высоты
     const wrap = $('#perm-cats', root) || next.parentElement;
+
+    // фиксируем текущую высоту
     const fromH = prev ? prev.offsetHeight : next.offsetHeight;
     wrap.style.height = fromH + 'px';
 
+    // подготовка слоёв: накладываем друг на друга
     next.classList.remove('d-none');
-    next.classList.add('is-enter');
+    next.classList.add('xfade', 'is-fade-enter');   // старт: прозрачный
+    if (prev) prev.classList.add('xfade', 'is-fade-exit'); // старт: видимый
 
+    // следующий тик — запускаем кросс-фейд и анимацию высоты
     requestAnimationFrame(() => {
       const toH = next.offsetHeight;
       wrap.style.height = toH + 'px';
 
-      next.classList.add('is-enter-active');
-      if (prev) {
-        prev.classList.add('is-exit', 'is-exit-active');
-      }
+      next.classList.add('is-fade-enter-active');
+      if (prev) prev.classList.add('is-fade-exit-active');
 
+      // по завершении — уборка
       setTimeout(() => {
         if (prev) {
           prev.classList.add('d-none');
-          prev.classList.remove('is-exit', 'is-exit-active');
+          prev.classList.remove('xfade', 'is-fade-exit', 'is-fade-exit-active');
         }
-        next.classList.remove('is-enter', 'is-enter-active');
+        next.classList.remove('xfade', 'is-fade-enter', 'is-fade-enter-active');
+
+        // вернуть авто-высоту
         wrap.style.height = '';
 
+        // при режиме user — прорисовать эффективные права в новом блоке
         if (currentMode === 'user' && (currentUserId || getSelectedUserId())) {
           paintUserColumn();
         }
-      }, 220);
+      }, 220); // совпадает с CSS
     });
   }
+
 
   function wireTabs() {
     const root = getRoot();
