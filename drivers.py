@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from auth import requires_role, users_collection
 from tools.db import db
 from tools.gpt_connection import get_openai_client
+from tools.authz import require_cap, apply_authz_filter
 
 from PIL import Image
 import pytesseract
@@ -43,6 +44,7 @@ def convert_to_str_id(data):
 
 @drivers_bp.route('/fragment/drivers', methods=['GET'])
 @login_required
+@require_cap('driver:view')
 def drivers_fragment():
     from zoneinfo import ZoneInfo
     from datetime import datetime
@@ -155,6 +157,7 @@ def drivers_fragment():
 
 @drivers_bp.route('/add_driver', methods=['POST'])
 @login_required
+@require_cap('driver:create')
 def add_driver():
     try:
         fs = gridfs.GridFS(db)
@@ -266,6 +269,7 @@ def add_driver():
 
 @drivers_bp.route('/fragment/driver_details/<driver_id>', methods=['GET'])
 @login_required
+@require_cap('driver:view_details')
 def driver_details_fragment(driver_id):
     try:
         from zoneinfo import ZoneInfo
@@ -399,6 +403,7 @@ def get_driver_file_metadata(driver_id, doc_type):
 
 @drivers_bp.route('/delete_driver/<driver_id>', methods=['POST'])
 @requires_role('admin')
+@require_cap('driver:delete')
 def delete_driver(driver_id):
     try:
         drivers_collection.delete_one({'_id': ObjectId(driver_id)})
@@ -411,6 +416,7 @@ import base64
 
 @drivers_bp.route('/set_salary_scheme/<driver_id>', methods=['POST'])
 @login_required
+@require_cap('driver:salary_scheme')
 def set_salary_scheme(driver_id):
     try:
         scheme_type = request.form.get('scheme_type')
@@ -568,6 +574,7 @@ def set_salary_scheme(driver_id):
 
 @drivers_bp.route('/get_salary_scheme/<driver_id>', methods=['GET'])
 @login_required
+@require_cap('driver:salary_scheme')
 def get_salary_scheme(driver_id):
     try:
         driver = drivers_collection.find_one({'_id': ObjectId(driver_id)})
@@ -690,6 +697,7 @@ def parse_driver_pdf():
 
 @drivers_bp.route('/api/edit_driver_dispatch/<driver_id>', methods=['POST'])
 @login_required
+@require_cap('driver:assignment')
 def edit_driver_dispatch(driver_id):
     try:
         dispatcher_id = request.form.get('dispatcher')
@@ -715,6 +723,7 @@ def edit_driver_dispatch(driver_id):
 
 @drivers_bp.route('/api/edit_driver_truck/<driver_id>', methods=['POST'])
 @login_required
+@require_cap('driver:assignment')
 def edit_driver_truck(driver_id):
     """
     Единая точка консистентности:

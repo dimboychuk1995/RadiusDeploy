@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from pytz import timezone, utc
 from bson import ObjectId
 from tools.db import db
+from tools.authz import require_cap, apply_authz_filter
+
 dispatch_statements_bp = Blueprint('dispatch_statements', __name__)
 
 users_collection = db['users']
@@ -13,6 +15,7 @@ drivers_collection = db["drivers"]
 companies_collection = db["companies"]
 
 @dispatch_statements_bp.route("/fragment/statement_dispatchers")
+@require_cap('statement:view')
 def statement_dispatchers_fragment():
     dispatchers = list(users_collection.find({"role": "dispatch"}, {"_id": 1, "real_name": 1}))
     for dispatcher in dispatchers:
@@ -21,6 +24,7 @@ def statement_dispatchers_fragment():
 
 @dispatch_statements_bp.route("/api/calculate_dispatcher_payroll", methods=["POST"])
 @login_required
+@require_cap('statement:create')
 def calculate_dispatcher_payroll():
     try:
         data = request.get_json()
@@ -154,6 +158,7 @@ def calculate_dispatcher_payroll():
 
 @dispatch_statements_bp.route("/api/save_dispatcher_statement", methods=["POST"])
 @login_required
+@require_cap('statement:create')
 def save_dispatcher_statement():
     try:
         data = request.get_json()
@@ -269,6 +274,7 @@ def save_dispatcher_statement():
         return jsonify({"error": str(e)}), 500
 
 @dispatch_statements_bp.route("/api/dispatcher_statements_by_week", methods=["POST"])
+@require_cap('statement:view')
 def get_dispatcher_statements_by_week():
     try:
         data = request.get_json()
@@ -306,6 +312,7 @@ def get_dispatcher_statements_by_week():
 
 
 @dispatch_statements_bp.route("/fragment/statement_dispatchers/details/<statement_id>")
+@require_cap('statement:view')
 def statement_dispatch_details_fragment(statement_id):
     try:
         statement = db.statement_dispatch.find_one({"_id": ObjectId(statement_id)})

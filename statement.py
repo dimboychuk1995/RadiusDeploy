@@ -11,6 +11,7 @@ import hashlib
 from flask_login import login_required, current_user
 from typing import Optional
 from utils.notifications import send_push_notification
+from tools.authz import require_cap, apply_authz_filter
 
 statement_bp = Blueprint('statement', __name__)
 
@@ -23,6 +24,7 @@ fuel_cards_transactions_collection = db['fuel_cards_transactions']
 
 
 @statement_bp.route("/fragment/statement_fragment")
+@require_cap('statement:view')
 def statement_fragment():
     try:
         drivers = list(db.drivers.find({}, {"_id": 1, "name": 1}))
@@ -630,6 +632,7 @@ def list_drivers_for_statements():
 # --- Массовое сохранение стейтментов (insert / replace / ignore approved) ---
 @statement_bp.route("/api/statements/bulk_save", methods=["POST"])
 @login_required
+@require_cap('statement:create')
 def bulk_save_statements():
     """
     Массовое сохранение стейтментов.
@@ -947,6 +950,7 @@ def bulk_save_statements():
 
 @statement_bp.route("/api/statements/list", methods=["GET"])
 @login_required
+@require_cap('statement:view')
 def list_statements():
     from flask import request, jsonify
     from bson import ObjectId
@@ -1399,6 +1403,7 @@ def api_samsara_driver_mileage():
 
 @statement_bp.route("/api/statements/save_single", methods=["POST"])
 @login_required
+@require_cap('statement:create')
 def save_single_statement():
     """
     Сохраняет стейтмент для ОДНОГО водителя (approved=True) и
@@ -1766,6 +1771,7 @@ def save_single_statement():
 
 @statement_bp.route("/api/statements/get_one", methods=["GET"])
 @login_required
+@require_cap('statement:create')
 def get_statement_one():
     """
     Вернуть один сохранённый стейтмент по id (без пересчётов).
@@ -1808,6 +1814,7 @@ def get_statement_one():
 # Подтвердить неподтвержденный стейтмент 
 @statement_bp.route("/api/statements/confirm", methods=["POST"])
 @login_required
+@require_cap('statement:create')
 def confirm_statement():
     """
     Универсальный confirm:
@@ -2048,6 +2055,7 @@ def confirm_statement():
 
 @statement_bp.route("/api/statements/delete", methods=["POST"])
 @login_required
+@require_cap('statement:delete')
 def delete_statement():
     """
     Удаляет стейтмент по id.

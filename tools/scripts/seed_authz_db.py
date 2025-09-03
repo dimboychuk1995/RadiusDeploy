@@ -6,7 +6,7 @@ Seed permission_defs (catalog) and role_defs (role->caps) into MongoDB.
 Safe to run multiple times (idempotent).
 Works whether you run:
   - python tools/scripts/seed_authz_db.py
-  - python -m tools.scripts.seed_authz_db   (if packages are set up)
+  - python -m tools.scripts.seed_authz_db
 """
 
 import sys
@@ -40,47 +40,80 @@ except Exception:
                          f"Run from project root or ensure tools/db.py is accessible.")
 
 # === CATALOG: permissions ===
-# Trucks (Fleet -> Trucks)
 PERMISSIONS = [
-    {"slug": "trucks:view",      "label": "View units",            "category": "Fleet",      "group": "Trucks", "order": 10, "enabled": True},
-    {"slug": "trucks:create",    "label": "Create unit",           "category": "Fleet",      "group": "Trucks", "order": 20, "enabled": True},
-    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "Fleet",      "group": "Trucks", "order": 30, "enabled": True},
-    {"slug": "trucks:file:view", "label": "View unit files",       "category": "Fleet",      "group": "Trucks", "order": 40, "enabled": True},
-    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "Fleet",      "group": "Trucks", "order": 50, "enabled": True},
-]
+    # Fleet -> Trucks
+    {"slug": "trucks:view",      "label": "View units",            "category": "Fleet",      "group": "Trucks",   "order": 10, "enabled": True},
+    {"slug": "trucks:create",    "label": "Create unit",           "category": "Fleet",      "group": "Trucks",   "order": 20, "enabled": True},
+    {"slug": "trucks:delete",    "label": "Delete unit",           "category": "Fleet",      "group": "Trucks",   "order": 30, "enabled": True},
+    {"slug": "trucks:file:view", "label": "View unit files",       "category": "Fleet",      "group": "Trucks",   "order": 40, "enabled": True},
+    {"slug": "trucks:assign",    "label": "Assign unit to driver", "category": "Fleet",      "group": "Trucks",   "order": 50, "enabled": True},
 
-# Loads (Operations -> Loads)
-PERMISSIONS += [
-    {"slug": "loads:view",       "label": "View loads",            "category": "Operations", "group": "Loads",  "order": 10, "enabled": True},
-    {"slug": "loads:create",     "label": "Create load",           "category": "Operations", "group": "Loads",  "order": 20, "enabled": True},
-    {"slug": "loads:delete",     "label": "Delete load",           "category": "Operations", "group": "Loads",  "order": 30, "enabled": True},
-    {"slug": "loads:file:view",  "label": "View load files",       "category": "Operations", "group": "Loads",  "order": 40, "enabled": True},
-    {"slug": "loads:assign",     "label": "Assign load to driver", "category": "Operations", "group": "Loads",  "order": 50, "enabled": True},
+    # Operations -> Loads
+    {"slug": "loads:view",       "label": "View loads",            "category": "Operations", "group": "Loads",    "order": 10, "enabled": True},
+    {"slug": "loads:create",     "label": "Create load",           "category": "Operations", "group": "Loads",    "order": 20, "enabled": True},
+    {"slug": "loads:delete",     "label": "Delete load",           "category": "Operations", "group": "Loads",    "order": 30, "enabled": True},
+    {"slug": "loads:file:view",  "label": "View load files",       "category": "Operations", "group": "Loads",    "order": 40, "enabled": True},
+    {"slug": "loads:assign",     "label": "Assign load to driver", "category": "Operations", "group": "Loads",    "order": 50, "enabled": True},
+
+    # Finance -> Statements
+    {"slug": "statement:view",   "label": "View statements",       "category": "Finance",    "group": "Statements", "order": 10, "enabled": True},
+    {"slug": "statement:create", "label": "Create/confirm",        "category": "Finance",    "group": "Statements", "order": 20, "enabled": True},
+    {"slug": "statement:delete", "label": "Delete statement",      "category": "Finance",    "group": "Statements", "order": 30, "enabled": True},
+
+    # Fleet -> Drivers  (по факту используемых слагов из drivers.py)
+    {"slug": "driver:view",          "label": "View drivers",          "category": "Fleet", "group": "Drivers", "order": 10, "enabled": True},
+    {"slug": "driver:view_details",  "label": "View driver details",   "category": "Fleet", "group": "Drivers", "order": 15, "enabled": True},
+    {"slug": "driver:create",        "label": "Create driver",         "category": "Fleet", "group": "Drivers", "order": 20, "enabled": True},
+    {"slug": "driver:delete",        "label": "Delete driver",         "category": "Fleet", "group": "Drivers", "order": 30, "enabled": True},
+    {"slug": "driver:assignment",    "label": "Assign truck/dispatcher","category": "Fleet","group": "Drivers", "order": 40, "enabled": True},
+    {"slug": "driver:salary_scheme", "label": "Edit salary scheme",    "category": "Fleet", "group": "Drivers", "order": 50, "enabled": True},
+    # при желании можно добавить ещё:
+    # {"slug": "driver:file:view",  "label": "View driver files",     "category": "Fleet", "group": "Drivers", "order": 60, "enabled": True},
 ]
 
 # === ROLES: role -> capabilities ===
-# Сохранён принцип как у trucks: admin — полный доступ модуля, dispatch — просмотр/файлы/assign, user/driver — только просмотр (+ файлы для driver)
 ROLES = {
     "superadmin": ["*"],
+
     "admin": [
         # trucks
         "trucks:view", "trucks:create", "trucks:delete", "trucks:file:view", "trucks:assign",
         # loads
         "loads:view", "loads:create", "loads:delete", "loads:file:view", "loads:assign",
+        # statements
+        "statement:view", "statement:create", "statement:delete",
+        # drivers
+        "driver:view", "driver:view_details", "driver:create", "driver:delete",
+        "driver:assignment", "driver:salary_scheme",
+        # "driver:file:view",  # включи, если защитишь выдачу файлов капом
     ],
+
     "dispatch": [
         # trucks
         "trucks:view", "trucks:file:view", "trucks:assign",
-        # loads (аналогично trucks)
+        # loads
         "loads:view", "loads:file:view", "loads:assign",
+        # statements
+        "statement:view", "statement:create",
+        # drivers (диспетчеру обычно нужны просмотр/детали + назначения)
+        "driver:view", "driver:view_details", "driver:assignment",
+        # при необходимости можешь дать create:
+        # "driver:create",
     ],
+
     "user": [
         "trucks:view",
         "loads:view",
+        "statement:view",
+        "driver:view",
     ],
+
     "driver": [
         "trucks:view", "trucks:file:view",
         "loads:view",  "loads:file:view",
+        "statement:view",
+        "driver:view",
+        # "driver:view_details",  # включи, если водителям нужен полный просмотр карточки
     ],
 }
 
@@ -106,7 +139,6 @@ def upsert_permissions():
 
 def upsert_roles():
     for slug, caps in ROLES.items():
-        # уникализируем и сортируем для идемпотентности
         caps_unique_sorted = sorted(set(caps))
         db["role_defs"].update_one(
             {"slug": slug},
