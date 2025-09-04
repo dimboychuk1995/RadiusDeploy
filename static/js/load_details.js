@@ -37,6 +37,7 @@ function showLoadDetails(loadId) {
 }
 
 // === ДОБАВЬТЕ НИЖЕ: инициализация панели статуса ===
+// === ИНИЦИАЛИЗАЦИЯ СТЕППЕРА С АНИМАЦИЕЙ ЗАПОЛНЕНИЯ ===
 function initLoadStatusStepper(root = document) {
   const el = root.querySelector('#loadStatusStepper');
   if (!el) return;
@@ -48,36 +49,77 @@ function initLoadStatusStepper(root = document) {
     .replace(/[\s-]+/g, '_')
     .trim();
 
-  const status = norm(el.dataset.status);           // из load.status
-  const pay    = norm(el.dataset.payment);          // из load.payment_status
+  const status = norm(el.dataset.status);      // из load.status
+  const pay    = norm(el.dataset.payment);     // из load.payment_status
+  const ORDER  = ['new','dispatched','picked_up','delivered','canceled','tonu','invoiced','paid'];
 
-  // порядок шагов панели
-  const ORDER = ['new', 'dispatched', 'picked_up', 'delivered', 'canceled', 'tonu', 'invoiced', 'paid'];
-
-  // вычисляем "текущий" индекс
   let idx = Math.max(0, ORDER.indexOf(status));
   const isTerminal = (status === 'canceled' || status === 'tonu');
-
-  // если не терминальный — учитываем оплату
   if (!isTerminal) {
     if (pay === 'paid') idx = ORDER.indexOf('paid');
     else if (pay === 'invoiced') idx = Math.max(idx, ORDER.indexOf('invoiced'));
   }
 
-  // подсветка шагов
-  const steps = el.querySelectorAll('.step');
-  steps.forEach((li, i) => {
-    li.classList.remove('done', 'current', 'future', 'is-canceled', 'is-tonu');
-    if (i < idx) li.classList.add('done');
-    else if (i === idx) {
-      li.classList.add('current');
-      if (status === 'canceled') li.classList.add('is-canceled');
-      if (status === 'tonu')     li.classList.add('is-tonu');
-    } else {
-      li.classList.add('future');
+  const steps = Array.from(el.querySelectorAll('.step'));
+
+  // Сброс классов
+  steps.forEach(li => li.classList.remove('done','current','future','is-canceled','is-tonu','seg-on'));
+  steps.forEach(li => li.classList.add('future'));
+
+  // Анимация: последовательно включаем сегмент и кружок для каждого шага
+  const D_SEG = 340; // ms — длительность заливки сегмента
+  const D_DOT = 180; // ms — «прыжок»/заливка кружка
+  let i = 0;
+
+  // Текущий шаг считаем конечной точкой (всё до него — done, он — current)
+  function markFinal() {
+    steps.forEach((li, k) => {
+      li.classList.remove('future');
+      if (k < idx) li.classList.add('done');
+      else if (k === idx) {
+        li.classList.add('current');
+        if (status === 'canceled') li.classList.add('is-canceled');
+        if (status === 'tonu')     li.classList.add('is-tonu');
+      } else {
+        li.classList.add('future');
+      }
+    });
+    el.classList.remove('animating');
+  }
+
+  // Пошаговая анимация
+  el.classList.add('animating'); // включает CSS-переходы
+
+  function stepForward() {
+    if (i > idx) { markFinal(); return; }
+
+    // 1) сегмент к текущему шагу (у первого шага сегмента нет)
+    if (i > 0) {
+      steps[i].classList.add('seg-on'); // включает ::after (зелёную заливку) у сегмента i
     }
-  });
+
+    // 2) через D_SEG заполняем кружок
+    setTimeout(() => {
+      // все предыдущие делаем done
+      for (let k = 0; k < i; k++) {
+        steps[k].classList.remove('future');
+        steps[k].classList.add('done');
+      }
+      // текущий — «current» на время анимации кружка (зелёный)
+      steps[i].classList.remove('future');
+      steps[i].classList.add(i === idx ? 'current' : 'done');
+
+      // следующий шаг
+      i += 1;
+      // небольшая пауза между шагами
+      setTimeout(stepForward, D_DOT);
+    }, (i === 0 ? 0 : D_SEG));
+  }
+
+  // старт
+  stepForward();
 }
+
 
 
 
