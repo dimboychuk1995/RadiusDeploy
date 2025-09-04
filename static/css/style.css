@@ -939,113 +939,171 @@ table .driver-row > td {
 
 
 /* === Переход вкладок, используется в permissions, будет использоватся ещё!!! === */
- /* === Load Status Stepper (edge-to-edge, solid dots + outer ring, with fill animation) === */
-  .ld-stepper{
-    list-style:none; padding-left:0; margin:12px 0 0;
-
-    /* настраиваемые размеры/цвета */
-    --dot: 52px;        /* диаметр кружка */
-    --line: 8px;        /* толщина линии */
-    --ring: 4px;        /* толщина внешнего кольца у залитых кружков */
-    --space: 34px;      /* «воздух» слева/справа у шага (для подписи) */
-
-    /* точный зелёный — из левой панели; иначе — bs-success/дефолт */
-    --c-done: var(--sidebar-accent, var(--bs-success, #22c55e));
-    --c-gray: #e5e7eb;  /* серый трек */
-    --c-text: #111827;  /* подписи */
-    --c-muted:#98a2b3;  /* подписи future */
-    --c-danger:#e03131; --c-warn:#f08c00;
-
-    display:flex; align-items:center; justify-content:space-between;
-    gap:0; padding:12px 12px 6px;
+  /* --- Segmented tabs (как на скрине) --- */
+  .segmented {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 12px;
+    background: #f1f0ff;
   }
-  .ld-stepper .step{
-    position:relative; flex:1 1 0; text-align:center; min-width:108px;
-    padding:0 var(--space); box-sizing:border-box;
+  .segmented .seg-item {
+    flex: 1 1 auto;
+    border: 0;
+    background: transparent;
+    color: #2b2b2b;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 10px;
+    line-height: 1.1;
+    outline: none;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
   }
-
-  /* СЕРЫЙ трек под кружками: от КРАЯ предыдущего до КРАЯ текущего */
-  .ld-stepper .step:not(:first-child)::before{
-    content:""; position:absolute;
-    top:  calc(var(--dot)/2 - var(--line)/2);
-    left: calc(-50% + var(--dot)/2);
-    right:calc( 50% + var(--dot)/2);
-    height: var(--line);
-    background: var(--c-gray);
-    border-radius: 999px;
-    z-index: 1;
+  .segmented .seg-item:hover { background: rgba(255,255,255,0.5); }
+  .segmented .seg-item.active {
+    background: #ffffff;
+    color: #111;
+    box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 1px rgba(16,24,40,.04);
+  }
+  @media (max-width: 992px) {
+    .segmented { overflow:auto; white-space: nowrap; }
+    .segmented .seg-item { flex: 0 0 auto; }
   }
 
-  /* ЗЕЛЁНАЯ заливка трека (поверх серого), анимируется шириной */
-  .ld-stepper .step:not(:first-child)::after{
-    content:""; position:absolute;
-    top:  calc(var(--dot)/2 - var(--line)/2);
-    left: calc(-50% + var(--dot)/2);
-    right:calc( 50% + var(--dot)/2);
-    height: var(--line);
-    background: var(--c-done);
-    border-radius: 999px;
-    z-index: 2;                   /* над серым, под кружками */
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform .38s ease;
-  }
-  /* включение сегмента (во время/после анимации) */
-  .ld-stepper .step.seg-on::after,
-  .ld-stepper .step.done::after,
-  .ld-stepper .step.current::after{
-    transform: scaleX(1);
+  /* --- Плавные переключения контента категорий (кросс-фейд) --- */
+  #perm-cats { position: relative; transition: height .22s ease; }
+
+  /* базовое состояние */
+  .perm-cat { opacity: 1; transition: opacity .22s ease; }
+
+  /* во время анимации кладём блоки друг на друга */
+  .perm-cat.xfade {
+    position: absolute;
+    inset: 0 0 auto 0;  /* top:0; left:0; right:0; */
+    width: 100%;
   }
 
-  /* кружки */
-  .ld-stepper .step .dot{
-    position:relative; z-index:3; display:inline-grid; place-items:center;
-    width:var(--dot); height:var(--dot); border-radius:50%;
-    font: 800 17px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    user-select:none; transition: transform .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease;
-    background:#f3f4f6; color:#9aa3af; /* future */
-    box-shadow:none;
-  }
-  .ld-stepper .step .lbl{
-    display:block; margin-top:9px; font-weight:600; color:var(--c-text); font-size:15px;
-  }
+  /* входящий: из 0 → 1 */
+  .perm-cat.is-fade-enter { opacity: 0; }
+  .perm-cat.is-fade-enter.is-fade-enter-active { opacity: 1; }
 
-  /* ПРОЙДЕННЫЕ и ТЕКУЩИЙ: сплошная заливка + внешнее кольцо того же цвета */
-  .ld-stepper .step.done .dot,
-  .ld-stepper .step.current .dot{
-    background: var(--c-done);
-    color:#fff;
-    box-shadow: 0 0 0 var(--ring) var(--c-done);
-    transform: scale(1);
-  }
+  /* исходящий: из 1 → 0 */
+  .perm-cat.is-fade-exit { opacity: 1; }
+  .perm-cat.is-fade-exit.is-fade-exit-active { opacity: 0; }
+/* === ---------------------------- === */
 
-  /* Терминальные как текущие — своим цветом */
-  .ld-stepper .step.current.is-canceled .dot{
-    background: var(--c-danger);
-    box-shadow: 0 0 0 var(--ring) var(--c-danger);
-    color:#fff;
-  }
-  .ld-stepper .step.current.is-tonu .dot{
-    background: var(--c-warn);
-    box-shadow: 0 0 0 var(--ring) var(--c-warn);
-    color:#fff;
-  }
 
-  /* будущие подписи приглушены */
-  .ld-stepper .step.future .lbl{ color:var(--c-muted); font-weight:500; }
 
-  /* Включаем «лёгкий прыжок» кружков только во время анимации */
-  .ld-stepper.animating .step .dot{ transform: scale(.92); }
-  .ld-stepper.animating .step.done .dot,
-  .ld-stepper.animating .step.current .dot{ transform: scale(1); }
+/* === Переход вкладок, используется в permissions, будет использоватся ещё!!! === */
+.ld-stepper{
+  list-style:none; padding-left:0; margin:12px 0 0;
+  /* настраиваемые размеры/цвета */
+  --dot: 52px;        /* диаметр кружка */
+  --line: 8px;        /* толщина линии */
+  --ring: 4px;        /* толщина внешнего кольца у залитых кружков */
+  --space: 34px;      /* «воздух» слева/справа у шага (для подписи) */
+  /* точный зелёный — из левой панели; иначе — bs-success/дефолт */
+  --c-done: var(--sidebar-accent, var(--bs-success, #22c55e));
+  --c-gray: #e5e7eb;  /* серый трек */
+  --c-text: #111827;  /* подписи */
+  --c-muted:#98a2b3;  /* подписи future */
+  --c-danger:#e03131; --c-warn:#f08c00;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:0; padding:12px 12px 6px;
+}
 
-  /* адаптив */
-  @media (max-width: 1200px){
-    .ld-stepper{ --space:28px; }
-    .ld-stepper .step{ min-width:100px; }
-  }
-  @media (max-width: 992px){
-    .ld-stepper{ --dot:46px; --line:7px; --space:22px; --ring:3px; }
-    .ld-stepper .step .dot{ font-size:16px; }
-    .ld-stepper .step .lbl{ font-size:14px; }
-  }
+.ld-stepper .step{
+  position:relative; flex:1 1 0; text-align:center; min-width:108px;
+  padding:0 var(--space); box-sizing:border-box;
+}
+
+/* СЕРЫЙ трек под кружками: от КРАЯ предыдущего до КРАЯ текущего */
+.ld-stepper .step:not(:first-child)::before{
+  content:""; position:absolute;
+  top:  calc(var(--dot)/2 - var(--line)/2);
+  left: calc(-50% + var(--dot)/2);
+  right:calc( 50% + var(--dot)/2);
+  height: var(--line);
+  background: var(--c-gray);
+  border-radius: 999px;
+  z-index: 1;
+}
+
+/* ЗЕЛЁНАЯ заливка трека (поверх серого), анимируется шириной */
+.ld-stepper .step:not(:first-child)::after{
+  content:""; position:absolute;
+  top:  calc(var(--dot)/2 - var(--line)/2);
+  left: calc(-50% + var(--dot)/2);
+  right:calc( 50% + var(--dot)/2);
+  height: var(--line);
+  background: var(--c-done);
+  border-radius: 999px;
+  z-index: 2;                   /* над серым, под кружками */
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .38s ease;
+}
+
+/* включение сегмента (во время/после анимации) */
+.ld-stepper .step.seg-on::after,
+.ld-stepper .step.done::after,
+.ld-stepper .step.current::after{
+  transform: scaleX(1);
+}
+
+/* кружки */
+.ld-stepper .step .dot{
+  position:relative; z-index:3; display:inline-grid; place-items:center;
+  width:var(--dot); height:var(--dot); border-radius:50%;
+  font: 800 17px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  user-select:none; transition: transform .18s ease, background-color .18s ease, color .18s ease, box-shadow .18s ease;
+  background:#f3f4f6; color:#9aa3af; /* future */
+  box-shadow:none;
+}
+
+.ld-stepper .step .lbl{
+  display:block; margin-top:9px; font-weight:600; color:var(--c-text); font-size:15px;
+}
+
+/* ПРОЙДЕННЫЕ и ТЕКУЩИЙ: сплошная заливка + внешнее кольцо того же цвета */
+.ld-stepper .step.done .dot,
+.ld-stepper .step.current .dot{
+  background: var(--c-done);
+  color:#fff;
+  box-shadow: 0 0 0 var(--ring) var(--c-done);
+  transform: scale(1);
+}
+
+/* Терминальные как текущие — своим цветом */
+.ld-stepper .step.current.is-canceled .dot{
+  background: var(--c-danger);
+  box-shadow: 0 0 0 var(--ring) var(--c-danger);
+  color:#fff;
+}
+
+.ld-stepper .step.current.is-tonu .dot{
+  background: var(--c-warn);
+  box-shadow: 0 0 0 var(--ring) var(--c-warn);
+  color:#fff;
+}
+
+/* будущие подписи приглушены */
+.ld-stepper .step.future .lbl{ color:var(--c-muted); font-weight:500; }
+/* Включаем «лёгкий прыжок» кружков только во время анимации */
+.ld-stepper.animating .step .dot{ transform: scale(.92); }
+.ld-stepper.animating .step.done .dot,
+.ld-stepper.animating .step.current .dot{ transform: scale(1); }
+
+/* адаптив */
+@media (max-width: 1200px){
+  .ld-stepper{ --space:28px; }
+  .ld-stepper .step{ min-width:100px; }
+}
+
+@media (max-width: 992px){
+  .ld-stepper{ --dot:46px; --line:7px; --space:22px; --ring:3px; }
+  .ld-stepper .step .dot{ font-size:16px; }
+  .ld-stepper .step .lbl{ font-size:14px; }
+}
