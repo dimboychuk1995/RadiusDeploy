@@ -157,6 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initNavigation();
   initGlobalTooltips();
   initAddressAutocompleteNew();
+  __initBootstrapDatepickers(document); // ⬅ добавили
 });
 
 async function initAddressAutocompleteNew() {
@@ -246,3 +247,123 @@ function attachMapboxAutocomplete(input, token) {
 
   input.dataset.autocompleteInitialized = "true";
 }
+
+/* === Global Bootstrap Datepicker init (EN, mm/dd/yyyy, bottom, sticky to input) === */
+(function () {
+  function getScrollParent(el) {
+    let p = el.parentElement;
+    const regex = /(auto|scroll)/;
+    while (p && p !== document.body) {
+      const cs = getComputedStyle(p);
+      if (regex.test(cs.overflow + cs.overflowY + cs.overflowX)) return p;
+      p = p.parentElement;
+    }
+    return window; // fallback
+  }
+
+  function attachStickyReposition(input, instance) {
+    // instance = $inp.data('datepicker')
+    const $inp = jQuery(input);
+
+    function placeIfVisible() {
+      // виден ли календарь (popper контейнер присутствует и не скрыт)
+      const dp = $inp.data('datepicker');
+      if (!dp || !dp.picker || dp.picker.is(':hidden')) return;
+      if (typeof dp.place === 'function') dp.place();
+    }
+
+    // пересчитываем позицию при прокрутке ближайшего скролл-контейнера и окна
+    const sp = getScrollParent(input);
+    const onScroll = () => placeIfVisible();
+    const onResize = () => placeIfVisible();
+
+    // сохраним ссылки, чтобы при destroy можно было снять
+    input.__dpEvents = input.__dpEvents || [];
+    if (sp === window) {
+      window.addEventListener('scroll', onScroll, { passive: true });
+      input.__dpEvents.push(() => window.removeEventListener('scroll', onScroll));
+    } else {
+      sp.addEventListener('scroll', onScroll, { passive: true });
+      input.__dpEvents.push(() => sp.removeEventListener('scroll', onScroll));
+    }
+    window.addEventListener('resize', onResize);
+    input.__dpEvents.push(() => window.removeEventListener('resize', onResize));
+
+    // также пересчёт при focus/keyup (на всякий)
+    $inp.on('keyup focus', placeIfVisible);
+  }
+
+  function initBootstrapDatepickers(scope) {
+    if (!window.jQuery || !jQuery.fn.datepicker) {
+      console.warn('[bootstrap-datepicker] not loaded: check CSS/JS includes in base.html');
+      return;
+    }
+
+    const root = scope instanceof Element ? scope : (scope ? document.querySelector(scope) : document);
+
+    const candidates = root.querySelectorAll(
+      'input.datepicker-input, input[data-datepicker], input[type="date"][data-upgrade="1"]'
+    );
+
+    candidates.forEach(inp => {
+      const $inp = jQuery(inp);
+      if ($inp.data('__bdp')) return;
+
+      if (inp.type === 'date' && inp.getAttribute('data-upgrade') === '1') {
+        try { inp.type = 'text'; } catch (e) {}
+      }
+
+      const fmt  = inp.getAttribute('data-date-format')   || 'mm/dd/yyyy';
+      const lang = inp.getAttribute('data-date-language') || 'en';
+
+      $inp.datepicker({
+        format: fmt,
+        language: lang,
+        autoclose: true,
+        todayHighlight: true,
+        clearBtn: true,
+        orientation: 'bottom',     // вниз
+        container: 'body',         // поверх оффканваса
+        zIndexOffset: 3000,
+        weekStart: 0,
+        templates: {
+          leftArrow:  '&laquo;',
+          rightArrow: '&raquo;'
+        }
+      })
+      .on('show', () => {
+        // сразу поправим позицию
+        const dp = $inp.data('datepicker');
+        if (dp && typeof dp.place === 'function') dp.place();
+      })
+      .on('changeDate', function(){
+        $inp.trigger('change');
+      });
+
+      // приклеиваем к скроллу/resize
+      attachStickyReposition(inp, $inp.data('datepicker'));
+
+      $inp.data('__bdp', true);
+    });
+  }
+
+  // Публично
+  window.__initBootstrapDatepickers = initBootstrapDatepickers;
+
+  // Первичная инициализация
+  document.addEventListener('DOMContentLoaded', () => {
+    initBootstrapDatepickers(document);
+  });
+
+  // Инициализация на динамически добавленные узлы
+  const mo = new MutationObserver(list => {
+    for (const m of list) {
+      if (m.type === 'childList' && m.addedNodes?.length) {
+        m.addedNodes.forEach(node => {
+          if (node instanceof HTMLElement) initBootstrapDatepickers(node);
+        });
+      }
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+})();

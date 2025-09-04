@@ -3,17 +3,22 @@
   <button class="btn btn-primary" onclick="openTruckModal()">➕ Добавить грузовик</button>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="input-group" style="max-width: 500px;">
-    <input type="text" id="truckSearchInput" class="form-control" placeholder="Поиск по Unit #, Make, VIN, Driver..." oninput="filterTrucks()">
+<div class="search-row mb-3">
+  <div class="input-group rounded-free" style="max-width: 500px;">
+    <input type="text"
+           id="truckSearchInput"
+           class="form-control"
+           placeholder="Поиск по Unit #, Make, VIN, Driver..."
+           oninput="filterTrucks()">
     <div class="input-group-append">
       <button class="btn btn-outline-secondary" type="button" onclick="clearTruckSearch()">✖</button>
     </div>
   </div>
-  <div class="form-check ml-3">
+
+  <label class="expiring-chip" for="expiringOnly">
     <input type="checkbox" class="form-check-input" id="expiringOnly" onchange="filterTrucks()">
-    <label class="form-check-label" for="expiringOnly">Показать с истекающими сроками</label>
-  </div>
+    <span>Показать с истекающими сроками</span>
+  </label>
 </div>
 
 <!-- Секции по компаниям -->
@@ -107,18 +112,20 @@
 {% endif %}
 
 <!-- Модальное окно -->
-<div class="custom-offcanvas custom-offcanvas-right" id="truckModal">
+<div class="custom-offcanvas custom-offcanvas-right" id="truckModal" aria-hidden="true">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
       <h5 class="modal-title" id="truckModalTitle">Добавить новый грузовик</h5>
-      <button type="button" class="close" onclick="closeTruckModal()"><span>&times;</span></button>
+      <button type="button" class="close" onclick="closeTruckModal()" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
     </div>
 
     <div class="custom-offcanvas-body">
       <div class="load-modal-content">
         <!-- Левая часть -->
         <div class="load-modal-left">
-          <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data">
+          <form id="truckForm" action="/add_truck" method="post" enctype="multipart/form-data" autocomplete="off">
 
             <div class="form-group">
               <label>Компания-владелец:</label>
@@ -136,6 +143,7 @@
             <div class="form-group"><label>Year:</label><input type="text" class="form-control" name="year" required></div>
             <div class="form-group"><label>Mileage:</label><input type="text" class="form-control" name="mileage" required></div>
             <div class="form-group"><label>VIN:</label><input type="text" class="form-control" name="vin" required></div>
+
             <div class="form-group">
               <label>Unit Type:</label>
               <select class="form-control" name="unit_type" id="unitTypeSelect" required>
@@ -155,25 +163,52 @@
 
             <hr><h5>Registration</h5>
             <div class="form-group"><label>License Plate:</label><input type="text" class="form-control" name="registration_plate"></div>
-            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="registration_exp"></div>
-            <div class="form-group"><label>Registration File:</label><input type="file" class="form-control-file" name="registration_file"></div>
+            <div class="form-group">
+              <label>Expiration Date:</label>
+              <input type="text"
+                     class="form-control datepicker-input"
+                     name="registration_exp"
+                     placeholder="MM/DD/YYYY"
+                     data-date-format="mm/dd/yyyy"
+                     data-date-language="en"
+                     autocomplete="off">
+            </div>
+            <div class="form-group"><label>Registration File:</label><input type="file" class="form-control-file" name="registration_file" accept=".pdf,.jpg,.jpeg,.png"></div>
 
             <hr><h5>Annual Inspection</h5>
-            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="inspection_exp"></div>
-            <div class="form-group"><label>Inspection File:</label><input type="file" class="form-control-file" name="inspection_file"></div>
+            <div class="form-group">
+              <label>Expiration Date:</label>
+              <input type="text"
+                     class="form-control datepicker-input"
+                     name="inspection_exp"
+                     placeholder="MM/DD/YYYY"
+                     data-date-format="mm/dd/yyyy"
+                     data-date-language="en"
+                     autocomplete="off">
+            </div>
+            <div class="form-group"><label>Inspection File:</label><input type="file" class="form-control-file" name="inspection_file" accept=".pdf,.jpg,.jpeg,.png"></div>
 
             <hr><h5>Power of Attorney</h5>
-            <div class="form-group"><label>File:</label><input type="file" class="form-control-file" name="power_of_attorney_file"></div>
+            <div class="form-group"><label>File:</label><input type="file" class="form-control-file" name="power_of_attorney_file" accept=".pdf,.jpg,.jpeg,.png"></div>
 
             <hr><h5>Liability Insurance</h5>
             <div class="form-group"><label>Provider:</label><input type="text" class="form-control" name="insurance_provider"></div>
             <div class="form-group"><label>Policy Number:</label><input type="text" class="form-control" name="insurance_policy"></div>
-            <div class="form-group"><label>Expiration Date:</label><input type="date" class="form-control" name="insurance_exp"></div>
-            <div class="form-group"><label>Insurance File:</label><input type="file" class="form-control-file" name="insurance_file"></div>
+            <div class="form-group">
+              <label>Expiration Date:</label>
+              <input type="text"
+                     class="form-control datepicker-input"
+                     name="insurance_exp"
+                     placeholder="MM/DD/YYYY"
+                     data-date-format="mm/dd/yyyy"
+                     data-date-language="en"
+                     autocomplete="off">
+            </div>
+            <div class="form-group"><label>Insurance File:</label><input type="file" class="form-control-file" name="insurance_file" accept=".pdf,.jpg,.jpeg,.png"></div>
 
             <div class="mt-4 d-flex justify-content-end">
-              <button type="button" class="btn btn-secondary mr-2" onclick="closeTruckModal()">Отмена</button>
-              <button type="submit" class="btn btn-success">Сохранить</button>
+              <button type="button" class="btn btn-secondary mr-2" onclick="closeTruckModal()">Cancel</button>
+              <button type="submit" class="btn btn-success">Save</button>
             </div>
           </form>
         </div>
@@ -181,9 +216,11 @@
         <!-- Правая часть -->
         <div class="load-modal-right">
           <div class="upload-box">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Upload">
+              <path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/>
+            </svg>
             <strong>Import Unit Document (PDF)</strong>
-            <p class="text-muted">Drag and drop or <label for="truckPdfInput">choose PDF</label> to upload</p>
+            <p class="text-muted">Drag and drop or <label for="truckPdfInput" style="cursor:pointer;">choose PDF</label> to upload</p>
             <input type="file" id="truckPdfInput" accept="application/pdf">
           </div>
         </div>
@@ -191,6 +228,7 @@
     </div>
   </div>
 </div>
+
 
 <div class="custom-offcanvas-backdrop" onclick="closeTruckModal()"></div>
 

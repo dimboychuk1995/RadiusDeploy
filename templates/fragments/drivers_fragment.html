@@ -4,17 +4,20 @@
   <button class="btn btn-primary" onclick="openDriverModal()">➕ Добавить водителя</button>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div class="input-group" style="max-width: 500px;">
-    <input type="text" id="driverSearchInput" class="form-control" placeholder="Поиск по имени, email, траку, диспетчеру..." oninput="filterDrivers()">
+<div class="search-row mb-3">
+  <div class="input-group rounded-free" style="max-width: 500px;">
+    <input type="text" id="driverSearchInput" class="form-control"
+           placeholder="Поиск по имени, email, траку, диспетчеру..."
+           oninput="filterDrivers()">
     <div class="input-group-append">
       <button class="btn btn-outline-secondary" type="button" onclick="clearDriverSearch()">✖</button>
     </div>
   </div>
-  <div class="form-check ml-3">
+
+  <label class="expiring-chip" for="expiringDriversOnly">
     <input type="checkbox" class="form-check-input" id="expiringDriversOnly" onchange="filterDrivers()">
-    <label class="form-check-label" for="expiringDriversOnly">Показать с истекающими сроками</label>
-  </div>
+    <span>Показать с истекающими сроками</span>
+  </label>
 </div>
 
 <!-- Группировка по компаниям -->
@@ -163,17 +166,19 @@
   </div>
 {% endif %}
 
-<div class="custom-offcanvas custom-offcanvas-right" id="driverModal">
+<!-- Модалка добавления водителя -->
+<div class="custom-offcanvas custom-offcanvas-right" id="driverModal" aria-hidden="true">
   <div class="custom-offcanvas-content">
     <div class="custom-offcanvas-header">
       <h4 id="driverModalTitle">Добавить водителя</h4>
-      <button class="btn btn-sm btn-secondary" onclick="closeDriverModal()">✖</button>
+      <button class="btn btn-sm btn-secondary" onclick="closeDriverModal()" aria-label="Close">✖</button>
     </div>
+
     <div class="custom-offcanvas-body">
       <div class="load-modal-content">
         <!-- Левая часть -->
         <div class="load-modal-left">
-          <form id="driverForm" method="POST" action="/add_driver" enctype="multipart/form-data">
+          <form id="driverForm" method="POST" action="/add_driver" enctype="multipart/form-data" autocomplete="off">
             <div class="form-group">
               <label>Hiring Company:</label>
               <select name="hiring_company" class="form-control">
@@ -183,10 +188,11 @@
                 {% endfor %}
               </select>
             </div>
+
             <div class="form-group"><label>Имя:</label><input type="text" name="name" class="form-control" required></div>
             <div class="form-group"><label>Телефон:</label><input type="text" name="contact_number" class="form-control" required></div>
 
-            <!-- address-->
+            <!-- Address -->
             <div class="form-group" style="position: relative;">
               <label>Address</label>
               <input type="text" id="address-autocomplete" name="address" class="form-control" data-autocomplete="mapbox">
@@ -194,7 +200,20 @@
             </div>
 
             <div class="form-group"><label>Email:</label><input type="email" name="email" class="form-control"></div>
-            <div class="form-group"><label>Дата рождения:</label><input type="date" name="dob" class="form-control"></div>
+
+            <!-- Дата рождения -->
+            <div class="form-group">
+              <label>Дата рождения:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="dob"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
+
             <div class="form-group">
               <label>Тип водителя:</label>
               <select name="driver_type" class="form-control">
@@ -203,6 +222,7 @@
                 <option value="Fleet Owner">Fleet Owner</option>
               </select>
             </div>
+
             <div class="form-group">
               <label>Статус:</label>
               <select name="status" class="form-control">
@@ -212,45 +232,105 @@
               </select>
             </div>
 
-              <hr><h5>Лицензия</h5>
+            <hr><h5>Лицензия</h5>
             <div class="form-group"><label>Номер:</label><input type="text" name="license_number" class="form-control"></div>
             <div class="form-group"><label>Класс:</label><input type="text" name="license_class" class="form-control"></div>
             <div class="form-group"><label>Штат:</label><input type="text" name="license_state" class="form-control"></div>
 
-            <!-- License address-->
+            <!-- License address -->
             <div class="form-group" style="position: relative;">
               <label>License Address</label>
               <input type="text" id="license_address_autocomplete" name="license_address" class="form-control" data-autocomplete="mapbox">
               <div class="autocomplete-suggestions"></div>
             </div>
 
-            <div class="form-group"><label>Дата выдачи:</label><input type="date" name="license_issued_date" class="form-control"></div>
-            <div class="form-group"><label>Дата окончания:</label><input type="date" name="license_expiration_date" class="form-control"></div>
+            <div class="form-group">
+              <label>Дата выдачи:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="license_issued_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Дата окончания:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="license_expiration_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
             <div class="form-group"><label>Ограничения:</label><input type="text" name="license_restrictions" class="form-control"></div>
-            <div class="form-group"><label>Файл:</label><input type="file" name="license_file" class="form-control-file"></div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="license_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>Медицинский сертификат</h5>
-            <div class="form-group"><label>Дата выдачи:</label><input type="date" name="med_issued_date" class="form-control"></div>
-            <div class="form-group"><label>Дата окончания:</label><input type="date" name="med_expiration_date" class="form-control"></div>
+            <div class="form-group">
+              <label>Дата выдачи:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="med_issued_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Дата окончания:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="med_expiration_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
             <div class="form-group"><label>Ограничения:</label><input type="text" name="med_restrictions" class="form-control"></div>
-            <div class="form-group"><label>Файл:</label><input type="file" name="med_file" class="form-control-file"></div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="med_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>Драг тест</h5>
-            <div class="form-group"><label>Дата теста:</label><input type="date" name="drug_issued_date" class="form-control"></div>
-            <div class="form-group"><label>Файл:</label><input type="file" name="drug_file" class="form-control-file"></div>
+            <div class="form-group">
+              <label>Дата теста:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="drug_issued_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="drug_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>MVR</h5>
-            <div class="form-group"><label>Дата окончания:</label><input type="date" name="mvr_expiration_date" class="form-control"></div>
-            <div class="form-group"><label>Файл:</label><input type="file" name="mvr_file" class="form-control-file"></div>
+            <div class="form-group">
+              <label>Дата окончания:</label>
+              <input
+                type="text"
+                class="form-control datepicker-input"
+                name="mvr_expiration_date"
+                placeholder="MM/DD/YYYY"
+                data-date-format="mm/dd/yyyy"
+                data-date-language="en"
+                autocomplete="off">
+            </div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="mvr_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>PSP</h5>
-            <div class="form-group"><label>Файл:</label><input type="file" name="psp_file" class="form-control-file"></div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="psp_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>Clearing House</h5>
-            <div class="form-group"><label>Файл:</label><input type="file" name="clearing_house_file" class="form-control-file"></div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="clearing_house_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>Agreement</h5>
-            <div class="form-group"><label>Файл:</label><input type="file" name="agreement_file" class="form-control-file"></div>
+            <div class="form-group"><label>Файл:</label><input type="file" name="agreement_file" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic"></div>
 
             <hr><h5>SSN</h5>
             <div class="form-group"><label>SSN:</label><input type="text" name="ssn" class="form-control"></div>
@@ -261,7 +341,7 @@
               <select name="truck" class="form-control">
                 <option value="">—</option>
                 {% for truck in trucks %}
-                <option value="{{ truck._id }}">{{ truck.unit_number }}</option>
+                  <option value="{{ truck._id }}">{{ truck.unit_number }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -270,7 +350,7 @@
               <select name="dispatcher" class="form-control">
                 <option value="">—</option>
                 {% for dispatcher in dispatchers %}
-                <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
+                  <option value="{{ dispatcher._id }}">{{ dispatcher.username }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -285,9 +365,11 @@
         <!-- Правая часть -->
         <div class="load-modal-right">
           <div class="upload-box">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64"><path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="#1a3568" viewBox="0 0 24 24" width="64" height="64" role="img" aria-label="Upload">
+              <path d="M12 2a5.002 5.002 0 0 0-4.9 4H5a1 1 0 0 0 0 2h2.1a5.002 5.002 0 0 0 9.8 0H19a1 1 0 1 0 0-2h-2.1A5.002 5.002 0 0 0 12 2zm0 2a3 3 0 0 1 2.83 2H9.17A3 3 0 0 1 12 4zm-1 8V7h2v5h3l-4 4-4-4h3z"/>
+            </svg>
             <strong>Import Driver License (PDF)</strong>
-            <p class="text-muted">Drag and drop or <label for="driverPdfInput">choose PDF</label> to upload</p>
+            <p class="text-muted">Drag and drop or <label for="driverPdfInput" style="cursor:pointer;">choose PDF</label> to upload</p>
             <input type="file" id="driverPdfInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.tiff,.tif,.bmp,.heic">
           </div>
         </div>
@@ -295,5 +377,6 @@
     </div>
   </div>
 </div>
+
 
 <div class="custom-offcanvas-backdrop" onclick="closeDriverModal()"></div>

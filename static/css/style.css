@@ -284,6 +284,125 @@ textarea {
   display: none;
 }
 
+/* === Search input + chip: final CSS === */
+
+/* Unified row for search + chip */
+.search-row{
+  --field-h: 44px;                    /* change height here */
+  --chip-bg: rgba(229,57,53,.10);     /* cold red */
+  --chip-bg-hover: rgba(229,57,53,.16);
+  --chip-border: rgba(229,57,53,.35);
+  --chip-fg: #b71c1c;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+/* Restore right rounding and set uniform height */
+.input-group.rounded-free .form-control{
+  height:var(--field-h);
+  border-top-right-radius:.5rem !important;
+  border-bottom-right-radius:.5rem !important;
+}
+
+/* Tiny gap between input and clear button */
+.input-group.rounded-free .input-group-append{
+  margin-left:.5rem;
+}
+
+/* Make the clear button a pill and match height */
+.input-group.rounded-free .input-group-append .btn{
+  height:var(--field-h);
+  padding:0 14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px !important;
+  border:none;
+  background:#eee;
+  box-shadow:0 6px 16px rgba(0,0,0,.12);
+}
+
+/* Expiring filter chip — full height to match input */
+.expiring-chip{
+  cursor:pointer;
+  user-select:none;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  height:var(--field-h);
+  padding:0 16px;
+  border-radius:999px;
+  background:var(--chip-bg);
+  color:var(--chip-fg);
+  border:1px solid var(--chip-border);
+  box-shadow:0 4px 12px rgba(0,0,0,.06);
+  font-weight:600;
+}
+.expiring-chip:hover{
+  background:var(--chip-bg-hover);
+}
+
+/* Larger checkbox centered vertically */
+.expiring-chip .form-check-input{
+  width:1.25rem;
+  height:1.25rem;
+  margin:0;
+}
+
+/* === Bootstrap Calendar === */
+/* Bigger & pretty bootstrap-datepicker */
+.datepicker-dropdown {
+  z-index: 3000 !important;
+  border-radius: .9rem;
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 16px 34px rgba(0,0,0,.20), 0 6px 16px rgba(0,0,0,.12);
+  overflow: hidden;
+  font-size: 15px; /* крупнее шрифт */
+}
+
+.datepicker-dropdown table {
+  margin: 10px;
+}
+
+.datepicker-dropdown .datepicker-days .table-condensed th,
+.datepicker-dropdown .datepicker-days .table-condensed td {
+  padding: .6rem .7rem;           /* больше кликабельность */
+  border-radius: .6rem;
+}
+
+.datepicker-dropdown .datepicker-days .active,
+.datepicker-dropdown .datepicker-days .active:hover {
+  background: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff !important;
+}
+
+.datepicker-dropdown .datepicker-days .today {
+  background: rgba(13,110,253,.14);
+  color: #0d6efd !important;
+}
+
+.datepicker-dropdown .datepicker-days td.day:hover {
+  background: rgba(0,0,0,.06);
+}
+
+.datepicker-dropdown .datepicker-switch,
+.datepicker-dropdown .prev,
+.datepicker-dropdown .next {
+  padding: .7rem .9rem;
+}
+
+.datepicker-dropdown .clear {
+  color: #dc3545;
+  font-weight: 600;
+}
+/* ===  === */
+
+
+
+
 /* === ТАБЛИЦЫ === */
 .table {
   width: 100%;
