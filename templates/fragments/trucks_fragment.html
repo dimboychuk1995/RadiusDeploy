@@ -21,6 +21,28 @@
   </label>
 </div>
 
+
+<!-- Segmented filters -->
+<div class="d-flex flex-column gap-2 mb-3">
+
+  <!-- A. Units scope -->
+  <div class="segmented" data-role="units-filter">
+    <button type="button" class="seg-item active" data-value="all">All Units</button>
+    <button type="button" class="seg-item" data-value="no-driver">Units without assigned driver</button>
+    <button type="button" class="seg-item" data-value="inactive">Inactive Units</button>
+  </div>
+
+  <!-- B. Type scope -->
+  <div class="segmented" data-role="type-filter">
+    <button type="button" class="seg-item active" data-value="all">All Types</button>
+    <button type="button" class="seg-item" data-value="semi">Semi</button>
+    <button type="button" class="seg-item" data-value="pickup">Pick Up</button>
+    <button type="button" class="seg-item" data-value="trailers">Trailers</button>
+  </div>
+
+</div>
+
+
 <!-- Секции по компаниям -->
 {% for company in companies %}
   {% set company_trucks = trucks | selectattr("owning_company_id", "equalto", company._id|string) | list %}
@@ -46,7 +68,13 @@
           </thead>
           <tbody>
             {% for truck in company_trucks %}
-              <tr id="truck-{{ truck.id }}" class="{{ truck.status_color }}" data-tooltip="{{ truck.tooltip }}">
+              <tr id="truck-{{ truck.id }}"
+                  class="{{ truck.status_color }}"
+                  data-tooltip="{{ truck.tooltip }}"
+                  data-unit-type="{{ truck.type|lower }}"
+                  data-subtype="{{ truck.subtype|lower if truck.subtype is defined }}"
+                  data-assigned="{{ '1' if truck.assigned_driver_id else '0' }}"
+                  data-status="{{ truck.status|lower if truck.status is defined }}">
                 <td>{{ truck.unit_number }}</td>
                 <td>{{ truck.description }}</td>
                 <td>{{ truck.type }}</td>
@@ -91,7 +119,13 @@
         </thead>
         <tbody>
           {% for truck in no_company_trucks %}
-            <tr id="truck-{{ truck.id }}" class="{{ truck.status_color }}" data-tooltip="{{ truck.tooltip }}">
+            <tr id="truck-{{ truck.id }}"
+                class="{{ truck.status_color }}"
+                data-tooltip="{{ truck.tooltip }}"
+                data-unit-type="{{ truck.type|lower }}"
+                data-subtype="{{ truck.subtype|lower if truck.subtype is defined }}"
+                data-assigned="{{ '1' if truck.assigned_driver_id else '0' }}"
+                data-status="{{ truck.status|lower if truck.status is defined }}">
               <td>{{ truck.unit_number }}</td>
               <td>{{ truck.description }}</td>
               <td>{{ truck.type }}</td>

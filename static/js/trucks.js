@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
   initTruckModalActions();
-  initSamsaraLinkingEvents(); // ✅ инициализация событий Samsara-секции
+  initSamsaraLinkingEvents();
+  initTruckFiltersOnce();        // ⬅️ добавили
 });
 
 // ==============================
@@ -205,33 +206,149 @@ function restoreOpenTruckSections() {
 // ==============================
 // === Динамический поиск траков ===
 // ==============================
-function filterTrucks() {
-  const searchValue = document.getElementById("truckSearchInput").value.trim().toLowerCase();
-  const showExpiring = document.getElementById("expiringOnly").checked;
+// ==== Trucks filters (search + expiring + segmented + hide-empty companies) ====
 
-  document.querySelectorAll("tbody tr").forEach(row => {
-    const unitNumber = row.children[0]?.textContent?.toLowerCase() || "";
-    const description = row.children[1]?.textContent?.toLowerCase() || "";
-    const vin = row.children[4]?.textContent?.toLowerCase() || "";
-    const assignedDriver = row.children[4]?.textContent?.toLowerCase() || "";
-    const truckId = row.id || "";
+function normalize(s){ return (s||"").toString().toLowerCase().trim(); }
 
-    const allText = row.textContent.toLowerCase();
-    const matchVinLast6 = vin.slice(-6).includes(searchValue);
-    const matchFull = allText.includes(searchValue) || matchVinLast6;
+// состояние сегментов (по умолчанию "all")
+let __unitsScope = "all";   // all | no-driver | inactive
+let __typeScope  = "all";   // all | semi | pickup | trailers
 
-    const hasExpiringClass = row.classList.contains("table-warning") || row.classList.contains("table-danger");
+function rowMatchesQuery(tr, q){
+  if (!q) return true;
+  // поиск по всему тексту строки + last6 VIN
+  const all = normalize(tr.textContent);
+  if (all.includes(q)) return true;
+  const vinCell = tr.querySelector('[data-field="vin"]') || tr.children[4];
+  const vin = normalize(vinCell ? vinCell.textContent : "");
+  const last6 = vin.slice(-6);
+  return last6.includes(q);
+}
 
-    const visible = (!searchValue || matchFull) && (!showExpiring || hasExpiringClass);
-    row.style.display = visible ? "" : "none";
+function rowMatchesExpiring(tr){
+  const onlyExp = document.querySelector("#expiringOnly");
+  if (onlyExp && onlyExp.checked){
+    // считаем истекающим, если строка помечена цветом/классом/tooltip'ом
+    return tr.classList.contains("table-warning")
+        || tr.classList.contains("table-danger")
+        || tr.classList.contains("expiring-warning")
+        || normalize(tr.dataset.tooltip||"").includes("expir");
+  }
+  return true;
+}
+
+function rowMatchesUnitsScope(tr){
+  if (__unitsScope === "all") return true;
+
+  if (__unitsScope === "no-driver"){
+    // приоритет по data-assigned="0", fallback — по тексту колонки с водителем
+    if (tr.dataset.assigned === "0") return true;
+    const driverCell = tr.querySelector('[data-field="driver"]') || tr.children[4];
+    const txt = normalize(driverCell ? driverCell.textContent : "");
+    return !txt || txt === "-" || txt === "—" || txt === "none" || txt === "no driver";
+  }
+
+  if (__unitsScope === "inactive"){
+    // приоритет по data-status="inactive", fallback — текст строки/tooltip
+    if (normalize(tr.dataset.status||"") === "inactive") return true;
+    const txt = normalize(tr.textContent + " " + (tr.dataset.tooltip||""));
+    return txt.includes("inactive") || tr.classList.contains("inactive");
+  }
+
+  return true;
+}
+
+function rowMatchesTypeScope(tr){
+  if (__typeScope === "all") return true;
+
+  const t  = normalize(tr.dataset.unitType || "");   // "truck" / "trailer" / …
+  const st = normalize(tr.dataset.subtype  || "");   // "semi" / "pick up" / "van trailer" …
+
+  // Fallback: текст ячейки "Тип" (3-я колонка)
+  let cellTxt = "";
+  const typeCell = tr.querySelector("td:nth-child(3)");
+  if (typeCell) cellTxt = normalize(typeCell.textContent || "");
+
+  const hay = `${t} ${st} ${cellTxt}`;
+
+  if (__typeScope === "semi")     return hay.includes("semi");
+  if (__typeScope === "pickup")   return hay.includes("pick up") || hay.includes("pickup");
+  if (__typeScope === "trailers") return hay.includes("trailer");
+  return true;
+}
+
+/**
+ * Главная функция: учитывает поиск, чип "истекает", оба сегмента.
+ * Скрывает КАРТОЧКУ компании, если внутри нет видимых строк.
+ */
+function filterTrucks(){
+  const q = normalize(document.querySelector("#truckSearchInput")?.value || "");
+
+  document.querySelectorAll(".card > .company-section").forEach(section=>{
+    const card = section.closest(".card");
+    let visible = 0;
+
+    section.querySelectorAll("tbody tr").forEach(tr=>{
+      const ok = rowMatchesQuery(tr, q)
+             && rowMatchesExpiring(tr)
+             && rowMatchesUnitsScope(tr)
+             && rowMatchesTypeScope(tr);
+
+      tr.style.display = ok ? "" : "none";
+      if (ok) visible++;
+    });
+
+    if (card) card.style.display = visible > 0 ? "" : "none";
   });
 }
 
-function clearTruckSearch() {
-  document.getElementById("truckSearchInput").value = "";
-  document.getElementById("expiringOnly").checked = false;
+function clearTruckSearch(){
+  const input = document.querySelector("#truckSearchInput");
+  if (input){ input.value = ""; input.dispatchEvent(new Event("input")); }
+  const chip = document.querySelector("#expiringOnly");
+  if (chip && chip.checked){ chip.checked = false; }
+  // сегменты оставляем как выбраны пользователем
   filterTrucks();
 }
+
+// Единоразовая инициализация фильтров/сегментов
+function initTruckFiltersOnce(){
+  // Поиск и чип "истекает"
+  const input = document.querySelector("#truckSearchInput");
+  if (input && !input.dataset._wired){ input.addEventListener("input", filterTrucks); input.dataset._wired="1"; }
+  const chip = document.querySelector("#expiringOnly");
+  if (chip && !chip.dataset._wired){ chip.addEventListener("change", filterTrucks); chip.dataset._wired="1"; }
+
+  // Сегмент A: Units scope
+  const unitsSeg = document.querySelector('.segmented[data-role="units-filter"]');
+  if (unitsSeg && !unitsSeg.dataset._wired){
+    unitsSeg.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.seg-item'); if(!btn) return;
+      unitsSeg.querySelectorAll('.seg-item').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      __unitsScope = btn.getAttribute('data-value') || 'all';
+      filterTrucks();
+    });
+    unitsSeg.dataset._wired = "1";
+  }
+
+  // Сегмент B: Type scope
+  const typeSeg = document.querySelector('.segmented[data-role="type-filter"]');
+  if (typeSeg && !typeSeg.dataset._wired){
+    typeSeg.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.seg-item'); if(!btn) return;
+      typeSeg.querySelectorAll('.seg-item').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      __typeScope = btn.getAttribute('data-value') || 'all';
+      filterTrucks();
+    });
+    typeSeg.dataset._wired = "1";
+  }
+
+  // первый прогон
+  filterTrucks();
+}
+
 
 // =====================================================
 // === SAMSARA LINKING — логика для модалки назначения ===
